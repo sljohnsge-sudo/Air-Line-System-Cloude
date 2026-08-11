@@ -1869,6 +1869,19 @@ body {
   .rsb-search-btn { width: 100%; justify-content: center; }
   .rc-itinerary { padding: 0.75rem; }
   .rc-time { font-size: 1.2rem; }
+
+  /* The search topbar is normally `position: fixed` so it stays visible
+     while results scroll underneath it. On narrow phones the fields stack
+     into a column and the bar grows tall enough to cover most of the
+     screen — since it's still fixed/pinned, it permanently blocks the
+     results instead of scrolling away. Let it flow normally here instead. */
+  .results-topbar {
+    position: static;
+    box-shadow: none;
+  }
+  .results-page-content {
+    padding-top: 0 !important;
+  }
 }
 
 /* ── Round-trip itinerary + Select Flight / stat-grid responsive rules ── */
