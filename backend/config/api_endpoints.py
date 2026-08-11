@@ -74,14 +74,29 @@ class TravelportEndpoints:
     # ── STEP 5: Add Offer to Workbench ────────────────────────────────────────
     @staticmethod
     def add_offer_to_workbench(workbench_id: str) -> str:
-        """POST → add a selected flight offer to the workbench."""
+        """POST → add a selected flight offer to the workbench (reference payload).
+        Used for NDC/LCC content — Travelport: full payload not supported for NDC."""
         return f"{_air}/book/airoffer/reservationworkbench/{workbench_id}/offers/buildfromcatalogproductofferings"
+
+    @staticmethod
+    def add_offer_to_workbench_full_payload(workbench_id: str) -> str:
+        """POST → add a selected flight offer to the workbench (full payload).
+        Travelport GDS certification guidance: use full payload for GDS carrier
+        bookings — sends complete itinerary + fare/brand selection directly,
+        with no dependency on a cached Search session."""
+        return f"{_air}/book/airoffer/reservationworkbench/{workbench_id}/offers/buildfromproducts"
 
     # ── STEP 6: Add Traveler(s) ────────────────────────────────────────────────
     @staticmethod
     def update_workbench(workbench_id: str) -> str:
         """POST → add passenger/traveler details to an existing workbench."""
         return f"{_air}/book/traveler/reservationworkbench/{workbench_id}/travelers"
+
+    @staticmethod
+    def get_workbench(workbench_id: str) -> str:
+        """GET → retrieve the current state of an open workbench session
+        (e.g. to verify travelers were added correctly before committing)."""
+        return f"{_air}/book/session/reservationworkbench/{workbench_id}"
 
     # ── STEP 7: Commit Workbench → Generate PNR ───────────────────────────────
     @staticmethod
