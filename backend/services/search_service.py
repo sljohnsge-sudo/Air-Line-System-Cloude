@@ -171,19 +171,19 @@ def search_flights(
             "age": 25,
             "passengerTypeCode": "ADT"
         })
-    if child_count > 0:
-        passenger_criteria.append({
-            "@type": "PassengerCriteria",
-            "number": child_count,
-            "age": 10,
-            "passengerTypeCode": "CNN"
-        })
     if infant_count > 0:
         passenger_criteria.append({
             "@type": "PassengerCriteria",
             "number": infant_count,
             "age": 1,
             "passengerTypeCode": "INF"
+        })
+    if child_count > 0:
+        passenger_criteria.append({
+            "@type": "PassengerCriteria",
+            "number": child_count,
+            "age": 10,
+            "passengerTypeCode": "CNN"
         })
 
     # ── SearchCriteriaFlight (per Travelport v11 spec) ─────────────────────────
@@ -214,7 +214,13 @@ def search_flights(
         "CatalogProductOfferingsRequest": {
             "@type": "CatalogProductOfferingsRequestAir",
             "maxNumberOfUpsellsToReturn": 1,
-            "offersPerPage": 50,
+            # Travelport GDS certification guidance allows 0, 999, or omitting
+            # this field. Empirically on this sandbox account, omitting it (or
+            # sending 0) disables server-side caching for journey-based search,
+            # which drops CatalogProductOfferings.Identifier from the response —
+            # the reference the offer/price request needs downstream. 999 keeps
+            # caching on while still satisfying the certification guidance.
+            "offersPerPage": 999,
             "contentSourceList": ["GDS", "NDC", "APIPAC"],
             "PassengerCriteria": passenger_criteria,
             "SearchCriteriaFlight": search_criteria_flight
@@ -238,7 +244,10 @@ def search_flights(
                 }
             ]
 
-    headers = get_auth_headers()
+    # fareIndicator header — Travelport GDS certification requirement for the
+    # search request only; not part of the shared auth headers used by every
+    # other endpoint (workbench, ticketing, etc.).
+    headers = {**get_auth_headers(), "fareIndicator": "true"}
     logger.info(f"Request payload: {payload}")
 
     with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
@@ -255,7 +264,7 @@ def search_flights(
                 response = client.post(
                     TravelportEndpoints.FLIGHT_SEARCH,
                     json=payload,
-                    headers=get_auth_headers()
+                    headers={**get_auth_headers(), "fareIndicator": "true"}
                 )
 
             # Detailed error logging
@@ -451,7 +460,12 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
 
         # Process each CatalogProductOffering
         offerings_block = catalog.get("CatalogProductOfferings", {})
-        catalog_offerings_id = offerings_block.get("Identifier", {}).get("value")
+        # Some sandbox accounts don't return CatalogProductOfferings.Identifier —
+        # fall back to the response's transactionId, which Travelport also accepts
+        # as the CatalogProductOfferingsIdentifier reference for the offer/price
+        # build step. Without one of these, the downstream offer request has no
+        # way to reference this search and Travelport rejects it as invalid.
+        catalog_offerings_id = offerings_block.get("Identifier", {}).get("value") or catalog.get("transactionId")
         product_offerings = offerings_block.get("CatalogProductOffering", [])
 
         # IATA equipment code → human-readable aircraft name mapping
@@ -588,6 +602,11 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                         "carrier": seg_carrier,
                         "carrier_name": airline_map.get(seg_carrier, seg_carrier),
                         "flight_number": f"{seg_carrier}{seg_number}",
+                        # Bare flight number without carrier prefix — needed for
+                        # SpecificFlightCriteria.flightNumber in the full-payload
+                        # AddOffer request (buildfromproducts), which wants carrier
+                        # and flight number as separate fields.
+                        "raw_number": seg_number,
                         "departure_airport": seg_dep_info.get("location", ""),
                         "arrival_airport": seg_arr_info.get("location", ""),
                         "departure_time": seg_dep_info.get("date", "") + "T" + seg_dep_info.get("time", ""),
@@ -684,11 +703,32 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                                 "total_price": single_total * qty
                             }
 
+                    # Narrow ProductBrandOptions down to exactly this brand_offering —
+                    # not the whole brand_options group, which can hold several fare
+                    # brands (e.g. Value + Flex) for the same segment combination.
+                    # Travelport GDS certification requires the Price request to
+                    # reflect the complete, unambiguous itinerary + fare that was
+                    # actually selected from the search response.
                     selected_raw_offering = {
                         **offering,
-                        "ProductBrandOptions": [brand_options]
+                        "ProductBrandOptions": [{
+                            **brand_options,
+                            "ProductBrandOffering": [brand_offering]
+                        }]
                     }
                     selected_raw_offering["CatalogProductOfferingsIdentifier"] = catalog_offerings_id
+
+                    # Extra fields (not part of Travelport's native offering shape)
+                    # carried through so the booking step can build a GDS full-payload
+                    # AddOffer request without needing to re-derive segment/brand data
+                    # from a raw_offering that, on its own, only holds flightRefs.
+                    _source_code = brand_offering.get("ContentSource") or offering.get("ContentSource") or "GDS"
+                    selected_raw_offering["fare_source"] = "LCC" if _source_code == "APIPAC" else _source_code
+                    selected_raw_offering["segments"] = segments_list
+                    selected_raw_offering["cabin_class"] = cabin
+                    selected_raw_offering["classes_of_service"] = classes_of_service
+                    selected_raw_offering["brand_id"] = brand_id
+                    selected_raw_offering["brand_name"] = display_brand_name
 
                     fare_opt = {
                         "brand_name": display_brand_name,

@@ -43,6 +43,18 @@ def _api_post(url: str, payload: dict | str, session_id: str | None = None) -> d
         return response.json()
 
 
+def _api_get(url: str, session_id: str | None = None) -> dict:
+    """Internal helper for GET requests with automatic token retry."""
+    headers = get_auth_headers(session_id)
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+        response = client.get(url, headers=headers)
+        if response.status_code == 401:
+            invalidate_token()
+            response = client.get(url, headers=get_auth_headers(session_id))
+        response.raise_for_status()
+        return response.json()
+
+
 def _api_delete(url: str, session_id: str | None = None) -> None:
     """Internal helper for DELETE requests (used to ignore/cancel a stale workbench)."""
     headers = get_auth_headers(session_id)
@@ -306,6 +318,126 @@ def _build_offering_selection(raw_offering: dict) -> dict:
     }
 
 
+def _build_specific_flight_criteria(segments: list, cabin: str | None = None, class_of_service: str | None = None) -> list:
+    """
+    Build the SpecificFlightCriteria array (one entry per physical flight segment)
+    for the full-payload AddOffer request, from one leg's parsed `segments` list
+    (search_service.py's segments_list, carried through on raw_offering).
+
+    cabin / class_of_service pin the exact booking class that was priced and
+    shown to the user. Without these, Travelport can reprice the same flight
+    number against a different available class within the same cabin/brand —
+    confirmed live: omitting them let a flydubai fare reprice ~3.4x higher at
+    commit than what was quoted at search.
+    """
+    criteria = []
+    for idx, seg in enumerate(segments, start=1):
+        dep_date, _, dep_time = (seg.get("departure_time") or "").partition("T")
+        arr_date, _, arr_time = (seg.get("arrival_time") or "").partition("T")
+        entry = {
+            "@type": "SpecificFlightCriteria",
+            "carrier": seg.get("carrier", ""),
+            "flightNumber": seg.get("raw_number", ""),
+            "from": seg.get("departure_airport", ""),
+            "to": seg.get("arrival_airport", ""),
+            "departureDate": dep_date,
+            "segmentSequence": idx,
+        }
+        if dep_time:
+            entry["departureTime"] = dep_time
+        if arr_date:
+            entry["arrivalDate"] = arr_date
+        if arr_time:
+            entry["arrivalTime"] = arr_time
+        if cabin:
+            entry["cabin"] = cabin
+        if class_of_service:
+            entry["classOfService"] = class_of_service
+        criteria.append(entry)
+    return criteria
+
+
+def _extract_passenger_criteria_from_offering(raw_offering: dict) -> list:
+    """
+    Derive PassengerCriteria (passenger type + count) from the priced offer's
+    own PriceBreakdown — the full-payload AddOffer request requires passenger
+    info, but travelers (names/passports) aren't collected until STEP 6, so we
+    reconstruct just the type/count/age from what was already priced at search
+    time. Ordered Adult -> Infant -> Child per Travelport GDS certification.
+    """
+    pax_by_type = {}
+    try:
+        for pbo in raw_offering.get("ProductBrandOptions", []):
+            for bo in pbo.get("ProductBrandOffering", []):
+                for pb in bo.get("BestCombinablePrice", {}).get("PriceBreakdown", []):
+                    ptc = pb.get("requestedPassengerType")
+                    qty = int(pb.get("quantity", 1))
+                    if ptc:
+                        pax_by_type[ptc] = max(pax_by_type.get(ptc, 0), qty)
+    except Exception:
+        pass
+    if not pax_by_type:
+        pax_by_type = {"ADT": 1}
+
+    age_map = {"ADT": 25, "INF": 1, "CNN": 10}
+    passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+    return [
+        {
+            "@type": "PassengerCriteria",
+            "number": pax_by_type[ptc],
+            "age": age_map.get(ptc, 25),
+            "passengerTypeCode": ptc
+        }
+        for ptc in sorted(pax_by_type.keys(), key=lambda t: passenger_type_order.get(t, 99))
+    ]
+
+
+def _build_full_payload_offer(leg_offerings: list) -> dict:
+    """
+    Build the OfferQueryBuildFromProducts (full payload) request body for the
+    given leg(s) — Travelport GDS certification guidance for GDS carrier
+    bookings. Not used for NDC/LCC content (Travelport: full payload not
+    supported for NDC).
+    """
+    product_criteria = []
+    for i, leg in enumerate(leg_offerings, start=1):
+        cos_list = leg.get("classes_of_service") or []
+        product_criteria.append({
+            "@type": "ProductCriteriaAir",
+            "sequence": i,
+            "SpecificFlightCriteria": _build_specific_flight_criteria(
+                leg.get("segments", []),
+                cabin=leg.get("cabin_class"),
+                class_of_service=cos_list[0] if cos_list else None
+            )
+        })
+
+    request_air = {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": product_criteria,
+        "PassengerCriteria": _extract_passenger_criteria_from_offering(leg_offerings[0])
+    }
+
+    # Pricing modifier pins the request to the exact fare brand the user selected
+    # and was priced for — without it, Travelport substitutes its own default
+    # ("auto stored fare") instead of the one that was shown and picked.
+    brand_id = leg_offerings[0].get("brand_id")
+    brand_name = leg_offerings[0].get("brand_name")
+    if brand_id or brand_name:
+        brand_obj = {"@type": "Brand", "name": brand_name or "Standard"}
+        if brand_id:
+            brand_obj["BrandRef"] = brand_id
+        request_air["PricingModifiersAir"] = {
+            "@type": "PricingModifiersAir",
+            "Brand": brand_obj
+        }
+
+    return {
+        "@type": "OfferQueryBuildFromProducts",
+        "BuildFromProductsRequest": request_air
+    }
+
+
 def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
     """
     STEP 5: Add the selected flight offer(s) to the workbench.
@@ -326,24 +458,33 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
     is_round_trip = isinstance(raw_offering, dict) and "outbound" in raw_offering and "inbound" in raw_offering
     leg_offerings = [raw_offering["outbound"], raw_offering["inbound"]] if is_round_trip else [raw_offering]
 
-    catalog_offerings_id = leg_offerings[0].get("CatalogProductOfferingsIdentifier", "")
-    offering_selections = [_build_offering_selection(leg) for leg in leg_offerings]
+    # Travelport GDS certification: use the full-payload AddOffer request for
+    # GDS carrier bookings. NDC/LCC content keeps the existing reference
+    # payload (Travelport: full payload is not supported for NDC).
+    is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
+    has_segments = all(leg.get("segments") for leg in leg_offerings)
 
-    payload = {
-        "OfferQueryBuildFromCatalogProductOfferings": {
-            "BuildFromCatalogProductOfferingsRequest": {
-                "@type": "BuildFromCatalogProductOfferingsRequestAir",
-                "CatalogProductOfferingsIdentifier": {
-                    "Identifier": {
-                        "value": catalog_offerings_id
-                    }
-                },
-                "CatalogProductOfferingSelection": offering_selections
+    if is_gds and has_segments:
+        payload = _build_full_payload_offer(leg_offerings)
+        url = TravelportEndpoints.add_offer_to_workbench_full_payload(workbench_id)
+    else:
+        catalog_offerings_id = leg_offerings[0].get("CatalogProductOfferingsIdentifier", "")
+        offering_selections = [_build_offering_selection(leg) for leg in leg_offerings]
+        payload = {
+            "OfferQueryBuildFromCatalogProductOfferings": {
+                "BuildFromCatalogProductOfferingsRequest": {
+                    "@type": "BuildFromCatalogProductOfferingsRequestAir",
+                    "CatalogProductOfferingsIdentifier": {
+                        "Identifier": {
+                            "value": catalog_offerings_id
+                        }
+                    },
+                    "CatalogProductOfferingSelection": offering_selections
+                }
             }
         }
-    }
+        url = TravelportEndpoints.add_offer_to_workbench(workbench_id)
 
-    url = TravelportEndpoints.add_offer_to_workbench(workbench_id)
     # Subsequent calls must include the workbench_id as session_id
     # Use retry helper — this call frequently 504s on the Travelport sandbox
     result = _api_post_with_retry(url, payload, session_id=workbench_id)
@@ -352,6 +493,18 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
 
 
 # ── STEP 6: Add Traveler(s) ───────────────────────────────────────────────────
+
+def _person_prefix(gender: str, passenger_type: str) -> str:
+    """
+    PersonName.Prefix per Travelport/Galileo 1G convention:
+    - Adults: MR / MRS
+    - Children and infants (CNN / INF): MSTR (male) / MISS (female)
+    """
+    is_male = gender == "Male"
+    if passenger_type in ("CNN", "INF"):
+        return "MSTR" if is_male else "MISS"
+    return "MR" if is_male else "MRS"
+
 
 def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
     """
@@ -385,6 +538,8 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
         country_code = phone_clean[:-9]
         phone_num = phone_clean[-9:]
 
+    prefix = _person_prefix(traveler.get("gender", "Male"), traveler.get("passenger_type", "ADT"))
+
     payload = {
         "Traveler": {
             "@type": "Traveler",
@@ -393,7 +548,7 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
             "passengerTypeCode": traveler.get("passenger_type", "ADT"),
             "PersonName": {
                 "@type": "PersonNameDetail",
-                "Prefix": "MR" if traveler.get("gender", "Male") == "Male" else "MRS",  # Prefix required for Galileo 1G validation
+                "Prefix": prefix,  # Prefix required for Galileo 1G validation
                 "Given": traveler.get("first_name", "").upper(),
                 "Surname": traveler.get("last_name", "").upper()
             },
@@ -417,6 +572,11 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
                     "docType": "Passport",
                     "expireDate": traveler.get("passport_expiry", ""),
                     "issueCountry": traveler.get("nationality", "LK"),
+                    # Country of birth, ISO3166 — required by Travelport for a
+                    # Passport TravelDocument entry. We don't collect a separate
+                    # birth-country field, so nationality is used as the value
+                    # (matches for the vast majority of travelers).
+                    "birthCountry": traveler.get("nationality", "LK"),
                     "birthDate": traveler.get("date_of_birth", ""),
                     "Gender": traveler.get("gender", "Male"),
                     "PersonName": {
@@ -434,6 +594,19 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
     result = _api_post(url, payload, session_id=workbench_id)
     logger.info("Traveler added to workbench.")
     return result
+
+
+def get_workbench_details(workbench_id: str) -> dict:
+    """
+    Retrieve the current state of an open workbench session — optional
+    verification step available after adding all travelers, to confirm they
+    were recorded correctly before committing. Not called automatically as
+    part of run_booking_flow (it's an extra round-trip on every booking);
+    call it explicitly wherever that confirmation is wanted.
+    """
+    logger.info(f"Retrieving workbench {workbench_id} details...")
+    url = TravelportEndpoints.get_workbench(workbench_id)
+    return _api_get(url, session_id=workbench_id)
 
 
 # ── STEP 7: Commit Workbench → Generate PNR ───────────────────────────────────
@@ -553,8 +726,14 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
             # STEP 5
             add_offer_to_workbench(workbench_id, raw_offering)
 
-            # STEP 6
-            for t in travelers:
+            # STEP 6 — Travelport GDS certification requires travelers to be
+            # added in this exact passenger-type sequence: Adult, Infant, Child.
+            passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+            ordered_travelers = sorted(
+                travelers,
+                key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
+            )
+            for t in ordered_travelers:
                 add_traveler_to_workbench(workbench_id, t)
 
             # STEP 7

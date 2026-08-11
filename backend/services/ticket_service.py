@@ -393,10 +393,14 @@ def issue_ticket(locator_code: str) -> dict:
         if not existing_fop:
             logger.info("Step 2: No existing FOP — adding FormOfPaymentCash...")
             fop_url = TravelportEndpoints.add_fop_to_workbench(workbench_id)
+            # FormOfPaymentCash used directly as the polymorphic type key (per
+            # Travelport sample), not wrapped in a generic FormOfPayment/@type
+            # object as before. id + FormOfPaymentRef both carry the same local
+            # reference so downstream steps can link to it either way.
             fop_payload = {
-                "FormOfPayment": {
-                    "@type": "FormOfPaymentCash",
-                    "id": "formOfPayment_1"
+                "FormOfPaymentCash": {
+                    "id": "formOfPayment_1",
+                    "FormOfPaymentRef": "formOfPayment_1"
                 }
             }
             fop_result = _api_post(fop_url, fop_payload)
@@ -404,7 +408,12 @@ def issue_ticket(locator_code: str) -> dict:
             # Extract both local id and UUID from FOP response
             try:
                 fop_resp_data = fop_result.get("FormOfPaymentResponse", {})
-                fop_obj = fop_resp_data.get("FormOfPayment") or fop_result.get("FormOfPayment")
+                fop_obj = (
+                    fop_resp_data.get("FormOfPaymentCash") or
+                    fop_resp_data.get("FormOfPayment") or
+                    fop_result.get("FormOfPaymentCash") or
+                    fop_result.get("FormOfPayment")
+                )
                 if isinstance(fop_obj, list) and fop_obj:
                     fop_local_id = fop_obj[0].get("id") or fop_obj[0].get("FormOfPaymentRef")
                     fop_uuid = fop_obj[0].get("Identifier", {}).get("value")
@@ -435,21 +444,30 @@ def issue_ticket(locator_code: str) -> dict:
         logger.info(f"Step 3: Linking FOP '{fop_local_id}' (UUID={fop_uuid}) to offer '{offer_local_id}'...")
         payment_url = TravelportEndpoints.add_payment_to_workbench(workbench_id)
 
-        # Build FormOfPaymentIdentifier with BOTH local id + UUID (Variant E format)
-        fop_identifier_block: dict = {}
+        # Build FormOfPaymentIdentifier with BOTH local id + UUID (Variant E format).
+        # activeInd is required for the FOP to actually be used for document/ticket
+        # issuance — without it, Travelport accepts and links the payment (no error)
+        # but silently withholds ticketing (commit returns 200 with no Ticket[]).
+        # Per Travelport's FormOfPaymentIdentifier schema, both "id" and
+        # "FormOfPaymentRef" are separate fields (id = local ref, FormOfPaymentRef
+        # = customer-assigned name) — the FOP-add response and stored workbench
+        # both carry both fields with the same value, so we send both too.
+        fop_identifier_block: dict = {"@type": "FormOfPaymentPaymentCash", "activeInd": True}
         if fop_local_id:
             fop_identifier_block["id"] = fop_local_id
+            fop_identifier_block["FormOfPaymentRef"] = fop_local_id
         if fop_uuid:
             fop_identifier_block["Identifier"] = {
                 "authority": "Travelport",
                 "value": fop_uuid
             }
 
-        # Build OfferIdentifier block (Variant X3 format)
+        # Build OfferIdentifier block. Per Travelport's OfferIdentifier schema the
+        # ref field is lowercase "offerRef", not "OfferRef".
         offer_identifier_block: dict = {}
         if offer_local_id:
             offer_identifier_block["id"] = offer_local_id
-            offer_identifier_block["OfferRef"] = offer_local_id
+            offer_identifier_block["offerRef"] = offer_local_id
         if offer_uuid:
             offer_identifier_block["Identifier"] = {
                 "authority": "Travelport",
@@ -459,10 +477,11 @@ def issue_ticket(locator_code: str) -> dict:
         payment_payload: dict = {
             "Payment": {
                 "@type": "Payment",
+                # Amount.code per Travelport's Payment schema (flat ISO 4217 code,
+                # not a nested CurrencyCode object).
                 "Amount": {
-                    "@type": "Amount",
-                    "CurrencyCode": {"value": currency_code},
-                    "value": total_fare
+                    "value": total_fare,
+                    "code": currency_code
                 },
                 "FormOfPaymentIdentifier": fop_identifier_block
             }
