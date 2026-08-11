@@ -448,20 +448,26 @@ def issue_ticket(locator_code: str) -> dict:
         # activeInd is required for the FOP to actually be used for document/ticket
         # issuance — without it, Travelport accepts and links the payment (no error)
         # but silently withholds ticketing (commit returns 200 with no Ticket[]).
+        # Per Travelport's FormOfPaymentIdentifier schema, both "id" and
+        # "FormOfPaymentRef" are separate fields (id = local ref, FormOfPaymentRef
+        # = customer-assigned name) — the FOP-add response and stored workbench
+        # both carry both fields with the same value, so we send both too.
         fop_identifier_block: dict = {"@type": "FormOfPaymentPaymentCash", "activeInd": True}
         if fop_local_id:
             fop_identifier_block["id"] = fop_local_id
+            fop_identifier_block["FormOfPaymentRef"] = fop_local_id
         if fop_uuid:
             fop_identifier_block["Identifier"] = {
                 "authority": "Travelport",
                 "value": fop_uuid
             }
 
-        # Build OfferIdentifier block (Variant X3 format)
+        # Build OfferIdentifier block. Per Travelport's OfferIdentifier schema the
+        # ref field is lowercase "offerRef", not "OfferRef".
         offer_identifier_block: dict = {}
         if offer_local_id:
             offer_identifier_block["id"] = offer_local_id
-            offer_identifier_block["OfferRef"] = offer_local_id
+            offer_identifier_block["offerRef"] = offer_local_id
         if offer_uuid:
             offer_identifier_block["Identifier"] = {
                 "authority": "Travelport",
