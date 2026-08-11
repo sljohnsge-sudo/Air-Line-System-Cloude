@@ -553,8 +553,14 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
             # STEP 5
             add_offer_to_workbench(workbench_id, raw_offering)
 
-            # STEP 6
-            for t in travelers:
+            # STEP 6 — Travelport GDS certification requires travelers to be
+            # added in this exact passenger-type sequence: Adult, Infant, Child.
+            passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+            ordered_travelers = sorted(
+                travelers,
+                key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
+            )
+            for t in ordered_travelers:
                 add_traveler_to_workbench(workbench_id, t)
 
             # STEP 7

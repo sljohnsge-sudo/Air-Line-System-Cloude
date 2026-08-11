@@ -171,19 +171,19 @@ def search_flights(
             "age": 25,
             "passengerTypeCode": "ADT"
         })
-    if child_count > 0:
-        passenger_criteria.append({
-            "@type": "PassengerCriteria",
-            "number": child_count,
-            "age": 10,
-            "passengerTypeCode": "CNN"
-        })
     if infant_count > 0:
         passenger_criteria.append({
             "@type": "PassengerCriteria",
             "number": infant_count,
             "age": 1,
             "passengerTypeCode": "INF"
+        })
+    if child_count > 0:
+        passenger_criteria.append({
+            "@type": "PassengerCriteria",
+            "number": child_count,
+            "age": 10,
+            "passengerTypeCode": "CNN"
         })
 
     # ── SearchCriteriaFlight (per Travelport v11 spec) ─────────────────────────
@@ -214,7 +214,8 @@ def search_flights(
         "CatalogProductOfferingsRequest": {
             "@type": "CatalogProductOfferingsRequestAir",
             "maxNumberOfUpsellsToReturn": 1,
-            "offersPerPage": 50,
+            # offersPerPage intentionally omitted — Travelport GDS certification
+            # guidance: for GDS content search, pass 0, 999, or omit this field.
             "contentSourceList": ["GDS", "NDC", "APIPAC"],
             "PassengerCriteria": passenger_criteria,
             "SearchCriteriaFlight": search_criteria_flight
@@ -238,7 +239,10 @@ def search_flights(
                 }
             ]
 
-    headers = get_auth_headers()
+    # fareIndicator header — Travelport GDS certification requirement for the
+    # search request only; not part of the shared auth headers used by every
+    # other endpoint (workbench, ticketing, etc.).
+    headers = {**get_auth_headers(), "fareIndicator": "true"}
     logger.info(f"Request payload: {payload}")
 
     with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
@@ -255,7 +259,7 @@ def search_flights(
                 response = client.post(
                     TravelportEndpoints.FLIGHT_SEARCH,
                     json=payload,
-                    headers=get_auth_headers()
+                    headers={**get_auth_headers(), "fareIndicator": "true"}
                 )
 
             # Detailed error logging
