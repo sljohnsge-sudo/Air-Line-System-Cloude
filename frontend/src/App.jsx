@@ -452,6 +452,11 @@ export default function App() {
   const [cabinPref, setCabinPref] = useState('Economy'); // default to Economy as shown in image
   const [showHomePopover, setShowHomePopover] = useState(false);
   const [showResultsPopover, setShowResultsPopover] = useState(false);
+  // On mobile the results search bar collapses to a compact one-line summary
+  // (so results are visible without scrolling past the whole form) — tap it
+  // to expand back to the full editable form. Desktop always shows the full
+  // form regardless of this flag (handled purely in CSS).
+  const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
 
   // Flight results
   const [flights, setFlights] = useState([]);
@@ -1048,6 +1053,18 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       {activeTab === 'home' && (
         <div className="home-layout animate-fade">
           <section className="hero-section">
+            <div className="hero-visual">
+              <div className="hero-visual-side right">
+                <lottie-player
+                  src="https://assets-v2.lottiefiles.com/a/cc98d310-116a-11ee-9baa-434a3bdd76b7/Gqbk5P02sM.json"
+                  background="transparent"
+                  speed="1.25"
+                  style={{ width: '100%', height: '100%' }}
+                  loop
+                  autoplay
+                ></lottie-player>
+              </div>
+            </div>
             <div className="hero-content">
               <span className="hero-tagline">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
@@ -1055,7 +1072,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </span>
               <h1 className="hero-title">The Future of<span className="title-gradient-red">Global Journeys</span></h1>
               <p className="hero-subtitle">
-                Sri Lanka's premier travel partner. Powered by <strong>Travelport TripServices</strong> — real-time global flight inventory, live PNR generation, and instant ticket issuance.
+                Sri Lanka's premier travel partner — <strong>real-time global flight inventory</strong>, live PNR generation, and instant ticket issuance.
               </p>
               <div className="hero-actions">
                 <button className="btn btn-primary" onClick={() => setActiveTab('book')}>
@@ -1065,7 +1082,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <button className="btn btn-secondary" onClick={() => setActiveTab('bookings')}>My Boarding Passes</button>
               </div>
               <div className="hero-badge-container">
-                <span className="hero-badge">✅ Travelport TripServices v11</span>
+                <span className="hero-badge">✅ Instant PNR &amp; Ticketing</span>
                 <span className="hero-badge">🔒 Live GDS Data</span>
               </div>
             </div>
@@ -1083,7 +1100,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
               <div>
                 <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Book Flights</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Search live Travelport GDS inventory and book flights in real time with instant PNR generation.</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Search live global GDS inventory and book flights in real time with instant PNR generation.</div>
               </div>
               <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#c3122e', fontWeight: '700', fontSize: '0.82rem' }}>
                 Open Booking Engine
@@ -1116,7 +1133,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
               <div>
                 <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Invoice Data</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Retrieve live PNR data from Travelport — full passenger details, fare breakdown, tax breakdown and export.</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Retrieve live PNR data — full passenger details, fare breakdown, tax breakdown and export.</div>
               </div>
               <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#7c3aed', fontWeight: '700', fontSize: '0.82rem' }}>
                 Retrieve Invoice
@@ -1129,24 +1146,24 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           {/* Features */}
           <section className="features-section">
             <div className="section-header">
-              <span className="section-label">Powered by Travelport</span>
+              <span className="section-label">Global Distribution Network</span>
               <h2 className="section-heading">Enterprise-Grade Flight Booking</h2>
             </div>
             <div className="features-grid">
               <div className="feature-card">
                 <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg></div>
                 <h4>Live GDS Inventory</h4>
-                <p>Real-time flight availability from Travelport's global distribution system — no cached or mock data.</p>
+                <p>Real-time flight availability from our global distribution system — no cached or mock data.</p>
               </div>
               <div className="feature-card">
                 <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
                 <h4>Instant PNR Generation</h4>
-                <p>Live workbench commits to the Travelport GDS generate a real PNR in seconds.</p>
+                <p>Live workbench commits to the GDS generate a real PNR in seconds.</p>
               </div>
               <div className="feature-card">
                 <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
                 <h4>Electronic Ticketing</h4>
-                <p>Full e-ticket issuance through Travelport TripServices v11 with real ticket numbers.</p>
+                <p>Full e-ticket issuance through our GDS integration with real ticket numbers.</p>
               </div>
             </div>
           </section>
@@ -1714,7 +1731,23 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           <div className="results-page">
             {/* ── FIXED search topbar (never scrolls) ── */}
             <div ref={topbarRef} className="results-topbar" style={{ top: `${headerHeight}px` }}>
-              <form onSubmit={handleSearch} className="results-search-bar">
+              {/* Compact one-line summary — mobile only. Tapping it expands
+                  the full editable form below; hidden once expanded. */}
+              <div
+                className={`results-compact-bar${mobileSearchExpanded ? '' : ' mobile-visible'}`}
+                onClick={() => setMobileSearchExpanded(true)}
+              >
+                <span className="rcb-summary">
+                  {searchOrigin || 'Origin'} <span className="rcb-arrow">→</span> {searchDest || 'Destination'}
+                  {' · '}{searchDate || 'Any date'}{searchType === 'roundtrip' && returnDate ? ` – ${returnDate}` : ''}
+                  {' · '}{adultCount + childCount + infantCount} Pax
+                </span>
+                <span className="rcb-edit">Edit ✎</span>
+              </div>
+              <form
+                onSubmit={(e) => { handleSearch(e); setMobileSearchExpanded(false); }}
+                className={`results-search-bar${mobileSearchExpanded ? '' : ' mobile-collapsed'}`}
+              >
                 <div className="rsb-field">
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="rsb-label">FROM</div>
@@ -2102,6 +2135,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <button type="submit" className="rsb-search-btn" disabled={loadingFlights}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   Search
+                </button>
+                <button type="button" className="rsb-collapse-btn" onClick={() => setMobileSearchExpanded(false)}>
+                  Done ✕
                 </button>
               </form>
             </div>
@@ -4000,14 +4036,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
 
                   {/* Right Seat Map Chart - Top-down airplane styling */}
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
+                  <div className="seat-map-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
                     <div style={{ textAlign: 'center', padding: '0.25rem 0 0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.75rem' }}>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aircraft Cabin Map</div>
                       <strong style={{ fontSize: '0.85rem', color: 'var(--gs-dark)' }}>FRONT OF AIRCRAFT</strong>
                     </div>
 
-                    {/* Scrollable airplane fuselage */}
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 1rem' }}>
+                    {/* Scrollable airplane fuselage — overflow-x:auto is a
+                        safety net on narrow phones since the fuselage graphic
+                        below has a fixed pixel width. */}
+                    <div className="seat-map-fuselage-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '0.5rem 1rem' }}>
                       
                       {/* Cockpit Nose */}
                       <div style={{

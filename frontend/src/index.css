@@ -362,19 +362,87 @@ body {
   padding-bottom: 3rem;
 }
 
-/* Hero Section */
+/* Hero Section — centered copy with the flight-path animation as a soft
+   full-bleed background layer behind it, rather than a side-by-side visual */
 .hero-section {
-  display: flex;
-  flex-direction: column;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: auto;
+  padding: 2.5rem 1rem;
+  overflow: hidden;
+  background: radial-gradient(60% 100% at 50% 45%, rgba(195, 18, 46, 0.07) 0%, rgba(195, 18, 46, 0) 70%);
+}
+
+/* Two independent flight-path animations anchored to the outer edges
+   (rather than one stretched, center-masked copy) — reads as more planes
+   in motion, and keeps the middle clear for the headline. */
+.hero-visual {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  /* Narrow safety fade right over the headline's own text width — the two
+     side animations already avoid the middle by position, but individual
+     plane icons can still drift there mid-loop; this keeps that band clear
+     regardless of animation frame. Also softens both outer edges so the
+     animation blends into the page instead of hard-clipping at the section
+     boundary. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 32%, transparent 44%, transparent 56%, black 68%, black 92%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 8%, black 32%, transparent 44%, transparent 56%, black 68%, black 92%, transparent 100%);
+}
+
+.hero-visual-side {
+  position: absolute;
+  top: 50%;
+  width: 52%;
+  height: 92%;
+  transform: translateY(-50%);
+  opacity: 0.85;
+  filter: brightness(0.82) saturate(1.2);
+}
+
+.hero-visual-side.right {
+  right: -4%;
+  width: 92%;
+  transform: translateY(-50%) scaleX(-1);
+}
+
+.hero-visual-side lottie-player {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
 }
 
 .hero-content {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 1.25rem;
+  max-width: 1100px;
+  width: 100%;
 }
+
+@keyframes heroFadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-content > * {
+  animation: heroFadeUp 0.7s ease-out both;
+}
+
+.hero-content > *:nth-child(1) { animation-delay: 0.05s; }
+.hero-content > *:nth-child(2) { animation-delay: 0.15s; }
+.hero-content > *:nth-child(3) { animation-delay: 0.25s; }
+.hero-content > *:nth-child(4) { animation-delay: 0.35s; }
+.hero-content > *:nth-child(5) { animation-delay: 0.45s; }
 
 .hero-tagline {
   font-size: 0.85rem;
@@ -384,13 +452,8 @@ body {
   text-transform: uppercase;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-}
-
-@media (max-width: 992px) {
-  .hero-tagline {
-    justify-content: center;
-  }
 }
 
 .hero-title {
@@ -407,54 +470,57 @@ body {
 }
 
 .hero-subtitle {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   color: var(--text-secondary);
-  max-width: 540px;
+  max-width: 780px;
   line-height: 1.6;
-}
-
-@media (max-width: 992px) {
-  .hero-subtitle {
-    margin: 0 auto;
-  }
+  margin: 0 auto;
 }
 
 .hero-actions {
   display: flex;
+  justify-content: center;
   gap: 1rem;
   margin-top: 0.5rem;
-}
-
-@media (max-width: 992px) {
-  .hero-actions {
-    justify-content: center;
-  }
 }
 
 .hero-badge-container {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin-top: 1rem;
   font-size: 0.8rem;
   color: var(--text-secondary);
   font-weight: 600;
 }
 
-@media (max-width: 992px) {
-  .hero-badge-container {
-    justify-content: center;
-  }
-}
-
 .hero-badge {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(195, 18, 46, 0.15);
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(2px);
 }
 
 .hero-badge svg {
   color: var(--gs-crimson);
+}
+
+/* Keep the flight animation on mobile too, just toned down — the
+   horizontal center-mask on .hero-visual already keeps the headline's own
+   text column clear regardless of viewport width, so a lower opacity here
+   is enough to stop it competing with the (now taller, wrapped) copy. */
+@media (max-width: 640px) {
+  .hero-visual { opacity: 0.55; }
+  .hero-section { padding: 1.5rem 1rem; }
+  .hero-title { font-size: 2rem; }
+  .hero-subtitle { font-size: 1rem; }
 }
 
 /* Feature grid */
@@ -983,6 +1049,34 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+/* Live seat-map layout (seat-selector-container / -sidebar / seat-map-panel):
+   on desktop the 260px passenger sidebar sits beside a fixed-width 290px
+   aircraft graphic. On narrow phones both fixed widths together exceed the
+   viewport, pushing the sidebar off-screen left and clipping the seat grid
+   on the right. Stack them instead, and keep a horizontal-scroll safety net
+   on the fuselage itself in case it's still wider than a very small screen. */
+@media (max-width: 620px) {
+  .seat-selector-container {
+    flex-direction: column !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .seat-selector-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color);
+    padding-right: 0 !important;
+    padding-bottom: 1rem;
+    max-height: 280px !important;
+  }
+  .seat-map-panel {
+    max-height: none !important;
+  }
+  .seat-map-fuselage-scroll {
+    max-width: 100vw;
+  }
+}
+
 .legend-box.available {
   background: #f8fafc;
   border-color: var(--border-color);
@@ -1378,6 +1472,17 @@ body {
   box-shadow: 0 4px 16px rgba(195,18,46,0.5);
 }
 .rsb-search-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Compact one-line search summary — mobile only (see max-width:768px block
+   below for the visibility toggle). Hidden on desktop unconditionally,
+   since the full bar already fits comfortably there. */
+.results-compact-bar {
+  display: none;
+}
+
+.rsb-collapse-btn {
+  display: none;
+}
 
 /* ── Horizontal Filter Chip Bar (below search topbar) ── */
 .results-filterbar {
@@ -1849,6 +1954,54 @@ body {
   .results-topbar { padding: 0.5rem 0.75rem; }
   .results-search-bar { flex-wrap: wrap; gap: 0.35rem; }
   .rsb-field { min-width: 130px; }
+
+  /* Collapsed by default on mobile: show the one-line summary instead of
+     the full multi-field form, so search results are visible right away
+     instead of buried below a tall stacked form. Tap the summary (or
+     "Edit") to expand the full form; "Done" collapses it again. */
+  .results-search-bar.mobile-collapsed { display: none; }
+  .results-compact-bar.mobile-visible {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.9rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .rcb-summary {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--gs-dark);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rcb-arrow { color: var(--gs-crimson); }
+  .rcb-edit {
+    flex-shrink: 0;
+    color: var(--gs-crimson);
+    font-weight: 800;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .rsb-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 0.35rem;
+    padding: 0.55rem;
+    background: transparent;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
   .results-filterbar { gap: 0.35rem; padding: 0 0.75rem; }
   .rc-top-row { flex-wrap: wrap; }
   .rc-itinerary { width: 100%; }
@@ -1869,6 +2022,19 @@ body {
   .rsb-search-btn { width: 100%; justify-content: center; }
   .rc-itinerary { padding: 0.75rem; }
   .rc-time { font-size: 1.2rem; }
+
+  /* The search topbar is normally `position: fixed` so it stays visible
+     while results scroll underneath it. On narrow phones the fields stack
+     into a column and the bar grows tall enough to cover most of the
+     screen — since it's still fixed/pinned, it permanently blocks the
+     results instead of scrolling away. Let it flow normally here instead. */
+  .results-topbar {
+    position: static;
+    box-shadow: none;
+  }
+  .results-page-content {
+    padding-top: 0 !important;
+  }
 }
 
 /* ── Round-trip itinerary + Select Flight / stat-grid responsive rules ── */
