@@ -318,7 +318,11 @@ def _build_offering_selection(raw_offering: dict) -> dict:
     }
 
 
-def _build_specific_flight_criteria(segments: list, cabin: str | None = None, class_of_service: str | None = None) -> list:
+def _build_specific_flight_criteria(
+    segments: list,
+    cabin: str | None = None,
+    class_of_service: str | None = None,
+) -> list:
     """
     Build the SpecificFlightCriteria array (one entry per physical flight segment)
     for the full-payload AddOffer request, from one leg's parsed `segments` list
@@ -329,6 +333,14 @@ def _build_specific_flight_criteria(segments: list, cabin: str | None = None, cl
     number against a different available class within the same cabin/brand —
     confirmed live: omitting them let a flydubai fare reprice ~3.4x higher at
     commit than what was quoted at search.
+
+    NOTE: a "brandTier" field was tried here per Travelport certification
+    feedback (return the fare of the exact brand selected, not just the exact
+    class) but Travelport's live API rejects it with error 1586 "INVALID INPUT
+    FORMAT" on SpecificFlightCriteria — confirmed against the sandbox. Brand is
+    still pinned correctly via PricingModifiersAir.Brand at the request level
+    (see _build_full_payload_offer below); Travelport needs to confirm the
+    correct field name/shape for a per-segment brand tier before we add it here.
     """
     criteria = []
     for idx, seg in enumerate(segments, start=1):
@@ -506,12 +518,12 @@ def _person_prefix(gender: str, passenger_type: str) -> str:
     return "MR" if is_male else "MRS"
 
 
-def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
+def _build_traveler_payload(traveler: dict) -> dict:
     """
-    STEP 6: Add passenger/traveler details to the workbench.
+    Build a single Traveler object (passenger/traveler details) for the
+    workbench travelers request.
 
     Args:
-        workbench_id (str): Workbench ID from STEP 4
         traveler (dict): Passenger info with keys:
             - first_name (str)
             - last_name (str)
@@ -522,12 +534,7 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
             - nationality (str)    ISO country code e.g. "LK"
             - email (str)
             - phone (str)
-
-    Returns:
-        dict: Updated workbench response
     """
-    logger.info(f"Adding traveler to workbench {workbench_id}: {traveler.get('first_name')} {traveler.get('last_name')}")
-
     # Clean phone number and parse country code for Galileo 1G
     phone_clean = traveler.get("phone", "").replace("+", "").replace(" ", "").replace("-", "")
     country_code = "94"
@@ -540,57 +547,80 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
 
     prefix = _person_prefix(traveler.get("gender", "Male"), traveler.get("passenger_type", "ADT"))
 
-    payload = {
-        "Traveler": {
-            "@type": "Traveler",
-            "gender": traveler.get("gender", "Male"),
-            "birthDate": traveler.get("date_of_birth", ""),
-            "passengerTypeCode": traveler.get("passenger_type", "ADT"),
-            "PersonName": {
-                "@type": "PersonNameDetail",
-                "Prefix": prefix,  # Prefix required for Galileo 1G validation
-                "Given": traveler.get("first_name", "").upper(),
-                "Surname": traveler.get("last_name", "").upper()
-            },
-            "Telephone": [
-                {
-                    "@type": "Telephone",
-                    "countryAccessCode": country_code,
-                    "phoneNumber": phone_num,
-                    "role": "Mobile"
+    return {
+        "@type": "Traveler",
+        "gender": traveler.get("gender", "Male"),
+        "birthDate": traveler.get("date_of_birth", ""),
+        "passengerTypeCode": traveler.get("passenger_type", "ADT"),
+        "PersonName": {
+            "@type": "PersonNameDetail",
+            "Prefix": prefix,  # Prefix required for Galileo 1G validation
+            "Given": traveler.get("first_name", "").upper(),
+            "Surname": traveler.get("last_name", "").upper()
+        },
+        "Telephone": [
+            {
+                "@type": "Telephone",
+                "countryAccessCode": country_code,
+                "phoneNumber": phone_num,
+                "role": "Mobile"
+            }
+        ],
+        "Email": [
+            {
+                "value": traveler.get("email", "")
+            }
+        ],
+        "TravelDocument": [
+            {
+                "@type": "TravelDocumentDetail",
+                "docNumber": traveler.get("passport_number", ""),
+                "docType": "Passport",
+                "expireDate": traveler.get("passport_expiry", ""),
+                "issueCountry": traveler.get("nationality", "LK"),
+                # Country of birth, ISO3166 — required by Travelport for a
+                # Passport TravelDocument entry. We don't collect a separate
+                # birth-country field, so nationality is used as the value
+                # (matches for the vast majority of travelers).
+                "birthCountry": traveler.get("nationality", "LK"),
+                "birthDate": traveler.get("date_of_birth", ""),
+                "Gender": traveler.get("gender", "Male"),
+                "PersonName": {
+                    "@type": "PersonName",
+                    "Given": traveler.get("first_name", "").upper(),
+                    "Surname": traveler.get("last_name", "").upper()
                 }
-            ],
-            "Email": [
-                {
-                    "value": traveler.get("email", "")
-                }
-            ],
-            "TravelDocument": [
-                {
-                    "@type": "TravelDocumentDetail",
-                    "docNumber": traveler.get("passport_number", ""),
-                    "docType": "Passport",
-                    "expireDate": traveler.get("passport_expiry", ""),
-                    "issueCountry": traveler.get("nationality", "LK"),
-                    # Country of birth, ISO3166 — required by Travelport for a
-                    # Passport TravelDocument entry. We don't collect a separate
-                    # birth-country field, so nationality is used as the value
-                    # (matches for the vast majority of travelers).
-                    "birthCountry": traveler.get("nationality", "LK"),
-                    "birthDate": traveler.get("date_of_birth", ""),
-                    "Gender": traveler.get("gender", "Male"),
-                    "PersonName": {
-                        "@type": "PersonName",
-                        "Given": traveler.get("first_name", "").upper(),
-                        "Surname": traveler.get("last_name", "").upper()
-                    }
-                }
-            ]
-        }
+            }
+        ]
     }
 
+
+def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
+    """
+    STEP 6: Add a single passenger/traveler to the workbench.
+
+    NOTE: Travelport certification feedback asked for all passengers to be
+    sent in one combined request instead of one request per passenger. Tried
+    against the live sandbox and confirmed NOT supported by this endpoint:
+    {"Traveler": [obj, obj, ...]} crashes with HTTP 500 Internal Server Error
+    (a backend fault, not a validation error), and the plural {"Travelers":
+    [...]} key is rejected with error 1586 "INVALID INPUT FORMAT". One
+    traveler per POST is the only shape this endpoint actually accepts —
+    Travelport needs to confirm the correct batched-request shape (if any)
+    before this can change.
+
+    Args:
+        workbench_id (str): Workbench ID from STEP 4
+        traveler (dict): Passenger dict — see _build_traveler_payload for keys.
+
+    Returns:
+        dict: Updated workbench response
+    """
+    logger.info(f"Adding traveler to workbench {workbench_id}: {traveler.get('first_name')} {traveler.get('last_name')}")
+
+    payload = {"Traveler": _build_traveler_payload(traveler)}
+
     url = TravelportEndpoints.update_workbench(workbench_id)
-    # Traveler addition in v11 is a POST call
     result = _api_post(url, payload, session_id=workbench_id)
     logger.info("Traveler added to workbench.")
     return result

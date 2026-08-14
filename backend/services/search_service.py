@@ -221,7 +221,7 @@ def search_flights(
             # the reference the offer/price request needs downstream. 999 keeps
             # caching on while still satisfying the certification guidance.
             "offersPerPage": 999,
-            "contentSourceList": ["GDS", "NDC", "APIPAC"],
+            "contentSourceList": ["GDS", "NDC"],
             "PassengerCriteria": passenger_criteria,
             "SearchCriteriaFlight": search_criteria_flight
         }

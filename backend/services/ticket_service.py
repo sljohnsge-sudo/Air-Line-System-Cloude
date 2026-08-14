@@ -425,6 +425,36 @@ def issue_ticket(locator_code: str) -> dict:
             if not fop_local_id:
                 fop_local_id = "formOfPayment_1"
             logger.info(f"Step 2 OK: FOP added. local id={fop_local_id}, UUID={fop_uuid}")
+
+            # ── Step 2b: Re-fetch workbench to get the AUTHORITATIVE FOP id/UUID ──
+            # The FormOfPaymentResponse above only echoes an Identifier — no id/
+            # FormOfPaymentRef — so fop_local_id above is our own guess, not a
+            # confirmed value. Sending that guess back in Step 3 caused Travelport
+            # error 4178 ("FOP ID/IDENTIFIER VALUES MUST MATCH WITH THE RESERVATION
+            # WORKBENCH FOP ID/IDENTIFIER VALUES"). Re-reading the workbench state
+            # after the add returns the FOP exactly as Travelport actually stored
+            # it against this reservation, which is what Step 3 must reference.
+            try:
+                wb_state_url = TravelportEndpoints.get_workbench(workbench_id)
+                wb_state = _api_get(wb_state_url)
+                wb_reservation = (
+                    wb_state.get("ReservationResponse", {}).get("Reservation", {}) or
+                    wb_state.get("ReservationWorkbench", {}) or
+                    wb_state
+                )
+                stored_fop = wb_reservation.get("FormOfPayment", [])
+                if stored_fop:
+                    confirmed_local_id = stored_fop[0].get("id") or stored_fop[0].get("FormOfPaymentRef")
+                    confirmed_uuid = stored_fop[0].get("Identifier", {}).get("value")
+                    if confirmed_local_id:
+                        fop_local_id = confirmed_local_id
+                    if confirmed_uuid:
+                        fop_uuid = confirmed_uuid
+                    logger.info(f"Step 2b OK: confirmed FOP from workbench — local id={fop_local_id}, UUID={fop_uuid}")
+                else:
+                    logger.warning("Step 2b: workbench re-fetch returned no FormOfPayment — using Step 2 values as-is.")
+            except Exception as e:
+                logger.warning(f"Step 2b: failed to re-fetch workbench for confirmed FOP id: {e} — using Step 2 values as-is.")
         else:
             logger.info("Step 2: FOP already present — extracting local id and UUID...")
             try:
