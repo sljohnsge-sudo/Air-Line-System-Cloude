@@ -93,6 +93,14 @@ class TravelportEndpoints:
         return f"{_air}/book/traveler/reservationworkbench/{workbench_id}/travelers"
 
     @staticmethod
+    def add_travelers_list(workbench_id: str) -> str:
+        """POST → add MULTIPLE travelers (Adult/Child/Infant) to the workbench
+        in a single TravelerListRequest. Required so that all passengers on
+        one PNR are sent to Travelport as one combined request instead of
+        one request per traveler type."""
+        return f"{_air}/book/traveler/reservationworkbench/{workbench_id}/travelers/list"
+
+    @staticmethod
     def get_workbench(workbench_id: str) -> str:
         """GET → retrieve the current state of an open workbench session
         (e.g. to verify travelers were added correctly before committing)."""
@@ -124,6 +132,11 @@ class TravelportEndpoints:
         NOTE: per Travelport docs this path has NO /air prefix, unlike every
         other endpoint in this API."""
         return f"{_base}/book/reservationworkbench/{workbench_id}/reservations/cancelitems"
+
+    # ── Ticket Retrieve ─────────────────────────────────────────────────────────
+    # Dedicated ticket lookup, separate from Reservation Retrieve's Ticket[].
+    # https://developer.travelport.com/apis/flights/ticketing/ticketgetbylocator
+    TICKET_RETRIEVE_BY_LOCATOR = f"{_air}/ticket/tickets/getbylocator"
 
     # ── Post-Commit Ticketing Workflow ─────────────────────────────────────────
     # For ticketing a held PNR (already committed), a NEW workbench must be

@@ -24,6 +24,7 @@ from typing import Optional
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
+from utils import tp_logger
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +251,7 @@ def search_flights(
     headers = {**get_auth_headers(), "fareIndicator": "true"}
     logger.info(f"Request payload: {payload}")
 
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         try:
             response = client.post(
                 TravelportEndpoints.FLIGHT_SEARCH,

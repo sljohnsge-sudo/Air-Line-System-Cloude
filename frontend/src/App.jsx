@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import gsLogo from './assets/george_steuart_logo.png';
 
-const API_BASE = 'http://localhost:8030/api';
+const API_BASE = 'http://localhost:8000/api';
 
 const fetchWithRetry = async (url, options = {}, retries = 3, delay = 1000) => {
   for (let i = 0; i < retries; i++) {
@@ -63,6 +63,147 @@ const trendingDestinations = [
   { city: 'Singapore', country: 'Southeast Asia', code: 'SIN', image: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=500&q=80', tag: 'Garden City' },
   { city: 'London', country: 'United Kingdom', code: 'LHR', image: 'https://images.unsplash.com/photo-1513635269975-59663e0ca1ad?auto=format&fit=crop&w=500&q=80', tag: 'Royal Heritage' },
   { city: 'New York', country: 'United States', code: 'JFK', image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=500&q=80', tag: 'Metro Hub' },
+];
+
+// ── Countries (ISO 3166-1 alpha-3) — for TravelDocument.IssuedForGeoPoliticalArea ──
+const COUNTRIES = [
+  { name: 'Afghanistan', code: 'AFG' }, { name: 'Albania', code: 'ALB' }, { name: 'Algeria', code: 'DZA' },
+  { name: 'Andorra', code: 'AND' }, { name: 'Angola', code: 'AGO' }, { name: 'Argentina', code: 'ARG' },
+  { name: 'Armenia', code: 'ARM' }, { name: 'Australia', code: 'AUS' }, { name: 'Austria', code: 'AUT' },
+  { name: 'Azerbaijan', code: 'AZE' }, { name: 'Bahamas', code: 'BHS' }, { name: 'Bahrain', code: 'BHR' },
+  { name: 'Bangladesh', code: 'BGD' }, { name: 'Barbados', code: 'BRB' }, { name: 'Belarus', code: 'BLR' },
+  { name: 'Belgium', code: 'BEL' }, { name: 'Belize', code: 'BLZ' }, { name: 'Benin', code: 'BEN' },
+  { name: 'Bhutan', code: 'BTN' }, { name: 'Bolivia', code: 'BOL' }, { name: 'Bosnia and Herzegovina', code: 'BIH' },
+  { name: 'Botswana', code: 'BWA' }, { name: 'Brazil', code: 'BRA' }, { name: 'Brunei', code: 'BRN' },
+  { name: 'Bulgaria', code: 'BGR' }, { name: 'Burkina Faso', code: 'BFA' }, { name: 'Burundi', code: 'BDI' },
+  { name: 'Cambodia', code: 'KHM' }, { name: 'Cameroon', code: 'CMR' }, { name: 'Canada', code: 'CAN' },
+  { name: 'Chad', code: 'TCD' }, { name: 'Chile', code: 'CHL' }, { name: 'China', code: 'CHN' },
+  { name: 'Colombia', code: 'COL' }, { name: 'Congo', code: 'COG' }, { name: 'Costa Rica', code: 'CRI' },
+  { name: 'Croatia', code: 'HRV' }, { name: 'Cuba', code: 'CUB' }, { name: 'Cyprus', code: 'CYP' },
+  { name: 'Czech Republic', code: 'CZE' }, { name: 'Denmark', code: 'DNK' }, { name: 'Djibouti', code: 'DJI' },
+  { name: 'Dominican Republic', code: 'DOM' }, { name: 'Ecuador', code: 'ECU' }, { name: 'Egypt', code: 'EGY' },
+  { name: 'El Salvador', code: 'SLV' }, { name: 'Estonia', code: 'EST' }, { name: 'Ethiopia', code: 'ETH' },
+  { name: 'Fiji', code: 'FJI' }, { name: 'Finland', code: 'FIN' }, { name: 'France', code: 'FRA' },
+  { name: 'Georgia', code: 'GEO' }, { name: 'Germany', code: 'DEU' }, { name: 'Ghana', code: 'GHA' },
+  { name: 'Greece', code: 'GRC' }, { name: 'Guatemala', code: 'GTM' }, { name: 'Honduras', code: 'HND' },
+  { name: 'Hong Kong', code: 'HKG' }, { name: 'Hungary', code: 'HUN' }, { name: 'Iceland', code: 'ISL' },
+  { name: 'India', code: 'IND' }, { name: 'Indonesia', code: 'IDN' }, { name: 'Iran', code: 'IRN' },
+  { name: 'Iraq', code: 'IRQ' }, { name: 'Ireland', code: 'IRL' }, { name: 'Israel', code: 'ISR' },
+  { name: 'Italy', code: 'ITA' }, { name: 'Jamaica', code: 'JAM' }, { name: 'Japan', code: 'JPN' },
+  { name: 'Jordan', code: 'JOR' }, { name: 'Kazakhstan', code: 'KAZ' }, { name: 'Kenya', code: 'KEN' },
+  { name: 'Kuwait', code: 'KWT' }, { name: 'Kyrgyzstan', code: 'KGZ' }, { name: 'Laos', code: 'LAO' },
+  { name: 'Latvia', code: 'LVA' }, { name: 'Lebanon', code: 'LBN' }, { name: 'Lesotho', code: 'LSO' },
+  { name: 'Liberia', code: 'LBR' }, { name: 'Libya', code: 'LBY' }, { name: 'Liechtenstein', code: 'LIE' },
+  { name: 'Lithuania', code: 'LTU' }, { name: 'Luxembourg', code: 'LUX' }, { name: 'Madagascar', code: 'MDG' },
+  { name: 'Malawi', code: 'MWI' }, { name: 'Malaysia', code: 'MYS' }, { name: 'Maldives', code: 'MDV' },
+  { name: 'Mali', code: 'MLI' }, { name: 'Malta', code: 'MLT' }, { name: 'Mauritius', code: 'MUS' },
+  { name: 'Mexico', code: 'MEX' }, { name: 'Moldova', code: 'MDA' }, { name: 'Monaco', code: 'MCO' },
+  { name: 'Mongolia', code: 'MNG' }, { name: 'Montenegro', code: 'MNE' }, { name: 'Morocco', code: 'MAR' },
+  { name: 'Mozambique', code: 'MOZ' }, { name: 'Myanmar', code: 'MMR' }, { name: 'Namibia', code: 'NAM' },
+  { name: 'Nepal', code: 'NPL' }, { name: 'Netherlands', code: 'NLD' }, { name: 'New Zealand', code: 'NZL' },
+  { name: 'Nicaragua', code: 'NIC' }, { name: 'Niger', code: 'NER' }, { name: 'Nigeria', code: 'NGA' },
+  { name: 'North Korea', code: 'PRK' }, { name: 'North Macedonia', code: 'MKD' }, { name: 'Norway', code: 'NOR' },
+  { name: 'Oman', code: 'OMN' }, { name: 'Pakistan', code: 'PAK' }, { name: 'Panama', code: 'PAN' },
+  { name: 'Papua New Guinea', code: 'PNG' }, { name: 'Paraguay', code: 'PRY' }, { name: 'Peru', code: 'PER' },
+  { name: 'Philippines', code: 'PHL' }, { name: 'Poland', code: 'POL' }, { name: 'Portugal', code: 'PRT' },
+  { name: 'Qatar', code: 'QAT' }, { name: 'Romania', code: 'ROU' }, { name: 'Russia', code: 'RUS' },
+  { name: 'Rwanda', code: 'RWA' }, { name: 'Saudi Arabia', code: 'SAU' }, { name: 'Senegal', code: 'SEN' },
+  { name: 'Serbia', code: 'SRB' }, { name: 'Seychelles', code: 'SYC' }, { name: 'Singapore', code: 'SGP' },
+  { name: 'Slovakia', code: 'SVK' }, { name: 'Slovenia', code: 'SVN' }, { name: 'Somalia', code: 'SOM' },
+  { name: 'South Africa', code: 'ZAF' }, { name: 'South Korea', code: 'KOR' }, { name: 'South Sudan', code: 'SSD' },
+  { name: 'Spain', code: 'ESP' }, { name: 'Sri Lanka', code: 'LKA' }, { name: 'Sudan', code: 'SDN' },
+  { name: 'Sweden', code: 'SWE' }, { name: 'Switzerland', code: 'CHE' }, { name: 'Syria', code: 'SYR' },
+  { name: 'Taiwan', code: 'TWN' }, { name: 'Tajikistan', code: 'TJK' }, { name: 'Tanzania', code: 'TZA' },
+  { name: 'Thailand', code: 'THA' }, { name: 'Togo', code: 'TGO' }, { name: 'Trinidad and Tobago', code: 'TTO' },
+  { name: 'Tunisia', code: 'TUN' }, { name: 'Turkey', code: 'TUR' }, { name: 'Turkmenistan', code: 'TKM' },
+  { name: 'Uganda', code: 'UGA' }, { name: 'Ukraine', code: 'UKR' }, { name: 'United Arab Emirates', code: 'ARE' },
+  { name: 'United Kingdom', code: 'GBR' }, { name: 'United States', code: 'USA' }, { name: 'Uruguay', code: 'URY' },
+  { name: 'Uzbekistan', code: 'UZB' }, { name: 'Venezuela', code: 'VEN' }, { name: 'Vietnam', code: 'VNM' },
+  { name: 'Yemen', code: 'YEM' }, { name: 'Zambia', code: 'ZMB' }, { name: 'Zimbabwe', code: 'ZWE' },
+];
+
+// ── Nationalities (ISO 3166-1 alpha-2 + dialing code) — for TravelDocument.issueCountry/birthCountry ──
+const NATIONALITIES = [
+  { name: 'Afghanistan', code: 'AF', dial: '93' }, { name: 'Albania', code: 'AL', dial: '355' },
+  { name: 'Algeria', code: 'DZ', dial: '213' }, { name: 'Andorra', code: 'AD', dial: '376' },
+  { name: 'Angola', code: 'AO', dial: '244' }, { name: 'Argentina', code: 'AR', dial: '54' },
+  { name: 'Armenia', code: 'AM', dial: '374' }, { name: 'Australia', code: 'AU', dial: '61' },
+  { name: 'Austria', code: 'AT', dial: '43' }, { name: 'Azerbaijan', code: 'AZ', dial: '994' },
+  { name: 'Bahamas', code: 'BS', dial: '1' }, { name: 'Bahrain', code: 'BH', dial: '973' },
+  { name: 'Bangladesh', code: 'BD', dial: '880' }, { name: 'Barbados', code: 'BB', dial: '1' },
+  { name: 'Belarus', code: 'BY', dial: '375' }, { name: 'Belgium', code: 'BE', dial: '32' },
+  { name: 'Belize', code: 'BZ', dial: '501' }, { name: 'Benin', code: 'BJ', dial: '229' },
+  { name: 'Bhutan', code: 'BT', dial: '975' }, { name: 'Bolivia', code: 'BO', dial: '591' },
+  { name: 'Bosnia and Herzegovina', code: 'BA', dial: '387' }, { name: 'Botswana', code: 'BW', dial: '267' },
+  { name: 'Brazil', code: 'BR', dial: '55' }, { name: 'Brunei', code: 'BN', dial: '673' },
+  { name: 'Bulgaria', code: 'BG', dial: '359' }, { name: 'Burkina Faso', code: 'BF', dial: '226' },
+  { name: 'Burundi', code: 'BI', dial: '257' }, { name: 'Cambodia', code: 'KH', dial: '855' },
+  { name: 'Cameroon', code: 'CM', dial: '237' }, { name: 'Canada', code: 'CA', dial: '1' },
+  { name: 'Chad', code: 'TD', dial: '235' }, { name: 'Chile', code: 'CL', dial: '56' },
+  { name: 'China', code: 'CN', dial: '86' }, { name: 'Colombia', code: 'CO', dial: '57' },
+  { name: 'Congo', code: 'CG', dial: '242' }, { name: 'Costa Rica', code: 'CR', dial: '506' },
+  { name: 'Croatia', code: 'HR', dial: '385' }, { name: 'Cuba', code: 'CU', dial: '53' },
+  { name: 'Cyprus', code: 'CY', dial: '357' }, { name: 'Czech Republic', code: 'CZ', dial: '420' },
+  { name: 'Denmark', code: 'DK', dial: '45' }, { name: 'Djibouti', code: 'DJ', dial: '253' },
+  { name: 'Dominican Republic', code: 'DO', dial: '1' }, { name: 'Ecuador', code: 'EC', dial: '593' },
+  { name: 'Egypt', code: 'EG', dial: '20' }, { name: 'El Salvador', code: 'SV', dial: '503' },
+  { name: 'Estonia', code: 'EE', dial: '372' }, { name: 'Ethiopia', code: 'ET', dial: '251' },
+  { name: 'Fiji', code: 'FJ', dial: '679' }, { name: 'Finland', code: 'FI', dial: '358' },
+  { name: 'France', code: 'FR', dial: '33' }, { name: 'Georgia', code: 'GE', dial: '995' },
+  { name: 'Germany', code: 'DE', dial: '49' }, { name: 'Ghana', code: 'GH', dial: '233' },
+  { name: 'Greece', code: 'GR', dial: '30' }, { name: 'Guatemala', code: 'GT', dial: '502' },
+  { name: 'Honduras', code: 'HN', dial: '504' }, { name: 'Hong Kong', code: 'HK', dial: '852' },
+  { name: 'Hungary', code: 'HU', dial: '36' }, { name: 'Iceland', code: 'IS', dial: '354' },
+  { name: 'India', code: 'IN', dial: '91' }, { name: 'Indonesia', code: 'ID', dial: '62' },
+  { name: 'Iran', code: 'IR', dial: '98' }, { name: 'Iraq', code: 'IQ', dial: '964' },
+  { name: 'Ireland', code: 'IE', dial: '353' }, { name: 'Israel', code: 'IL', dial: '972' },
+  { name: 'Italy', code: 'IT', dial: '39' }, { name: 'Jamaica', code: 'JM', dial: '1' },
+  { name: 'Japan', code: 'JP', dial: '81' }, { name: 'Jordan', code: 'JO', dial: '962' },
+  { name: 'Kazakhstan', code: 'KZ', dial: '7' }, { name: 'Kenya', code: 'KE', dial: '254' },
+  { name: 'Kuwait', code: 'KW', dial: '965' }, { name: 'Kyrgyzstan', code: 'KG', dial: '996' },
+  { name: 'Laos', code: 'LA', dial: '856' }, { name: 'Latvia', code: 'LV', dial: '371' },
+  { name: 'Lebanon', code: 'LB', dial: '961' }, { name: 'Lesotho', code: 'LS', dial: '266' },
+  { name: 'Liberia', code: 'LR', dial: '231' }, { name: 'Libya', code: 'LY', dial: '218' },
+  { name: 'Liechtenstein', code: 'LI', dial: '423' }, { name: 'Lithuania', code: 'LT', dial: '370' },
+  { name: 'Luxembourg', code: 'LU', dial: '352' }, { name: 'Madagascar', code: 'MG', dial: '261' },
+  { name: 'Malawi', code: 'MW', dial: '265' }, { name: 'Malaysia', code: 'MY', dial: '60' },
+  { name: 'Maldives', code: 'MV', dial: '960' }, { name: 'Mali', code: 'ML', dial: '223' },
+  { name: 'Malta', code: 'MT', dial: '356' }, { name: 'Mauritius', code: 'MU', dial: '230' },
+  { name: 'Mexico', code: 'MX', dial: '52' }, { name: 'Moldova', code: 'MD', dial: '373' },
+  { name: 'Monaco', code: 'MC', dial: '377' }, { name: 'Mongolia', code: 'MN', dial: '976' },
+  { name: 'Montenegro', code: 'ME', dial: '382' }, { name: 'Morocco', code: 'MA', dial: '212' },
+  { name: 'Mozambique', code: 'MZ', dial: '258' }, { name: 'Myanmar', code: 'MM', dial: '95' },
+  { name: 'Namibia', code: 'NA', dial: '264' }, { name: 'Nepal', code: 'NP', dial: '977' },
+  { name: 'Netherlands', code: 'NL', dial: '31' }, { name: 'New Zealand', code: 'NZ', dial: '64' },
+  { name: 'Nicaragua', code: 'NI', dial: '505' }, { name: 'Niger', code: 'NE', dial: '227' },
+  { name: 'Nigeria', code: 'NG', dial: '234' }, { name: 'North Korea', code: 'KP', dial: '850' },
+  { name: 'North Macedonia', code: 'MK', dial: '389' }, { name: 'Norway', code: 'NO', dial: '47' },
+  { name: 'Oman', code: 'OM', dial: '968' }, { name: 'Pakistan', code: 'PK', dial: '92' },
+  { name: 'Panama', code: 'PA', dial: '507' }, { name: 'Papua New Guinea', code: 'PG', dial: '675' },
+  { name: 'Paraguay', code: 'PY', dial: '595' }, { name: 'Peru', code: 'PE', dial: '51' },
+  { name: 'Philippines', code: 'PH', dial: '63' }, { name: 'Poland', code: 'PL', dial: '48' },
+  { name: 'Portugal', code: 'PT', dial: '351' }, { name: 'Qatar', code: 'QA', dial: '974' },
+  { name: 'Romania', code: 'RO', dial: '40' }, { name: 'Russia', code: 'RU', dial: '7' },
+  { name: 'Rwanda', code: 'RW', dial: '250' }, { name: 'Saudi Arabia', code: 'SA', dial: '966' },
+  { name: 'Senegal', code: 'SN', dial: '221' }, { name: 'Serbia', code: 'RS', dial: '381' },
+  { name: 'Seychelles', code: 'SC', dial: '248' }, { name: 'Singapore', code: 'SG', dial: '65' },
+  { name: 'Slovakia', code: 'SK', dial: '421' }, { name: 'Slovenia', code: 'SI', dial: '386' },
+  { name: 'Somalia', code: 'SO', dial: '252' }, { name: 'South Africa', code: 'ZA', dial: '27' },
+  { name: 'South Korea', code: 'KR', dial: '82' }, { name: 'South Sudan', code: 'SS', dial: '211' },
+  { name: 'Spain', code: 'ES', dial: '34' }, { name: 'Sri Lanka', code: 'LK', dial: '94' },
+  { name: 'Sudan', code: 'SD', dial: '249' }, { name: 'Sweden', code: 'SE', dial: '46' },
+  { name: 'Switzerland', code: 'CH', dial: '41' }, { name: 'Syria', code: 'SY', dial: '963' },
+  { name: 'Taiwan', code: 'TW', dial: '886' }, { name: 'Tajikistan', code: 'TJ', dial: '992' },
+  { name: 'Tanzania', code: 'TZ', dial: '255' }, { name: 'Thailand', code: 'TH', dial: '66' },
+  { name: 'Togo', code: 'TG', dial: '228' }, { name: 'Trinidad and Tobago', code: 'TT', dial: '1' },
+  { name: 'Tunisia', code: 'TN', dial: '216' }, { name: 'Turkey', code: 'TR', dial: '90' },
+  { name: 'Turkmenistan', code: 'TM', dial: '993' }, { name: 'Uganda', code: 'UG', dial: '256' },
+  { name: 'Ukraine', code: 'UA', dial: '380' }, { name: 'United Arab Emirates', code: 'AE', dial: '971' },
+  { name: 'United Kingdom', code: 'GB', dial: '44' }, { name: 'United States', code: 'US', dial: '1' },
+  { name: 'Uruguay', code: 'UY', dial: '598' }, { name: 'Uzbekistan', code: 'UZ', dial: '998' },
+  { name: 'Venezuela', code: 'VE', dial: '58' }, { name: 'Vietnam', code: 'VN', dial: '84' },
+  { name: 'Yemen', code: 'YE', dial: '967' }, { name: 'Zambia', code: 'ZM', dial: '260' },
+  { name: 'Zimbabwe', code: 'ZW', dial: '263' },
 ];
 
 // ── Tomorrow's date helper ─────────────────────────────────────────────────
@@ -402,6 +543,7 @@ export default function App() {
   //    e.g. it wraps to 2 rows on mobile — so it's measured, not hardcoded) ──
   const headerRef = useRef(null);
   const topbarRef = useRef(null);
+  const confirmBookingInFlightRef = useRef(false);
   const [headerHeight, setHeaderHeight] = useState(67);
   const [topbarHeight, setTopbarHeight] = useState(66);
 
@@ -480,9 +622,19 @@ export default function App() {
   // Booking wizard step: 'passenger' | 'review' | 'processing' | 'ticket'
   const [bookingStep, setBookingStep] = useState(null);
 
+  // True from the very first render (computed synchronously, not in an
+  // effect) whenever the URL carries a PayCorp return (?locator=&reqid=) —
+  // this is what lets the app skip straight to the ticket receipt instead
+  // of flashing the Home page while the mount effect below verifies payment.
+  const [verifyingPayment, setVerifyingPayment] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return !!(params.get('locator') && params.get('reqid'));
+  });
+
   // Traveler forms (multiple passengers)
   const [travelers, setTravelers] = useState([]);
   const [activePassengerIdx, setActivePassengerIdx] = useState(0);
+  const [showExtraTravelerFields, setShowExtraTravelerFields] = useState(false);
   const [bookingError, setBookingError] = useState('');
 
   // Issued ticket (Step 10 popup)
@@ -530,6 +682,47 @@ export default function App() {
     setNotification({ message: displayMessage, type });
     setTimeout(() => setNotification(null), 5000);
   };
+
+  // ── PayCorp return handler ──────────────────────────────────────────────
+  // After a card payment, PayCorp redirects the browser back here with
+  // ?locator=<PNR>&reqid=<...> (success/pending) or &payment=cancelled.
+  // This is a fresh page load — selectedFlight/travelers state is gone —
+  // so this only needs the locator + reqid to verify payment and issue
+  // the ticket; the ticket popup itself doesn't depend on selectedFlight.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const locator = params.get('locator');
+    const reqid = params.get('reqid');
+    const cancelled = params.get('payment') === 'cancelled';
+
+    if (locator && reqid) {
+      window.history.replaceState({}, '', window.location.pathname);
+      (async () => {
+        try {
+          const res = await fetchWithRetry(`${API_BASE}/bookings/${locator}/issue-ticket`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reqid })
+          });
+          const data = await handleApiResponse(res, 'Ticket issuance failed');
+          setIssuedTicket(data.ticket);
+          setBookingStep('ticket');
+          showNotification('🎉 Payment confirmed — ticket issued!', 'success');
+        } catch (err) {
+          showNotification(
+            (err.message || 'Ticket issuance failed after payment') + ` — your PNR ${locator} is held, contact support.`,
+            'error'
+          );
+        } finally {
+          setVerifyingPayment(false);
+        }
+      })();
+    } else if (locator && cancelled) {
+      window.history.replaceState({}, '', window.location.pathname);
+      setVerifyingPayment(false);
+      showNotification(`Payment was cancelled. Your booking (PNR: ${locator}) is held — you can complete payment later.`, 'info');
+    }
+  }, []);
 
   const handleRefreshTicket = async (locatorCode) => {
     if (!locatorCode) return;
@@ -660,25 +853,34 @@ export default function App() {
     setBookingError('');
     
     const travelerList = [];
+    const extraFields = {
+      birth_place: '', document_issue_date: '', issued_for_geo_political_area: '',
+      phone_area_city_code: '', phone_extension: '', phone_city_code: '',
+      address_street: '', address_city: '', address_state_name: '',
+      address_state_value: '', address_country: '', address_postal_code: ''
+    };
     for (let i = 0; i < adultCount; i++) {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
         gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', email: '', phone: '', passenger_type: 'ADT'
+        nationality: 'LK', email: '', phone: '', passenger_type: 'ADT',
+        ...extraFields
       });
     }
     for (let i = 0; i < childCount; i++) {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
         gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', email: '', phone: '', passenger_type: 'CNN'
+        nationality: 'LK', email: '', phone: '', passenger_type: 'CNN',
+        ...extraFields
       });
     }
     for (let i = 0; i < infantCount; i++) {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
         gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', email: '', phone: '', passenger_type: 'INF'
+        nationality: 'LK', email: '', phone: '', passenger_type: 'INF',
+        ...extraFields
       });
     }
     setTravelers(travelerList);
@@ -689,6 +891,24 @@ export default function App() {
     setTravelers(prev => {
       const updated = [...prev];
       updated[activePassengerIdx] = { ...updated[activePassengerIdx], [field]: value };
+      return updated;
+    });
+  };
+
+  // Nationality drives the phone country code — selecting a country auto-fills
+  // the Phone field with its dialing code, but only when Phone is still empty
+  // so it never overwrites a number the traveler already typed.
+  const handleNationalityChange = (code) => {
+    const nat = NATIONALITIES.find(n => n.code === code);
+    setTravelers(prev => {
+      const updated = [...prev];
+      const current = updated[activePassengerIdx] || {};
+      const shouldFillPhone = nat && (!current.phone || current.phone.trim() === '');
+      updated[activePassengerIdx] = {
+        ...current,
+        nationality: code,
+        phone: shouldFillPhone ? `+${nat.dial}` : current.phone
+      };
       return updated;
     });
   };
@@ -757,6 +977,12 @@ export default function App() {
 
   // ── STEPS 4-9: Confirm Booking + Issue Ticket ─────────────────────────────
   const handleConfirmBooking = async () => {
+    // Guards against a duplicate PNR/GDS hold from a rapid double-click or a
+    // stale-element click still registering — a synchronous ref check, not
+    // dependent on React re-render timing like a state flag would be.
+    if (confirmBookingInFlightRef.current) return;
+    confirmBookingInFlightRef.current = true;
+
     setBookingStep('processing');
     setBookingError('');
 
@@ -780,8 +1006,39 @@ export default function App() {
       });
 
       const data = await handleApiResponse(res, 'Booking failed');
+      const pnrTicket = data.ticket; // PNR confirmed on Travelport — not yet ticketed
 
-      setIssuedTicket(data.ticket);
+      if (paymentMethod === 'card') {
+        // Redirect to PayCorp's hosted payment page — card details are
+        // entered there, never on this site. On return, the mount-time
+        // effect above verifies payment and issues the ticket.
+        const baseUrl = `${window.location.origin}${window.location.pathname}`;
+        const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: pnrTicket.total_fare,
+            currency: pnrTicket.currency || 'LKR',
+            return_url: `${baseUrl}?locator=${pnrTicket.locator_code}`,
+            cancel_url: `${baseUrl}?locator=${pnrTicket.locator_code}&payment=cancelled`,
+            client_ref: pnrTicket.locator_code,
+            comment: `George Steuart Travel - ${pnrTicket.locator_code}`
+          })
+        });
+        const payData = await handleApiResponse(payRes, 'Failed to start payment');
+        window.location.href = payData.payment_page_url;
+        return;
+      }
+
+      // Cash / Bank Transfer — no online gateway involved; issue immediately.
+      const issueRes = await fetchWithRetry(`${API_BASE}/bookings/${pnrTicket.locator_code}/issue-ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const issueData = await handleApiResponse(issueRes, 'Ticket issuance failed');
+
+      setIssuedTicket(issueData.ticket);
       setBookingStep('ticket');
       showNotification('🎉 Ticket issued successfully!', 'success');
 
@@ -790,6 +1047,8 @@ export default function App() {
       setBookingError(errMsg);
       setBookingStep('payment');
       showNotification(errMsg, 'error');
+    } finally {
+      confirmBookingInFlightRef.current = false;
     }
   };
 
@@ -1016,9 +1275,31 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
+  // Passengers to show on the ticket receipt. The local `travelers` form
+  // state is only populated during a live in-browser booking flow — after a
+  // PayCorp redirect (fresh page load), it's empty, so fall back to
+  // issuedTicket.travelers (the backend-confirmed record for this PNR).
+  const displayTravelers = travelers.length > 0 ? travelers : (issuedTicket?.travelers || []);
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="app-container">
+
+      {/* PayCorp return — full-screen cover so the Home page never flashes
+          before the ticket receipt; active from the very first render. */}
+      {verifyingPayment && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10000,
+          background: 'var(--gs-dark, #1e293b)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="spinner" style={{ marginBottom: '1.5rem' }}></div>
+          <h3 style={{ color: 'white', fontWeight: '700' }}>Confirming Your Payment...</h3>
+          <p style={{ color: 'rgba(255,255,255,0.7)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
+            Verifying with PayCorp and issuing your e-ticket.
+          </p>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {notification && (
@@ -3862,7 +4143,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">Nationality</label>
-                    <input type="text" className="form-input" placeholder="LK" maxLength={3} value={travelers[activePassengerIdx]?.nationality || ''} onChange={e => handleTravelerChange('nationality', e.target.value.toUpperCase())} />
+                    <select className="form-select" value={travelers[activePassengerIdx]?.nationality || ''} onChange={e => handleNationalityChange(e.target.value)}>
+                      <option value="">-- Select nationality --</option>
+                      {NATIONALITIES.map(n => (
+                        <option key={n.code} value={n.code}>{n.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Phone *</label>
@@ -3873,6 +4159,91 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <label className="form-label">Email Address *</label>
                   <input type="email" className="form-input" required placeholder="john@example.com" value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowExtraTravelerFields(v => !v)}
+                  style={{
+                    background: 'none', border: 'none', padding: '0.5rem 0', marginTop: '0.25rem',
+                    color: 'var(--gs-crimson)', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '0.35rem'
+                  }}
+                >
+                  {showExtraTravelerFields ? '▾' : '▸'} Additional Document &amp; Contact Details (optional)
+                </button>
+
+                {showExtraTravelerFields && (
+                  <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '1rem', marginBottom: '1rem' }}>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">Place of Birth</label>
+                        <input type="text" className="form-input" placeholder="Colombo" value={travelers[activePassengerIdx]?.birth_place || ''} onChange={e => handleTravelerChange('birth_place', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Document Issue Date</label>
+                        <input type="date" className="form-input" value={travelers[activePassengerIdx]?.document_issue_date || ''} onChange={e => handleTravelerChange('document_issue_date', e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">Document Valid For (Country)</label>
+                        <select className="form-select" value={travelers[activePassengerIdx]?.issued_for_geo_political_area || ''} onChange={e => handleTravelerChange('issued_for_geo_political_area', e.target.value)}>
+                          <option value="">-- Select country --</option>
+                          {COUNTRIES.map(c => (
+                            <option key={c.code} value={c.code}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Phone Extension</label>
+                        <input type="text" className="form-input" placeholder="123" value={travelers[activePassengerIdx]?.phone_extension || ''} onChange={e => handleTravelerChange('phone_extension', e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">Phone Area/City Code</label>
+                        <input type="text" className="form-input" placeholder="11" value={travelers[activePassengerIdx]?.phone_area_city_code || ''} onChange={e => handleTravelerChange('phone_area_city_code', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Phone GDS City Code</label>
+                        <input type="text" className="form-input" placeholder="CMB" maxLength={3} value={travelers[activePassengerIdx]?.phone_city_code || ''} onChange={e => handleTravelerChange('phone_city_code', e.target.value.toUpperCase())} />
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0.75rem 0 0.5rem' }}>Address</div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">Street</label>
+                        <input type="text" className="form-input" placeholder="Travers Street" value={travelers[activePassengerIdx]?.address_street || ''} onChange={e => handleTravelerChange('address_street', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">City</label>
+                        <input type="text" className="form-input" placeholder="Claremont" value={travelers[activePassengerIdx]?.address_city || ''} onChange={e => handleTravelerChange('address_city', e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">State/Province Name</label>
+                        <input type="text" className="form-input" placeholder="Texas" value={travelers[activePassengerIdx]?.address_state_name || ''} onChange={e => handleTravelerChange('address_state_name', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">State/Province Code</label>
+                        <input type="text" className="form-input" placeholder="CA" maxLength={3} value={travelers[activePassengerIdx]?.address_state_value || ''} onChange={e => handleTravelerChange('address_state_value', e.target.value.toUpperCase())} />
+                      </div>
+                    </div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">Country</label>
+                        <input type="text" className="form-input" placeholder="US" maxLength={3} value={travelers[activePassengerIdx]?.address_country || ''} onChange={e => handleTravelerChange('address_country', e.target.value.toUpperCase())} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Postal Code</label>
+                        <input type="text" className="form-input" placeholder="917113323" value={travelers[activePassengerIdx]?.address_postal_code || ''} onChange={e => handleTravelerChange('address_postal_code', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="modal-actions">
                   <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Cancel</button>
                   <button type="submit" className="btn btn-primary">Continue to Seat Selection →</button>
@@ -4394,73 +4765,20 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             {bookingStep === 'payment' && (
               <div>
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1rem' }}>
-                  <h4 style={{ marginBottom: '1rem', color: 'var(--gs-dark)', fontSize: '0.95rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem' }}>Select Payment Option</h4>
-                  
-                  {/* Payment method selector */}
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                    <button
-                      type="button"
-                      className={`btn ${paymentMethod === 'card' ? 'btn-primary' : 'btn-secondary'}`}
-                      onClick={() => setPaymentMethod('card')}
-                      style={{ flex: 1, padding: '0.6rem', fontSize: '0.85rem', fontWeight: '700' }}
-                    >
-                      💳 Credit / Debit Card
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ${paymentMethod === 'bank' ? 'btn-primary' : 'btn-secondary'}`}
-                      onClick={() => setPaymentMethod('bank')}
-                      style={{ flex: 1, padding: '0.6rem', fontSize: '0.85rem', fontWeight: '700' }}
-                    >
-                      🏦 Bank Transfer
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ${paymentMethod === 'cash' ? 'btn-primary' : 'btn-secondary'}`}
-                      onClick={() => setPaymentMethod('cash')}
-                      style={{ flex: 1, padding: '0.6rem', fontSize: '0.85rem', fontWeight: '700' }}
-                    >
-                      💵 Cash Payment
-                    </button>
-                  </div>
+                  <h4 style={{ marginBottom: '1rem', color: 'var(--gs-dark)', fontSize: '0.95rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem' }}>Payment</h4>
 
-                  {paymentMethod === 'card' ? (
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.6', background: 'white', padding: '1rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                      <p style={{ fontWeight: '700', color: 'var(--gs-crimson)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>💳 Credit / Debit Card Payment</p>
-                      <p style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '0.5rem' }}>
-                        Your reservation will be confirmed directly with <strong>Travelport GDS</strong> upon clicking <em>Confirm Booking</em>.
-                      </p>
-                      <p style={{ fontSize: '0.78rem', color: '#475569' }}>
-                        A George Steuart Travel agent will contact you to process your card payment securely.
-                      </p>
-                      <div style={{ marginTop: '0.75rem', fontSize: '0.72rem', color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
-                        ℹ️ No card details are transmitted through this system. Payment is processed offline by George Steuart Travel.
-                      </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.6', background: 'white', padding: '1rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                    <p style={{ fontWeight: '700', color: 'var(--gs-crimson)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>💳 Credit / Debit Card Payment</p>
+                    <p style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '0.5rem' }}>
+                      Your reservation is confirmed with <strong>Travelport GDS</strong> first (PNR generated), then you'll be redirected to our secure payment partner <strong>Sampath PayCorp</strong> to complete payment.
+                    </p>
+                    <p style={{ fontSize: '0.78rem', color: '#475569' }}>
+                      Your ticket is issued automatically the moment payment is confirmed.
+                    </p>
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.72rem', color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+                      ℹ️ Card details are entered on PayCorp's own secure payment page — this site never receives or stores your card number.
                     </div>
-                  ) : paymentMethod === 'bank' ? (
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.6', background: 'white', padding: '1rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                      <p style={{ fontWeight: '700', color: 'var(--gs-crimson)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>George Steuart Travel Bank Details:</p>
-                      <strong>Bank:</strong> Hatton National Bank (HNB)<br />
-                      <strong>Account Name:</strong> George Steuart Travel Ltd<br />
-                      <strong>Account Number:</strong> 003010012345<br />
-                      <strong>Branch:</strong> Head Office<br />
-                      <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
-                        Please email bank transfer transaction slip to billing@georgesteuart.lk. Tickets will be issued upon transaction confirmation.
-                      </p>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.6', background: 'white', padding: '1rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                      <p style={{ fontWeight: '700', color: 'var(--gs-crimson)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>💵 Cash Settlement at Office Counter</p>
-                      <p style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '0.5rem' }}>
-                        Your reservation will be held on the <strong>Travelport GDS</strong> platform with a confirmed PNR.
-                      </p>
-                      <strong>Office Address:</strong> George Steuart Travel Ltd, #7C, W. A. D. Ramanayake Mawatha, Colombo 02<br />
-                      <strong>Office Hours:</strong> Monday – Friday: 8:30 AM – 5:00 PM | Saturday: 8:30 AM – 1:00 PM<br />
-                      <div style={{ marginTop: '0.75rem', fontSize: '0.72rem', color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
-                        ℹ️ Please settle payment in cash or cashier's check at our ticketing counter before the GDS ticketing deadline to finalize e-ticket issuance.
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
 
 {(() => {
@@ -4484,7 +4802,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <div className="modal-actions">
                   <button className="btn btn-secondary" onClick={() => setBookingStep('review')}>← Back to Review</button>
                   <button className="btn btn-primary" onClick={handleConfirmBooking}>
-                    Confirm Booking
+                    {paymentMethod === 'card' ? 'Confirm Booking → Proceed to Payment' : 'Confirm Booking'}
                   </button>
                 </div>
               </div>
@@ -4594,14 +4912,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <div style={{ borderLeft: '1px dashed #cbd5e1', paddingLeft: '1rem' }}>
                   <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em' }}>E-Ticket Number</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f766e', fontFamily: 'monospace' }}>{issuedTicket.ticket_number || 'PENDING'}</div>
-                  <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.1rem' }}>
+                  <div style={{ fontSize: '0.65rem', color: issuedTicket.ticket_issuance_diagnostic ? '#b45309' : '#64748b', marginTop: '0.1rem' }}>
                     {issuedTicket.ticket_number
                       ? '✓ Valid for Travel'
-                      : issuedTicket.payment_method === 'Cash'
-                        ? 'Awaiting Cash Settlement at Counter'
-                        : issuedTicket.payment_method === 'Bank Transfer'
-                          ? 'Awaiting Bank Slip Verification'
-                          : 'GDS PNR Confirmed (Ticketing Pending Stock Allocation)'}
+                      : issuedTicket.ticket_issuance_diagnostic
+                        ? `⚠ Travelport: ${issuedTicket.ticket_issuance_diagnostic}`
+                        : issuedTicket.payment_method === 'Cash'
+                          ? 'Awaiting Cash Settlement at Counter'
+                          : issuedTicket.payment_method === 'Bank Transfer'
+                            ? 'Awaiting Bank Slip Verification'
+                            : 'GDS PNR Confirmed (Ticketing Pending Stock Allocation)'}
                   </div>
                 </div>
               </div>
@@ -4612,10 +4932,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   
                   {/* Passenger Information — all travelers */}
                   <h3 style={{ fontSize: '0.9rem', color: '#c3122e', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Passenger Information ({travelers.length} {travelers.length === 1 ? 'Passenger' : 'Passengers'})
+                    Passenger Information ({displayTravelers.length} {displayTravelers.length === 1 ? 'Passenger' : 'Passengers'})
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.75rem' }}>
-                    {travelers.map((t, pIdx) => {
+                    {displayTravelers.map((t, pIdx) => {
                       const paxTypeLabel = t.passenger_type === 'CNN' ? 'Child' : t.passenger_type === 'INF' ? 'Infant' : 'Adult';
                       const paxIcon = t.passenger_type === 'CNN' ? '🧒' : t.passenger_type === 'INF' ? '👶' : '🧑';
                       // For pax 1, prefer the confirmed name from Travelport if available

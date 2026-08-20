@@ -13,9 +13,11 @@ import httpx
 import logging
 import re
 import time
+from datetime import datetime
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
+from utils import tp_logger
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 def _api_post(url: str, payload: dict | str, session_id: str | None = None) -> dict:
     """Internal helper for POST requests with automatic token retry."""
     headers = get_auth_headers(session_id)
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         if isinstance(payload, str):
             response = client.post(url, content=payload, headers=headers)
         else:
@@ -46,7 +48,7 @@ def _api_post(url: str, payload: dict | str, session_id: str | None = None) -> d
 def _api_get(url: str, session_id: str | None = None) -> dict:
     """Internal helper for GET requests with automatic token retry."""
     headers = get_auth_headers(session_id)
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.get(url, headers=headers)
         if response.status_code == 401:
             invalidate_token()
@@ -58,7 +60,7 @@ def _api_get(url: str, session_id: str | None = None) -> dict:
 def _api_delete(url: str, session_id: str | None = None) -> None:
     """Internal helper for DELETE requests (used to ignore/cancel a stale workbench)."""
     headers = get_auth_headers(session_id)
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.delete(url, headers=headers)
         if response.status_code == 401:
             invalidate_token()
@@ -71,7 +73,7 @@ def _api_delete(url: str, session_id: str | None = None) -> None:
 def _api_patch(url: str, payload: dict, session_id: str | None = None) -> dict:
     """Internal helper for PATCH requests with automatic token retry."""
     headers = get_auth_headers(session_id)
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.patch(url, json=payload, headers=headers)
         if response.status_code == 401:
             invalidate_token()
@@ -506,28 +508,36 @@ def _person_prefix(gender: str, passenger_type: str) -> str:
     return "MR" if is_male else "MRS"
 
 
-def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
+def _calculate_age(date_of_birth: str) -> int | None:
+    """Whole-years age computed from a YYYY-MM-DD birth date to today."""
+    try:
+        dob = datetime.strptime(date_of_birth, "%Y-%m-%d")
+        today = datetime.now()
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        return max(age, 0)
+    except (ValueError, TypeError):
+        return None
+
+
+def _build_traveler_payload(traveler: dict, traveler_id: str | None = None) -> dict:
     """
-    STEP 6: Add passenger/traveler details to the workbench.
+    Build a single Traveler object from our internal passenger dict. Shared by
+    both the single-traveler request (add_traveler_to_workbench) and the
+    multi-traveler list request (add_travelers_to_workbench).
 
     Args:
-        workbench_id (str): Workbench ID from STEP 4
         traveler (dict): Passenger info with keys:
-            - first_name (str)
-            - last_name (str)
+            - first_name, last_name (str)
             - date_of_birth (str)  YYYY-MM-DD
             - gender (str)         "Male" | "Female"
-            - passport_number (str)
-            - passport_expiry (str) YYYY-MM-DD
+            - passenger_type (str) "ADT" | "CNN" | "INF"
+            - passport_number, passport_expiry (str)
             - nationality (str)    ISO country code e.g. "LK"
-            - email (str)
-            - phone (str)
-
-    Returns:
-        dict: Updated workbench response
+            - email, phone (str)
+        traveler_id (str | None): Set to "trav_1", "trav_2", ... when this
+            traveler is part of a TravelerListRequest (required so Travelport
+            can distinguish multiple passengers in one request).
     """
-    logger.info(f"Adding traveler to workbench {workbench_id}: {traveler.get('first_name')} {traveler.get('last_name')}")
-
     # Clean phone number and parse country code for Galileo 1G
     phone_clean = traveler.get("phone", "").replace("+", "").replace(" ", "").replace("-", "")
     country_code = "94"
@@ -540,59 +550,173 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
 
     prefix = _person_prefix(traveler.get("gender", "Male"), traveler.get("passenger_type", "ADT"))
 
+    passenger_type = traveler.get("passenger_type", "ADT")
+
+    # Telephone.id — local reference per traveler, matching Travelport's sample
+    # (id "1"/"2"/"3" alongside trav_1/trav_2/trav_3). Derived from traveler_id
+    # when part of a batch request, else defaults to "1".
+    telephone_id = "1"
+    if traveler_id:
+        m = re.search(r"(\d+)$", traveler_id)
+        if m:
+            telephone_id = m.group(1)
+
+    telephone_entry = {
+        "@type": "Telephone",
+        "countryAccessCode": country_code,
+        "phoneNumber": phone_num,
+        "id": telephone_id,
+        "role": "Mobile"
+    }
+    if traveler.get("phone_area_city_code"):
+        telephone_entry["areaCityCode"] = traveler.get("phone_area_city_code")
+    if traveler.get("phone_extension"):
+        telephone_entry["extension"] = traveler.get("phone_extension")
+    if traveler.get("phone_city_code"):
+        telephone_entry["cityCode"] = traveler.get("phone_city_code")
+
+    travel_document = {
+        "@type": "TravelDocumentDetail",
+        "docNumber": traveler.get("passport_number", ""),
+        "docType": "Passport",
+        "expireDate": traveler.get("passport_expiry", ""),
+        "issueCountry": traveler.get("nationality", "LK"),
+        # Country of birth, ISO3166 — required by Travelport for a
+        # Passport TravelDocument entry. We don't collect a separate
+        # birth-country field, so nationality is used as the value
+        # (matches for the vast majority of travelers).
+        "birthCountry": traveler.get("nationality", "LK"),
+        "birthDate": traveler.get("date_of_birth", ""),
+        "Gender": traveler.get("gender", "Male"),
+        "PersonName": {
+            # Travelport's own sample uses PersonNameDetail here (same @type
+            # as the top-level PersonName), not the bare "PersonName" type.
+            "@type": "PersonNameDetail",
+            "Given": traveler.get("first_name", "").upper(),
+            "Surname": traveler.get("last_name", "").upper()
+        }
+    }
+    if traveler.get("document_issue_date"):
+        travel_document["issueDate"] = traveler.get("document_issue_date")
+    if traveler.get("birth_place"):
+        travel_document["birthPlace"] = traveler.get("birth_place")
+    if traveler.get("issued_for_geo_political_area"):
+        travel_document["IssuedForGeoPoliticalArea"] = {"value": traveler.get("issued_for_geo_political_area")}
+
+    address_fields = (
+        "address_street", "address_city", "address_state_name",
+        "address_state_value", "address_country", "address_postal_code"
+    )
+    if any(traveler.get(f) for f in address_fields):
+        address = {"@type": "Address", "role": "Destination"}
+        if traveler.get("address_street"):
+            address["Street"] = traveler.get("address_street")
+        if traveler.get("address_city"):
+            address["City"] = traveler.get("address_city")
+        if traveler.get("address_state_name") or traveler.get("address_state_value"):
+            state_prov = {}
+            if traveler.get("address_state_name"):
+                state_prov["name"] = traveler.get("address_state_name")
+            if traveler.get("address_state_value"):
+                state_prov["value"] = traveler.get("address_state_value")
+            address["StateProv"] = state_prov
+        if traveler.get("address_country"):
+            address["Country"] = {"value": traveler.get("address_country")}
+        if traveler.get("address_postal_code"):
+            address["PostalCode"] = traveler.get("address_postal_code")
+        travel_document["Address"] = address
+
     payload = {
-        "Traveler": {
-            "@type": "Traveler",
-            "gender": traveler.get("gender", "Male"),
-            "birthDate": traveler.get("date_of_birth", ""),
-            "passengerTypeCode": traveler.get("passenger_type", "ADT"),
-            "PersonName": {
-                "@type": "PersonNameDetail",
-                "Prefix": prefix,  # Prefix required for Galileo 1G validation
-                "Given": traveler.get("first_name", "").upper(),
-                "Surname": traveler.get("last_name", "").upper()
-            },
-            "Telephone": [
-                {
-                    "@type": "Telephone",
-                    "countryAccessCode": country_code,
-                    "phoneNumber": phone_num,
-                    "role": "Mobile"
-                }
-            ],
-            "Email": [
-                {
-                    "value": traveler.get("email", "")
-                }
-            ],
-            "TravelDocument": [
-                {
-                    "@type": "TravelDocumentDetail",
-                    "docNumber": traveler.get("passport_number", ""),
-                    "docType": "Passport",
-                    "expireDate": traveler.get("passport_expiry", ""),
-                    "issueCountry": traveler.get("nationality", "LK"),
-                    # Country of birth, ISO3166 — required by Travelport for a
-                    # Passport TravelDocument entry. We don't collect a separate
-                    # birth-country field, so nationality is used as the value
-                    # (matches for the vast majority of travelers).
-                    "birthCountry": traveler.get("nationality", "LK"),
-                    "birthDate": traveler.get("date_of_birth", ""),
-                    "Gender": traveler.get("gender", "Male"),
-                    "PersonName": {
-                        "@type": "PersonName",
-                        "Given": traveler.get("first_name", "").upper(),
-                        "Surname": traveler.get("last_name", "").upper()
-                    }
-                }
-            ]
+        "@type": "Traveler",
+        "gender": traveler.get("gender", "Male"),
+        "birthDate": traveler.get("date_of_birth", ""),
+        "passengerTypeCode": passenger_type,
+        "PersonName": {
+            "@type": "PersonNameDetail",
+            "Prefix": prefix,  # Prefix required for Galileo 1G validation
+            "Given": traveler.get("first_name", "").upper(),
+            "Surname": traveler.get("last_name", "").upper()
+        },
+        "Telephone": [telephone_entry],
+        "Email": [
+            {
+                "value": traveler.get("email", "")
+            }
+        ],
+        "TravelDocument": [travel_document]
+    }
+
+    # Explicit numeric age (not just birthDate) for every passenger type —
+    # Adult, Child, and Infant — computed from the traveler's actual date
+    # of birth, so Travelport can validate the fare's PTC age bracket.
+    age = _calculate_age(traveler.get("date_of_birth", ""))
+    if age is not None:
+        payload["age"] = age
+
+    if traveler_id:
+        payload["id"] = traveler_id
+    return payload
+
+
+def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
+    """
+    Add a SINGLE passenger/traveler to the workbench.
+
+    Kept for callers that need to add one isolated traveler. The main booking
+    flow (run_booking_flow) uses add_travelers_to_workbench instead, so that
+    every passenger on one PNR (Adult/Child/Infant) is sent to Travelport in
+    one combined request rather than one request per traveler.
+
+    Returns:
+        dict: Updated workbench response
+    """
+    logger.info(f"Adding traveler to workbench {workbench_id}: {traveler.get('first_name')} {traveler.get('last_name')}")
+
+    payload = {"Traveler": _build_traveler_payload(traveler)}
+
+    url = TravelportEndpoints.update_workbench(workbench_id)
+    result = _api_post(url, payload, session_id=workbench_id)
+    logger.info("Traveler added to workbench.")
+    return result
+
+
+def add_travelers_to_workbench(workbench_id: str, travelers: list) -> dict:
+    """
+    STEP 6: Add ALL passengers for a booking to the workbench in a SINGLE
+    Travelport request (TravelerListRequest → .../travelers/list), instead of
+    one request per traveler. This is what makes a booking with mixed
+    passenger types (e.g. 1 Adult + 1 Child + 1 Infant) result in exactly one
+    Travelport booking API call for that PNR, not N separate calls.
+
+    Args:
+        workbench_id (str): Workbench ID from STEP 4
+        travelers (list[dict]): All passengers for this booking/PNR — see
+            _build_traveler_payload for the expected dict shape.
+
+    Returns:
+        dict: Updated workbench response
+    """
+    names = ", ".join(
+        f"{t.get('first_name')} {t.get('last_name')} ({t.get('passenger_type', 'ADT')})"
+        for t in travelers
+    )
+    logger.info(f"Adding {len(travelers)} traveler(s) to workbench {workbench_id} in a single request: {names}")
+
+    traveler_payloads = [
+        _build_traveler_payload(t, traveler_id=f"trav_{i}")
+        for i, t in enumerate(travelers, start=1)
+    ]
+
+    payload = {
+        "TravelerListRequest": {
+            "@type": "TravelerListRequest",
+            "Traveler": traveler_payloads
         }
     }
 
-    url = TravelportEndpoints.update_workbench(workbench_id)
-    # Traveler addition in v11 is a POST call
+    url = TravelportEndpoints.add_travelers_list(workbench_id)
     result = _api_post(url, payload, session_id=workbench_id)
-    logger.info("Traveler added to workbench.")
+    logger.info(f"{len(travelers)} traveler(s) added to workbench in a single Travelport request.")
     return result
 
 
@@ -726,15 +850,17 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
             # STEP 5
             add_offer_to_workbench(workbench_id, raw_offering)
 
-            # STEP 6 — Travelport GDS certification requires travelers to be
-            # added in this exact passenger-type sequence: Adult, Infant, Child.
+            # STEP 6 — All travelers on this PNR (Adult/Child/Infant) are sent
+            # to Travelport in ONE combined TravelerListRequest, not one call
+            # per traveler. Travelport GDS certification requires travelers to
+            # appear in this exact passenger-type sequence within that request:
+            # Adult, Infant, Child.
             passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
             ordered_travelers = sorted(
                 travelers,
                 key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
             )
-            for t in ordered_travelers:
-                add_traveler_to_workbench(workbench_id, t)
+            add_travelers_to_workbench(workbench_id, ordered_travelers)
 
             # STEP 7
             return commit_workbench(workbench_id)

@@ -13,6 +13,7 @@ import time
 import logging
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
+from utils import tp_logger
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def get_access_token() -> str:
         "client_secret": TravelportConfig.CLIENT_SECRET,
     }
 
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.post(
             TravelportEndpoints.OAUTH_TOKEN,
             data=payload,

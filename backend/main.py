@@ -78,6 +78,24 @@ class TravelerInfo(BaseModel):
     phone: str = Field(..., min_length=7, max_length=20)
     passenger_type: Optional[str] = Field(default="ADT", description="ADT|CNN|INF")
 
+    # ── Optional Travelport TravelDocument / Telephone / Address fields ──────
+    # All optional — not required for a booking to succeed (proven by existing
+    # live bookings), but Travelport's own sample request includes them.
+    birth_place: Optional[str] = Field(default=None, description="TravelDocument.birthPlace")
+    document_issue_date: Optional[str] = Field(default=None, description="TravelDocument.issueDate, YYYY-MM-DD")
+    issued_for_geo_political_area: Optional[str] = Field(
+        default=None, description="TravelDocument.IssuedForGeoPoliticalArea.value — country the document is valid for"
+    )
+    phone_area_city_code: Optional[str] = Field(default=None, description="Telephone.areaCityCode")
+    phone_extension: Optional[str] = Field(default=None, description="Telephone.extension")
+    phone_city_code: Optional[str] = Field(default=None, description="Telephone.cityCode (legacy GDS city code)")
+    address_street: Optional[str] = Field(default=None, description="TravelDocument.Address.Street")
+    address_city: Optional[str] = Field(default=None, description="TravelDocument.Address.City")
+    address_state_name: Optional[str] = Field(default=None, description="TravelDocument.Address.StateProv.name")
+    address_state_value: Optional[str] = Field(default=None, description="TravelDocument.Address.StateProv.value")
+    address_country: Optional[str] = Field(default=None, description="TravelDocument.Address.Country.value")
+    address_postal_code: Optional[str] = Field(default=None, description="TravelDocument.Address.PostalCode")
+
 
 class BookingCreateRequest(BaseModel):
     """
@@ -221,19 +239,68 @@ def search_flights(request: FlightSearchRequest):
 
 
 
+def _attach_traveler_details(ticket: dict, travelers: list) -> None:
+    """
+    Map every traveler (Adult/Child/Infant) on this booking/PNR back onto the
+    ticket: merges each locally-submitted traveler (phone, nationality, etc.)
+    with what Travelport confirmed for that person (parsed into
+    ticket["travelers"] by _parse_reservation), matched by passport number —
+    falling back to the Adult/Infant/Child order used when they were sent to
+    Travelport as a single TravelerListRequest (see run_booking_flow).
+
+    Also mirrors the lead (first) traveler onto the flat top-level ticket
+    fields for backward compatibility with existing consumers.
+    """
+    if not travelers:
+        return
+
+    passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+    ordered = sorted(
+        travelers,
+        key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
+    )
+
+    confirmed_travelers = ticket.get("travelers") or []
+    by_passport = {
+        c.get("passport_number"): c
+        for c in confirmed_travelers if c.get("passport_number")
+    }
+
+    merged = []
+    for i, t in enumerate(ordered):
+        confirmed = by_passport.get(t.get("passport_number"))
+        if not confirmed and i < len(confirmed_travelers):
+            confirmed = confirmed_travelers[i]
+        merged.append({
+            **t,
+            "confirmed_name": confirmed.get("full_name") if confirmed else None,
+        })
+    ticket["travelers"] = merged
+
+    lead = ordered[0]
+    ticket["passport_number"] = lead.get("passport_number", "")
+    ticket["passport_expiry"] = lead.get("passport_expiry", "")
+    ticket["nationality"] = lead.get("nationality", "LK")
+    ticket["gender"] = lead.get("gender", "Male")
+    ticket["phone"] = lead.get("phone", "")
+    ticket["date_of_birth"] = lead.get("date_of_birth", "")
+
+
 # ── STEPS 4-9: Create Full Booking + Issue Ticket ─────────────────────────────
 
 @app.post("/api/bookings/create", status_code=status.HTTP_201_CREATED)
 def create_booking(request: BookingCreateRequest):
     """
-    STEPS 4 through 9 — Full booking workflow:
+    STEPS 4 through 8 — Booking workflow up to PNR confirmation:
       4. Create workbench
       5. Add selected offer
       6. Add traveler
       7. Commit → generate PNR
       8. Retrieve PNR
-      9. Issue ticket
-    Returns full ticket details for the frontend popup.
+    Ticket issuance (STEP 9) is a separate step — see
+    POST /api/bookings/{locator_code}/issue-ticket — gated on a successful
+    PayCorp payment confirmation. Returns the confirmed (not yet ticketed)
+    booking details for the frontend popup.
     """
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
@@ -243,8 +310,10 @@ def create_booking(request: BookingCreateRequest):
         commit_result = services.run_booking_flow(raw_offering, travelers)
         locator_code = commit_result["locator_code"]
 
-        # STEPS 8 + 9: Retrieve + Issue ticket
-        ticket = services.issue_ticket(locator_code)
+        # STEP 8 only — ticket issuance (STEP 9) now happens separately via
+        # POST /api/bookings/{locator_code}/issue-ticket, gated on a
+        # successful PayCorp payment confirmation. Do NOT issue here.
+        ticket = services.retrieve_reservation(locator_code)
 
         # Apply pricing overrides if selecting custom fare family
         if request.custom_price:
@@ -254,21 +323,14 @@ def create_booking(request: BookingCreateRequest):
         if request.fare_family:
             ticket["fare_family"] = request.fare_family
 
-        # Enrich with passport of primary traveler for local cache lookup
-        primary_passport = travelers[0].get("passport_number", "") if travelers else ""
-        ticket["passport_number"] = primary_passport
         if "outbound" in raw_offering and "inbound" in raw_offering:
             ticket["offer_id"] = raw_offering["outbound"].get("id", "")
         else:
             ticket["offer_id"] = raw_offering.get("id", "")
 
-        # Enrich with all traveler details for printing the receipt
-        if travelers:
-            ticket["passport_expiry"] = travelers[0].get("passport_expiry", "")
-            ticket["nationality"] = travelers[0].get("nationality", "LK")
-            ticket["gender"] = travelers[0].get("gender", "Male")
-            ticket["phone"] = travelers[0].get("phone", "")
-            ticket["date_of_birth"] = travelers[0].get("date_of_birth", "")
+        # Map every traveler (Adult/Child/Infant) Travelport confirmed back onto
+        # this booking, and mirror the lead traveler onto the flat top-level fields.
+        _attach_traveler_details(ticket, travelers)
 
         ticket["seat_charge"] = 0.0
 
@@ -407,8 +469,10 @@ def confirm_booking(request: BookingConfirmRequest):
         locator_code = commit_result["locator_code"]
         logger.info(f"PNR generated: {locator_code}")
 
-        # STEPS 8 + 9: Retrieve + Issue ticket
-        ticket = services.issue_ticket(locator_code)
+        # STEP 8 only — ticket issuance (STEP 9) now happens separately via
+        # POST /api/bookings/{locator_code}/issue-ticket, gated on a
+        # successful PayCorp payment confirmation. Do NOT issue here.
+        ticket = services.retrieve_reservation(locator_code)
 
         # Galileo GDS segment compiler takes a second to generate the airline PNR.
         # If it is null, sleep 1.5 seconds and retrieve reservation again to populate it.
@@ -439,22 +503,14 @@ def confirm_booking(request: BookingConfirmRequest):
         if request.fare_family:
             ticket["fare_family"] = request.fare_family
 
-        # Enrich with passport of primary traveler for local cache lookup
-        primary_passport = travelers[0].get("passport_number", "") if travelers else ""
-        ticket["passport_number"] = primary_passport
-        ticket["passport_number"] = primary_passport
         if "outbound" in raw_offering and "inbound" in raw_offering:
             ticket["offer_id"] = raw_offering["outbound"].get("id", "")
         else:
             ticket["offer_id"] = raw_offering.get("id", "")
 
-        # Enrich with all traveler details for printing the receipt
-        if travelers:
-            ticket["passport_expiry"] = travelers[0].get("passport_expiry", "")
-            ticket["nationality"] = travelers[0].get("nationality", "LK")
-            ticket["gender"] = travelers[0].get("gender", "Male")
-            ticket["phone"] = travelers[0].get("phone", "")
-            ticket["date_of_birth"] = travelers[0].get("date_of_birth", "")
+        # Map every traveler (Adult/Child/Infant) Travelport confirmed back onto
+        # this booking, and mirror the lead traveler onto the flat top-level fields.
+        _attach_traveler_details(ticket, travelers)
 
         # Enrich with payment method details
         pay_input = request.payment_method or "card"
@@ -487,6 +543,94 @@ def confirm_booking(request: BookingConfirmRequest):
             status_code=502,
             detail=f"Travelport booking error: {str(e)}"
         )
+
+
+# ── STEP 9: Issue Ticket — gated on PayCorp payment confirmation ──────────────
+
+class IssueTicketRequest(BaseModel):
+    reqid: Optional[str] = Field(
+        default=None,
+        description="PayCorp reqid from a completed hosted-page payment. "
+                     "Omit only for cash/bank-transfer bookings, where payment "
+                     "is confirmed offline by agency staff rather than PayCorp."
+    )
+
+
+@app.post("/api/bookings/{locator_code}/issue-ticket")
+def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
+    """
+    STEP 9 — Issue the Travelport ticket for an already-confirmed PNR.
+
+    If reqid is provided (card payments), the PayCorp payment MUST have
+    succeeded — Travelport is never contacted for ticket issuance otherwise.
+    If reqid is omitted (cash/bank transfer), issues immediately, matching
+    the offline-settlement flows that don't go through PayCorp at all.
+    """
+    locator_code = locator_code.upper().strip()
+    payment_result = None
+
+    if request.reqid:
+        try:
+            payment_result = services.complete_payment(request.reqid)
+        except services.PayCorpError as e:
+            logger.error(f"PayCorp payment check failed for {locator_code}: {e}")
+            raise HTTPException(status_code=502, detail=str(e))
+
+        if not payment_result.get("success"):
+            logger.warning(
+                f"Ticket issuance refused for {locator_code} — payment not successful "
+                f"(code={payment_result.get('response_code')}, reqid={request.reqid})"
+            )
+            raise HTTPException(
+                status_code=402,
+                detail=f"Payment not successful (code={payment_result.get('response_code')}): "
+                       f"{payment_result.get('response_text')}. Ticket not issued."
+            )
+        logger.info(f"Payment confirmed for {locator_code} (txnReference={payment_result.get('txn_reference')}) — issuing ticket...")
+    else:
+        logger.info(f"Issuing ticket for {locator_code} without a PayCorp reqid (cash/bank transfer)...")
+
+    try:
+        ticket = services.issue_ticket(locator_code)
+    except Exception as e:
+        logger.error(f"Ticket issuance failed for {locator_code}: {e}")
+        txn_note = f" (txnReference={payment_result.get('txn_reference')})" if payment_result else ""
+        raise HTTPException(
+            status_code=502,
+            detail=f"Payment succeeded{txn_note} but Travelport ticket issuance failed: {str(e)}"
+        )
+
+    if payment_result:
+        ticket["payment_txn_reference"] = payment_result.get("txn_reference")
+        ticket["payment_auth_code"] = payment_result.get("auth_code")
+
+    # issue_ticket()'s internal retrieve_reservation() only knows Travelport-side
+    # data — re-apply the locally-computed fields (seat charge, contact
+    # enrichment, adjusted total_fare) that /confirm already saved for this PNR.
+    existing = database.get_booking_by_locator(locator_code)
+    if existing:
+        for key in ("seat_charge", "email", "phone", "date_of_birth", "gender",
+                     "nationality", "passport_expiry", "offer_id", "payment_method"):
+            if existing.get(key) not in (None, "", []):
+                ticket.setdefault(key, existing.get(key))
+        # "travelers" is set unconditionally (not setdefault): issue_ticket()'s
+        # own retrieve_reservation() already overwrote it with Travelport's
+        # sparse echo (passenger_type/given_name/surname/full_name only) —
+        # the record /confirm saved has the full local form data (first_name,
+        # last_name, gender, nationality, passport_expiry, phone, etc.) plus
+        # each traveler's Travelport-confirmed name, so it must win here.
+        if existing.get("travelers"):
+            ticket["travelers"] = existing["travelers"]
+        if existing.get("total_fare"):
+            ticket["total_fare"] = existing["total_fare"]
+
+    saved = database.save_booking(ticket)
+
+    return {
+        "success": True,
+        "ticket": ticket,
+        "cached_id": saved.get("id")
+    }
 
 
 # ── STEP 8: Retrieve PNR ───────────────────────────────────────────────────────
@@ -846,6 +990,62 @@ def get_invoice_report(
                         "email": p.get("email") or cached.get("passenger_email", ""),
                         "phone": p.get("phone") or cached.get("phone", ""),
                     })
-                
+
     return {"success": True, "pax_records": pax_records}
+
+
+# ── PayCorp (Sampath Bank) Payment Gateway — Hosted Page Flow ──────────────────
+# Card details are entered on PayCorp's own hosted page and never touch this
+# backend. We only ever see: an init request/response, and a completion
+# result keyed by reqid.
+
+class PaymentInitRequestBody(BaseModel):
+    amount: float = Field(..., gt=0, description="Amount in major currency units, e.g. 98900.00")
+    currency: str = Field(..., description="LKR or USD")
+    return_url: str = Field(..., description="Where PayCorp redirects the browser after payment")
+    cancel_url: Optional[str] = None
+    client_ref: Optional[str] = Field(default=None, description="Our own reference, echoed back unchanged")
+    comment: Optional[str] = None
+
+
+@app.post("/api/payments/init")
+def payments_init(request: PaymentInitRequestBody):
+    """
+    STEP 1: Initiate a hosted-page PayCorp payment.
+    Returns a payment_page_url — the frontend must redirect the browser
+    there so the customer enters their card on PayCorp's own page.
+    """
+    try:
+        result = services.init_payment(
+            amount=request.amount,
+            currency=request.currency,
+            return_url=request.return_url,
+            cancel_url=request.cancel_url,
+            client_ref=request.client_ref,
+            comment=request.comment,
+        )
+        return {"success": True, **result}
+    except services.PayCorpError as e:
+        logger.error(f"PayCorp init failed: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+    except httpx.HTTPStatusError as e:
+        logger.error(f"PayCorp init HTTP error: {e.response.status_code} — {e.response.text}")
+        raise HTTPException(status_code=502, detail=f"PayCorp gateway error: {e.response.status_code}")
+
+
+@app.get("/api/payments/complete")
+def payments_complete(reqid: str = Query(..., description="reqid returned by /api/payments/init")):
+    """
+    STEP 3: Look up the final result of a hosted-page payment after the
+    customer is redirected back. success=true iff response_code == '00'.
+    """
+    try:
+        result = services.complete_payment(reqid)
+        return {"success": result["success"], **result}
+    except services.PayCorpError as e:
+        logger.error(f"PayCorp complete failed: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+    except httpx.HTTPStatusError as e:
+        logger.error(f"PayCorp complete HTTP error: {e.response.status_code} — {e.response.text}")
+        raise HTTPException(status_code=502, detail=f"PayCorp gateway error: {e.response.status_code}")
 

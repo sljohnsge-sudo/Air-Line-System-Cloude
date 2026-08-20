@@ -14,6 +14,7 @@ from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
 from services.search_service import parse_iso_duration, parse_naive_datetime, minutes_to_iso_duration, IATA_AIRLINE_NAMES
+from utils import tp_logger
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 def _api_get(url: str) -> dict:
     """Internal helper for GET requests with automatic token retry."""
     headers = get_auth_headers()
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.get(url, headers=headers)
         if response.status_code == 401:
             invalidate_token()
@@ -33,7 +34,7 @@ def _api_get(url: str) -> dict:
 def _api_post(url: str, payload: dict | str) -> dict:
     """Internal helper for POST requests with automatic token retry."""
     headers = get_auth_headers()
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         kwargs = {"json": payload} if not isinstance(payload, str) else {"content": payload}
         response = client.post(url, headers=headers, **kwargs)
         if response.status_code == 401:
@@ -98,6 +99,31 @@ def retrieve_reservation(locator_code: str) -> dict:
     raw = _api_get(url)
 
     return _parse_reservation(raw, locator_code)
+
+
+def get_tickets_by_locator(locator_code: str) -> dict:
+    """
+    Dedicated Ticket Retrieve lookup — separate from Reservation Retrieve's
+    embedded Ticket[]. Used as a fallback check after a commit that returns
+    no Ticket[] and no Error[], in case ticketing completed asynchronously
+    moments after the commit response was returned.
+    https://developer.travelport.com/apis/flights/ticketing/ticketgetbylocator
+
+    Returns the raw TicketListResponse.responseData-equivalent dict exactly
+    as Travelport returns it — no data is fabricated here.
+    """
+    logger.info(f"Ticket Retrieve (getbylocator) for PNR: {locator_code}")
+    payload = {
+        "@type": "TicketQueryGetByLocator",
+        "detailViewInd": True,
+        "Locator": {
+            "value": locator_code,
+            "locatorType": "Confirmation Number",
+            "source": "1G",
+        },
+    }
+    url = TravelportEndpoints.TICKET_RETRIEVE_BY_LOCATOR
+    return _api_post(url, payload)
 
 
 def _parse_reservation_product(product: dict) -> dict | None:
@@ -217,15 +243,33 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
     try:
         reservation = raw.get("Reservation", raw.get("ReservationResponse", {}).get("Reservation", {}))
 
-        # ── Traveler ──────────────────────────────────────────────────────────
-        travelers = reservation.get("Traveler", [])
-        if travelers:
-            t = travelers[0]
+        # ── Travelers — ALL passengers on this PNR (Adult/Child/Infant) ───────
+        # A single booking/PNR can hold multiple travelers of different types;
+        # map every one of them back, not just the lead passenger.
+        raw_travelers = reservation.get("Traveler", [])
+        parsed_travelers = []
+        for t in raw_travelers:
             name = t.get("PersonName", {})
-            ticket["passenger_name"] = clean_passenger_name(name.get('Given', ''), name.get('Surname', ''))
+            full_name = clean_passenger_name(name.get('Given', ''), name.get('Surname', ''))
             emails = t.get("ContactInformation", {}).get("Email", []) or t.get("Email", [])
-            if emails:
-                ticket["email"] = emails[0].get("value", "")
+            email = emails[0].get("value", "") if emails else ""
+            travel_docs = t.get("TravelDocument", [])
+            passport_number = travel_docs[0].get("docNumber", "") if travel_docs else ""
+            parsed_travelers.append({
+                "passenger_type": t.get("passengerTypeCode", "ADT"),
+                "given_name": name.get("Given", ""),
+                "surname": name.get("Surname", ""),
+                "full_name": full_name,
+                "email": email,
+                "passport_number": passport_number,
+                "date_of_birth": t.get("birthDate", ""),
+            })
+        ticket["travelers"] = parsed_travelers
+
+        # Flat top-level fields mirror the lead (first) traveler for backward compat
+        if parsed_travelers:
+            ticket["passenger_name"] = parsed_travelers[0]["full_name"]
+            ticket["email"] = parsed_travelers[0]["email"]
 
         # ── Offers → Flight details, Cabin, Price ─────────────────────────────
         offers = reservation.get("Offer", [])
@@ -339,6 +383,7 @@ def issue_ticket(locator_code: str) -> dict:
     logger.info(f"Issuing ticket for PNR: {locator_code} via post-commit workbench buildfromlocator")
 
     issued_ticket_number = None
+    ticket_issuance_diagnostic = None
 
     try:
         # ── Step 1: Create post-commit workbench from locator ─────────────────
@@ -548,6 +593,13 @@ def issue_ticket(locator_code: str) -> dict:
     if issued_ticket_number:
         ticket["ticket_number"] = issued_ticket_number
         ticket["status"] = "Ticketed"
+
+    # Surface the Ticket Retrieve fallback's diagnostic (a real Travelport
+    # error message, e.g. "DOCUMENT HISTORY NOT FOUND FOR REQUESTED
+    # RESERVATION") when no ticket could be found by either path — useful
+    # evidence for reporting the account/PCC-level issue to Travelport.
+    if ticket_issuance_diagnostic:
+        ticket["ticket_issuance_diagnostic"] = ticket_issuance_diagnostic
 
     return ticket
 
