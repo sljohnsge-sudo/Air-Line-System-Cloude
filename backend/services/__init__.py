@@ -9,6 +9,7 @@ from .workbench_service import create_workbench, add_offer_to_workbench, add_tra
 from .ticket_service import retrieve_reservation, issue_ticket, cancel_reservation
 from .invoice_service import retrieve_invoice_data
 from .paycorp_service import init_payment, complete_payment, PayCorpError
+from .pricing_service import get_settings as get_pricing_settings_cfg, apply_markup
 
 __all__ = [
     "get_access_token", "get_auth_headers", "invalidate_token",
@@ -17,4 +18,5 @@ __all__ = [
     "retrieve_reservation", "issue_ticket", "cancel_reservation",
     "retrieve_invoice_data",
     "init_payment", "complete_payment", "PayCorpError",
+    "get_pricing_settings_cfg", "apply_markup",
 ]

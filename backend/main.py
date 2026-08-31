@@ -15,12 +15,13 @@ Booking Workflow:
 
 import logging
 import httpx
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import FastAPI, HTTPException, Query, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 import database
 import services
+import auth
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -289,7 +290,7 @@ def _attach_traveler_details(ticket: dict, travelers: list) -> None:
 # ── STEPS 4-9: Create Full Booking + Issue Ticket ─────────────────────────────
 
 @app.post("/api/bookings/create", status_code=status.HTTP_201_CREATED)
-def create_booking(request: BookingCreateRequest):
+def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
     """
     STEPS 4 through 8 — Booking workflow up to PNR confirmation:
       4. Create workbench
@@ -342,6 +343,8 @@ def create_booking(request: BookingCreateRequest):
             ticket["payment_method"] = "Bank Transfer"
         else:
             ticket["payment_method"] = "Credit Card"
+
+        ticket["customer_id"] = customer_id
 
         # Save to local cache
         saved = database.save_booking(ticket)
@@ -442,7 +445,7 @@ def initiate_booking(request: BookingInitiateRequest):
 # ── STEPS 6-9: Confirm Booking (Add Travelers, Seats, Commit PNR & Ticket) ──
 
 @app.post("/api/bookings/confirm", status_code=status.HTTP_201_CREATED)
-def confirm_booking(request: BookingConfirmRequest):
+def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
     """
     Confirms booking by creating a FRESH GDS workbench at commit time.
 
@@ -520,6 +523,8 @@ def confirm_booking(request: BookingConfirmRequest):
             ticket["payment_method"] = "Bank Transfer"
         else:
             ticket["payment_method"] = "Credit Card"
+
+        ticket["customer_id"] = customer_id
 
         # Save to local MySQL cache
         saved = database.save_booking(ticket)
@@ -610,7 +615,7 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     existing = database.get_booking_by_locator(locator_code)
     if existing:
         for key in ("seat_charge", "email", "phone", "date_of_birth", "gender",
-                     "nationality", "passport_expiry", "offer_id", "payment_method"):
+                     "nationality", "passport_expiry", "offer_id", "payment_method", "customer_id"):
             if existing.get(key) not in (None, "", []):
                 ticket.setdefault(key, existing.get(key))
         # "travelers" is set unconditionally (not setdefault): issue_ticket()'s
@@ -1048,4 +1053,106 @@ def payments_complete(reqid: str = Query(..., description="reqid returned by /ap
     except httpx.HTTPStatusError as e:
         logger.error(f"PayCorp complete HTTP error: {e.response.status_code} — {e.response.text}")
         raise HTTPException(status_code=502, detail=f"PayCorp gateway error: {e.response.status_code}")
+
+
+# ── Admin Portal ────────────────────────────────────────────────────────────────
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class PricingSettingsRequest(BaseModel):
+    ticket_markup_mode: str = Field(..., description="'percent' or 'fixed'")
+    ticket_markup_percent: float = Field(default=0.0, ge=0)
+    ticket_markup_fixed: float = Field(default=0.0, ge=0)
+    seat_markup_mode: str = Field(..., description="'percent' or 'fixed'")
+    seat_markup_percent: float = Field(default=0.0, ge=0)
+    seat_markup_fixed: float = Field(default=0.0, ge=0)
+
+
+@app.post("/api/admin/login")
+def admin_login(request: AdminLoginRequest):
+    admin = database.get_admin_by_username(request.username)
+    if not admin or not auth.verify_password(request.password, admin["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = auth.create_access_token({
+        "sub": admin["username"], "role": "admin", "admin_id": admin["id"],
+    })
+    return {"access_token": token, "token_type": "bearer", "full_name": admin.get("full_name")}
+
+
+@app.get("/api/admin/pricing-settings")
+def get_pricing_settings(_admin: dict = Depends(auth.get_current_admin)):
+    return database.get_pricing_settings()
+
+
+@app.put("/api/admin/pricing-settings")
+def put_pricing_settings(request: PricingSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
+    if request.ticket_markup_mode not in ("percent", "fixed") or request.seat_markup_mode not in ("percent", "fixed"):
+        raise HTTPException(status_code=422, detail="markup_mode must be 'percent' or 'fixed'")
+    return database.update_pricing_settings(
+        request.ticket_markup_mode, request.ticket_markup_percent, request.ticket_markup_fixed,
+        request.seat_markup_mode, request.seat_markup_percent, request.seat_markup_fixed,
+    )
+
+
+@app.get("/api/admin/reports/summary")
+def admin_reports_summary(
+    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    _admin: dict = Depends(auth.get_current_admin),
+):
+    start_dt = f"{start_date} 00:00:00" if start_date else None
+    end_dt = f"{end_date} 23:59:59" if end_date else None
+    return database.get_sales_summary(start_dt, end_dt)
+
+
+# ── Customer Portal ─────────────────────────────────────────────────────────────
+
+class CustomerRegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    full_name: str = Field(..., min_length=2, max_length=150)
+    phone: Optional[str] = None
+
+
+class CustomerLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+@app.post("/api/customers/register", status_code=status.HTTP_201_CREATED)
+def customer_register(request: CustomerRegisterRequest):
+    if database.get_customer_by_email(request.email):
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+    password_hash = auth.hash_password(request.password)
+    customer = database.create_customer(request.email, password_hash, request.full_name, request.phone)
+    token = auth.create_access_token({
+        "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
+    })
+    return {
+        "access_token": token, "token_type": "bearer",
+        "customer": {"email": customer["email"], "full_name": customer["full_name"]},
+    }
+
+
+@app.post("/api/customers/login")
+def customer_login(request: CustomerLoginRequest):
+    customer = database.get_customer_by_email(request.email)
+    if not customer or not auth.verify_password(request.password, customer["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = auth.create_access_token({
+        "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
+    })
+    return {
+        "access_token": token, "token_type": "bearer",
+        "customer": {"email": customer["email"], "full_name": customer["full_name"]},
+    }
+
+
+@app.get("/api/customers/me/bookings")
+def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
+    bookings = database.get_bookings_for_customer(current["customer_id"])
+    return {"bookings": bookings, "count": len(bookings)}
 

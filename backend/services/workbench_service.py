@@ -17,6 +17,7 @@ from datetime import datetime
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
+from services.pricing_service import get_settings as get_pricing_settings, apply_markup
 from utils import tp_logger
 
 logger = logging.getLogger(__name__)
@@ -988,10 +989,12 @@ def parse_seat_map_response(result: dict) -> dict:
     seat_prices = {}
     seat_currencies = {}
     seat_brands = {}
-    
+    pricing_settings = get_pricing_settings()
+
     for offering in catalog_offerings:
         price_detail = offering.get("Price", {})
         price = float(price_detail.get("TotalPrice", 0))
+        price, _ = apply_markup(price, pricing_settings, "seat")
         currency = price_detail.get("CurrencyCode", {}).get("value", "LKR")
         
         brand_name = "STANDARD SEAT"

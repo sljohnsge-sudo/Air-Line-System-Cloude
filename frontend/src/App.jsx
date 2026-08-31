@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import gsLogo from './assets/george_steuart_logo.png';
+import BookingCard from './BookingCard.jsx';
+import AdminPortal from './AdminPortal.jsx';
+import CustomerPortal from './CustomerPortal.jsx';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -539,6 +542,39 @@ function SegmentTimeline({ segments }) {
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
 
+  // ── Admin / Customer auth state (persisted to localStorage) ──────────────
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || null);
+  const [customerToken, setCustomerToken] = useState(() => localStorage.getItem('customerToken') || null);
+  const [customerProfile, setCustomerProfile] = useState(() => {
+    try {
+      const raw = localStorage.getItem('customerProfile');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const handleAdminLogin = (token) => {
+    setAdminToken(token);
+    localStorage.setItem('adminToken', token);
+  };
+  const handleAdminLogout = () => {
+    setAdminToken(null);
+    localStorage.removeItem('adminToken');
+  };
+  const handleCustomerLogin = (token, profile) => {
+    setCustomerToken(token);
+    setCustomerProfile(profile);
+    localStorage.setItem('customerToken', token);
+    localStorage.setItem('customerProfile', JSON.stringify(profile));
+  };
+  const handleCustomerLogout = () => {
+    setCustomerToken(null);
+    setCustomerProfile(null);
+    localStorage.removeItem('customerToken');
+    localStorage.removeItem('customerProfile');
+  };
+
   // ── Dynamic sticky-header offset (header height varies by breakpoint —
   //    e.g. it wraps to 2 rows on mobile — so it's measured, not hardcoded) ──
   const headerRef = useRef(null);
@@ -993,7 +1029,10 @@ export default function App() {
       // spends time on the passenger / seat / review / payment steps.
       const res = await fetchWithRetry(`${API_BASE}/bookings/confirm`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
+        },
         body: JSON.stringify({
           raw_offering: selectedFlight.raw_offering,
           travelers,
@@ -1326,6 +1365,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           <button className={`nav-tab ${activeTab === 'invoice' ? 'active' : ''}`} onClick={() => setActiveTab('invoice')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
             Invoice Data
+          </button>
+          <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
+          <button className={`nav-tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+            {customerProfile ? customerProfile.full_name.split(' ')[0] : 'Sign In'}
           </button>
         </nav>
       </header>
@@ -3943,42 +3987,39 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             ) : (
               <div className="bookings-grid">
                 {myBookings.map((b) => (
-                  <div key={b.id} className={`boarding-pass glass-panel ${b.status === 'Cancelled' ? 'cancelled-pass' : ''} animate-fade`}>
-                    <div className="pass-row header-row">
-                      <div className="pass-airline">
-                        <span className="pass-airline-name">{b.airline}</span>
-                        <span className="pass-flight-badge">{b.flight_number}</span>
-                      </div>
-                      <div className={`pass-status-badge ${b.status?.toLowerCase()}`}>{b.status}</div>
-                    </div>
-                    <div className="pass-row route-row">
-                      <div className="route-endpoint"><span className="route-city">{b.departure_airport}</span><span className="route-label">DEPARTURE</span></div>
-                      <div className="route-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
-                      <div className="route-endpoint"><span className="route-city">{b.arrival_airport}</span><span className="route-label">ARRIVAL</span></div>
-                    </div>
-                    <div className="pass-details-grid">
-                      <div className="detail-item"><span className="detail-label">PASSENGER</span><span className="detail-val">{cleanPassengerName(b.passenger_name)}</span></div>
-                      <div className="detail-item"><span className="detail-label">PNR / LOCATOR</span><span className="detail-val highlight">{b.locator_code}</span></div>
-                      <div className="detail-item"><span className="detail-label">TICKET NO</span><span className="detail-val">{b.ticket_number || '—'}</span></div>
-                      <div className="detail-item"><span className="detail-label">DEPARTURE</span><span className="detail-val">{b.departure_time}</span></div>
-                      <div className="detail-item"><span className="detail-label">CABIN CLASS</span><span className="detail-val">{b.cabin_class}</span></div>
-                      <div className="detail-item"><span className="detail-label">FARE</span><span className="detail-val highlight">{b.currency} {b.total_fare?.toFixed(2)}</span></div>
-                    </div>
-                    <div className="pass-footer" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <div className="pass-barcode-box" style={{ flex: 1 }}><span className="barcode-label">PNR: {b.locator_code}</span></div>
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleViewTicket(b)}>📋 View/Print Ticket</button>
-                        {b.status !== 'Cancelled' && (
-                          <button className="btn btn-danger btn-sm" onClick={() => handleCancelBooking(b.locator_code)}>Cancel Booking</button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <BookingCard key={b.id} booking={b} onViewTicket={handleViewTicket} onCancelBooking={handleCancelBooking} />
                 ))}
               </div>
             )}
           </section>
         </div>
+      )}
+
+      {/* ── ADMIN PORTAL TAB ─────────────────────────────────────────────── */}
+      {activeTab === 'admin' && (
+        <AdminPortal
+          adminToken={adminToken}
+          onAdminLogin={handleAdminLogin}
+          onAdminLogout={handleAdminLogout}
+          API_BASE={API_BASE}
+          fetchWithRetry={fetchWithRetry}
+          handleApiResponse={handleApiResponse}
+          onNavigate={setActiveTab}
+        />
+      )}
+
+      {/* ── CUSTOMER (ACCOUNT) PORTAL TAB ───────────────────────────────── */}
+      {activeTab === 'account' && (
+        <CustomerPortal
+          customerToken={customerToken}
+          customerProfile={customerProfile}
+          onCustomerLogin={handleCustomerLogin}
+          onCustomerLogout={handleCustomerLogout}
+          API_BASE={API_BASE}
+          fetchWithRetry={fetchWithRetry}
+          handleApiResponse={handleApiResponse}
+          onViewTicket={handleViewTicket}
+        />
       )}
 
       {/* ── BOOKING WIZARD MODAL ─────────────────────────────────────────── */}

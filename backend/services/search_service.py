@@ -24,6 +24,7 @@ from typing import Optional
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
+from services.pricing_service import get_settings as get_pricing_settings, apply_markup
 from utils import tp_logger
 
 logger = logging.getLogger(__name__)
@@ -426,6 +427,7 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
             flat per-direction offer list is returned unchanged.
     """
     offers = []
+    pricing_settings = get_pricing_settings()
     try:
         catalog = raw_response.get("CatalogProductOfferingsResponse", {})
 
@@ -647,6 +649,7 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
 
                     currency_code = best_price.get("CurrencyCode", {}).get("value", "LKR")
                     total_price = float(best_price.get("TotalPrice", 0))
+                    total_price, markup_scale = apply_markup(total_price, pricing_settings, "ticket")
 
                     prod_refs = [p.get("productRef") for p in brand_offering.get("Product", []) if p.get("productRef")]
                     brand_id = None
@@ -690,18 +693,18 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                         ptc = pb.get("requestedPassengerType")
                         amount_dict = pb.get("Amount", {})
                         if ptc and amount_dict:
-                            base_val = float(amount_dict.get("Base", 0))
-                            tax_val = float(amount_dict.get("Taxes", {}).get("TotalTaxes", 0))
-                            fees_val = float(amount_dict.get("Fees", {}).get("TotalFees", 0))
-                            single_total = float(amount_dict.get("Total", base_val + tax_val + fees_val))
+                            base_val = float(amount_dict.get("Base", 0)) * markup_scale
+                            tax_val = float(amount_dict.get("Taxes", {}).get("TotalTaxes", 0)) * markup_scale
+                            fees_val = float(amount_dict.get("Fees", {}).get("TotalFees", 0)) * markup_scale
+                            single_total = float(amount_dict.get("Total", base_val + tax_val + fees_val)) * markup_scale
                             qty = int(pb.get("quantity", 1))
                             price_breakdown[ptc] = {
-                                "base_price": base_val,
-                                "taxes": tax_val,
-                                "fees": fees_val,
-                                "single_price": single_total,
+                                "base_price": round(base_val, 2),
+                                "taxes": round(tax_val, 2),
+                                "fees": round(fees_val, 2),
+                                "single_price": round(single_total, 2),
                                 "quantity": qty,
-                                "total_price": single_total * qty
+                                "total_price": round(single_total * qty, 2)
                             }
 
                     # Narrow ProductBrandOptions down to exactly this brand_offering —

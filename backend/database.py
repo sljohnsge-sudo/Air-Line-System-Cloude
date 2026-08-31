@@ -95,6 +95,57 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            username      VARCHAR(100)  NOT NULL UNIQUE,
+            password_hash VARCHAR(255)  NOT NULL,
+            full_name     VARCHAR(150),
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS customers (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            email         VARCHAR(200)  NOT NULL UNIQUE,
+            password_hash VARCHAR(255)  NOT NULL,
+            full_name     VARCHAR(150)  NOT NULL,
+            phone         VARCHAR(20),
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # Single-row config table — application code always reads/writes id=1.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pricing_settings (
+            id                    INT PRIMARY KEY,
+            ticket_markup_mode    VARCHAR(10) NOT NULL DEFAULT 'percent',
+            ticket_markup_percent DOUBLE NOT NULL DEFAULT 0.0,
+            ticket_markup_fixed   DOUBLE NOT NULL DEFAULT 0.0,
+            seat_markup_mode      VARCHAR(10) NOT NULL DEFAULT 'percent',
+            seat_markup_percent   DOUBLE NOT NULL DEFAULT 0.0,
+            seat_markup_fixed     DOUBLE NOT NULL DEFAULT 0.0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    cursor.execute("INSERT IGNORE INTO pricing_settings (id) VALUES (1)")
+
+    # bookings.customer_id — added via a guarded ALTER since init_db() runs on
+    # every import and MySQL's ADD COLUMN IF NOT EXISTS isn't universally available.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='bookings' AND COLUMN_NAME='customer_id'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE bookings ADD COLUMN customer_id INT NULL AFTER passenger_email")
+        cursor.execute("""
+            ALTER TABLE bookings ADD CONSTRAINT fk_bookings_customer
+            FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+        """)
+
     conn.commit()
     cursor.close()
     populate_airports_table(conn)
@@ -110,16 +161,17 @@ def save_booking(ticket: dict) -> dict:
         sql = """
             INSERT INTO bookings (
                 locator_code, pnr, ticket_number, status,
-                passenger_name, passenger_email, passport_number,
+                passenger_name, passenger_email, customer_id, passport_number,
                 flight_number, airline, departure_airport, arrival_airport,
                 departure_time, arrival_time, cabin_class, seat_number,
                 total_fare, currency, booking_date, offer_id, raw_ticket_json,
                 payment_method, fare_source
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON DUPLICATE KEY UPDATE
                 pnr=VALUES(pnr), ticket_number=VALUES(ticket_number),
                 status=VALUES(status), passenger_name=VALUES(passenger_name),
-                passenger_email=VALUES(passenger_email), passport_number=VALUES(passport_number),
+                passenger_email=VALUES(passenger_email), customer_id=VALUES(customer_id),
+                passport_number=VALUES(passport_number),
                 flight_number=VALUES(flight_number), airline=VALUES(airline),
                 departure_airport=VALUES(departure_airport), arrival_airport=VALUES(arrival_airport),
                 departure_time=VALUES(departure_time), arrival_time=VALUES(arrival_time),
@@ -133,6 +185,7 @@ def save_booking(ticket: dict) -> dict:
             ticket.get("locator_code",""), ticket.get("pnr",""),
             ticket.get("ticket_number",""), ticket.get("status","Confirmed"),
             ticket.get("passenger_name",""), ticket.get("email",""),
+            ticket.get("customer_id"),
             ticket.get("passport_number",""), ticket.get("flight_number",""),
             ticket.get("airline",""), ticket.get("departure_airport",""),
             ticket.get("arrival_airport",""), ticket.get("departure_time",""),
@@ -155,17 +208,9 @@ def save_booking(ticket: dict) -> dict:
         conn.close()
 
 
-def get_all_bookings(email: str | None = None) -> list[dict]:
-    """Retrieve all cached bookings, optionally filtered by passenger email."""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    if email:
-        cursor.execute("SELECT * FROM bookings WHERE passenger_email=%s ORDER BY booking_date DESC",(email,))
-    else:
-        cursor.execute("SELECT * FROM bookings ORDER BY booking_date DESC")
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
+def _hydrate_bookings(rows: list[dict]) -> list[dict]:
+    """Merge each row's raw_ticket_json (full ticket dict, incl. per-traveler
+    detail) under the flat DB columns, which take precedence on conflict."""
     bookings = []
     for b in rows:
         if b.get("raw_ticket_json"):
@@ -179,6 +224,33 @@ def get_all_bookings(email: str | None = None) -> list[dict]:
     return bookings
 
 
+def get_all_bookings(email: str | None = None) -> list[dict]:
+    """Retrieve all cached bookings, optionally filtered by passenger email."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if email:
+        cursor.execute("SELECT * FROM bookings WHERE passenger_email=%s ORDER BY booking_date DESC",(email,))
+    else:
+        cursor.execute("SELECT * FROM bookings ORDER BY booking_date DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return _hydrate_bookings(rows)
+
+
+def get_bookings_for_customer(customer_id: int) -> list[dict]:
+    """Retrieve bookings created while this customer was logged in (i.e.
+    customer_id was stamped at booking-creation time) — never a retroactive
+    email match against older guest bookings."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM bookings WHERE customer_id=%s ORDER BY booking_date DESC", (customer_id,))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return _hydrate_bookings(rows)
+
+
 def get_booking_by_locator(locator_code: str) -> dict | None:
     """Retrieve a single cached booking by PNR locator code."""
     conn = get_db_connection()
@@ -188,13 +260,7 @@ def get_booking_by_locator(locator_code: str) -> dict | None:
     cursor.close()
     conn.close()
     if row:
-        if row.get("raw_ticket_json"):
-            try:
-                raw_data = json.loads(row["raw_ticket_json"])
-                return {**raw_data, **row}
-            except Exception:
-                return row
-        return row
+        return _hydrate_bookings([row])[0]
     return None
 
 
@@ -255,6 +321,169 @@ def get_bookings_in_date_range(start_dt: str, end_dt: str) -> list[dict]:
     cursor.close()
     conn.close()
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Admin accounts
+# ---------------------------------------------------------------------------
+
+def create_admin_if_not_exists(username: str, password_hash: str, full_name: str | None = None) -> bool:
+    """Insert the admin row only if the username doesn't already exist.
+    Returns True if a new row was created, False if it already existed."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id FROM admins WHERE username=%s", (username,))
+        if cursor.fetchone():
+            return False
+        cursor.execute(
+            "INSERT INTO admins (username, password_hash, full_name) VALUES (%s,%s,%s)",
+            (username, password_hash, full_name),
+        )
+        conn.commit()
+        return True
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_admin_by_username(username: str) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM admins WHERE username=%s", (username,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+# ---------------------------------------------------------------------------
+# Customer accounts
+# ---------------------------------------------------------------------------
+
+def create_customer(email: str, password_hash: str, full_name: str, phone: str | None = None) -> dict:
+    """Create a customer account. Raises mysql.connector.IntegrityError on
+    duplicate email (caller maps this to HTTP 409)."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "INSERT INTO customers (email, password_hash, full_name, phone) VALUES (%s,%s,%s,%s)",
+            (email, password_hash, full_name, phone),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM customers WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_customer_by_email(email: str) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM customers WHERE email=%s", (email,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+# ---------------------------------------------------------------------------
+# Pricing / markup settings (single row, id=1)
+# ---------------------------------------------------------------------------
+
+def get_pricing_settings() -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM pricing_settings WHERE id=1")
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if row:
+        return row
+    return {
+        "ticket_markup_mode": "percent", "ticket_markup_percent": 0.0, "ticket_markup_fixed": 0.0,
+        "seat_markup_mode": "percent", "seat_markup_percent": 0.0, "seat_markup_fixed": 0.0,
+    }
+
+
+def update_pricing_settings(
+    ticket_markup_mode: str, ticket_markup_percent: float, ticket_markup_fixed: float,
+    seat_markup_mode: str, seat_markup_percent: float, seat_markup_fixed: float,
+) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE pricing_settings SET
+                ticket_markup_mode=%s, ticket_markup_percent=%s, ticket_markup_fixed=%s,
+                seat_markup_mode=%s, seat_markup_percent=%s, seat_markup_fixed=%s
+               WHERE id=1""",
+            (ticket_markup_mode, ticket_markup_percent, ticket_markup_fixed,
+             seat_markup_mode, seat_markup_percent, seat_markup_fixed),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM pricing_settings WHERE id=1")
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Admin reporting
+# ---------------------------------------------------------------------------
+
+def get_sales_summary(start_date: str | None = None, end_date: str | None = None) -> dict:
+    """KPI totals (total sales, tickets issued, bookings) grouped by currency,
+    optionally filtered to a booking_date range. Cancelled bookings are
+    counted separately via total_cancelled, not silently excluded."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        where = []
+        params: list = []
+        if start_date:
+            where.append("booking_date >= %s")
+            params.append(start_date)
+        if end_date:
+            where.append("booking_date <= %s")
+            params.append(end_date)
+        clause = f"WHERE {' AND '.join(where)}" if where else ""
+
+        cursor.execute(
+            f"""SELECT currency, COUNT(*) AS booking_count,
+                       SUM(CASE WHEN status='Cancelled' THEN 0 ELSE total_fare END) AS total_sales,
+                       SUM(CASE WHEN ticket_number IS NOT NULL AND ticket_number != '' THEN 1 ELSE 0 END) AS ticket_count
+                FROM bookings {clause}
+                GROUP BY currency""",
+            tuple(params),
+        )
+        by_currency = cursor.fetchall()
+
+        cursor.execute(
+            f"""SELECT COUNT(*) AS total_bookings,
+                       SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) AS total_cancelled
+                FROM bookings {clause}""",
+            tuple(params),
+        )
+        totals = cursor.fetchone()
+
+        return {
+            "by_currency": by_currency,
+            "total_bookings": totals["total_bookings"] or 0,
+            "total_cancelled": totals["total_cancelled"] or 0,
+        }
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def populate_airports_table(conn):
