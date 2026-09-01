@@ -930,31 +930,54 @@ def get_seat_map(workbench_id: str, offer_id: str) -> dict:
     return parse_seat_map_response(result)
 
 
-def parse_seat_map_response(result: dict) -> dict:
+def parse_seat_map_response(result: dict) -> list[dict]:
     """
-    Parse the raw Travelport seat map response into a clean structure for the frontend.
+    Parse the raw Travelport seat map response into a clean structure for the
+    frontend. Returns a LIST of seat maps, one per flight/leg — a round-trip
+    workbench returns one ReferenceListSeatingChart entry AND one
+    CatalogOfferingsID entry PER FLIGHT (index 0 = outbound/first leg,
+    index 1 = return/second leg, matching the order the offer's products
+    were added to the workbench). A one-way booking's list always has
+    exactly one entry.
+
+    Confirmed live: the earlier version only ever read index [0] of both
+    lists, silently dropping the return leg's seat map for every round-trip
+    booking — this is the fix for that.
     """
     resp = result.get("CatalogOfferingsAncillaryListResponse", {})
-    
-    # 1. Parse Seating Chart from ReferenceList
+
+    # 1. Parse ALL Seating Charts from ReferenceList (one per flight)
     ref_list = resp.get("ReferenceList", [])
-    seating_chart = None
+    seating_charts: list[dict] = []
     for ref in ref_list:
         if ref.get("@type") == "ReferenceListSeatingChart":
-            charts = ref.get("SeatingChart", [])
-            if charts:
-                seating_chart = charts[0]
-                break
-                
-    if not seating_chart:
+            seating_charts.extend(ref.get("SeatingChart", []))
+
+    if not seating_charts:
         logger.warning("No seating chart found in Travelport response.")
         errors = resp.get("Result", {}).get("Error", [])
         if errors:
             raise ValueError(f"Travelport Seating Chart Error: {errors[0].get('Message')}")
         raise ValueError("Travelport did not return a seating chart for this flight.")
-        
+
+    # 2. Parse ALL per-flight CatalogOffering lists (seat pricing/availability)
+    traveler_flights = resp.get("CatalogOfferingsID", [])
+    pricing_settings = get_pricing_settings()
+
+    seat_maps = []
+    for i, seating_chart in enumerate(seating_charts):
+        catalog_offerings = traveler_flights[i].get("CatalogOffering", []) if i < len(traveler_flights) else []
+        seat_maps.append(_parse_single_seating_chart(seating_chart, catalog_offerings, pricing_settings))
+    return seat_maps
+
+
+def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pricing_settings: dict) -> dict:
+    """Parse one flight's seating chart + its catalog offerings (pricing/
+    availability) into the flat structure the frontend seat picker expects.
+    Extracted from parse_seat_map_response so it can be called once per
+    flight/leg on a round-trip booking."""
     cabin = seating_chart.get("Cabin", [])[0] if seating_chart.get("Cabin") else {}
-    
+
     # 2. Parse Layout (Rows range and Columns layout)
     layout_list = cabin.get("Layout", [])
     start_row = 1
@@ -979,17 +1002,11 @@ def parse_seat_map_response(result: dict) -> dict:
             })
             
     # 3. Parse Catalog Offerings for seat pricing & availability
-    catalog_offerings = []
-    traveler_flights = resp.get("CatalogOfferingsID", [])
-    if traveler_flights:
-        catalog_offerings = traveler_flights[0].get("CatalogOffering", [])
-        
     reserved_seats = set()
     available_seats = set()
     seat_prices = {}
     seat_currencies = {}
     seat_brands = {}
-    pricing_settings = get_pricing_settings()
 
     for offering in catalog_offerings:
         price_detail = offering.get("Price", {})

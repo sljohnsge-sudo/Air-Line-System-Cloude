@@ -223,7 +223,10 @@ def search_flights(
             # the reference the offer/price request needs downstream. 999 keeps
             # caching on while still satisfying the certification guidance.
             "offersPerPage": 999,
-            "contentSourceList": ["GDS", "NDC", "APIPAC"],
+            # Only GDS and NDC are valid content sources on this account —
+            # Travelport support flagged APIPAC as incorrect (not a real
+            # provider) after reviewing our round-trip search logs.
+            "contentSourceList": ["GDS", "NDC"],
             "PassengerCriteria": passenger_criteria,
             "SearchCriteriaFlight": search_criteria_flight
         }

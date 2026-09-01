@@ -146,6 +146,81 @@ def init_db():
             FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
         """)
 
+    # Index on passenger_email — the auto-link-by-email query (every customer
+    # login) and admin email searches both filter on this column; at scale
+    # (thousands of accounts/bookings) this keeps those lookups fast.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='bookings' AND INDEX_NAME='idx_bookings_passenger_email'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("CREATE INDEX idx_bookings_passenger_email ON bookings(passenger_email)")
+
+    # ── Loyalty Program ──────────────────────────────────────────────────────
+    # Single-row config table (same pattern as pricing_settings) — points
+    # accrual rate per currency (fares are LKR or USD, never blended) and the
+    # point thresholds that define each tier.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS loyalty_settings (
+            id                     INT PRIMARY KEY,
+            points_per_lkr         DOUBLE NOT NULL DEFAULT 0.01,
+            points_per_usd         DOUBLE NOT NULL DEFAULT 1.0,
+            tier_silver_threshold  INT NOT NULL DEFAULT 1000,
+            tier_gold_threshold    INT NOT NULL DEFAULT 5000,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    cursor.execute("INSERT IGNORE INTO loyalty_settings (id) VALUES (1)")
+
+    # Loyalty balances are keyed by email, not customer_id — mirrors how
+    # bookings are earned (by whichever email was on the booking) and let
+    # into an account automatically once a customer signs up with that email,
+    # with no separate "claiming" step: the account holder's own email IS
+    # the lookup key when they view their own balance.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS loyalty_accounts (
+            email          VARCHAR(200) PRIMARY KEY,
+            points_balance INT NOT NULL DEFAULT 0,
+            created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # Ledger of every points change (booking accrual, admin manual
+    # adjustment, or a merge during an email-change approval) — audit trail,
+    # and what points_balance is derived from.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS loyalty_transactions (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            email         VARCHAR(200) NOT NULL,
+            locator_code  VARCHAR(50) NULL,
+            points_change INT NOT NULL,
+            reason        VARCHAR(255) NOT NULL,
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_loyalty_txn_email (email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── Email Change Requests ───────────────────────────────────────────────
+    # Self-service email changes aren't safe here (no email verification
+    # capability at all), so a customer's request goes into a queue an admin
+    # must explicitly approve or reject before the account email changes.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS email_change_requests (
+            id               INT AUTO_INCREMENT PRIMARY KEY,
+            customer_id      INT NOT NULL,
+            old_email        VARCHAR(200) NOT NULL,
+            new_email        VARCHAR(200) NOT NULL,
+            status           VARCHAR(20) NOT NULL DEFAULT 'pending',
+            admin_note       VARCHAR(500),
+            requested_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at      DATETIME NULL,
+            reviewed_by_admin_id INT NULL,
+            CONSTRAINT fk_email_change_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+            INDEX idx_email_change_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     conn.commit()
     cursor.close()
     populate_airports_table(conn)
@@ -239,9 +314,9 @@ def get_all_bookings(email: str | None = None) -> list[dict]:
 
 
 def get_bookings_for_customer(customer_id: int) -> list[dict]:
-    """Retrieve bookings created while this customer was logged in (i.e.
-    customer_id was stamped at booking-creation time) — never a retroactive
-    email match against older guest bookings."""
+    """Retrieve bookings tied to this customer_id — either stamped while the
+    customer was logged in at booking time, or linked afterwards by
+    link_guest_bookings_by_email() when a matching guest booking is found."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM bookings WHERE customer_id=%s ORDER BY booking_date DESC", (customer_id,))
@@ -251,11 +326,280 @@ def get_bookings_for_customer(customer_id: int) -> list[dict]:
     return _hydrate_bookings(rows)
 
 
+def link_guest_bookings_by_email(customer_id: int, email: str) -> int:
+    """Claim any unclaimed guest bookings (customer_id IS NULL) whose
+    passenger_email matches this customer's account email. Called on every
+    login so bookings made as a guest before — or between — logins get
+    picked up automatically. Returns the number of bookings linked.
+
+    NOTE: this system has no email verification, so this is a deliberate
+    trust decision — anyone who can log into an account with a given email
+    absorbs every guest booking made under that same email address."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE bookings SET customer_id=%s WHERE customer_id IS NULL AND passenger_email=%s",
+            (customer_id, email),
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def assign_booking_to_customer(locator_code: str, customer_id: int) -> dict | None:
+    """Admin-only manual override: link a specific booking to a specific
+    customer account regardless of email match — for cases where the
+    booking was made under a different email than the account (typo,
+    alternate address, etc.) and auto-linking can't catch it. Overwrites
+    any existing customer_id on the booking. Returns the updated booking,
+    or None if the locator code doesn't exist."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("UPDATE bookings SET customer_id=%s WHERE locator_code=%s", (customer_id, locator_code))
+        conn.commit()
+        cursor.execute("SELECT * FROM bookings WHERE locator_code=%s", (locator_code,))
+        row = cursor.fetchone()
+        return _hydrate_bookings([row])[0] if row else None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Loyalty Program ──────────────────────────────────────────────────────────
+
+def get_loyalty_settings() -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM loyalty_settings WHERE id=1")
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row or {
+        "points_per_lkr": 0.01, "points_per_usd": 1.0,
+        "tier_silver_threshold": 1000, "tier_gold_threshold": 5000,
+    }
+
+
+def update_loyalty_settings(points_per_lkr: float, points_per_usd: float,
+                             tier_silver_threshold: int, tier_gold_threshold: int) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE loyalty_settings SET points_per_lkr=%s, points_per_usd=%s,
+               tier_silver_threshold=%s, tier_gold_threshold=%s WHERE id=1""",
+            (points_per_lkr, points_per_usd, tier_silver_threshold, tier_gold_threshold),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM loyalty_settings WHERE id=1")
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def award_loyalty_points(email: str, points: int, locator_code: str | None, reason: str) -> int:
+    """Record a points change and update the running balance. points may be
+    negative (e.g. a future redemption or a correction). Returns the new
+    balance. No-ops (returns current balance) if points == 0."""
+    if not email:
+        return 0
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if points != 0:
+            cursor.execute(
+                "INSERT INTO loyalty_transactions (email, locator_code, points_change, reason) VALUES (%s,%s,%s,%s)",
+                (email, locator_code, points, reason),
+            )
+            cursor.execute(
+                """INSERT INTO loyalty_accounts (email, points_balance) VALUES (%s, %s)
+                   ON DUPLICATE KEY UPDATE points_balance = points_balance + VALUES(points_balance)""",
+                (email, points),
+            )
+            conn.commit()
+        cursor.execute("SELECT points_balance FROM loyalty_accounts WHERE email=%s", (email,))
+        row = cursor.fetchone()
+        return row["points_balance"] if row else 0
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_loyalty_account(email: str) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM loyalty_accounts WHERE email=%s", (email,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row or {"email": email, "points_balance": 0}
+
+
+def get_loyalty_transactions(email: str, limit: int = 25) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM loyalty_transactions WHERE email=%s ORDER BY created_at DESC LIMIT %s",
+        (email, limit),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def rekey_loyalty_account(old_email: str, new_email: str) -> None:
+    """Move a loyalty balance from old_email to new_email — used when an
+    email-change request is approved. Merges into an existing new_email
+    account if one already exists (e.g. from guest bookings/points already
+    earned under that address), rather than overwriting it."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT points_balance FROM loyalty_accounts WHERE email=%s", (old_email,))
+        old_row = cursor.fetchone()
+        if not old_row:
+            return
+        cursor.execute(
+            """INSERT INTO loyalty_accounts (email, points_balance) VALUES (%s, %s)
+               ON DUPLICATE KEY UPDATE points_balance = points_balance + VALUES(points_balance)""",
+            (new_email, old_row["points_balance"]),
+        )
+        cursor.execute("DELETE FROM loyalty_accounts WHERE email=%s", (old_email,))
+        cursor.execute("UPDATE loyalty_transactions SET email=%s WHERE email=%s", (new_email, old_email))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Email Change Requests ─────────────────────────────────────────────────────
+
+def create_email_change_request(customer_id: int, old_email: str, new_email: str) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "INSERT INTO email_change_requests (customer_id, old_email, new_email) VALUES (%s,%s,%s)",
+            (customer_id, old_email, new_email),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM email_change_requests WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_pending_email_change_request(customer_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM email_change_requests WHERE customer_id=%s AND status='pending' ORDER BY requested_at DESC LIMIT 1",
+        (customer_id,),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def get_email_change_requests(status: str | None = None) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if status:
+        cursor.execute("SELECT * FROM email_change_requests WHERE status=%s ORDER BY requested_at DESC", (status,))
+    else:
+        cursor.execute("SELECT * FROM email_change_requests ORDER BY requested_at DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_email_change_request_by_id(request_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM email_change_requests WHERE id=%s", (request_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def resolve_email_change_request(request_id: int, status: str, admin_id: int, admin_note: str | None) -> dict:
+    """status must be 'approved' or 'rejected'."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE email_change_requests SET status=%s, admin_note=%s,
+               reviewed_at=CURRENT_TIMESTAMP, reviewed_by_admin_id=%s WHERE id=%s""",
+            (status, admin_note, admin_id, request_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM email_change_requests WHERE id=%s", (request_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_customer_email(customer_id: int, new_email: str) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("UPDATE customers SET email=%s WHERE id=%s", (new_email, customer_id))
+        conn.commit()
+        cursor.execute("SELECT * FROM customers WHERE id=%s", (customer_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def get_booking_by_locator(locator_code: str) -> dict | None:
     """Retrieve a single cached booking by PNR locator code."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM bookings WHERE locator_code=%s",(locator_code,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if row:
+        return _hydrate_bookings([row])[0]
+    return None
+
+
+def get_booking_by_ticket_number(ticket_number: str) -> dict | None:
+    """Resolve a booking by its issued ticket number (used by invoice lookup
+    to let a caller search by ticket number instead of PNR/locator)."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM bookings WHERE ticket_number=%s", (ticket_number,))
     row = cursor.fetchone()
     cursor.close()
     conn.close()

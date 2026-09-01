@@ -81,3 +81,21 @@ def get_optional_customer_id(credentials: HTTPAuthorizationCredentials = Depends
     if payload is None or payload.get("role") != "customer":
         return None
     return payload.get("customer_id")
+
+
+def get_admin_or_customer(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)) -> dict:
+    """Accepts EITHER a valid admin or customer token — used by endpoints
+    (like invoice lookup) that both portals share but that must never be
+    reachable without signing in to one of them. Returns
+    {"role": "admin"|"customer", "customer_id": int|None, "admin_id": int|None}.
+    Raises 401 if no valid token of either kind is presented."""
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign-in required")
+    payload = decode_token(credentials.credentials)
+    if payload is None or payload.get("role") not in ("admin", "customer"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    return {
+        "role": payload.get("role"),
+        "customer_id": payload.get("customer_id"),
+        "admin_id": payload.get("admin_id"),
+    }

@@ -597,10 +597,43 @@ export default function App() {
   }, [activeTab]);
 
   // ── Invoice Data State (Travelport live lookup) ───────────────────────────
+  // invoiceViewAs tracks WHICH portal opened this tab — never derived from
+  // "whichever token happens to exist," since a browser can legitimately
+  // hold both an admin and a customer session at once (e.g. testing both).
+  // Without this, the customer portal's Invoice Data button could silently
+  // use an admin token left in localStorage and show admin-level access.
+  const [invoiceViewAs, setInvoiceViewAs] = useState(null); // 'admin' | 'customer' | null
+  const [invoiceSearchType, setInvoiceSearchType] = useState('pnr'); // 'pnr' | 'ticket'
   const [invoicePnr, setInvoicePnr] = useState('');
   const [invoiceData, setInvoiceData] = useState(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceError, setInvoiceError] = useState('');
+
+  const invoiceAuthToken = invoiceViewAs === 'admin' ? adminToken : invoiceViewAs === 'customer' ? customerToken : null;
+  const openInvoiceAs = (role) => {
+    setInvoiceViewAs(role);
+    setInvoiceData(null);
+    setInvoiceError('');
+    setInvoiceMode('single');
+    setReportData([]);
+    setReportError('');
+    setActiveTab('invoice');
+  };
+
+  const runInvoiceLookup = () => {
+    const value = invoicePnr.trim();
+    if (value.length < 3) return;
+    setInvoiceError('');
+    setInvoiceData(null);
+    setInvoiceLoading(true);
+    const path = invoiceSearchType === 'ticket' ? `invoice/ticket/${value}` : `invoice/pnr/${value}`;
+    fetch(`${API_BASE}/${path}`, {
+      headers: invoiceAuthToken ? { Authorization: `Bearer ${invoiceAuthToken}` } : {},
+    })
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(d => { setInvoiceData(d.invoice); setInvoiceLoading(false); })
+      .catch(err => { setInvoiceError(err.message); setInvoiceLoading(false); });
+  };
 
   // Report generation state (date-wise)
   const [invoiceMode, setInvoiceMode] = useState('single'); // 'single' | 'report'
@@ -655,6 +688,14 @@ export default function App() {
   // Selected flight (Step 3)
   const [selectedFlight, setSelectedFlight] = useState(null);
 
+  // Round-trip two-step selection: null when results aren't a round trip
+  // (or haven't been checked yet); 'outbound' | 'return' while stepping
+  // through a round trip's separate outbound/return selection screens.
+  // chosenOutboundKey identifies which outbound leg was picked, so the
+  // return step can filter down to only combinable pairs.
+  const [roundTripPhase, setRoundTripPhase] = useState(null);
+  const [chosenOutboundKey, setChosenOutboundKey] = useState(null);
+
   // Booking wizard step: 'passenger' | 'review' | 'processing' | 'ticket'
   const [bookingStep, setBookingStep] = useState(null);
 
@@ -699,7 +740,7 @@ export default function App() {
   const [notification, setNotification] = useState(null);
 
   useEffect(() => {
-    if (activeTab === 'bookings') fetchBookings();
+    if (activeTab === 'bookings' && adminToken) fetchBookings();
   }, [activeTab]);
 
   const showNotification = (message, type = 'success') => {
@@ -858,6 +899,12 @@ export default function App() {
       setFilterTimeOfDay('any');
       setFilterAirlines([]);
       setSortBy('price');
+      // Round trip: results are combinable outbound+return pairs (each with
+      // .legs[0]/.legs[1]) — start the two-step outbound-then-return
+      // selection instead of showing them pre-combined as one ticket.
+      const isRoundTripResult = fetched.length > 0 && fetched[0]?.legs?.length === 2;
+      setRoundTripPhase(isRoundTripResult ? 'outbound' : null);
+      setChosenOutboundKey(null);
       if (fetched.length === 0) {
         setSearchError('No flights found for this route and date. Try different criteria.');
       }
@@ -873,6 +920,20 @@ export default function App() {
 
   // ── STEP 3: Select Flight ────────────────────────────────────────────────
   const handleSelectFlight = (flight, fareOption) => {
+    // Round trip, outbound step: don't book yet — lock in this outbound and
+    // advance to the return-selection screen (only combinable returns show).
+    if (roundTripPhase === 'outbound' && flight._outboundKey) {
+      setChosenOutboundKey(flight._outboundKey);
+      setRoundTripPhase('return');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    // Round trip, return step: book the ORIGINAL paired offer (both legs +
+    // the real combined price Travelport already validated together), not
+    // the single-leg pseudo-offer used for display.
+    if (roundTripPhase === 'return' && flight._pairedOffer) {
+      flight = flight._pairedOffer;
+    }
     setSelectedFlight({
       ...flight,
       price: fareOption.price,
@@ -1225,7 +1286,9 @@ export default function App() {
       let url = `${API_BASE}/bookings/history`;
       const email = filterEmail || searchEmail;
       if (email) url += `?email=${encodeURIComponent(email)}`;
-      const res = await fetchWithRetry(url);
+      const res = await fetchWithRetry(url, {
+        headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {},
+      });
       const data = await handleApiResponse(res, 'Failed to load bookings');
       setMyBookings(data.bookings || []);
     } catch (err) {
@@ -1361,11 +1424,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               ✈ Results ({flights.length})
             </button>
           )}
-          <button className={`nav-tab ${activeTab === 'bookings' ? 'active' : ''}`} onClick={() => setActiveTab('bookings')}>My Bookings</button>
-          <button className={`nav-tab ${activeTab === 'invoice' ? 'active' : ''}`} onClick={() => setActiveTab('invoice')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
-            Invoice Data
-          </button>
           <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
           <button className={`nav-tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
@@ -1404,7 +1462,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   Launch Booking Engine
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </button>
-                <button className="btn btn-secondary" onClick={() => setActiveTab('bookings')}>My Boarding Passes</button>
+                <button className="btn btn-secondary" onClick={() => setActiveTab('account')}>My Account</button>
               </div>
               <div className="hero-badge-container">
                 <span className="hero-badge">✅ Instant PNR &amp; Ticketing</span>
@@ -1433,39 +1491,22 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
             </div>
 
-            {/* My Bookings */}
-            <div onClick={() => setActiveTab('bookings')} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
+            {/* My Account */}
+            <div onClick={() => setActiveTab('account')} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#0f172a'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(15,23,42,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
               <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #0f172a, #1e293b)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               </div>
               <div>
-                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>My Bookings</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>View all bookings, retrieve boarding passes, manage PNRs and cancel reservations.</div>
+                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>My Account</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Sign in or create an account to view your bookings, boarding passes, and manage reservations.</div>
               </div>
               <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1e293b', fontWeight: '700', fontSize: '0.82rem' }}>
-                View Bookings
+                Sign In / Register
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
               </div>
             </div>
-            {/* Invoice Data */}
-            <div onClick={() => setActiveTab('invoice')} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(124,58,237,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              </div>
-              <div>
-                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Invoice Data</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Retrieve live PNR data — full passenger details, fare breakdown, tax breakdown and export.</div>
-              </div>
-              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#7c3aed', fontWeight: '700', fontSize: '0.82rem' }}>
-                Retrieve Invoice
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </div>
-            </div>
-
           </section>
 
           {/* Features */}
@@ -1996,17 +2037,65 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
       {/* ── FLIGHT RESULTS PAGE ───────────────────────────────────────────── */}
       {activeTab === 'results' && (() => {
+        const legKey = (leg) => `${leg.flight_number}_${leg.departure_time}`;
+
+        // Round trip: `flights` holds combinable outbound+return PAIRS (each
+        // with .legs[0]/.legs[1] and one combined price/raw_offering — the
+        // only shape Travelport will actually let us book as one PNR). We
+        // present that as two sequential single-leg screens instead of one
+        // pre-combined "ticket": first a deduplicated outbound list (one
+        // card per distinct outbound flight, priced "from" the cheapest
+        // combinable return), then — once an outbound is chosen — only the
+        // return options that are genuinely combinable with it, at their
+        // real combined total. Selecting a return card commits to that
+        // exact pair, unchanged from how one-way selection already works.
+        let sourceFlights = flights;
+        if (roundTripPhase === 'outbound') {
+          const byOutbound = new Map();
+          for (const pair of flights) {
+            const leg = pair.legs?.[0];
+            if (!leg) continue;
+            const key = legKey(leg);
+            const existing = byOutbound.get(key);
+            if (!existing || pair.price < existing._pairedOffer.price) {
+              byOutbound.set(key, {
+                ...leg,
+                price: pair.price,
+                currency: pair.currency,
+                price_breakdown: null,
+                fare_options: [{ price: pair.price, currency: pair.currency, cabin_class: leg.cabin_class, price_breakdown: null, raw_offering: null }],
+                offer_id: key,
+                _outboundKey: key,
+                _pairedOffer: pair,
+              });
+            }
+          }
+          sourceFlights = Array.from(byOutbound.values());
+        } else if (roundTripPhase === 'return') {
+          sourceFlights = flights
+            .filter(pair => pair.legs?.[0] && legKey(pair.legs[0]) === chosenOutboundKey)
+            .map(pair => ({
+              ...pair.legs[1],
+              price: pair.price,
+              currency: pair.currency,
+              price_breakdown: pair.price_breakdown,
+              fare_options: pair.fare_options,
+              offer_id: pair.offer_id,
+              _pairedOffer: pair,
+            }));
+        }
+
         // Compute min/max prices for the filter slider
-        const prices = flights.map(f => f.price || 0);
+        const prices = sourceFlights.map(f => f.price || 0);
         const minPrice = prices.length ? Math.floor(Math.min(...prices)) : 0;
         const maxPrice = prices.length ? Math.ceil(Math.max(...prices)) : 5000;
         const sliderMax = filterMaxPrice ?? maxPrice;
 
         // Dynamic unique list of airlines in current search results
-        const uniqueAirlines = Array.from(new Set(flights.map(f => f.airline).filter(Boolean)));
+        const uniqueAirlines = Array.from(new Set(sourceFlights.map(f => f.airline).filter(Boolean)));
 
         // Apply filters + sort
-        let displayed = flights.filter(f => {
+        let displayed = sourceFlights.filter(f => {
           if ((filterMaxPrice !== null) && (f.price || 0) > filterMaxPrice) return false;
           if (filterStops === '0' && (f.stops || 0) !== 0) return false;
           if (filterStops === '1+' && (f.stops || 0) === 0) return false;
@@ -3187,7 +3276,19 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       })()}
       {/* ── MY BOOKINGS TAB ──────────────────────────────────────────────── */}
       {/* ── INVOICE DATA TAB ─────────────────────────────────────────────── */}
-      {activeTab === 'invoice' && (
+      {activeTab === 'invoice' && !invoiceAuthToken && (
+        <div className="tab-content animate-fade">
+          <div className="empty-state glass-panel animate-fade" style={{ maxWidth: '480px', margin: '3rem auto' }}>
+            <p>Sign in to view invoice and transaction data.</p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.75rem' }}>
+              <button className="btn btn-primary" onClick={() => setActiveTab('admin')}>Admin Login</button>
+              <button className="btn btn-secondary" onClick={() => setActiveTab('account')}>Customer Sign In</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'invoice' && invoiceAuthToken && (
         <div className="animate-fade" style={{ maxWidth: '1100px', margin: '2rem auto', padding: '0 1.5rem' }}>
 
           {/* Header */}
@@ -3195,66 +3296,66 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             <div>
               <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--gs-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gs-crimson)" strokeWidth="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
-                Invoice & PNR Reporting
+                {invoiceViewAs === 'customer' ? 'Look Up a Booking' : 'Invoice & PNR Reporting'}
               </h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.35rem 0 0 0' }}>
-                Retrieve real-time booking details or generate date-wise ticketing reports directly from the Travelport GDS. No mock data.
+                {invoiceViewAs === 'customer'
+                  ? 'Enter any PNR or ticket number to view its full booking and fare details, live from the Travelport GDS — including bookings made under a different email.'
+                  : `Retrieve real-time booking details${invoiceViewAs === 'admin' ? ' or generate date-wise ticketing reports' : ''} directly from the Travelport GDS. No mock data.`}
               </p>
             </div>
 
             {/* Sub-tab Toggle */}
-            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '8px', padding: '0.2rem', gap: '0.2rem' }}>
-              <button onClick={() => setInvoiceMode('single')} style={{
-                border: 'none', background: invoiceMode === 'single' ? 'white' : 'transparent',
-                color: invoiceMode === 'single' ? '#0f172a' : '#64748b', fontSize: '0.75rem', fontWeight: '700',
-                padding: '0.45rem 1rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.1s'
-              }}>Single PNR Retrieve</button>
-              <button onClick={() => setInvoiceMode('report')} style={{
-                border: 'none', background: invoiceMode === 'report' ? 'white' : 'transparent',
-                color: invoiceMode === 'report' ? '#0f172a' : '#64748b', fontSize: '0.75rem', fontWeight: '700',
-                padding: '0.45rem 1rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.1s'
-              }}>Date-wise Report (PCC 7F3C)</button>
-            </div>
+            {invoiceViewAs === 'admin' && (
+              <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '8px', padding: '0.2rem', gap: '0.2rem' }}>
+                <button onClick={() => setInvoiceMode('single')} style={{
+                  border: 'none', background: invoiceMode === 'single' ? 'white' : 'transparent',
+                  color: invoiceMode === 'single' ? '#0f172a' : '#64748b', fontSize: '0.75rem', fontWeight: '700',
+                  padding: '0.45rem 1rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                }}>Single Booking Retrieve</button>
+                <button onClick={() => setInvoiceMode('report')} style={{
+                  border: 'none', background: invoiceMode === 'report' ? 'white' : 'transparent',
+                  color: invoiceMode === 'report' ? '#0f172a' : '#64748b', fontSize: '0.75rem', fontWeight: '700',
+                  padding: '0.45rem 1rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.1s'
+                }}>Date-wise Report (PCC 7F3C)</button>
+              </div>
+            )}
           </div>
 
-          {/* Mode 1: Single PNR Lookup */}
+          {/* Mode 1: Single Booking Lookup — by PNR or Ticket Number */}
           {invoiceMode === 'single' && (
             <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1.25rem', marginBottom: '1.5rem', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
-              <label style={{ fontSize: '0.78rem', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.5rem' }}>Enter PNR / Booking Reference</label>
+              <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.75rem' }}>
+                <button onClick={() => { setInvoiceSearchType('pnr'); setInvoiceError(''); }} style={{
+                  border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', padding: '0.3rem 0.8rem', fontSize: '0.72rem', fontWeight: '700',
+                  background: invoiceSearchType === 'pnr' ? 'var(--gs-crimson)' : 'white',
+                  color: invoiceSearchType === 'pnr' ? 'white' : '#64748b',
+                }}>Search by PNR</button>
+                <button onClick={() => { setInvoiceSearchType('ticket'); setInvoiceError(''); }} style={{
+                  border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', padding: '0.3rem 0.8rem', fontSize: '0.72rem', fontWeight: '700',
+                  background: invoiceSearchType === 'ticket' ? 'var(--gs-crimson)' : 'white',
+                  color: invoiceSearchType === 'ticket' ? 'white' : '#64748b',
+                }}>Search by Ticket Number</button>
+              </div>
+              <label style={{ fontSize: '0.78rem', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.5rem' }}>
+                {invoiceSearchType === 'ticket' ? 'Enter Ticket Number' : 'Enter PNR / Booking Reference'}
+              </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
                 <input
                   id="invoice-pnr-input"
                   type="text"
                   className="form-input"
-                  placeholder="e.g. ABC123"
+                  placeholder={invoiceSearchType === 'ticket' ? 'e.g. 1234567890123' : 'e.g. ABC123'}
                   value={invoicePnr}
                   onChange={e => setInvoicePnr(e.target.value.toUpperCase())}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && invoicePnr.trim().length >= 5) {
-                      setInvoiceError('');
-                      setInvoiceData(null);
-                      setInvoiceLoading(true);
-                      fetch(`${API_BASE}/invoice/pnr/${invoicePnr.trim()}`)
-                        .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
-                        .then(d => { setInvoiceData(d.invoice); setInvoiceLoading(false); })
-                        .catch(err => { setInvoiceError(err.message); setInvoiceLoading(false); });
-                    }
-                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') runInvoiceLookup(); }}
                   style={{ flex: 1, maxWidth: '320px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: '700', fontSize: '1rem' }}
                 />
                 <button
                   id="invoice-retrieve-btn"
                   className="btn btn-primary"
-                  disabled={invoicePnr.trim().length < 5 || invoiceLoading}
-                  onClick={() => {
-                    setInvoiceError('');
-                    setInvoiceData(null);
-                    setInvoiceLoading(true);
-                    fetch(`${API_BASE}/invoice/pnr/${invoicePnr.trim()}`)
-                      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
-                      .then(d => { setInvoiceData(d.invoice); setInvoiceLoading(false); })
-                      .catch(err => { setInvoiceError(err.message); setInvoiceLoading(false); });
-                  }}
+                  disabled={invoicePnr.trim().length < 3 || invoiceLoading}
+                  onClick={runInvoiceLookup}
                   style={{ padding: '0.65rem 1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                 >
                   {invoiceLoading ? (
@@ -3273,8 +3374,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             </div>
           )}
 
-          {/* Mode 2: Date-wise PNR Report */}
-          {invoiceMode === 'report' && (
+          {/* Mode 2: Date-wise PNR Report (admin only) */}
+          {invoiceMode === 'report' && invoiceViewAs === 'admin' && (
             <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1.25rem', marginBottom: '1.5rem', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
                 <div style={{ flex: 1, minWidth: '160px' }}>
@@ -3292,7 +3393,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     setReportError('');
                     setReportData([]);
                     setReportLoading(true);
-                    fetch(`${API_BASE}/invoice/report?start_date=${reportStartDate}&end_date=${reportEndDate}`)
+                    fetch(`${API_BASE}/invoice/report?start_date=${reportStartDate}&end_date=${reportEndDate}`, {
+                      headers: { Authorization: `Bearer ${adminToken}` },
+                    })
                       .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
                       .then(d => { setReportData(d.pax_records); setReportLoading(false); })
                       .catch(err => { setReportError(err.message); setReportLoading(false); });
@@ -3957,47 +4060,60 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       )}
 
       {activeTab === 'bookings' && (
-        <div className="tab-content animate-fade">
-          <section className="search-section glass-panel">
-            <h2 className="section-title">My Boarding Passes</h2>
-            <div className="form-group">
-              <label className="form-label">Filter by Email Address</label>
-              <div className="search-input-wrapper">
-                <input type="email" className="form-input" placeholder="Enter email to filter bookings"
-                  value={searchEmail} onChange={e => setSearchEmail(e.target.value)} />
-                {searchEmail && <button className="clear-input-btn" onClick={() => { setSearchEmail(''); fetchBookings(''); }}>×</button>}
+        adminToken ? (
+          <div className="tab-content animate-fade">
+            <section className="search-section glass-panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <h2 className="section-title" style={{ margin: 0 }}>All Bookings (Admin)</h2>
+                <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('admin')}>← Back to Admin Portal</button>
               </div>
-            </div>
-            <button className="btn btn-primary" onClick={() => fetchBookings()} style={{ marginTop: '0.5rem' }}>
-              Load Bookings
-            </button>
-          </section>
+              <div className="form-group" style={{ marginTop: '1rem' }}>
+                <label className="form-label">Filter by Email Address (optional)</label>
+                <div className="search-input-wrapper">
+                  <input type="email" className="form-input" placeholder="Leave blank to see all bookings"
+                    value={searchEmail} onChange={e => setSearchEmail(e.target.value)} />
+                  {searchEmail && <button className="clear-input-btn" onClick={() => { setSearchEmail(''); fetchBookings(''); }}>×</button>}
+                </div>
+              </div>
+              <button className="btn btn-primary" onClick={() => fetchBookings()} style={{ marginTop: '0.5rem' }}>
+                Load Bookings
+              </button>
+            </section>
 
-          <section className="bookings-list-section">
-            <h3 className="results-heading">
-              {loadingBookings ? 'Loading...' : `Issued Tickets (${myBookings.length})`}
-            </h3>
-            {loadingBookings ? (
-              <div className="loading-state"><div className="spinner"></div><p>Retrieving bookings...</p></div>
-            ) : myBookings.length === 0 ? (
-              <div className="empty-state glass-panel animate-fade">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 17h20M2 12h20M2 7h20"/></svg>
-                <p>No bookings found. Book a flight to see your boarding passes here.</p>
-              </div>
-            ) : (
-              <div className="bookings-grid">
-                {myBookings.map((b) => (
-                  <BookingCard key={b.id} booking={b} onViewTicket={handleViewTicket} onCancelBooking={handleCancelBooking} />
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+            <section className="bookings-list-section">
+              <h3 className="results-heading">
+                {loadingBookings ? 'Loading...' : `Issued Tickets (${myBookings.length})`}
+              </h3>
+              {loadingBookings ? (
+                <div className="loading-state"><div className="spinner"></div><p>Retrieving bookings...</p></div>
+              ) : myBookings.length === 0 ? (
+                <div className="empty-state glass-panel animate-fade">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 17h20M2 12h20M2 7h20"/></svg>
+                  <p>No bookings found.</p>
+                </div>
+              ) : (
+                <div className="bookings-grid">
+                  {myBookings.map((b) => (
+                    <BookingCard key={b.id} booking={b} onViewTicket={handleViewTicket} onCancelBooking={handleCancelBooking} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : (
+          <div className="tab-content animate-fade">
+            <div className="empty-state glass-panel animate-fade" style={{ maxWidth: '480px', margin: '3rem auto' }}>
+              <p>Admin sign-in required to view all bookings.</p>
+              <button className="btn btn-primary" onClick={() => setActiveTab('admin')} style={{ marginTop: '0.75rem' }}>Go to Admin Login</button>
+            </div>
+          </div>
+        )
       )}
 
       {/* ── ADMIN PORTAL TAB ─────────────────────────────────────────────── */}
       {activeTab === 'admin' && (
         <AdminPortal
+          onOpenInvoice={() => openInvoiceAs('admin')}
           adminToken={adminToken}
           onAdminLogin={handleAdminLogin}
           onAdminLogout={handleAdminLogout}
@@ -4019,6 +4135,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           fetchWithRetry={fetchWithRetry}
           handleApiResponse={handleApiResponse}
           onViewTicket={handleViewTicket}
+          onOpenInvoice={() => openInvoiceAs('customer')}
         />
       )}
 
@@ -5245,7 +5362,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               <button className="btn btn-secondary" onClick={handleDownloadPDF} style={{ background: '#0284c7', color: 'white', border: '1px solid #0284c7' }}>📥 Download PDF</button>
               <button className="btn btn-secondary" onClick={handleShareWhatsApp} style={{ background: '#22c55e', color: 'white', border: '1px solid #22c55e' }}>💬 Share WhatsApp</button>
               <button className="btn btn-secondary" onClick={handleShareEmail} style={{ background: '#64748b', color: 'white', border: '1px solid #64748b' }}>✉️ Share Email</button>
-              <button className="btn btn-primary" onClick={() => { closeBookingFlow(); setActiveTab('bookings'); }}>View All Bookings</button>
+              <button className="btn btn-primary" onClick={() => { closeBookingFlow(); setActiveTab('account'); }}>My Account</button>
               <button className="btn btn-secondary" onClick={closeBookingFlow}>Close</button>
             </div>
 

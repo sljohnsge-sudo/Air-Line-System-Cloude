@@ -22,6 +22,9 @@ from typing import Optional, List
 import database
 import services
 import auth
+import hotel_database
+from services import hotel_search_service, hotel_booking_service
+from services.hotel_common import HotelApiError
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -411,19 +414,24 @@ def initiate_booking(request: BookingInitiateRequest):
         if not offer_id:
             offer_id = "offer_1"
 
-        # STEP 10: Fetch live seat map
-        seat_map = None
+        # STEP 10: Fetch live seat map(s) — one per flight/leg. A round-trip
+        # offer returns two (outbound + return); a one-way offer returns one.
+        seat_maps = None
         seat_map_available = False
         try:
-            seat_map = services.get_seat_map(workbench_id, offer_id)
-            seat_map_available = True
+            seat_maps = services.get_seat_map(workbench_id, offer_id)
+            seat_map_available = bool(seat_maps)
         except Exception as e:
             logger.warning(f"Live seat map retrieval failed: {e}")
 
         return {
             "workbench_id": workbench_id,
             "offer_id": offer_id,
-            "seat_map": seat_map,
+            # "seat_map" (singular, first leg only) is kept for existing
+            # one-way frontend code — "seat_maps" (plural, all legs) is the
+            # new field round-trip-aware code should use instead.
+            "seat_map": seat_maps[0] if seat_maps else None,
+            "seat_maps": seat_maps or [],
             "seat_map_available": seat_map_available
         }
     except Exception as e:
@@ -631,6 +639,18 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
 
     saved = database.save_booking(ticket)
 
+    # Loyalty points are earned on actual ticketing (a completed, paid
+    # transaction), not at PNR creation — save_booking may be called again
+    # later (e.g. Sync PNR) but award_loyalty_points is only ever invoked
+    # from this one place, so no double-awarding risk.
+    try:
+        if ticket.get("email"):
+            services.award_points_for_booking(
+                ticket["email"], float(ticket.get("total_fare", 0)), ticket.get("currency", "USD"), locator_code,
+            )
+    except Exception as e:
+        logger.warning(f"Loyalty points award failed for {locator_code} (non-fatal): {e}")
+
     return {
         "success": True,
         "ticket": ticket,
@@ -687,9 +707,9 @@ def retrieve_booking(locator_code: str):
 # ── Booking History ────────────────────────────────────────────────────────────
 
 @app.get("/api/bookings/history")
-def booking_history(email: Optional[str] = Query(None, description="Filter by passenger email")):
+def booking_history(email: Optional[str] = Query(None, description="Filter by passenger email"), _admin: dict = Depends(auth.get_current_admin)):
     """
-    Return all locally cached issued tickets.
+    Return all locally cached issued tickets (admin only).
     Optionally filter by passenger email.
     """
     try:
@@ -746,8 +766,7 @@ def get_raw_price(locator_code: str):
 
 
 
-@app.get("/api/invoice/pnr/{locator_code}")
-def get_invoice_data(locator_code: str):
+def _build_invoice_response(pnr: str) -> dict:
     """
     Retrieve full invoice-ready data for a booking.
 
@@ -764,7 +783,6 @@ def get_invoice_data(locator_code: str):
 
     Every field is clearly labelled with its data source in the response.
     """
-    pnr = locator_code.upper().strip()
     try:
         # PRIMARY: Live Travelport API call
         invoice = services.retrieve_invoice_data(pnr)
@@ -811,22 +829,49 @@ def get_invoice_data(locator_code: str):
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error(f"Invoice retrieval failed for PNR {locator_code}: {e}")
+        logger.error(f"Invoice retrieval failed for PNR {pnr}: {e}")
         raise HTTPException(
             status_code=502,
             detail=f"Failed to retrieve invoice data from Travelport: {str(e)}"
         )
 
 
+@app.get("/api/invoice/pnr/{locator_code}")
+def get_invoice_by_pnr(locator_code: str, principal: dict = Depends(auth.get_admin_or_customer)):
+    """Retrieve invoice data by PNR / locator code. A general 'manage my
+    booking' style lookup, same as an airline's own PNR retrieval tool —
+    open to any signed-in admin or customer, not restricted to bookings
+    tied to the caller's own account. This is intentional: the same person
+    may have booked under a different email than their account, so ownership
+    can't be assumed. The PNR itself (a random, non-guessable code only the
+    booker receives) is the access control here, not account linkage."""
+    pnr = locator_code.upper().strip()
+    return _build_invoice_response(pnr)
+
+
+@app.get("/api/invoice/ticket/{ticket_number}")
+def get_invoice_by_ticket(ticket_number: str, principal: dict = Depends(auth.get_admin_or_customer)):
+    """Retrieve invoice data by issued ticket number — resolves the ticket
+    number to its PNR/locator via the local booking cache, then fetches the
+    same live Travelport invoice data as the PNR lookup. Same open-lookup
+    model as get_invoice_by_pnr — see its docstring."""
+    booking = database.get_booking_by_ticket_number(ticket_number.strip())
+    if not booking or not booking.get("locator_code"):
+        raise HTTPException(status_code=404, detail=f"No booking found for ticket number '{ticket_number}'.")
+    pnr = booking["locator_code"].upper().strip()
+    return _build_invoice_response(pnr)
+
+
 @app.get("/api/invoice/report")
 def get_invoice_report(
     start_date: str = Query(..., description="Start date YYYY-MM-DD"),
-    end_date: str = Query(..., description="End date YYYY-MM-DD")
+    end_date: str = Query(..., description="End date YYYY-MM-DD"),
+    _admin: dict = Depends(auth.get_current_admin),
 ):
     """
     Retrieve live Travelport data for all PNRs booked/issued under PCC 7F3C within a date range.
     Queries the local sqlite cache for matching locators, then fetches live PNR data from Travelport.
-    NO system-generated mock data.
+    NO system-generated mock data. Admin-only — bulk PCC-wide report.
     """
     logger.info(f"Generating live Travelport PNR report for dates {start_date} to {end_date} under PCC 7F3C...")
     
@@ -1108,6 +1153,91 @@ def admin_reports_summary(
     return database.get_sales_summary(start_dt, end_dt)
 
 
+# ── Loyalty Program (Admin) ───────────────────────────────────────────────────
+
+class LoyaltySettingsRequest(BaseModel):
+    points_per_lkr: float = Field(..., ge=0)
+    points_per_usd: float = Field(..., ge=0)
+    tier_silver_threshold: int = Field(..., ge=0)
+    tier_gold_threshold: int = Field(..., ge=0)
+
+
+@app.get("/api/admin/loyalty-settings")
+def get_loyalty_settings_admin(_admin: dict = Depends(auth.get_current_admin)):
+    return database.get_loyalty_settings()
+
+
+@app.put("/api/admin/loyalty-settings")
+def put_loyalty_settings_admin(request: LoyaltySettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
+    if request.tier_gold_threshold < request.tier_silver_threshold:
+        raise HTTPException(status_code=422, detail="Gold threshold must be >= Silver threshold.")
+    return database.update_loyalty_settings(
+        request.points_per_lkr, request.points_per_usd,
+        request.tier_silver_threshold, request.tier_gold_threshold,
+    )
+
+
+# ── Manual Booking Assignment (Admin) ─────────────────────────────────────────
+# Covers cases auto-link-by-email can't: a booking made under a different
+# email than the customer's account (typo, alternate address, shared family
+# booking, etc.). Admin verifies ownership through support/other means and
+# links it directly.
+
+class AssignBookingRequest(BaseModel):
+    customer_email: EmailStr
+
+
+@app.post("/api/admin/bookings/{locator_code}/assign-customer")
+def admin_assign_booking(locator_code: str, request: AssignBookingRequest, _admin: dict = Depends(auth.get_current_admin)):
+    customer = database.get_customer_by_email(str(request.customer_email))
+    if not customer:
+        raise HTTPException(status_code=404, detail=f"No customer account found for {request.customer_email}.")
+    updated = database.assign_booking_to_customer(locator_code.upper().strip(), customer["id"])
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"No booking found for locator '{locator_code}'.")
+    return {"success": True, "booking": updated}
+
+
+# ── Email Change Requests (Admin) ─────────────────────────────────────────────
+
+class EmailChangeReviewRequest(BaseModel):
+    admin_note: Optional[str] = None
+
+
+@app.get("/api/admin/email-change-requests")
+def admin_list_email_change_requests(status_filter: Optional[str] = Query(None, alias="status"), _admin: dict = Depends(auth.get_current_admin)):
+    return {"requests": database.get_email_change_requests(status_filter)}
+
+
+@app.post("/api/admin/email-change-requests/{request_id}/approve")
+def admin_approve_email_change(request_id: int, body: EmailChangeReviewRequest, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_email_change_request_by_id(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Email change request not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
+    if database.get_customer_by_email(req["new_email"]):
+        raise HTTPException(status_code=409, detail="An account with the requested new email now exists — cannot approve.")
+
+    database.update_customer_email(req["customer_id"], req["new_email"])
+    database.rekey_loyalty_account(req["old_email"], req["new_email"])
+    # Pick up any guest bookings already sitting under the new email.
+    database.link_guest_bookings_by_email(req["customer_id"], req["new_email"])
+    updated = database.resolve_email_change_request(request_id, "approved", admin["admin_id"], body.admin_note)
+    return updated
+
+
+@app.post("/api/admin/email-change-requests/{request_id}/reject")
+def admin_reject_email_change(request_id: int, body: EmailChangeReviewRequest, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_email_change_request_by_id(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Email change request not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
+    updated = database.resolve_email_change_request(request_id, "rejected", admin["admin_id"], body.admin_note)
+    return updated
+
+
 # ── Customer Portal ─────────────────────────────────────────────────────────────
 
 class CustomerRegisterRequest(BaseModel):
@@ -1128,6 +1258,8 @@ def customer_register(request: CustomerRegisterRequest):
         raise HTTPException(status_code=409, detail="An account with this email already exists.")
     password_hash = auth.hash_password(request.password)
     customer = database.create_customer(request.email, password_hash, request.full_name, request.phone)
+    # Pick up any guest bookings already made under this email before the account existed.
+    database.link_guest_bookings_by_email(customer["id"], customer["email"])
     token = auth.create_access_token({
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
     })
@@ -1142,6 +1274,8 @@ def customer_login(request: CustomerLoginRequest):
     customer = database.get_customer_by_email(request.email)
     if not customer or not auth.verify_password(request.password, customer["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    # Pick up any guest bookings made under this email since the last login.
+    database.link_guest_bookings_by_email(customer["id"], customer["email"])
     token = auth.create_access_token({
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
     })
@@ -1155,4 +1289,240 @@ def customer_login(request: CustomerLoginRequest):
 def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
     bookings = database.get_bookings_for_customer(current["customer_id"])
     return {"bookings": bookings, "count": len(bookings)}
+
+
+# ── Loyalty Program (Customer) ────────────────────────────────────────────────
+
+@app.get("/api/customers/me/loyalty")
+def customer_my_loyalty(current: dict = Depends(auth.get_current_customer)):
+    summary = services.get_loyalty_summary(current["sub"])
+    summary["recent_transactions"] = database.get_loyalty_transactions(current["sub"], limit=10)
+    return summary
+
+
+# ── Email Change Requests (Customer) ──────────────────────────────────────────
+
+class EmailChangeRequestBody(BaseModel):
+    new_email: EmailStr
+
+
+@app.post("/api/customers/me/email-change-request", status_code=status.HTTP_201_CREATED)
+def customer_request_email_change(request: EmailChangeRequestBody, current: dict = Depends(auth.get_current_customer)):
+    if database.get_pending_email_change_request(current["customer_id"]):
+        raise HTTPException(status_code=409, detail="You already have a pending email change request awaiting admin review.")
+    if str(request.new_email).lower() == current["sub"].lower():
+        raise HTTPException(status_code=422, detail="That is already your current email address.")
+    if database.get_customer_by_email(str(request.new_email)):
+        raise HTTPException(status_code=409, detail="An account with that email already exists.")
+    req = database.create_email_change_request(current["customer_id"], current["sub"], str(request.new_email))
+    return req
+
+
+@app.get("/api/customers/me/email-change-request")
+def customer_get_email_change_request(current: dict = Depends(auth.get_current_customer)):
+    req = database.get_pending_email_change_request(current["customer_id"])
+    return {"request": req}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HOTEL (STAYS) API — Travelport TripServices Stays v11/v12
+#
+# Fully independent of the flight booking endpoints above: separate service
+# modules (services/hotel_search_service.py, services/hotel_booking_service.py),
+# separate storage (hotel_database.py / hotel_bookings table), no shared code
+# with the Air integration beyond OAuth token reuse.
+#
+# NOTE: The sandbox Travelport account is not yet provisioned for Hotel/Stays
+# — every Hotel endpoint currently returns 403 at the Akamai edge (confirmed
+# live). These endpoints are wired up per the documented API contract
+# (https://developer.travelport.com/apis/stays) and will start working as
+# soon as Travelport enables the product on the account, with no further
+# code changes needed here.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class HotelSearchRequest(BaseModel):
+    location_type: str = Field(default="cityIATACode", description="cityIATACode | airportIATACode")
+    location_value: str = Field(..., description="IATA code, e.g. DXB")
+    check_in_date: str = Field(..., description="YYYY-MM-DD")
+    check_out_date: str = Field(..., description="YYYY-MM-DD")
+    adults: int = Field(default=1, ge=1, le=9)
+    children_ages: Optional[List[int]] = Field(default=None)
+    rooms: int = Field(default=1, ge=1, le=9)
+    radius_km: int = Field(default=30, ge=1, le=200)
+    currency: Optional[str] = None
+
+
+class HotelGuestInfo(BaseModel):
+    first_name: str = Field(..., min_length=1, max_length=50)
+    last_name: str = Field(..., min_length=1, max_length=50)
+    email: EmailStr
+    phone: str = Field(..., min_length=7, max_length=20)
+    country_access_code: Optional[str] = None
+    area_city_code: Optional[str] = None
+
+
+class HotelBookingRequest(BaseModel):
+    chain_code: str
+    property_code: str
+    property_name: Optional[str] = None
+    city: Optional[str] = None
+    country_code: Optional[str] = None
+    booking_code: str
+    check_in_date: str
+    check_out_date: str
+    rooms: int = Field(default=1, ge=1, le=9)
+    currency: str
+    base_price: float
+    total_taxes: float = 0.0
+    total_price: float
+    room_description: Optional[str] = None
+    travelers: List[HotelGuestInfo]
+
+
+@app.post("/api/hotels/search")
+def hotel_search(request: HotelSearchRequest):
+    """STEP 1 — Search hotels (property + room + rate) via SearchComplete."""
+    try:
+        raw = hotel_search_service.search_hotels(
+            location_type=request.location_type,
+            location_value=request.location_value,
+            check_in_date=request.check_in_date,
+            check_out_date=request.check_out_date,
+            adults=request.adults,
+            children_ages=request.children_ages,
+            rooms=request.rooms,
+            radius_km=request.radius_km,
+            currency=request.currency,
+        )
+        properties = hotel_search_service.parse_hotel_offers(raw)
+        return {"properties": properties, "count": len(properties)}
+    except HotelApiError as e:
+        logger.error(f"Hotel search failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.get("/api/hotels/properties/{chain_code}/{property_code}")
+def hotel_property_details(chain_code: str, property_code: str, image_size: Optional[str] = Query(None, description="Large|Medium|Small|Thumbnail|ExtraLarge")):
+    """Optional enrichment — property description, images, amenities. Does
+    not require a prior search. https://developer.travelport.com/apis/stays/search-and-details/getpropertiesdetail"""
+    try:
+        raw = hotel_search_service.get_property_details(chain_code, property_code, image_size)
+        return hotel_search_service.parse_property_details(raw)
+    except HotelApiError as e:
+        logger.error(f"Hotel property details failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.post("/api/hotels/book", status_code=status.HTTP_201_CREATED)
+def hotel_book(request: HotelBookingRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+    """STEP 2 — Book a hotel room (full payload Create Reservation)."""
+    try:
+        raw = hotel_booking_service.create_hotel_reservation(
+            chain_code=request.chain_code,
+            property_code=request.property_code,
+            booking_code=request.booking_code,
+            check_in_date=request.check_in_date,
+            check_out_date=request.check_out_date,
+            rooms=request.rooms,
+            guests=len(request.travelers),
+            price={
+                "currency": request.currency,
+                "base": request.base_price,
+                "total_taxes": request.total_taxes,
+                "total_price": request.total_price,
+            },
+            travelers=[t.model_dump() for t in request.travelers],
+        )
+        parsed = hotel_booking_service.parse_hotel_reservation(raw)
+
+        lead = request.travelers[0]
+        booking_record = {
+            **parsed,
+            "customer_id": customer_id,
+            "guest_name": f"{lead.first_name} {lead.last_name}",
+            "guest_email": lead.email,
+            "guest_phone": lead.phone,
+            "property_name": parsed.get("property_name") or request.property_name or "",
+            "chain_code": parsed.get("chain_code") or request.chain_code,
+            "property_code": parsed.get("property_code") or request.property_code,
+            "city": request.city or "",
+            "country_code": request.country_code or "",
+            "check_in_date": parsed.get("check_in_date") or request.check_in_date,
+            "check_out_date": parsed.get("check_out_date") or request.check_out_date,
+            "rooms": request.rooms,
+            "room_description": parsed.get("room_description") or request.room_description or "",
+            "total_price": parsed.get("total_price") or request.total_price,
+            "currency": parsed.get("currency") or request.currency,
+            "payment_method": "Credit Card",
+        }
+        saved = hotel_database.save_hotel_booking(booking_record)
+        return {"success": True, "booking": booking_record, "cached_id": saved.get("id")}
+    except HotelApiError as e:
+        logger.error(f"Hotel booking failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.get("/api/hotels/retrieve/{locator_code}")
+def hotel_retrieve(locator_code: str):
+    """STEP 3 — Retrieve a hotel reservation live from Travelport, refreshing the local cache."""
+    try:
+        raw = hotel_booking_service.retrieve_hotel_reservation(locator_code)
+        parsed = hotel_booking_service.parse_hotel_reservation(raw)
+
+        cached = hotel_database.get_hotel_booking_by_locator(locator_code)
+        if cached:
+            for field in ("guest_name", "guest_email", "guest_phone", "customer_id", "city", "country_code"):
+                if cached.get(field) and not parsed.get(field):
+                    parsed[field] = cached.get(field)
+        return parsed
+    except HotelApiError as e:
+        logger.warning(f"Live hotel retrieval failed for {locator_code}, falling back to cache: {e}")
+        cached = hotel_database.get_hotel_booking_by_locator(locator_code)
+        if cached:
+            return cached
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.get("/api/hotels/history")
+def hotel_booking_history(email: Optional[str] = Query(None, description="Filter by guest email")):
+    """Local cache of hotel bookings — mirrors GET /api/bookings/history for flights."""
+    try:
+        bookings = hotel_database.get_all_hotel_bookings(email)
+        return {"bookings": bookings, "count": len(bookings)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/hotels/customers/me/bookings")
+def hotel_customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
+    bookings = hotel_database.get_hotel_bookings_for_customer(current["customer_id"])
+    return {"bookings": bookings, "count": len(bookings)}
+
+
+@app.post("/api/hotels/{locator_code}/cancel")
+def hotel_cancel(locator_code: str, supplier_locator: str = Query(..., description="Supplier locator from the booking confirmation")):
+    """STEP 4 — Cancel a hotel reservation on Travelport and update the local cache."""
+    try:
+        hotel_booking_service.cancel_hotel_reservation(locator_code, supplier_locator)
+    except HotelApiError as e:
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+    db_cancelled = hotel_database.cancel_hotel_booking(locator_code)
+    if not db_cancelled:
+        raise HTTPException(status_code=404, detail="Hotel booking not found in local cache.")
+    return {"message": f"Hotel booking {locator_code} successfully cancelled."}
+
+
+@app.get("/api/admin/hotels/reports/summary")
+def admin_hotel_reports_summary(
+    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    _admin: dict = Depends(auth.get_current_admin),
+):
+    """Admin reporting for hotel sales — kept separate from the flight
+    reports endpoint (/api/admin/reports/summary) so flight and hotel
+    revenue are never silently blended."""
+    start_dt = f"{start_date} 00:00:00" if start_date else None
+    end_dt = f"{end_date} 23:59:59" if end_date else None
+    return hotel_database.get_hotel_sales_summary(start_dt, end_dt)
 
