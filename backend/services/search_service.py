@@ -812,10 +812,9 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
         logger.error(f"Error parsing flight offers: {e}", exc_info=True)
         return offers
 
-    # ── Round-trip pairing ──────────────────────────────────────────────────
-    # Only when exactly 2 legs were requested and the second leg is the exact
-    # reverse of the first (a true round trip, not multi-city).
+    # ── Round-trip / multi-city pairing ─────────────────────────────────────
     if legs and len(legs) == 2:
+        # Exact reverse of leg 0 -> leg 1: a true round trip.
         leg0_origin = (legs[0].get("origin") or "").upper()
         leg0_dest = (legs[0].get("destination") or "").upper()
         leg1_origin = (legs[1].get("origin") or "").upper()
@@ -827,8 +826,129 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                     return paired
             except Exception as e:
                 logger.error(f"Error pairing round-trip offers: {e}", exc_info=True)
+    elif legs and len(legs) >= 3:
+        # Multi-city: 3+ legs, arbitrary origins/destinations (not a simple
+        # reverse). Same CombinabilityCode pairing mechanism, generalized to N legs.
+        try:
+            paired = pair_multi_leg_offers(offers, legs)
+            if paired:
+                return paired
+        except Exception as e:
+            logger.error(f"Error pairing multi-city offers: {e}", exc_info=True)
 
     return offers
+
+
+def pair_multi_leg_offers(offers: list[dict], legs: list[dict]) -> list[dict]:
+    """
+    Generalizes pair_round_trip_offers to N legs (multi-city, arbitrary
+    origins/destinations — not required to reverse). Pairs offers into merged
+    single-PNR itineraries using Travelport's own CombinabilityCode signal:
+    offers across ALL legs sharing one code are priced together at one
+    BestCombinablePrice (confirmed live: identical TotalPrice on every leg
+    under the same code), so the price shown is never a fabricated split or
+    sum — it's the exact fare Travelport already priced for that combination.
+
+    Keyed by each offer's own flight identity (flight_number + departure_time),
+    not by Travelport's offer_id: a single CatalogProductOffering commonly
+    bundles several alternative flight-time options under one shared offer_id,
+    and keying by offer_id would collapse all of them into one itinerary slot
+    (the same bug fixed in pair_round_trip_offers).
+    """
+    MAX_PAIRS_PER_CODE = 10  # safety cap against pathological combinatorial fan-out
+    num_legs = len(legs)
+
+    # NOTE: legs are NOT matched against the raw request's origin/destination
+    # strings here — Travelport resolves multi-airport city codes (e.g. "LON")
+    # to a specific airport (LHR, LGW, ...) at the offering level, so a literal
+    # string match against the request would silently find nothing. Instead,
+    # every offer sharing one CombinabilityCode is grouped by its own
+    # (departure_airport, arrival_airport) pair; confirmed live, Travelport
+    # always includes exactly one such O&D group per requested leg under a
+    # valid code, in request order — so the group membership itself reveals
+    # the leg structure without needing to pre-match anything.
+    global_code_map: dict = {}
+    for offer in offers:
+        for fo in offer.get("fare_options", []):
+            for code in fo.get("combinability_codes", []):
+                global_code_map.setdefault(code, []).append((offer, fo))
+
+    def _flight_key(offer: dict) -> str:
+        return f"{offer.get('flight_number', '')}_{offer.get('departure_time', '')}"
+
+    def _od_key(offer: dict) -> tuple:
+        return (offer.get("departure_airport", ""), offer.get("arrival_airport", ""))
+
+    def _cartesian(lists):
+        if not lists:
+            yield []
+            return
+        for item in lists[0]:
+            for rest in _cartesian(lists[1:]):
+                yield [item] + rest
+
+    itineraries: dict = {}  # tuple(flight key per leg) -> merged offer dict
+
+    for code, entries in global_code_map.items():
+        by_od: dict = {}
+        for offer, fo in entries:
+            by_od.setdefault(_od_key(offer), []).append((offer, fo))
+
+        # A valid whole-itinerary fare covers exactly one leg per requested
+        # leg — anything else is a partial/malformed code (e.g. behind one of
+        # Travelport's own "ITIN IS MISSING OR NOT VALID" rejected attempts)
+        # and must be skipped, never guessed at.
+        if len(by_od) != num_legs:
+            continue
+
+        candidates_per_leg = [group[:MAX_PAIRS_PER_CODE] for group in by_od.values()]
+
+        for combo in _cartesian(candidates_per_leg):
+            leg_offers = [c[0] for c in combo]
+            leg_fare_opts = [c[1] for c in combo]
+            itin_key = tuple(_flight_key(o) for o in leg_offers)
+
+            price = leg_fare_opts[0].get("price", 0)
+            currency = leg_fare_opts[0].get("currency", "LKR")
+            merged_fare_opt = {
+                **leg_fare_opts[0],
+                "price": price,
+                "currency": currency,
+                "raw_offering": {"legs": [fo.get("raw_offering") for fo in leg_fare_opts]}
+            }
+
+            if itin_key not in itineraries:
+                itineraries[itin_key] = {
+                    **leg_offers[0],
+                    "is_multi_city": True,
+                    "legs": leg_offers,
+                    "offer_id": "_".join(itin_key),
+                    "price": price,
+                    "currency": currency,
+                    "fare_options": [merged_fare_opt],
+                    "raw_offering": merged_fare_opt["raw_offering"]
+                }
+            else:
+                existing_opts = itineraries[itin_key]["fare_options"]
+                exists = any(
+                    x["brand_name"] == merged_fare_opt["brand_name"] and
+                    x["cabin_class"] == merged_fare_opt["cabin_class"] and
+                    abs(x["price"] - merged_fare_opt["price"]) < 1.0
+                    for x in existing_opts
+                )
+                if not exists:
+                    existing_opts.append(merged_fare_opt)
+
+    merged = list(itineraries.values())
+    for m in merged:
+        m["fare_options"].sort(key=lambda x: x["price"])
+        cheapest = m["fare_options"][0]
+        m["price"] = cheapest["price"]
+        m["currency"] = cheapest["currency"]
+        m["raw_offering"] = cheapest["raw_offering"]
+
+    merged.sort(key=lambda x: x["price"])
+    return merged
 
 
 def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: dict) -> list[dict]:
@@ -877,7 +997,19 @@ def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: 
     # first — same flight+segment combo pairing may be reachable via more than one
     # CombinabilityCode (different fare brands) and must land on ONE card with
     # multiple fare_options, exactly like the one-way grouped_offers pattern.
-    itineraries: dict = {}  # (outbound offer_id, inbound offer_id) -> merged offer dict
+    #
+    # Keyed by the actual flight identity (flight_number + departure_time), NOT
+    # by Travelport's offer_id: a single CatalogProductOffering commonly bundles
+    # several alternative flight-time options (e.g. 3 different flydubai
+    # departures) under one shared offer_id. Keying by offer_id collapsed every
+    # one of those alternatives into a single itinerary slot, so only the first
+    # (outbound, inbound) combination processed ever survived — silently
+    # dropping every other real, independently-bookable return-flight option
+    # down to just one per departure.
+    itineraries: dict = {}  # (outbound flight key, inbound flight key) -> merged offer dict
+
+    def _flight_key(offer: dict) -> str:
+        return f"{offer.get('flight_number', '')}_{offer.get('departure_time', '')}"
 
     for code in shared_codes:
         outbound_candidates = outbound_code_map[code][:MAX_PAIRS_PER_CODE]
@@ -885,7 +1017,9 @@ def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: 
 
         for o_offer, o_fo in outbound_candidates:
             for i_offer, i_fo in inbound_candidates:
-                itin_key = (o_offer.get("offer_id"), i_offer.get("offer_id"))
+                o_key = _flight_key(o_offer)
+                i_key = _flight_key(i_offer)
+                itin_key = (o_key, i_key)
 
                 price = o_fo.get("price", 0)
                 currency = o_fo.get("currency", "LKR")
@@ -904,7 +1038,7 @@ def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: 
                         **o_offer,
                         "is_round_trip": True,
                         "legs": [o_offer, i_offer],
-                        "offer_id": f"{o_offer.get('offer_id', '')}_{i_offer.get('offer_id', '')}",
+                        "offer_id": f"{o_key}_{i_key}",
                         "price": price,
                         "currency": currency,
                         "fare_options": [merged_fare_opt],

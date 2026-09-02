@@ -78,6 +78,7 @@ class TravelerInfo(BaseModel):
     passport_number: str = Field(..., min_length=5, max_length=20)
     passport_expiry: str = Field(..., description="YYYY-MM-DD")
     nationality: str = Field(default="LK", min_length=2, max_length=3)
+    passport_issue_country: str = Field(default="LK", min_length=2, max_length=3, description="TravelDocument.issueCountry — the country that issued the passport, which can differ from nationality")
     email: EmailStr
     phone: str = Field(..., min_length=7, max_length=20)
     passenger_type: Optional[str] = Field(default="ADT", description="ADT|CNN|INF")
@@ -285,6 +286,7 @@ def _attach_traveler_details(ticket: dict, travelers: list) -> None:
     ticket["passport_number"] = lead.get("passport_number", "")
     ticket["passport_expiry"] = lead.get("passport_expiry", "")
     ticket["nationality"] = lead.get("nationality", "LK")
+    ticket["passport_issue_country"] = lead.get("passport_issue_country", "LK")
     ticket["gender"] = lead.get("gender", "Male")
     ticket["phone"] = lead.get("phone", "")
     ticket["date_of_birth"] = lead.get("date_of_birth", "")

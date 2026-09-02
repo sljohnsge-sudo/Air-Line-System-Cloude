@@ -447,11 +447,14 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
 
     Args:
         workbench_id (str): Workbench ID from STEP 4
-        raw_offering (dict): Either a single-leg raw offer object from the search
-            response (one-way / multi-city), or a round-trip combined object shaped
-            {"outbound": <raw offering>, "inbound": <raw offering>} produced by
-            search_service.pair_round_trip_offers. Both legs share the same
-            CatalogProductOfferingsIdentifier since they come from the same search.
+        raw_offering (dict): One of:
+            - a single-leg raw offer object from the search response (one-way)
+            - a round-trip combined object shaped {"outbound": ..., "inbound": ...}
+              produced by search_service.pair_round_trip_offers
+            - a multi-city combined object shaped {"legs": [<raw offering>, ...]}
+              (2..N legs) produced by search_service.pair_multi_leg_offers
+            All legs share the same CatalogProductOfferingsIdentifier since
+            they come from the same search.
 
     Returns:
         dict: Updated workbench item response
@@ -459,7 +462,13 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
     logger.info(f"Adding offer to workbench {workbench_id}...")
 
     is_round_trip = isinstance(raw_offering, dict) and "outbound" in raw_offering and "inbound" in raw_offering
-    leg_offerings = [raw_offering["outbound"], raw_offering["inbound"]] if is_round_trip else [raw_offering]
+    is_multi_leg = isinstance(raw_offering, dict) and "legs" in raw_offering
+    if is_round_trip:
+        leg_offerings = [raw_offering["outbound"], raw_offering["inbound"]]
+    elif is_multi_leg:
+        leg_offerings = raw_offering["legs"]
+    else:
+        leg_offerings = [raw_offering]
 
     # Travelport GDS certification: use the full-payload AddOffer request for
     # GDS carrier bookings. NDC/LCC content keeps the existing reference
@@ -581,12 +590,16 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None) -> d
         "docNumber": traveler.get("passport_number", ""),
         "docType": "Passport",
         "expireDate": traveler.get("passport_expiry", ""),
-        "issueCountry": traveler.get("nationality", "LK"),
-        # Country of birth, ISO3166 — required by Travelport for a
-        # Passport TravelDocument entry. We don't collect a separate
-        # birth-country field, so nationality is used as the value
-        # (matches for the vast majority of travelers).
-        "birthCountry": traveler.get("nationality", "LK"),
+        # Passport issuing country — collected as its own field since it can
+        # differ from the traveler's nationality; falls back to nationality
+        # only if somehow not supplied.
+        "issueCountry": traveler.get("passport_issue_country") or traveler.get("nationality", "LK"),
+        # "Birth country as noted on document" — per Travelport's own
+        # TravelDocumentDetail schema this field is named "Nationality"
+        # (confirmed against support.travelport.com/.../APIRef_TravelerAdd.htm).
+        # An earlier version of this code used a non-existent "birthCountry"
+        # key, which Travelport silently ignored — this is the fix.
+        "Nationality": traveler.get("nationality", "LK"),
         "birthDate": traveler.get("date_of_birth", ""),
         "Gender": traveler.get("gender", "Male"),
         "PersonName": {

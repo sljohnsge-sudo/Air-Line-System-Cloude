@@ -900,10 +900,9 @@ export default function App() {
       setFilterAirlines([]);
       setSortBy('price');
       // Round trip: results are combinable outbound+return pairs (each with
-      // .legs[0]/.legs[1]) — start the two-step outbound-then-return
-      // selection instead of showing them pre-combined as one ticket.
-      const isRoundTripResult = fetched.length > 0 && fetched[0]?.legs?.length === 2;
-      setRoundTripPhase(isRoundTripResult ? 'outbound' : null);
+      // .legs[0]/.legs[1]), shown pre-combined as one ticket card — the
+      // two-step outbound-then-return selection is reverted per request.
+      setRoundTripPhase(null);
       setChosenOutboundKey(null);
       if (fetched.length === 0) {
         setSearchError('No flights found for this route and date. Try different criteria.');
@@ -960,7 +959,7 @@ export default function App() {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
         gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', email: '', phone: '', passenger_type: 'ADT',
+        nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'ADT',
         ...extraFields
       });
     }
@@ -968,7 +967,7 @@ export default function App() {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
         gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', email: '', phone: '', passenger_type: 'CNN',
+        nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'CNN',
         ...extraFields
       });
     }
@@ -976,7 +975,7 @@ export default function App() {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
         gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', email: '', phone: '', passenger_type: 'INF',
+        nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'INF',
         ...extraFields
       });
     }
@@ -994,17 +993,22 @@ export default function App() {
 
   // Nationality drives the phone country code — selecting a country auto-fills
   // the Phone field with its dialing code, but only when Phone is still empty
-  // so it never overwrites a number the traveler already typed.
+  // so it never overwrites a number the traveler already typed. It also
+  // defaults Passport Issue Country to match (the common case), but only
+  // when that field hasn't been set independently — a traveler's passport
+  // issuing country can differ from their nationality, so it stays editable.
   const handleNationalityChange = (code) => {
     const nat = NATIONALITIES.find(n => n.code === code);
     setTravelers(prev => {
       const updated = [...prev];
       const current = updated[activePassengerIdx] || {};
       const shouldFillPhone = nat && (!current.phone || current.phone.trim() === '');
+      const shouldFillIssueCountry = !current.passport_issue_country || current.passport_issue_country === current.nationality;
       updated[activePassengerIdx] = {
         ...current,
         nationality: code,
-        phone: shouldFillPhone ? `+${nat.dial}` : current.phone
+        phone: shouldFillPhone ? `+${nat.dial}` : current.phone,
+        passport_issue_country: shouldFillIssueCountry ? code : current.passport_issue_country
       };
       return updated;
     });
@@ -1012,7 +1016,7 @@ export default function App() {
 
   const handlePassengerNext = async (e) => {
     e.preventDefault();
-    const required = ['first_name', 'last_name', 'date_of_birth', 'passport_number', 'passport_expiry', 'email', 'phone'];
+    const required = ['first_name', 'last_name', 'date_of_birth', 'passport_number', 'passport_expiry', 'passport_issue_country', 'email', 'phone'];
     for (let i = 0; i < travelers.length; i++) {
       const t = travelers[i];
       for (const f of required) {
@@ -2083,6 +2087,25 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               offer_id: pair.offer_id,
               _pairedOffer: pair,
             }));
+        } else if (flights.length > 0 && flights[0]?.legs?.length >= 2) {
+          // Merged single-ticket display (round-trip 2 legs, or multi-city
+          // 3+ legs): the SAME exact leg-combo can appear more than once —
+          // e.g. two different fare brands producing separate itinerary
+          // entries — which would otherwise show as duplicate-looking cards.
+          // Dedup by the full combo (every leg's identity, joined), keeping
+          // just the cheapest — never by only the first leg, since two
+          // itineraries can legitimately share a first leg but differ later
+          // (e.g. same CMB→DEL flight, different DEL→LON or return flight).
+          const byCombo = new Map();
+          for (const pair of flights) {
+            if (!pair.legs?.length) continue;
+            const key = pair.legs.map(legKey).sort().join('|');
+            const existing = byCombo.get(key);
+            if (!existing || pair.price < existing.price) {
+              byCombo.set(key, pair);
+            }
+          }
+          sourceFlights = Array.from(byCombo.values());
         }
 
         // Compute min/max prices for the filter slider
@@ -2663,10 +2686,39 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
               {/* Main Results */}
               <main className="results-main">
+                {roundTripPhase && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: '#fff3f0', border: '1px solid var(--gs-crimson)', borderRadius: '10px',
+                    padding: '0.85rem 1.25rem', marginBottom: '1rem',
+                  }}>
+                    <span style={{ fontWeight: 700, color: 'var(--gs-crimson-dark)' }}>
+                      {roundTripPhase === 'outbound' ? 'Select your departure flight' : 'Select your return flight'}
+                    </span>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+                      onClick={() => {
+                        if (roundTripPhase === 'return') {
+                          setRoundTripPhase('outbound');
+                          setChosenOutboundKey(null);
+                        } else {
+                          setActiveTab('book');
+                        }
+                      }}
+                    >
+                      &larr; Back
+                    </button>
+                  </div>
+                )}
                 <div className="results-count-bar">
                   <div className="results-count-text">
                     {loadingFlights ? 'Searching Travelport GDS...' : (
-                      <><strong>{displayed.length}</strong> of <strong>{flights.length}</strong> flights · <strong>{searchOrigin}</strong> → <strong>{searchDest}</strong> · {searchDate}</>
+                      roundTripPhase === 'return' ? (
+                        <><strong>{displayed.length}</strong> of <strong>{flights.length}</strong> flights · <strong>{searchDest}</strong> → <strong>{searchOrigin}</strong> · {returnDate}</>
+                      ) : (
+                        <><strong>{displayed.length}</strong> of <strong>{flights.length}</strong> flights · <strong>{searchOrigin}</strong> → <strong>{searchDest}</strong> · {searchDate}</>
+                      )
                     )}
                   </div>
                   <div className="results-live-badge">● Live GDS Data</div>
@@ -2782,14 +2834,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           )}
                         </div>
 
-                        {flight.legs && flight.legs.length === 2 ? (
+                        {flight.legs && flight.legs.length >= 2 ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', flex: 1, paddingTop: '0.9rem' }}>
-                            <div style={{ position: 'relative' }}>
-                              <ItineraryRow leg={flight.legs[0]} label="Outbound" />
-                            </div>
-                            <div style={{ position: 'relative', borderTop: '1px dashed #e2e8f0', paddingTop: '1.5rem' }}>
-                              <ItineraryRow leg={flight.legs[1]} label="Return" />
-                            </div>
+                            {[...flight.legs]
+                              .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
+                              .map((leg, lIdx) => (
+                                <div key={lIdx} style={lIdx === 0 ? { position: 'relative' } : { position: 'relative', borderTop: '1px dashed #e2e8f0', paddingTop: '1.5rem' }}>
+                                  <ItineraryRow leg={leg} label={flight.legs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`} />
+                                </div>
+                              ))}
                           </div>
                         ) : (
                           <ItineraryRow leg={flight} />
@@ -2875,22 +2928,24 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                       {/* ── Flight Segment Timeline — always visible, no toggle ── */}
                       <div style={{ borderTop: '1px solid #e2e8f0', background: '#fafbfc', padding: '1.25rem', width: '100%', boxSizing: 'border-box' }}>
-                        {flight.legs && flight.legs.length === 2 ? (
-                          ['Outbound', 'Return'].map((legLabel, lIdx) => {
-                            const leg = flight.legs[lIdx];
-                            if (!leg.segments || leg.segments.length === 0) return null;
-                            return (
-                              <div key={lIdx} style={{ marginBottom: lIdx === 0 ? '1.25rem' : 0 }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
-                                  <h4 style={{ margin: 0, fontSize: '0.82rem', color: '#1e293b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{legLabel} — Flight Segment Timeline</h4>
-                                  <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>
-                                    Total Duration: {leg.duration?.replace('PT','').replace('H','h ').replace('M','m')}
-                                  </span>
+                        {flight.legs && flight.legs.length >= 2 ? (
+                          [...flight.legs]
+                            .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
+                            .map((leg, lIdx, sortedLegs) => {
+                              if (!leg.segments || leg.segments.length === 0) return null;
+                              const legLabel = sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`;
+                              return (
+                                <div key={lIdx} style={{ marginBottom: lIdx === sortedLegs.length - 1 ? 0 : '1.25rem' }}>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                                    <h4 style={{ margin: 0, fontSize: '0.82rem', color: '#1e293b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{legLabel} — Flight Segment Timeline</h4>
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>
+                                      Total Duration: {leg.duration?.replace('PT','').replace('H','h ').replace('M','m')}
+                                    </span>
+                                  </div>
+                                  <SegmentTimeline segments={leg.segments} />
                                 </div>
-                                <SegmentTimeline segments={leg.segments} />
-                              </div>
-                            );
-                          })
+                              );
+                            })
                         ) : flight.segments && flight.segments.length > 0 ? (
                           <>
                             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
@@ -4187,11 +4242,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
             {/* Flight Summary */}
             <div className="modal-flight-summary" style={{ marginBottom: '1.25rem' }}>
-              {selectedFlight.legs && selectedFlight.legs.length === 2 ? (
+              {selectedFlight.legs && selectedFlight.legs.length >= 2 ? (
                 <>
-                  <div className="summary-col"><span className="label">Outbound</span><span className="val">{selectedFlight.legs[0].flight_number} ({selectedFlight.legs[0].airline}) — {selectedFlight.legs[0].departure_airport} → {selectedFlight.legs[0].arrival_airport}</span></div>
-                  <div className="summary-col"><span className="label">Return</span><span className="val">{selectedFlight.legs[1].flight_number} ({selectedFlight.legs[1].airline}) — {selectedFlight.legs[1].departure_airport} → {selectedFlight.legs[1].arrival_airport}</span></div>
-                  <div className="summary-col"><span className="label">Dates</span><span className="val">{selectedFlight.legs[0].departure_time?.split('T')[0]} — {selectedFlight.legs[1].departure_time?.split('T')[0]}</span></div>
+                  {[...selectedFlight.legs]
+                    .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
+                    .map((leg, lIdx, sortedLegs) => (
+                      <div className="summary-col" key={lIdx}>
+                        <span className="label">{sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`}</span>
+                        <span className="val">{leg.flight_number} ({leg.airline}) — {leg.departure_airport} → {leg.arrival_airport} ({leg.departure_time?.split('T')[0]})</span>
+                      </div>
+                    ))}
                 </>
               ) : (
                 <>
@@ -4231,7 +4291,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 {travelers.length > 1 && (
                   <div className="passenger-tabs" style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.65rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
                     {travelers.map((t, idx) => {
-                      const complete = t.first_name && t.last_name && t.date_of_birth && t.passport_number && t.passport_expiry && t.email && t.phone;
+                      const complete = t.first_name && t.last_name && t.date_of_birth && t.passport_number && t.passport_expiry && t.passport_issue_country && t.email && t.phone;
                       return (
                         <button
                           key={idx}
@@ -4309,13 +4369,24 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </select>
                   </div>
                   <div className="form-group">
+                    <label className="form-label">Passport Issue Country *</label>
+                    <select className="form-select" required value={travelers[activePassengerIdx]?.passport_issue_country || ''} onChange={e => handleTravelerChange('passport_issue_country', e.target.value)}>
+                      <option value="">-- Select issue country --</option>
+                      {NATIONALITIES.map(n => (
+                        <option key={n.code} value={n.code}>{n.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="form-grid-2">
+                  <div className="form-group">
                     <label className="form-label">Phone *</label>
                     <input type="tel" className="form-input" required placeholder="+94771234567" value={travelers[activePassengerIdx]?.phone || ''} onChange={e => handleTravelerChange('phone', e.target.value)} />
                   </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Email Address *</label>
-                  <input type="email" className="form-input" required placeholder="john@example.com" value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
+                  <div className="form-group">
+                    <label className="form-label">Email Address *</label>
+                    <input type="email" className="form-input" required placeholder="john@example.com" value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
+                  </div>
                 </div>
 
                 <button

@@ -10,6 +10,7 @@ To modify ticket issuance or retrieval logic: edit only this file.
 
 import httpx
 import logging
+import uuid
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
@@ -430,6 +431,19 @@ def issue_ticket(locator_code: str) -> dict:
             pass
         logger.info(f"Step 1: Fare for payment = {currency_code} {total_fare}")
 
+        # Extract every traveler's own workbench-assigned ref id (Travelport's
+        # own sample names these "travelerRefId_N") for Payment.TravelerIdentifierRef.
+        traveler_refs = []
+        try:
+            for t in reservation.get("Traveler", []):
+                ptc = t.get("passengerTypeCode")
+                tid = t.get("id")
+                if ptc and tid:
+                    traveler_refs.append({"passengerTypeCode": ptc, "id": tid})
+        except Exception:
+            pass
+        logger.info(f"Step 1: Traveler refs for payment = {traveler_refs}")
+
         # ── Step 2: Add Cash FOP if not already present ───────────────────────
         existing_fop = reservation.get("FormOfPayment", [])
         fop_local_id = None   # e.g. "formOfPayment_1"
@@ -438,37 +452,57 @@ def issue_ticket(locator_code: str) -> dict:
         if not existing_fop:
             logger.info("Step 2: No existing FOP — adding FormOfPaymentCash...")
             fop_url = TravelportEndpoints.add_fop_to_workbench(workbench_id)
-            # FormOfPaymentCash used directly as the polymorphic type key (per
-            # Travelport sample), not wrapped in a generic FormOfPayment/@type
-            # object as before. id + FormOfPaymentRef both carry the same local
-            # reference so downstream steps can link to it either way.
+            # Per Travelport's own certification guidance: generate the
+            # Identifier client-side and send it directly in the FOP create
+            # request (authority "Travelport" + a UUID we mint), rather than
+            # only discovering the UUID by parsing whatever shape the create
+            # response happens to return. This removes a dependency on that
+            # parsing succeeding — previously, if the response shape didn't
+            # match what we expected, fop_uuid silently stayed None and the
+            # follow-on Payment step (which requires it) failed with no
+            # visible error, leaving the ticket unissued.
+            fop_uuid = str(uuid.uuid4()).upper()
+            fop_local_id = "formOfPayment_1"
             fop_payload = {
                 "FormOfPaymentCash": {
-                    "id": "formOfPayment_1",
-                    "FormOfPaymentRef": "formOfPayment_1"
+                    "id": fop_local_id,
+                    "FormOfPaymentRef": fop_local_id,
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": fop_uuid
+                    }
                 }
             }
             fop_result = _api_post(fop_url, fop_payload)
 
-            # Extract both local id and UUID from FOP response
+            # The FOP create response does NOT echo back the "id"/
+            # "FormOfPaymentRef" fields we sent — only a (different)
+            # Identifier value, which live testing confirmed is actually the
+            # workbench's own reservation Identifier, not a distinct
+            # per-FOP one. Sending that mismatched pair on to the Payment
+            # step causes Travelport error 4178 "FOP ID/IDENTIFIER VALUES
+            # MUST MATCH WITH THE RESERVATION WORKBENCH FOP ID/IDENTIFIER
+            # VALUES". Fix: re-fetch the workbench's own state via GET and
+            # read back the FormOfPayment object exactly as Travelport
+            # actually stored it, instead of guessing from the create
+            # response's shape.
             try:
-                fop_resp_data = fop_result.get("FormOfPaymentResponse", {})
-                fop_obj = (
-                    fop_resp_data.get("FormOfPaymentCash") or
-                    fop_resp_data.get("FormOfPayment") or
-                    fop_result.get("FormOfPaymentCash") or
-                    fop_result.get("FormOfPayment")
+                wb_state = _api_get(TravelportEndpoints.get_workbench(workbench_id))
+                wb_reservation = (
+                    wb_state.get("ReservationResponse", {}).get("Reservation", {}) or
+                    wb_state.get("Reservation", {}) or
+                    wb_state
                 )
-                if isinstance(fop_obj, list) and fop_obj:
-                    fop_local_id = fop_obj[0].get("id") or fop_obj[0].get("FormOfPaymentRef")
-                    fop_uuid = fop_obj[0].get("Identifier", {}).get("value")
-                elif isinstance(fop_obj, dict):
-                    fop_local_id = fop_obj.get("id") or fop_obj.get("FormOfPaymentRef")
-                    fop_uuid = fop_obj.get("Identifier", {}).get("value")
+                stored_fops = wb_reservation.get("FormOfPayment", [])
+                if stored_fops:
+                    stored_fop = stored_fops[0]
+                    fop_local_id = stored_fop.get("id") or stored_fop.get("FormOfPaymentRef") or fop_local_id
+                    fop_uuid = stored_fop.get("Identifier", {}).get("value") or fop_uuid
+                    logger.info(f"Step 2: Re-fetched workbench — stored FOP local id={fop_local_id}, UUID={fop_uuid}")
+                else:
+                    logger.warning("Step 2: Workbench GET returned no FormOfPayment — using client-generated identifier as a fallback.")
             except Exception as e:
-                logger.warning(f"Error parsing FOP response: {e}")
-            if not fop_local_id:
-                fop_local_id = "formOfPayment_1"
+                logger.warning(f"Error re-fetching workbench state (using client-generated identifier instead): {e}")
             logger.info(f"Step 2 OK: FOP added. local id={fop_local_id}, UUID={fop_uuid}")
         else:
             logger.info("Step 2: FOP already present — extracting local id and UUID...")
@@ -482,22 +516,20 @@ def issue_ticket(locator_code: str) -> dict:
             logger.info(f"Step 2: FOP local id={fop_local_id}, UUID={fop_uuid}")
 
         # ── Step 3: Link FOP to Offer via Payment ─────────────────────────────
-        # CRITICAL: FormOfPaymentIdentifier MUST include BOTH the local "id" field
-        # AND the Travelport "Identifier" UUID together — error 4178 if either is missing.
-        # OfferIdentifier must also use BOTH the local "id" / "OfferRef" AND the
-        # Travelport "Identifier" UUID (Variant X3 format) to link properly.
+        # Rebuilt to match Travelport's own documented example exactly
+        # (support.travelport.com/.../APIRef_AddFOP.htm) after live testing
+        # proved the previous shape — which added an unverified "@type":
+        # "FormOfPaymentPaymentCash" and an "activeInd" field, neither of
+        # which appear in Travelport's own sample — was rejected with error
+        # 4178 "FOP ID/IDENTIFIER VALUES MUST MATCH..." even when the FOP
+        # id/Identifier values themselves were byte-for-byte confirmed
+        # correct against the workbench's own stored state. Their real
+        # example also includes a Payment-level id/Identifier and a
+        # TravelerIdentifierRef array, both previously missing here.
         logger.info(f"Step 3: Linking FOP '{fop_local_id}' (UUID={fop_uuid}) to offer '{offer_local_id}'...")
         payment_url = TravelportEndpoints.add_payment_to_workbench(workbench_id)
 
-        # Build FormOfPaymentIdentifier with BOTH local id + UUID (Variant E format).
-        # activeInd is required for the FOP to actually be used for document/ticket
-        # issuance — without it, Travelport accepts and links the payment (no error)
-        # but silently withholds ticketing (commit returns 200 with no Ticket[]).
-        # Per Travelport's FormOfPaymentIdentifier schema, both "id" and
-        # "FormOfPaymentRef" are separate fields (id = local ref, FormOfPaymentRef
-        # = customer-assigned name) — the FOP-add response and stored workbench
-        # both carry both fields with the same value, so we send both too.
-        fop_identifier_block: dict = {"@type": "FormOfPaymentPaymentCash", "activeInd": True}
+        fop_identifier_block: dict = {}
         if fop_local_id:
             fop_identifier_block["id"] = fop_local_id
             fop_identifier_block["FormOfPaymentRef"] = fop_local_id
@@ -507,8 +539,6 @@ def issue_ticket(locator_code: str) -> dict:
                 "value": fop_uuid
             }
 
-        # Build OfferIdentifier block. Per Travelport's OfferIdentifier schema the
-        # ref field is lowercase "offerRef", not "OfferRef".
         offer_identifier_block: dict = {}
         if offer_local_id:
             offer_identifier_block["id"] = offer_local_id
@@ -521,9 +551,11 @@ def issue_ticket(locator_code: str) -> dict:
 
         payment_payload: dict = {
             "Payment": {
-                "@type": "Payment",
-                # Amount.code per Travelport's Payment schema (flat ISO 4217 code,
-                # not a nested CurrencyCode object).
+                "id": "payment_1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": str(uuid.uuid4()).upper()
+                },
                 "Amount": {
                     "value": total_fare,
                     "code": currency_code
@@ -534,6 +566,8 @@ def issue_ticket(locator_code: str) -> dict:
 
         if offer_identifier_block:
             payment_payload["Payment"]["OfferIdentifier"] = [offer_identifier_block]
+        if traveler_refs:
+            payment_payload["Payment"]["TravelerIdentifierRef"] = traveler_refs
 
         payment_result = _api_post(payment_url, payment_payload)
         payment_errors = (
