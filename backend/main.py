@@ -497,6 +497,23 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
                 ticket["airline_pnr"] = updated_ticket["airline_pnr"]
                 ticket["airline_pnr_source"] = updated_ticket["airline_pnr_source"]
 
+        # NDC content: Travelport's commit response (commit_result above)
+        # embeds the full Offer[]/Product[]/FlightSegment[] inline, but the
+        # separate GET .../reservations/{pnr} that retrieve_reservation() just
+        # did does not return Offer[] for NDC bookings the way it does for
+        # GDS — confirmed live (the same commit response that produced this
+        # locator_code has real flight/segment data that the live retrieve
+        # above came back without). Backfill from the commit response itself
+        # rather than losing the itinerary entirely.
+        if not ticket.get("flight_number"):
+            commit_ticket = services.parse_commit_response(commit_result["raw_response"], locator_code)
+            for key in ("flight_number", "airline", "airline_code", "departure_airport",
+                        "arrival_airport", "departure_time", "arrival_time", "duration",
+                        "segments", "legs", "cabin_class", "fare_basis", "fare_source",
+                        "baggage_allowance", "total_fare", "currency"):
+                if commit_ticket.get(key):
+                    ticket[key] = commit_ticket[key]
+
         # Apply local seat assignments and seat pricing to ticket summary
         seat_numbers = [s.seat_number for s in selected_seats]
         seat_charges = sum([s.price for s in selected_seats])
@@ -506,6 +523,22 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
 
         if request.custom_price:
             ticket["total_fare"] = request.custom_price + seat_charges
+            # NDC content: Travelport's Offer has no Price at all (confirmed
+            # live), so ticket["currency"] is still whatever _parse_reservation()
+            # defaulted to ("USD") — not the actual currency custom_price is
+            # denominated in. raw_offering carries the real currency from the
+            # search-time price breakdown; use it so the receipt doesn't show
+            # e.g. "USD 82,145" for an LKR amount. raw_offering may be a single
+            # leg, {"outbound","inbound"} (round-trip), or {"legs":[...]}
+            # (multi-city) — currency is the same across every leg of one offer.
+            if "outbound" in raw_offering and "inbound" in raw_offering:
+                _currency_src = raw_offering["outbound"]
+            elif "legs" in raw_offering:
+                _currency_src = raw_offering["legs"][0] if raw_offering["legs"] else {}
+            else:
+                _currency_src = raw_offering
+            if _currency_src.get("currency"):
+                ticket["currency"] = _currency_src["currency"]
         else:
             ticket["total_fare"] += seat_charges
 
@@ -628,6 +661,18 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
                      "nationality", "passport_expiry", "offer_id", "payment_method", "customer_id"):
             if existing.get(key) not in (None, "", []):
                 ticket.setdefault(key, existing.get(key))
+        # NDC bookings: retrieve_reservation() doesn't return Offer[] for NDC
+        # PNRs on a later, separate GET (confirmed live — only the original
+        # commit response has it), so flight/segment fields already default
+        # to "" in the ticket dict and setdefault() above would never fill
+        # them. /confirm already captured these from the commit response and
+        # saved them to raw_ticket_json — pull them back explicitly here.
+        for key in ("flight_number", "airline", "airline_code", "departure_airport",
+                     "arrival_airport", "departure_time", "arrival_time", "duration",
+                     "segments", "legs", "cabin_class", "fare_basis", "fare_source",
+                     "baggage_allowance"):
+            if not ticket.get(key) and existing.get(key):
+                ticket[key] = existing.get(key)
         # "travelers" is set unconditionally (not setdefault): issue_ticket()'s
         # own retrieve_reservation() already overwrote it with Travelport's
         # sparse echo (passenger_type/given_name/surname/full_name only) —
@@ -638,6 +683,16 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
             ticket["travelers"] = existing["travelers"]
         if existing.get("total_fare"):
             ticket["total_fare"] = existing["total_fare"]
+        # Same reasoning as total_fare above: for NDC, issue_ticket()'s own
+        # retrieve_reservation() has no Price on the Offer at all (confirmed
+        # live), so ticket["currency"] is still whatever _parse_reservation()
+        # defaulted to ("USD") regardless of what total_fare actually is
+        # denominated in. /confirm already resolved the real currency from
+        # the search-time price and saved it — it must win here too, the same
+        # way total_fare does, or the receipt shows e.g. "USD 82,145" for an
+        # LKR amount.
+        if existing.get("currency"):
+            ticket["currency"] = existing["currency"]
 
     saved = database.save_booking(ticket)
 
@@ -683,6 +738,12 @@ def retrieve_booking(locator_code: str):
             # If GDS fare doesn't include the local seat selection fee added dynamically, adjust it
             if cached.get("total_fare") and cached.get("total_fare") > ticket.get("total_fare", 0.0):
                 ticket["total_fare"] = cached.get("total_fare")
+                # currency must travel with total_fare — for NDC, Travelport's
+                # live retrieve_reservation() has no Price at all (confirmed
+                # live), so ticket["currency"] is still the "USD" default and
+                # would otherwise mislabel this cached LKR (or other) amount.
+                if cached.get("currency"):
+                    ticket["currency"] = cached.get("currency")
             if cached.get("seat_charge") and not ticket.get("seat_charge"):
                 ticket["seat_charge"] = cached.get("seat_charge")
             if cached.get("passport_number") and not ticket.get("passport_number"):
@@ -691,6 +752,18 @@ def retrieve_booking(locator_code: str):
                 ticket["offer_id"] = cached.get("offer_id")
             # Preserve cached traveler details
             for field in ["passport_expiry", "nationality", "gender", "phone", "date_of_birth", "email"]:
+                if cached.get(field) and not ticket.get(field):
+                    ticket[field] = cached.get(field)
+            # NDC bookings: Travelport's live retrieve_reservation() above
+            # doesn't return Offer[] for NDC PNRs (confirmed live — only the
+            # original commit response has it), so flight/segment fields come
+            # back empty every time this is called. /confirm captured them
+            # from the commit response and saved them to raw_ticket_json —
+            # pull them back from there instead of losing the itinerary.
+            for field in ["flight_number", "airline", "airline_code", "departure_airport",
+                          "arrival_airport", "departure_time", "arrival_time", "duration",
+                          "segments", "legs", "cabin_class", "fare_basis", "fare_source",
+                          "baggage_allowance"]:
                 if cached.get(field) and not ticket.get(field):
                     ticket[field] = cached.get(field)
 

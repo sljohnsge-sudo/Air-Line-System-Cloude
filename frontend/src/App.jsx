@@ -661,7 +661,8 @@ export default function App() {
   const [childCount, setChildCount] = useState(0);
   const [infantCount, setInfantCount] = useState(0);
   const [cabinPref, setCabinPref] = useState('Economy'); // default to Economy as shown in image
-  const [showHomePopover, setShowHomePopover] = useState(false);
+  const [showTravelersPopover, setShowTravelersPopover] = useState(false);
+  const [showCabinPopover, setShowCabinPopover] = useState(false);
   const [showResultsPopover, setShowResultsPopover] = useState(false);
   // On mobile the results search bar collapses to a compact one-line summary
   // (so results are visible without scrolling past the whole form) — tap it
@@ -680,10 +681,10 @@ export default function App() {
   const [filterMaxPrice, setFilterMaxPrice] = useState(null);
   const [filterStops, setFilterStops] = useState('any'); // 'any' | '0' | '1+'
   const [filterCabin, setFilterCabin] = useState('any');
-  const [filterSource, setFilterSource] = useState('any'); // 'any' | 'GDS' | 'NDC' | 'LCC'
   const [filterTimeOfDay, setFilterTimeOfDay] = useState('any'); // 'any' | 'morning' | 'afternoon' | 'evening'
   const [filterAirlines, setFilterAirlines] = useState([]); // array of selected airline names
   const [sortBy, setSortBy] = useState('price'); // 'price' | 'duration' | 'departure'
+  const [airlineSortMode, setAirlineSortMode] = useState('cheapest'); // 'cheapest' | 'fastest' — orders the Airlines filter list
 
   // Selected flight (Step 3)
   const [selectedFlight, setSelectedFlight] = useState(null);
@@ -1685,10 +1686,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </>
               )}
 
-              {/* Shared Passenger & Cabin Class options */}
+              {/* Passenger & Cabin Class options — two separate selectors */}
               <div className="form-row" style={{ marginTop: '0.75rem', position: 'relative' }}>
-                <div className="form-group" style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
-                  <label className="form-label">Travelers & Cabin Class</label>
+                <div className="form-group" style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
+                  <label className="form-label">Travelers</label>
                   <button
                     type="button"
                     className="form-input text-left"
@@ -1709,32 +1710,24 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       fontFamily: 'var(--font-body)',
                       outline: 'none'
                     }}
-                    onClick={() => setShowHomePopover(!showHomePopover)}
+                    onClick={() => setShowTravelersPopover(!showTravelersPopover)}
                   >
                     <span>
-                      {adultCount + childCount + infantCount} Traveler{adultCount + childCount + infantCount > 1 ? 's' : ''}, {cabinPref === 'PremiumEconomy' ? 'Premium Economy' : cabinPref === 'All' ? 'All Classes' : cabinPref}
+                      {adultCount + childCount + infantCount} Traveler{adultCount + childCount + infantCount > 1 ? 's' : ''}
                     </span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showHomePopover ? 'rotate(180deg)' : 'none' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showTravelersPopover ? 'rotate(180deg)' : 'none' }}>
                       <path d="M6 9l6 6 6-6" />
                     </svg>
                   </button>
 
-                  {showHomePopover && (
+                  {showTravelersPopover && (
                     <>
                       {/* Click-outside backdrop */}
                       <div
-                        style={{
-                          position: 'fixed',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          zIndex: 999,
-                          background: 'transparent'
-                        }}
-                        onClick={() => setShowHomePopover(false)}
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: 'transparent' }}
+                        onClick={() => setShowTravelersPopover(false)}
                       />
-                      
+
                       {/* Popover Card */}
                       <div
                         className="traveler-popover-card"
@@ -1764,7 +1757,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               position: 'absolute',
                               top: '-32px',
                               right: '-8px',
-                              background: '#1e3a8a', // Dark blue background
+                              background: '#1e3a8a',
                               color: 'white',
                               border: 'none',
                               borderRadius: '50%',
@@ -1779,7 +1772,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               outline: 'none',
                               padding: 0
                             }}
-                            onClick={() => setShowHomePopover(false)}
+                            onClick={() => setShowTravelersPopover(false)}
                           >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                               <path d="M18 6L6 18M6 6l12 12" />
@@ -1798,21 +1791,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               disabled={adultCount <= 1}
                               onClick={() => setAdultCount(prev => Math.max(1, prev - 1))}
                               style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                border: '1.5px solid #cbd5e1',
-                                background: 'white',
-                                color: '#475569',
-                                fontSize: '1.4rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: adultCount <= 1 ? 'not-allowed' : 'pointer',
-                                opacity: adultCount <= 1 ? 0.5 : 1,
-                                outline: 'none',
-                                padding: 0,
-                                userSelect: 'none'
+                                width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #cbd5e1',
+                                background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                cursor: adultCount <= 1 ? 'not-allowed' : 'pointer', opacity: adultCount <= 1 ? 0.5 : 1,
+                                outline: 'none', padding: 0, userSelect: 'none'
                               }}
                             >
                               –
@@ -1823,21 +1806,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               disabled={adultCount >= 9}
                               onClick={() => setAdultCount(prev => Math.min(9, prev + 1))}
                               style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                border: '1.5px solid #cbd5e1',
-                                background: 'white',
-                                color: '#475569',
-                                fontSize: '1.4rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: adultCount >= 9 ? 'not-allowed' : 'pointer',
-                                opacity: adultCount >= 9 ? 0.5 : 1,
-                                outline: 'none',
-                                padding: 0,
-                                userSelect: 'none'
+                                width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #cbd5e1',
+                                background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                cursor: adultCount >= 9 ? 'not-allowed' : 'pointer', opacity: adultCount >= 9 ? 0.5 : 1,
+                                outline: 'none', padding: 0, userSelect: 'none'
                               }}
                             >
                               +
@@ -1858,21 +1831,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               disabled={childCount <= 0}
                               onClick={() => setChildCount(prev => Math.max(0, prev - 1))}
                               style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                border: '1.5px solid #cbd5e1',
-                                background: 'white',
-                                color: '#475569',
-                                fontSize: '1.4rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: childCount <= 0 ? 'not-allowed' : 'pointer',
-                                opacity: childCount <= 0 ? 0.5 : 1,
-                                outline: 'none',
-                                padding: 0,
-                                userSelect: 'none'
+                                width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #cbd5e1',
+                                background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                cursor: childCount <= 0 ? 'not-allowed' : 'pointer', opacity: childCount <= 0 ? 0.5 : 1,
+                                outline: 'none', padding: 0, userSelect: 'none'
                               }}
                             >
                               –
@@ -1883,21 +1846,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               disabled={childCount >= 8}
                               onClick={() => setChildCount(prev => Math.min(8, prev + 1))}
                               style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                border: '1.5px solid #cbd5e1',
-                                background: 'white',
-                                color: '#475569',
-                                fontSize: '1.4rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: childCount >= 8 ? 'not-allowed' : 'pointer',
-                                opacity: childCount >= 8 ? 0.5 : 1,
-                                outline: 'none',
-                                padding: 0,
-                                userSelect: 'none'
+                                width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #cbd5e1',
+                                background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                cursor: childCount >= 8 ? 'not-allowed' : 'pointer', opacity: childCount >= 8 ? 0.5 : 1,
+                                outline: 'none', padding: 0, userSelect: 'none'
                               }}
                             >
                               +
@@ -1918,21 +1871,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               disabled={infantCount <= 0}
                               onClick={() => setInfantCount(prev => Math.max(0, prev - 1))}
                               style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                border: '1.5px solid #cbd5e1',
-                                background: 'white',
-                                color: '#475569',
-                                fontSize: '1.4rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: infantCount <= 0 ? 'not-allowed' : 'pointer',
-                                opacity: infantCount <= 0 ? 0.5 : 1,
-                                outline: 'none',
-                                padding: 0,
-                                userSelect: 'none'
+                                width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #cbd5e1',
+                                background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                cursor: infantCount <= 0 ? 'not-allowed' : 'pointer', opacity: infantCount <= 0 ? 0.5 : 1,
+                                outline: 'none', padding: 0, userSelect: 'none'
                               }}
                             >
                               –
@@ -1943,21 +1886,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               disabled={infantCount >= 8}
                               onClick={() => setInfantCount(prev => Math.min(8, prev + 1))}
                               style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                border: '1.5px solid #cbd5e1',
-                                background: 'white',
-                                color: '#475569',
-                                fontSize: '1.4rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: infantCount >= 8 ? 'not-allowed' : 'pointer',
-                                opacity: infantCount >= 8 ? 0.5 : 1,
-                                outline: 'none',
-                                padding: 0,
-                                userSelect: 'none'
+                                width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #cbd5e1',
+                                background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                cursor: infantCount >= 8 ? 'not-allowed' : 'pointer', opacity: infantCount >= 8 ? 0.5 : 1,
+                                outline: 'none', padding: 0, userSelect: 'none'
                               }}
                             >
                               +
@@ -1965,63 +1898,118 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           </div>
                         </div>
 
-                        {/* Cabin buttons */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          {[
-                            { value: 'All', display: 'All Cabin Classes' },
-                            { value: 'Economy', display: 'Economy' },
-                            { value: 'PremiumEconomy', display: 'Premium Economy' },
-                            { value: 'Business', display: 'Business' },
-                            { value: 'First', display: 'First' }
-                          ].map((opt) => {
-                            const isSelected = cabinPref === opt.value;
-                            return (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => setCabinPref(opt.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '0.65rem',
-                                  borderRadius: '6px',
-                                  border: isSelected ? 'none' : '1.5px solid #cbd5e1',
-                                  backgroundColor: isSelected ? '#374151' : 'white',
-                                  color: isSelected ? 'white' : '#64748b',
-                                  fontWeight: '700',
-                                  fontSize: '0.95rem',
-                                  cursor: 'pointer',
-                                  textAlign: 'center',
-                                  transition: 'all 0.15s ease',
-                                  outline: 'none'
-                                }}
-                              >
-                                {opt.display}
-                              </button>
-                            );
-                          })}
-                        </div>
-
                         {/* Done button */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
                           <button
                             type="button"
-                            onClick={() => setShowHomePopover(false)}
+                            onClick={() => setShowTravelersPopover(false)}
                             style={{
-                              backgroundColor: '#71717a',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '0.5rem 1.25rem',
-                              fontWeight: '600',
-                              fontSize: '0.9rem',
-                              cursor: 'pointer',
-                              transition: 'background-color 0.15s ease',
-                              outline: 'none'
+                              backgroundColor: '#71717a', color: 'white', border: 'none', borderRadius: '4px',
+                              padding: '0.5rem 1.25rem', fontWeight: '600', fontSize: '0.9rem', cursor: 'pointer',
+                              transition: 'background-color 0.15s ease', outline: 'none'
                             }}
                           >
                             Done
                           </button>
                         </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="form-group" style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
+                  <label className="form-label">Cabin Class</label>
+                  <button
+                    type="button"
+                    className="form-input text-left"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      padding: '0.625rem 0.75rem',
+                      border: '1.5px solid var(--border-color)',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      minHeight: '42px',
+                      fontFamily: 'var(--font-body)',
+                      outline: 'none'
+                    }}
+                    onClick={() => setShowCabinPopover(!showCabinPopover)}
+                  >
+                    <span>
+                      {cabinPref === 'PremiumEconomy' ? 'Premium Economy' : cabinPref === 'All' ? 'All Cabin Classes' : cabinPref}
+                    </span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showCabinPopover ? 'rotate(180deg)' : 'none' }}>
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+
+                  {showCabinPopover && (
+                    <>
+                      {/* Click-outside backdrop */}
+                      <div
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: 'transparent' }}
+                        onClick={() => setShowCabinPopover(false)}
+                      />
+
+                      {/* Popover Card */}
+                      <div
+                        className="cabin-popover-card"
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          width: '260px',
+                          backgroundColor: 'white',
+                          borderRadius: '12px',
+                          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
+                          border: '1px solid #cbd5e1',
+                          padding: '1.25rem',
+                          zIndex: 1000,
+                          marginTop: '0.5rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                          fontFamily: 'var(--font-body)'
+                        }}
+                      >
+                        {[
+                          { value: 'All', display: 'All Cabin Classes' },
+                          { value: 'Economy', display: 'Economy' },
+                          { value: 'PremiumEconomy', display: 'Premium Economy' },
+                          { value: 'Business', display: 'Business' },
+                          { value: 'First', display: 'First' }
+                        ].map((opt) => {
+                          const isSelected = cabinPref === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => { setCabinPref(opt.value); setShowCabinPopover(false); }}
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem',
+                                borderRadius: '6px',
+                                border: isSelected ? 'none' : '1.5px solid #cbd5e1',
+                                backgroundColor: isSelected ? '#374151' : 'white',
+                                color: isSelected ? 'white' : '#64748b',
+                                fontWeight: '700',
+                                fontSize: '0.95rem',
+                                cursor: 'pointer',
+                                textAlign: 'center',
+                                transition: 'all 0.15s ease',
+                                outline: 'none'
+                              }}
+                            >
+                              {opt.display}
+                            </button>
+                          );
+                        })}
                       </div>
                     </>
                   )}
@@ -2114,8 +2102,39 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
         const maxPrice = prices.length ? Math.ceil(Math.max(...prices)) : 5000;
         const sliderMax = filterMaxPrice ?? maxPrice;
 
+        const parseDurationMinutes = (d) => {
+          if (!d) return 0;
+          const hMatch = d.match(/(\d+)H/);
+          const mMatch = d.match(/(\d+)M/);
+          const h = hMatch ? parseInt(hMatch[1]) * 60 : 0;
+          const m = mMatch ? parseInt(mMatch[1]) : 0;
+          return h + m;
+        };
+
         // Dynamic unique list of airlines in current search results
         const uniqueAirlines = Array.from(new Set(sourceFlights.map(f => f.airline).filter(Boolean)));
+
+        // Per-airline stats for the Airlines filter panel: flight count and
+        // cheapest fare, so the panel can show "INDIGO 8  LKR 133,358" style
+        // rows and sort airlines by cheapest or fastest, like Agoda's UI.
+        const airlineStatsMap = {};
+        for (const f of sourceFlights) {
+          if (!f.airline) continue;
+          const stat = airlineStatsMap[f.airline] || { count: 0, cheapestPrice: Infinity, currency: f.currency, fastestMinutes: Infinity };
+          stat.count += 1;
+          if ((f.price || 0) < stat.cheapestPrice) {
+            stat.cheapestPrice = f.price || 0;
+            stat.currency = f.currency;
+          }
+          const durMin = parseDurationMinutes(f.duration);
+          if (durMin > 0 && durMin < stat.fastestMinutes) stat.fastestMinutes = durMin;
+          airlineStatsMap[f.airline] = stat;
+        }
+        const sortedAirlineStats = uniqueAirlines
+          .map(name => ({ name, ...airlineStatsMap[name] }))
+          .sort((a, b) => airlineSortMode === 'fastest'
+            ? a.fastestMinutes - b.fastestMinutes
+            : a.cheapestPrice - b.cheapestPrice);
 
         // Apply filters + sort
         let displayed = sourceFlights.filter(f => {
@@ -2123,7 +2142,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           if (filterStops === '0' && (f.stops || 0) !== 0) return false;
           if (filterStops === '1+' && (f.stops || 0) === 0) return false;
           if (filterCabin !== 'any' && f.cabin_class !== filterCabin) return false;
-          if (filterSource !== 'any' && (f.fare_source || 'GDS') !== filterSource) return false;
 
           // Time of day filter
           if (filterTimeOfDay !== 'any') {
@@ -2619,16 +2637,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   ))}
                 </div>
 
-                {/* Fare Type Group */}
-                <div className="filter-group">
-                  <div className="filter-group-title">Fare Type</div>
-                  {[['any','All Fares'],['GDS','GDS (Traditional)'],['NDC','NDC (New Distribution)'],['LCC','LCC (Low-Cost Airline)']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${filterSource === val ? 'active' : ''}`}>
-                      <input type="radio" name="faresource" value={val} checked={filterSource === val} onChange={() => setFilterSource(val)} />
-                      {lbl}
-                    </label>
-                  ))}
-                </div>
 
                 {/* Time of Day Group */}
                 <div className="filter-group">
@@ -2645,16 +2653,38 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 {uniqueAirlines.length > 0 && (
                   <div className="filter-group">
                     <div className="filter-group-title">Airlines</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
-                      {uniqueAirlines.map(airline => (
-                        <label key={airline} className="filter-radio-row" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={filterAirlines.includes(airline)} 
-                            onChange={() => handleAirlineCheckboxChange(airline)}
-                            style={{ accentColor: 'var(--gs-crimson)', width: '13px', height: '13px', cursor: 'pointer' }}
-                          />
-                          {airline}
+                    <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', margin: '0.4rem 0 0.6rem' }}>
+                      {[['cheapest', 'Cheapest'], ['fastest', 'Fastest']].map(([val, lbl]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setAirlineSortMode(val)}
+                          style={{
+                            flex: 1, padding: '0.4rem 0', fontSize: '0.75rem', fontWeight: '700',
+                            border: 'none', cursor: 'pointer',
+                            background: airlineSortMode === val ? 'var(--gs-crimson)' : '#fff',
+                            color: airlineSortMode === val ? '#fff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      {sortedAirlineStats.map(({ name, count, cheapestPrice, currency }) => (
+                        <label key={name} className="filter-radio-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input
+                              type="checkbox"
+                              checked={filterAirlines.includes(name)}
+                              onChange={() => handleAirlineCheckboxChange(name)}
+                              style={{ accentColor: 'var(--gs-crimson)', width: '13px', height: '13px', cursor: 'pointer' }}
+                            />
+                            {name} <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{count}</span>
+                          </span>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                            {currency} {Math.round(cheapestPrice).toLocaleString()}
+                          </span>
                         </label>
                       ))}
                     </div>
@@ -2679,7 +2709,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 )}
 
                 <button className="filter-reset-btn filter-reset-all"
-                  onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterCabin('any'); setFilterSource('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); setSortBy('price'); }}>
+                  onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); setSortBy('price'); }}>
                   Reset All Filters
                 </button>
               </aside>
@@ -2724,6 +2754,31 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <div className="results-live-badge">● Live GDS Data</div>
                 </div>
 
+                {!loadingFlights && !searchError && flights.length > 0 && (
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                    {[['any', 'All Classes'], ['Economy', 'Economy'], ['PremiumEconomy', 'Premium Economy'], ['Business', 'Business'], ['First', 'First Class']].map(([val, lbl]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setFilterCabin(val)}
+                        style={{
+                          padding: '0.45rem 0.9rem',
+                          borderRadius: '999px',
+                          border: filterCabin === val ? '1px solid var(--gs-crimson)' : '1px solid var(--border-color)',
+                          background: filterCabin === val ? 'var(--gs-crimson)' : 'white',
+                          color: filterCabin === val ? 'white' : '#1e293b',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {!loadingFlights && searchError && (
                   <div className="empty-state glass-panel">
@@ -2736,7 +2791,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <div className="empty-state glass-panel">
                     <p>No flights match your filters.<br />
                       <button className="filter-reset-btn" style={{ marginTop: '0.5rem' }}
-                        onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterCabin('any'); setFilterSource('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); }}>
+                        onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); }}>
                         Clear all filters
                       </button>
                     </p>
@@ -2858,6 +2913,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           {flight.seats_remaining != null && (
                             <div className="rc-seats" style={{ color: flight.seats_remaining < 5 ? '#c3122e' : '#0f766e', fontWeight: '700', marginTop: '4px' }}>
                               {flight.seats_remaining < 5 ? `Only ${flight.seats_remaining} left` : `${flight.seats_remaining} seats`}
+                            </div>
+                          )}
+                          {selectedFareOption?.baggage_allowance?.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '6px' }}>
+                              {selectedFareOption.baggage_allowance.map((bag, bIdx) => (
+                                <div key={bIdx} style={{ fontSize: '0.68rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  <span>🧳</span>
+                                  <span>{bag.type}: {bag.allowance}</span>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>

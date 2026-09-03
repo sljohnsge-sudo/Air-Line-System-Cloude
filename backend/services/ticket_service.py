@@ -102,6 +102,24 @@ def retrieve_reservation(locator_code: str) -> dict:
     return _parse_reservation(raw, locator_code)
 
 
+def parse_commit_response(raw: dict, locator_code: str) -> dict:
+    """
+    Parse a workbench commit response (STEP 7's own response body) the same
+    way as a Reservation Retrieve response.
+
+    For NDC content, Travelport's commit response embeds the full Offer[]
+    (with Product[].FlightSegment[]) inline — confirmed live — but a
+    subsequent, separate GET .../reservations/{pnr} (what
+    retrieve_reservation() calls) does not return that Offer[] for NDC
+    bookings the way it does for GDS ones. So the itinerary is only ever
+    available in this one response; callers should use this as a same-request
+    fallback to fill in flight/segment fields when retrieve_reservation()
+    comes back without them, not as a replacement for it (Receipt/Ticket data
+    still needs the live retrieve).
+    """
+    return _parse_reservation(raw, locator_code)
+
+
 def get_tickets_by_locator(locator_code: str) -> dict:
     """
     Dedicated Ticket Retrieve lookup — separate from Reservation Retrieve's

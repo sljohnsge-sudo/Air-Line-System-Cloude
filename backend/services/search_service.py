@@ -514,6 +514,7 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
         product_cabin_map = {}
         product_fare_basis_map = {}
         product_cos_map = {}
+        product_flightrefs_map = {}
         for ref_entry in catalog.get("ReferenceList", []):
             if ref_entry.get("@type") == "ReferenceListProduct":
                 for product in ref_entry.get("Product", []):
@@ -545,6 +546,20 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                     product_fare_basis_map[prod_id] = fare_basis_list
                     product_cos_map[prod_id] = cos_list
 
+                    # Fallback flight-segment chain for this product. GDS
+                    # content gives flight refs directly on ProductBrandOptions
+                    # (flightRefs), shared across every brand/fare option in
+                    # the group. NDC content (confirmed live for a Qatar
+                    # Airways business/first fare) leaves that field empty and
+                    # instead nests the segment chain inside the product
+                    # itself — this is why NDC fares like Business/First were
+                    # being silently dropped from results entirely, not just
+                    # mislabeled as Economy.
+                    segs_sorted = sorted(product.get("FlightSegment", []), key=lambda s: s.get("sequence", 0))
+                    frefs = [s.get("Flight", {}).get("FlightRef") for s in segs_sorted if s.get("Flight", {}).get("FlightRef")]
+                    if frefs:
+                        product_flightrefs_map[prod_id] = frefs
+
         # Build terms lookup map from ReferenceList
         terms_map = {}
         for ref_entry in catalog.get("ReferenceList", []):
@@ -561,88 +576,16 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
             arrival_airport = offering.get("Arrival", "")
 
             for brand_options in offering.get("ProductBrandOptions", []):
-                flight_refs = brand_options.get("flightRefs", [])
-                if not flight_refs:
-                    continue
-
-                # Parse segments for this brand option
-                all_segments = []
-                for ref in flight_refs:
-                    f_seg = flight_map.get(ref)
-                    if f_seg:
-                        all_segments.append(f_seg)
-                if not all_segments:
-                    continue
-
-                first_flight = all_segments[0]
-                last_flight = all_segments[-1]
-
-                carrier = first_flight.get("carrier", "")
-                number = first_flight.get("number", "")
-                dep_info = first_flight.get("Departure", {})
-                arr_info = last_flight.get("Arrival", {})
-
-                # Map segments for the frontend
-                segments_list = []
-                for f_seg in all_segments:
-                    seg_carrier = f_seg.get("carrier", "")
-                    seg_number = f_seg.get("number", "")
-                    seg_dep_info = f_seg.get("Departure", {})
-                    seg_arr_info = f_seg.get("Arrival", {})
-                    seg_duration = f_seg.get("duration", "")
-                    
-                    seg_equip = f_seg.get("equipment", {})
-                    seg_aircraft_type = ""
-                    if isinstance(seg_equip, dict):
-                        seg_aircraft_code = seg_equip.get("aircraftCode", seg_equip.get("code", ""))
-                        seg_aircraft_type = (
-                            AIRCRAFT_CODE_MAP.get(seg_aircraft_code.upper(), "") or
-                            seg_equip.get("name", "") or
-                            seg_equip.get("aircraftType", "") or
-                            seg_aircraft_code
-                        )
-                    elif isinstance(seg_equip, str) and seg_equip:
-                        seg_aircraft_type = AIRCRAFT_CODE_MAP.get(seg_equip.upper(), seg_equip)
-
-                    segments_list.append({
-                        "carrier": seg_carrier,
-                        "carrier_name": airline_map.get(seg_carrier, seg_carrier),
-                        "flight_number": f"{seg_carrier}{seg_number}",
-                        # Bare flight number without carrier prefix — needed for
-                        # SpecificFlightCriteria.flightNumber in the full-payload
-                        # AddOffer request (buildfromproducts), which wants carrier
-                        # and flight number as separate fields.
-                        "raw_number": seg_number,
-                        "departure_airport": seg_dep_info.get("location", ""),
-                        "arrival_airport": seg_arr_info.get("location", ""),
-                        "departure_time": seg_dep_info.get("date", "") + "T" + seg_dep_info.get("time", ""),
-                        "arrival_time": seg_arr_info.get("date", "") + "T" + seg_arr_info.get("time", ""),
-                        "duration": seg_duration,
-                        "aircraft_type": seg_aircraft_type,
-                    })
-
-                # Calculate layovers
-                for i in range(len(segments_list) - 1):
-                    arr_time_str = segments_list[i]["arrival_time"]
-                    dep_time_str = segments_list[i+1]["departure_time"]
-                    arr_dt = parse_naive_datetime(arr_time_str)
-                    dep_dt = parse_naive_datetime(dep_time_str)
-                    layover_delta = dep_dt - arr_dt
-                    layover_minutes = int(layover_delta.total_seconds() / 60)
-                    segments_list[i]["layover_minutes"] = max(0, layover_minutes)
-
-                # Calculate total duration
-                total_minutes = 0
-                for seg in segments_list:
-                    total_minutes += parse_iso_duration(seg["duration"])
-                    total_minutes += seg.get("layover_minutes", 0)
-                duration = minutes_to_iso_duration(total_minutes)
-
-                # Stops
-                stops = (len(all_segments) - 1) + sum(len(f.get("IntermediateStop", [])) for f in all_segments)
-
-                # Unique key for segment combinations
-                seg_key = "-".join([f"{seg['flight_number']}_{seg['departure_time']}" for seg in segments_list])
+                # GDS content shares one flightRefs list across the whole
+                # ProductBrandOptions group. NDC content (confirmed live for a
+                # Qatar Airways Business/First offering) leaves this group-level
+                # field empty and instead nests the segment chain inside each
+                # product itself — and different ProductBrandOfferings in the
+                # same group can reference genuinely different flight
+                # combinations. So this can only be used as a shared default;
+                # each brand_offering below resolves its own chain, falling
+                # back to product_flightrefs_map when this is empty.
+                group_flight_refs = brand_options.get("flightRefs", [])
 
                 # Parse all ProductBrandOffering for this brand option
                 for brand_offering in brand_options.get("ProductBrandOffering", []):
@@ -650,11 +593,100 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                     if not best_price:
                         continue
 
+                    prod_refs = [p.get("productRef") for p in brand_offering.get("Product", []) if p.get("productRef")]
+
+                    flight_refs = group_flight_refs
+                    if not flight_refs:
+                        for pr in prod_refs:
+                            if pr in product_flightrefs_map:
+                                flight_refs = product_flightrefs_map[pr]
+                                break
+                    if not flight_refs:
+                        continue
+
+                    # Parse segments for this brand offering
+                    all_segments = []
+                    for ref in flight_refs:
+                        f_seg = flight_map.get(ref)
+                        if f_seg:
+                            all_segments.append(f_seg)
+                    if not all_segments:
+                        continue
+
+                    first_flight = all_segments[0]
+                    last_flight = all_segments[-1]
+
+                    carrier = first_flight.get("carrier", "")
+                    number = first_flight.get("number", "")
+                    dep_info = first_flight.get("Departure", {})
+                    arr_info = last_flight.get("Arrival", {})
+
+                    # Map segments for the frontend
+                    segments_list = []
+                    for f_seg in all_segments:
+                        seg_carrier = f_seg.get("carrier", "")
+                        seg_number = f_seg.get("number", "")
+                        seg_dep_info = f_seg.get("Departure", {})
+                        seg_arr_info = f_seg.get("Arrival", {})
+                        seg_duration = f_seg.get("duration", "")
+
+                        seg_equip = f_seg.get("equipment", {})
+                        seg_aircraft_type = ""
+                        if isinstance(seg_equip, dict):
+                            seg_aircraft_code = seg_equip.get("aircraftCode", seg_equip.get("code", ""))
+                            seg_aircraft_type = (
+                                AIRCRAFT_CODE_MAP.get(seg_aircraft_code.upper(), "") or
+                                seg_equip.get("name", "") or
+                                seg_equip.get("aircraftType", "") or
+                                seg_aircraft_code
+                            )
+                        elif isinstance(seg_equip, str) and seg_equip:
+                            seg_aircraft_type = AIRCRAFT_CODE_MAP.get(seg_equip.upper(), seg_equip)
+
+                        segments_list.append({
+                            "carrier": seg_carrier,
+                            "carrier_name": airline_map.get(seg_carrier, seg_carrier),
+                            "flight_number": f"{seg_carrier}{seg_number}",
+                            # Bare flight number without carrier prefix — needed for
+                            # SpecificFlightCriteria.flightNumber in the full-payload
+                            # AddOffer request (buildfromproducts), which wants carrier
+                            # and flight number as separate fields.
+                            "raw_number": seg_number,
+                            "departure_airport": seg_dep_info.get("location", ""),
+                            "arrival_airport": seg_arr_info.get("location", ""),
+                            "departure_time": seg_dep_info.get("date", "") + "T" + seg_dep_info.get("time", ""),
+                            "arrival_time": seg_arr_info.get("date", "") + "T" + seg_arr_info.get("time", ""),
+                            "duration": seg_duration,
+                            "aircraft_type": seg_aircraft_type,
+                        })
+
+                    # Calculate layovers
+                    for i in range(len(segments_list) - 1):
+                        arr_time_str = segments_list[i]["arrival_time"]
+                        dep_time_str = segments_list[i+1]["departure_time"]
+                        arr_dt = parse_naive_datetime(arr_time_str)
+                        dep_dt = parse_naive_datetime(dep_time_str)
+                        layover_delta = dep_dt - arr_dt
+                        layover_minutes = int(layover_delta.total_seconds() / 60)
+                        segments_list[i]["layover_minutes"] = max(0, layover_minutes)
+
+                    # Calculate total duration
+                    total_minutes = 0
+                    for seg in segments_list:
+                        total_minutes += parse_iso_duration(seg["duration"])
+                        total_minutes += seg.get("layover_minutes", 0)
+                    duration = minutes_to_iso_duration(total_minutes)
+
+                    # Stops
+                    stops = (len(all_segments) - 1) + sum(len(f.get("IntermediateStop", [])) for f in all_segments)
+
+                    # Unique key for segment combinations
+                    seg_key = "-".join([f"{seg['flight_number']}_{seg['departure_time']}" for seg in segments_list])
+
                     currency_code = best_price.get("CurrencyCode", {}).get("value", "LKR")
                     total_price = float(best_price.get("TotalPrice", 0))
                     total_price, markup_scale = apply_markup(total_price, pricing_settings, "ticket")
 
-                    prod_refs = [p.get("productRef") for p in brand_offering.get("Product", []) if p.get("productRef")]
                     brand_id = None
                     brand_name = None
                     cabin = "Economy"
@@ -731,6 +763,7 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                     # from a raw_offering that, on its own, only holds flightRefs.
                     _source_code = brand_offering.get("ContentSource") or offering.get("ContentSource") or "GDS"
                     selected_raw_offering["fare_source"] = "LCC" if _source_code == "APIPAC" else _source_code
+                    selected_raw_offering["currency"] = currency_code
                     selected_raw_offering["segments"] = segments_list
                     selected_raw_offering["cabin_class"] = cabin
                     selected_raw_offering["classes_of_service"] = classes_of_service
