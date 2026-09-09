@@ -28,6 +28,11 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [emailRequestsError, setEmailRequestsError] = useState('');
   const [emailRequestActionId, setEmailRequestActionId] = useState(null);
 
+  const [cancellationRequests, setCancellationRequests] = useState([]);
+  const [cancellationRequestsLoading, setCancellationRequestsLoading] = useState(false);
+  const [cancellationRequestsError, setCancellationRequestsError] = useState('');
+  const [cancellationRequestActionId, setCancellationRequestActionId] = useState(null);
+
   const [assignLocator, setAssignLocator] = useState('');
   const [assignEmail, setAssignEmail] = useState('');
   const [assigning, setAssigning] = useState(false);
@@ -92,12 +97,27 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
+  const loadCancellationRequests = async () => {
+    setCancellationRequestsLoading(true);
+    setCancellationRequestsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/cancellation-requests?status=pending`, { headers: authHeaders });
+      const data = await handleApiResponse(res, 'Failed to load cancellation requests');
+      setCancellationRequests(data.requests || []);
+    } catch (err) {
+      setCancellationRequestsError(err.message);
+    } finally {
+      setCancellationRequestsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (adminToken) {
       loadSettings();
       loadSummary();
       loadLoyaltySettings();
       loadEmailRequests();
+      loadCancellationRequests();
     }
   }, [adminToken]);
 
@@ -136,6 +156,23 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setEmailRequestsError(err.message);
     } finally {
       setEmailRequestActionId(null);
+    }
+  };
+
+  const reviewCancellationRequest = async (id, action) => {
+    setCancellationRequestActionId(id);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/cancellation-requests/${id}/${action}`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({}),
+      });
+      await handleApiResponse(res, `Failed to ${action} request`);
+      setCancellationRequests(reqs => reqs.filter(r => r.id !== id));
+    } catch (err) {
+      setCancellationRequestsError(err.message);
+    } finally {
+      setCancellationRequestActionId(null);
     }
   };
 
@@ -315,10 +352,15 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                   <input type="number" min="0" step="1" className="form-input" value={loyaltySettings.tier_silver_threshold}
                     onChange={e => setLoyaltySettings(s => ({ ...s, tier_silver_threshold: parseInt(e.target.value) || 0 }))} />
                 </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
+                <div className="form-group" style={{ marginBottom: '0.5rem' }}>
                   <label className="form-label">🥇 Gold at (points)</label>
                   <input type="number" min="0" step="1" className="form-input" value={loyaltySettings.tier_gold_threshold}
                     onChange={e => setLoyaltySettings(s => ({ ...s, tier_gold_threshold: parseInt(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">💎 Platinum at (points)</label>
+                  <input type="number" min="0" step="1" className="form-input" value={loyaltySettings.tier_platinum_threshold}
+                    onChange={e => setLoyaltySettings(s => ({ ...s, tier_platinum_threshold: parseInt(e.target.value) || 0 }))} />
                 </div>
               </div>
             </div>
@@ -348,6 +390,45 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <button className="btn btn-primary btn-sm" disabled={emailRequestActionId === r.id} onClick={() => reviewEmailRequest(r.id, 'approve')}>Approve</button>
                   <button className="btn btn-danger btn-sm" disabled={emailRequestActionId === r.id} onClick={() => reviewEmailRequest(r.id, 'reject')}>Reject</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Cancellation Requests {cancellationRequests.length > 0 && `(${cancellationRequests.length} pending)`}</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+          Submitted via the B2C "Cancel Booking" form. Verify the booking and requester, then cancel it manually
+          via Travelport (All Bookings tab) before marking Resolved.
+        </p>
+        {cancellationRequestsError && <div className="error-banner">{cancellationRequestsError}</div>}
+        {cancellationRequestsLoading ? (
+          <div className="loading-state"><div className="spinner"></div><p>Loading requests...</p></div>
+        ) : cancellationRequests.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No pending cancellation requests.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {cancellationRequests.map(r => (
+              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                <div style={{ fontSize: '0.85rem' }}>
+                  <div>
+                    <strong style={{ color: 'var(--gs-crimson)' }}>{r.booking_locator}</strong>
+                    {' — '}Travel date {r.travel_date}
+                    {r.all_passengers_cancelling ? ' · All passengers' : ' · Partial passengers'}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    {r.requester_name} · {r.email} · {r.phone}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    Requested {new Date(r.requested_at).toLocaleString()}
+                    {r.customer_id ? ' · Signed-in customer' : ' · Public form (not signed in)'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button className="btn btn-primary btn-sm" disabled={cancellationRequestActionId === r.id} onClick={() => reviewCancellationRequest(r.id, 'resolve')}>Mark Resolved</button>
+                  <button className="btn btn-danger btn-sm" disabled={cancellationRequestActionId === r.id} onClick={() => reviewCancellationRequest(r.id, 'reject')}>Reject</button>
                 </div>
               </div>
             ))}

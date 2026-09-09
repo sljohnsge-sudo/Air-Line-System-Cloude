@@ -643,6 +643,54 @@ export default function App() {
   const [reportData, setReportData] = useState([]);
   const [reportError, setReportError] = useState('');
 
+  // ── Cancellation Request State (B2C manual-review flow) ───────────────────
+  // Self-service Travelport cancellation is deliberately not offered to B2C
+  // customers for security reasons — this submits a request an admin must
+  // manually review and action instead. Reachable two ways: pre-filled from
+  // a specific booking via "Request Cancellation" in My Bookings (signed
+  // in), or blank via the public "Cancel Booking" nav tab (no sign-in
+  // required, customer types in their own Booking ID).
+  const emptyCancelForm = { booking_locator: '', travel_date: '', requester_name: '', email: '', phone: '', all_passengers_cancelling: true };
+  const [cancelForm, setCancelForm] = useState(emptyCancelForm);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [cancelSubmitted, setCancelSubmitted] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+
+  const openCancellationRequest = (booking) => {
+    setCancelSubmitted(false);
+    setCancelError('');
+    if (booking) {
+      setCancelForm({
+        booking_locator: booking.locator_code || '',
+        travel_date: (booking.departure_time || '').split(' ')[0] || (booking.departure_time || '').split('T')[0] || '',
+        requester_name: customerProfile?.full_name || '',
+        email: customerProfile?.email || booking.email || '',
+        phone: '',
+        all_passengers_cancelling: true,
+      });
+    } else {
+      setCancelForm(emptyCancelForm);
+    }
+    setActiveTab('cancelRequest');
+  };
+
+  const submitCancellationRequest = (e) => {
+    e.preventDefault();
+    setCancelError('');
+    setCancelSubmitting(true);
+    fetch(`${API_BASE}/cancellation-requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
+      },
+      body: JSON.stringify(cancelForm),
+    })
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(() => { setCancelSubmitted(true); setCancelSubmitting(false); })
+      .catch(err => { setCancelError(err.message); setCancelSubmitting(false); });
+  };
+
   // Search state
   const [searchType, setSearchType] = useState('oneway'); // 'oneway' | 'roundtrip' | 'multicity'
   const [searchOrigin, setSearchOrigin] = useState('CMB');
@@ -1429,6 +1477,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               ✈ Results ({flights.length})
             </button>
           )}
+          <button className={`nav-tab ${activeTab === 'cancelRequest' ? 'active' : ''}`} onClick={() => openCancellationRequest(null)}>Cancel Booking</button>
           <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
           <button className={`nav-tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
@@ -4179,6 +4228,106 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
         </div>
       )}
 
+      {/* ── CANCEL BOOKING REQUEST TAB (public — no sign-in required) ──────── */}
+      {activeTab === 'cancelRequest' && (
+        <div className="tab-content animate-fade" style={{ maxWidth: '640px', margin: '0 auto' }}>
+          <section className="search-section glass-panel">
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Cancel Flight Booking</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0, marginBottom: '1.25rem' }}>
+              Please provide your current travel date and details
+            </p>
+
+            {cancelSubmitted ? (
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1.25rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>✅</div>
+                <p style={{ fontWeight: 700, color: '#166534', margin: '0 0 0.35rem' }}>Cancellation request submitted</p>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Our team will review your request and contact you at <strong>{cancelForm.email}</strong>. This is not
+                  an automatic cancellation — no changes have been made to your booking yet.
+                </p>
+                <button className="btn btn-secondary btn-sm" style={{ marginTop: '1rem' }}
+                  onClick={() => { setCancelSubmitted(false); setCancelForm(emptyCancelForm); }}>
+                  Submit Another Request
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '1rem 1.1rem', marginBottom: '1.25rem', fontSize: '0.85rem', color: '#1e3a5f', display: 'flex', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>💡</span>
+                  <span>Please submit this request <strong>48 hours</strong> prior to the flight departure. Before proceeding, please read the following important information.</span>
+                </div>
+
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <p style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--gs-dark)', margin: '0 0 0.4rem' }}>As per the Airline Fare Rules</p>
+                  <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                    <li>The Airline Fare rules will determine the penalties applicable on your ticket</li>
+                    <li>Ticket may be non-refundable or may attract a cancellation penalty</li>
+                  </ul>
+                </div>
+
+                {cancelError && <div className="error-banner">{cancelError}</div>}
+
+                <form onSubmit={submitCancellationRequest}>
+                  <div className="form-group">
+                    <label className="form-label">What is your current Travel Date? *</label>
+                    <input type="date" className="form-input" required
+                      value={cancelForm.travel_date}
+                      onChange={e => setCancelForm(f => ({ ...f, travel_date: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Name of the person submitting this request *</label>
+                    <input className="form-input" required
+                      value={cancelForm.requester_name}
+                      onChange={e => setCancelForm(f => ({ ...f, requester_name: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Booking ID / MyTrip ID *</label>
+                    <input className="form-input" required
+                      value={cancelForm.booking_locator}
+                      onChange={e => setCancelForm(f => ({ ...f, booking_locator: e.target.value.toUpperCase() }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Email Address *</label>
+                    <input type="email" className="form-input" required
+                      value={cancelForm.email}
+                      onChange={e => setCancelForm(f => ({ ...f, email: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Best contact number *</label>
+                    <input type="tel" className="form-input" required
+                      value={cancelForm.phone}
+                      onChange={e => setCancelForm(f => ({ ...f, phone: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Are all passengers on the itinerary cancelling?</label>
+                    <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.35rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', cursor: 'pointer' }}>
+                        <input type="radio" checked={cancelForm.all_passengers_cancelling === true}
+                          onChange={() => setCancelForm(f => ({ ...f, all_passengers_cancelling: true }))} />
+                        Yes
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', cursor: 'pointer' }}>
+                        <input type="radio" checked={cancelForm.all_passengers_cancelling === false}
+                          onChange={() => setCancelForm(f => ({ ...f, all_passengers_cancelling: false }))} />
+                        No
+                      </label>
+                    </div>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary" disabled={cancelSubmitting} style={{ width: '100%', marginTop: '0.75rem' }}>
+                    {cancelSubmitting ? 'Submitting…' : 'Submit Cancellation Request'}
+                  </button>
+                </form>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1rem', textAlign: 'center' }}>
+                  This submits a request only — an admin will manually review it and contact you. Your booking will not
+                  be cancelled automatically.
+                </p>
+              </>
+            )}
+          </section>
+        </div>
+      )}
+
       {activeTab === 'bookings' && (
         adminToken ? (
           <div className="tab-content animate-fade">
@@ -4256,6 +4405,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           handleApiResponse={handleApiResponse}
           onViewTicket={handleViewTicket}
           onOpenInvoice={() => openInvoiceAs('customer')}
+          onRequestCancellation={openCancellationRequest}
         />
       )}
 

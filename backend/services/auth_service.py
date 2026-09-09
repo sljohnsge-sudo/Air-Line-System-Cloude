@@ -11,11 +11,55 @@ To update auth logic: modify only this file.
 import httpx
 import time
 import logging
+import contextvars
+from contextlib import contextmanager
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from utils import tp_logger
 
 logger = logging.getLogger(__name__)
+
+# ── Per-flow TraceId ──────────────────────────────────────────────────────────
+# Travelport's own guidance: TraceId exists to correlate the multiple linked
+# API calls of ONE flow (e.g. create workbench -> add offer -> add travelers
+# -> commit, all for a single booking) — not to be freshly randomized on
+# every individual HTTP call, which is what get_auth_headers() used to do
+# unconditionally. flow_trace_id() is wrapped around each multi-call
+# orchestrator (run_booking_flow, issue_ticket, cancel_reservation, the
+# /bookings/initiate handler, etc.); get_auth_headers() picks it up from here
+# automatically, so no call site needs to pass anything through. Idempotent —
+# nesting (an orchestrator called from within an already-wrapped endpoint)
+# reuses the outer trace_id rather than generating a new inner one.
+_flow_trace_id: "contextvars.ContextVar[str | None]" = contextvars.ContextVar("_flow_trace_id", default=None)
+
+
+@contextmanager
+def flow_trace_id():
+    if _flow_trace_id.get() is not None:
+        yield _flow_trace_id.get()
+        return
+    trace_id = TravelportConfig.generate_trace_id()
+    token = _flow_trace_id.set(trace_id)
+    try:
+        yield trace_id
+    finally:
+        _flow_trace_id.reset(token)
+
+
+# Plain start/end pair equivalent to flow_trace_id() above, for call sites
+# where wrapping a big existing try/except/finally block in a `with` would
+# mean re-indenting a large, delicate function body. Same idempotent
+# semantics: end_flow_trace_id() is always safe to call, including with the
+# None token returned when a flow was already in progress (nothing to reset).
+def start_flow_trace_id():
+    if _flow_trace_id.get() is not None:
+        return None
+    return _flow_trace_id.set(TravelportConfig.generate_trace_id())
+
+
+def end_flow_trace_id(token) -> None:
+    if token is not None:
+        _flow_trace_id.reset(token)
 
 # ── In-memory token cache ──────────────────────────────────────────────────────
 _cached_token: str | None = None
@@ -74,6 +118,22 @@ def get_auth_headers(session_id: str | None = None) -> dict:
     Returns HTTP headers with a valid Bearer token.
     Call this before every Travelport API request.
 
+    Per Travelport's Common Flights API Headers guidance and direct
+    certification feedback on our submitted logs:
+      - Accept-Encoding is mandatory (Travelport blocks production traffic
+        without it) and Cache-Control is recommended — both added below.
+      - Accept-Version alongside Content-Version is required for Search,
+        Price, Book, Seats, and Ticket operations — added below (was
+        previously missing; only Content-Version was sent).
+      - Only ONE of XAUTH_TRAVELPORT_ACCESSGROUP / TVP-PCC-Core should be
+        sent, not both — and if both are sent, Travelport uses the access
+        group anyway, so TVP-PCC-Core was dead weight. Dropped in favor of
+        XAUTH_TRAVELPORT_ACCESSGROUP, which (unlike TVP-PCC-Core) is
+        supported on every endpoint, not just a documented subset.
+      - TraceId must correlate one flow's linked calls, not be unique per
+        individual request — see flow_trace_id() above, which this reads
+        from automatically.
+
     Args:
         session_id (str|None): Deprecated (no longer used in Travelport v11 headers)
 
@@ -85,11 +145,13 @@ def get_auth_headers(session_id: str | None = None) -> dict:
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Cache-Control": "no-cache",
         "XAUTH_TRAVELPORT_ACCESSGROUP": TravelportConfig.ACCESS_GROUP,
-        "TVP-PCC-Core": f"{TravelportConfig.PCC}_1G",
         "taxBreakDown": "true",
+        "Accept-Version": "11",
         "Content-Version": "11",
-        "TraceId": TravelportConfig.generate_trace_id(),
+        "TraceId": _flow_trace_id.get() or TravelportConfig.generate_trace_id(),
     }
     return headers
 

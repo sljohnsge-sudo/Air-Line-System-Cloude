@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import BookingCard from './BookingCard.jsx';
 
-export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice }) {
+export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation }) {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -221,9 +221,9 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
             <div style={{
               width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '1.4rem', flexShrink: 0,
-              background: loyalty.tier === 'Gold' ? 'linear-gradient(135deg,#fde047,#ca8a04)' : loyalty.tier === 'Silver' ? 'linear-gradient(135deg,#e2e8f0,#94a3b8)' : 'linear-gradient(135deg,#d6a679,#92582f)',
+              background: loyalty.tier === 'Platinum' ? 'linear-gradient(135deg,#e5e9f0,#7c8ba1)' : loyalty.tier === 'Gold' ? 'linear-gradient(135deg,#fde047,#ca8a04)' : loyalty.tier === 'Silver' ? 'linear-gradient(135deg,#e2e8f0,#94a3b8)' : 'linear-gradient(135deg,#d6a679,#92582f)',
             }}>
-              {loyalty.tier === 'Gold' ? '🥇' : loyalty.tier === 'Silver' ? '🥈' : '🥉'}
+              {loyalty.tier === 'Platinum' ? '💎' : loyalty.tier === 'Gold' ? '🥇' : loyalty.tier === 'Silver' ? '🥈' : '🥉'}
             </div>
             <div style={{ flex: 1, minWidth: '200px' }}>
               <div style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--gs-dark)' }}>
@@ -269,7 +269,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
         ) : (
           <div className="bookings-grid">
             {bookings.map((b) => (
-              <BookingCard key={b.id} booking={b} onViewTicket={onViewTicket} />
+              <BookingCard key={b.id} booking={b} onViewTicket={onViewTicket} onRequestCancellation={onRequestCancellation} />
             ))}
           </div>
         )}

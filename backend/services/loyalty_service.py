@@ -33,6 +33,8 @@ def award_points_for_booking(email: str, total_fare: float, currency: str, locat
 
 def compute_tier(points_balance: int, settings: dict | None = None) -> str:
     settings = settings or get_settings()
+    if points_balance >= settings.get("tier_platinum_threshold", 15000):
+        return "Platinum"
     if points_balance >= settings.get("tier_gold_threshold", 5000):
         return "Gold"
     if points_balance >= settings.get("tier_silver_threshold", 1000):
@@ -51,10 +53,12 @@ def get_loyalty_summary(email: str) -> dict:
         next_threshold = settings.get("tier_silver_threshold", 1000)
     elif tier == "Silver":
         next_threshold = settings.get("tier_gold_threshold", 5000)
+    elif tier == "Gold":
+        next_threshold = settings.get("tier_platinum_threshold", 15000)
     return {
         "email": email,
         "points_balance": balance,
         "tier": tier,
         "points_to_next_tier": (next_threshold - balance) if next_threshold else None,
-        "next_tier": {"Bronze": "Silver", "Silver": "Gold", "Gold": None}[tier],
+        "next_tier": {"Bronze": "Silver", "Silver": "Gold", "Gold": "Platinum", "Platinum": None}[tier],
     }

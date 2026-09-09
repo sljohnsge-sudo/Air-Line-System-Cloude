@@ -399,6 +399,9 @@ def initiate_booking(request: BookingInitiateRequest):
     logger.info("Initiating booking and fetching live seat map...")
     raw_offering = request.raw_offering
     workbench_id = None
+    # One TraceId for every Travelport call in this initiate flow (create
+    # workbench -> add offer -> seat map -> discard) — see auth_service.py.
+    trace_token = services.start_flow_trace_id()
     try:
         # STEP 4: Create workbench
         workbench_id = services.create_workbench()
@@ -443,6 +446,7 @@ def initiate_booking(request: BookingInitiateRequest):
             detail=f"Failed to initiate Travelport booking session: {str(e)}"
         )
     finally:
+        services.end_flow_trace_id(trace_token)
         if workbench_id:
             logger.info(f"Cleaning up temporary initiate workbench session {workbench_id}...")
             try:
@@ -473,6 +477,12 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     raw_offering = request.raw_offering
     selected_seats = request.selected_seats
 
+    # One TraceId for every Travelport call this confirm makes — run_booking_flow()
+    # (STEPS 4-7) plus the retrieve_reservation() calls (STEP 8) below all share
+    # it, since they're one logical flow from Travelport's point of view. See
+    # flow_trace_id()'s idempotency note in auth_service.py — run_booking_flow's
+    # own wrap reuses this outer trace_id rather than starting a new one.
+    trace_token = services.start_flow_trace_id()
     try:
         # STEPS 4-7: Full booking flow with automatic stale-workbench retry.
         # run_booking_flow() handles Galileo error 4350 (COMMIT OR IGNORE
@@ -591,6 +601,8 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
             status_code=502,
             detail=f"Travelport booking error: {str(e)}"
         )
+    finally:
+        services.end_flow_trace_id(trace_token)
 
 
 # ── STEP 9: Issue Ticket — gated on PayCorp payment confirmation ──────────────
@@ -638,6 +650,9 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     else:
         logger.info(f"Issuing ticket for {locator_code} without a PayCorp reqid (cash/bank transfer)...")
 
+    # One TraceId for every Travelport call issue_ticket() makes internally
+    # (buildfromlocator -> formofpayment -> payment -> commit-with-ticketing).
+    trace_token = services.start_flow_trace_id()
     try:
         ticket = services.issue_ticket(locator_code)
     except Exception as e:
@@ -647,6 +662,8 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
             status_code=502,
             detail=f"Payment succeeded{txn_note} but Travelport ticket issuance failed: {str(e)}"
         )
+    finally:
+        services.end_flow_trace_id(trace_token)
 
     if payment_result:
         ticket["payment_txn_reference"] = payment_result.get("txn_reference")
@@ -801,8 +818,12 @@ def cancel_booking(locator_code: str):
     """
     Cancel a booking: cancels on Travelport and updates local cache.
     """
-    # Cancel on Travelport
+    # One TraceId for cancel_reservation()'s internal calls (buildfromlocator
+    # -> cancelitems -> commit) — it never raises (returns bool), so no
+    # try/finally is needed to guarantee the reset.
+    trace_token = services.start_flow_trace_id()
     tp_cancelled = services.cancel_reservation(locator_code)
+    services.end_flow_trace_id(trace_token)
 
     # Update local cache
     db_cancelled = database.cancel_booking(locator_code)
@@ -1235,6 +1256,7 @@ class LoyaltySettingsRequest(BaseModel):
     points_per_usd: float = Field(..., ge=0)
     tier_silver_threshold: int = Field(..., ge=0)
     tier_gold_threshold: int = Field(..., ge=0)
+    tier_platinum_threshold: int = Field(..., ge=0)
 
 
 @app.get("/api/admin/loyalty-settings")
@@ -1246,9 +1268,11 @@ def get_loyalty_settings_admin(_admin: dict = Depends(auth.get_current_admin)):
 def put_loyalty_settings_admin(request: LoyaltySettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
     if request.tier_gold_threshold < request.tier_silver_threshold:
         raise HTTPException(status_code=422, detail="Gold threshold must be >= Silver threshold.")
+    if request.tier_platinum_threshold < request.tier_gold_threshold:
+        raise HTTPException(status_code=422, detail="Platinum threshold must be >= Gold threshold.")
     return database.update_loyalty_settings(
         request.points_per_lkr, request.points_per_usd,
-        request.tier_silver_threshold, request.tier_gold_threshold,
+        request.tier_silver_threshold, request.tier_gold_threshold, request.tier_platinum_threshold,
     )
 
 
@@ -1310,6 +1334,43 @@ def admin_reject_email_change(request_id: int, body: EmailChangeReviewRequest, a
     if req["status"] != "pending":
         raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
     updated = database.resolve_email_change_request(request_id, "rejected", admin["admin_id"], body.admin_note)
+    return updated
+
+
+# ── Cancellation Requests (B2C manual-review flow) ────────────────────────────
+# Self-service Travelport cancellation is deliberately not exposed to B2C
+# customers (see /api/bookings/{locator_code}/cancel, which remains
+# admin-only via the Admin Portal). Instead, a customer submits a request
+# here and an admin reviews + actually cancels it manually.
+
+class CancellationRequestReview(BaseModel):
+    admin_note: Optional[str] = None
+
+
+@app.get("/api/admin/cancellation-requests")
+def admin_list_cancellation_requests(status_filter: Optional[str] = Query(None, alias="status"), _admin: dict = Depends(auth.get_current_admin)):
+    return {"requests": database.get_cancellation_requests(status_filter)}
+
+
+@app.post("/api/admin/cancellation-requests/{request_id}/resolve")
+def admin_resolve_cancellation_request(request_id: int, body: CancellationRequestReview, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_cancellation_request_by_id(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Cancellation request not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
+    updated = database.resolve_cancellation_request(request_id, "resolved", admin["admin_id"], body.admin_note)
+    return updated
+
+
+@app.post("/api/admin/cancellation-requests/{request_id}/reject")
+def admin_reject_cancellation_request(request_id: int, body: CancellationRequestReview, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_cancellation_request_by_id(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Cancellation request not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
+    updated = database.resolve_cancellation_request(request_id, "rejected", admin["admin_id"], body.admin_note)
     return updated
 
 
@@ -1397,6 +1458,36 @@ def customer_request_email_change(request: EmailChangeRequestBody, current: dict
 def customer_get_email_change_request(current: dict = Depends(auth.get_current_customer)):
     req = database.get_pending_email_change_request(current["customer_id"])
     return {"request": req}
+
+
+# ── Cancellation Request (Customer-facing, public) ────────────────────────────
+# Reachable both by a signed-in customer (pre-filled from their own booking)
+# and, unauthenticated, as a standalone "Cancel a Booking" form — see
+# AdminPortal.jsx's admin-only /api/admin/cancellation-requests* for the
+# review side. customer_id is captured only when a valid customer token is
+# presented; a missing/invalid one never blocks submission.
+
+class CancellationRequestCreate(BaseModel):
+    booking_locator: str = Field(..., min_length=3, max_length=20)
+    travel_date: str = Field(..., description="YYYY-MM-DD")
+    requester_name: str = Field(..., min_length=2, max_length=150)
+    email: EmailStr
+    phone: str = Field(..., min_length=7, max_length=30)
+    all_passengers_cancelling: bool = True
+
+
+@app.post("/api/cancellation-requests", status_code=status.HTTP_201_CREATED)
+def submit_cancellation_request(request: CancellationRequestCreate, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+    req = database.create_cancellation_request(
+        customer_id,
+        request.booking_locator.upper().strip(),
+        request.travel_date,
+        request.requester_name.strip(),
+        str(request.email),
+        request.phone.strip(),
+        request.all_passengers_cancelling,
+    )
+    return req
 
 
 # ═══════════════════════════════════════════════════════════════════════════

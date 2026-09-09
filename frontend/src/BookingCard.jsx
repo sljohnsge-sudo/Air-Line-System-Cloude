@@ -28,7 +28,7 @@ const cleanPassengerName = (name) => {
   return foundTitle ? `${foundTitle} ${rejoined}` : rejoined;
 };
 
-export default function BookingCard({ booking: b, onViewTicket, onCancelBooking }) {
+export default function BookingCard({ booking: b, onViewTicket, onCancelBooking, onRequestCancellation }) {
   return (
     <div className={`boarding-pass glass-panel ${b.status === 'Cancelled' ? 'cancelled-pass' : ''} animate-fade`}>
       <div className="pass-row header-row">
@@ -57,6 +57,9 @@ export default function BookingCard({ booking: b, onViewTicket, onCancelBooking 
           <button className="btn btn-secondary btn-sm" onClick={() => onViewTicket(b)}>📋 View/Print Ticket</button>
           {b.status !== 'Cancelled' && onCancelBooking && (
             <button className="btn btn-danger btn-sm" onClick={() => onCancelBooking(b.locator_code)}>Cancel Booking</button>
+          )}
+          {b.status !== 'Cancelled' && onRequestCancellation && (
+            <button className="btn btn-secondary btn-sm" onClick={() => onRequestCancellation(b)}>Request Cancellation</button>
           )}
         </div>
       </div>

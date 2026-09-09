@@ -515,6 +515,13 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
         product_fare_basis_map = {}
         product_cos_map = {}
         product_flightrefs_map = {}
+        # flightRef -> True when ANY product's FlightSegment marks that flight
+        # boundFlightsInd:true (checked live: consistent across every product
+        # that references the same physical connection, since it reflects the
+        # carrier's stored fare data for that segment pair, not a per-product
+        # attribute) — carried through to SpecificFlightCriteria.boundFlightsInd
+        # in the AddOffer request by workbench_service.py.
+        flight_bound_map = {}
         for ref_entry in catalog.get("ReferenceList", []):
             if ref_entry.get("@type") == "ReferenceListProduct":
                 for product in ref_entry.get("Product", []):
@@ -559,6 +566,10 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                     frefs = [s.get("Flight", {}).get("FlightRef") for s in segs_sorted if s.get("Flight", {}).get("FlightRef")]
                     if frefs:
                         product_flightrefs_map[prod_id] = frefs
+                    for s in segs_sorted:
+                        fref = s.get("Flight", {}).get("FlightRef")
+                        if fref and s.get("boundFlightsInd"):
+                            flight_bound_map[fref] = True
 
         # Build terms lookup map from ReferenceList
         terms_map = {}
@@ -658,6 +669,18 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                             "arrival_time": seg_arr_info.get("date", "") + "T" + seg_arr_info.get("time", ""),
                             "duration": seg_duration,
                             "aircraft_type": seg_aircraft_type,
+                            # Both sourced from THIS search response, never
+                            # invented — passed straight through to
+                            # SpecificFlightCriteria in the AddOffer request
+                            # (see workbench_service.py). Per Travelport's
+                            # own Add Offer Full Payload API Reference,
+                            # boundFlightsInd "is not sent by the user but
+                            # instead is sent if included in the information
+                            # stored in the price by the carrier" — i.e. it's
+                            # echoed back when the search response had it,
+                            # never computed/guessed.
+                            "availability_source_code": f_seg.get("AvailabilitySourceCode"),
+                            "bound_flights_ind": flight_bound_map.get(f_seg.get("id"), False),
                         })
 
                     # Calculate layovers

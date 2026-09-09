@@ -12,6 +12,7 @@ Workflow Steps:
   STEP 2d — Premium Flex Search
   STEP 2e — Premium Flex Flight Specific Search
   STEP 3  — (Frontend: user selects an offer)
+  STEP 3b — AirPrice / Price Confirmation (NDC/LCC only)
   STEP 4  — Create Reservation Workbench
   STEP 5  — Add Offer to Workbench
   STEP 6  — Add Traveler(s) to Workbench
@@ -66,6 +67,15 @@ class TravelportEndpoints:
     # ── STEP 2e: Premium Flex Flight Specific Search ───────────────────────────
     PREMIUM_FLEX_SPECIFIC_SEARCH = f"{_air}/catalog/search/catalogproductofferings/buildpremiumflexoptions"
     # POST  → upsells for Premium Flex (GDS only, up to 99 upsells)
+
+    # ── STEP 3b: AirPrice (Price Confirmation) ─────────────────────────────────
+    # "Air pricing is generally an optional but recommended step, it is
+    # required for low cost carriers and some NDC carriers." (Travelport's
+    # own AirPrice Reference Payload docs.) Not workbench-scoped — called
+    # directly against the cached Search transaction, before workbench
+    # creation. GDS content skips this (optional there; already pinned via
+    # the full-payload Add Offer).
+    AIRPRICE_REFERENCE = f"{_air}/price/offers/buildfromcatalogproductofferings"
 
     # ── STEP 4: Reservation Workbench ─────────────────────────────────────────
     CREATE_WORKBENCH = f"{_air}/book/session/reservationworkbench"
@@ -144,9 +154,11 @@ class TravelportEndpoints:
     # then the workbench committed to issue the ticket.
 
     @staticmethod
-    def create_postcommit_workbench() -> str:
-        """POST -> create a post-commit workbench for an existing reservation."""
-        return f"{_air}/book/session/reservationworkbench"
+    def create_workbench_from_locator(locator_code: str) -> str:
+        """POST -> open a post-commit workbench against an existing PNR by
+        locator code. Used by both issue_ticket() and cancel_reservation()
+        (workbench-actions/createreservationworkbenchfromlocator)."""
+        return f"{_air}/book/session/reservationworkbench/buildfromlocator?Locator={locator_code}"
 
     @staticmethod
     def add_fop_to_workbench(workbench_id: str) -> str:

@@ -13,6 +13,19 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "cd /d frontend && npm run dev"],
       "port": 5173
+    },
+    {
+      "name": "b2b-backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d ..\\Air-Line-System-B2B\\backend && venv\\Scripts\\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload"],
+      "port": 8001,
+      "autoPort": false
+    },
+    {
+      "name": "b2b-frontend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d ..\\Air-Line-System-B2B\\frontend && npm run dev"],
+      "port": 5174
     }
   ]
 }

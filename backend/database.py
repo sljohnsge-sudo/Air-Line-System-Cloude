@@ -172,6 +172,16 @@ def init_db():
     """)
     cursor.execute("INSERT IGNORE INTO loyalty_settings (id) VALUES (1)")
 
+    # loyalty_settings.tier_platinum_threshold — added via a guarded ALTER,
+    # same reasoning as bookings.customer_id above (init_db() runs on every
+    # import; MySQL's ADD COLUMN IF NOT EXISTS isn't universally available).
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='loyalty_settings' AND COLUMN_NAME='tier_platinum_threshold'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE loyalty_settings ADD COLUMN tier_platinum_threshold INT NOT NULL DEFAULT 15000 AFTER tier_gold_threshold")
+
     # Loyalty balances are keyed by email, not customer_id — mirrors how
     # bookings are earned (by whichever email was on the booking) and let
     # into an account automatically once a customer signs up with that email,
@@ -218,6 +228,34 @@ def init_db():
             reviewed_by_admin_id INT NULL,
             CONSTRAINT fk_email_change_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
             INDEX idx_email_change_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── Cancellation Requests (B2C manual-review flow) ──────────────────────
+    # Self-service Travelport cancellation is deliberately NOT exposed to B2C
+    # customers for security reasons — a customer's request goes into this
+    # queue instead, and an admin manually verifies + cancels it via the
+    # existing Admin Portal tools. customer_id is nullable because the
+    # request form is also reachable without signing in (booking locator +
+    # email entered manually).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cancellation_requests (
+            id                    INT AUTO_INCREMENT PRIMARY KEY,
+            customer_id           INT NULL,
+            booking_locator       VARCHAR(20) NOT NULL,
+            travel_date           DATE NOT NULL,
+            requester_name        VARCHAR(150) NOT NULL,
+            email                 VARCHAR(200) NOT NULL,
+            phone                 VARCHAR(30) NOT NULL,
+            all_passengers_cancelling TINYINT(1) NOT NULL DEFAULT 1,
+            status                VARCHAR(20) NOT NULL DEFAULT 'pending',
+            admin_note            VARCHAR(500),
+            requested_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at           DATETIME NULL,
+            reviewed_by_admin_id  INT NULL,
+            CONSTRAINT fk_cancellation_request_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+            INDEX idx_cancellation_request_status (status),
+            INDEX idx_cancellation_request_locator (booking_locator)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
@@ -380,19 +418,20 @@ def get_loyalty_settings() -> dict:
     conn.close()
     return row or {
         "points_per_lkr": 0.01, "points_per_usd": 1.0,
-        "tier_silver_threshold": 1000, "tier_gold_threshold": 5000,
+        "tier_silver_threshold": 1000, "tier_gold_threshold": 5000, "tier_platinum_threshold": 15000,
     }
 
 
 def update_loyalty_settings(points_per_lkr: float, points_per_usd: float,
-                             tier_silver_threshold: int, tier_gold_threshold: int) -> dict:
+                             tier_silver_threshold: int, tier_gold_threshold: int,
+                             tier_platinum_threshold: int) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
             """UPDATE loyalty_settings SET points_per_lkr=%s, points_per_usd=%s,
-               tier_silver_threshold=%s, tier_gold_threshold=%s WHERE id=1""",
-            (points_per_lkr, points_per_usd, tier_silver_threshold, tier_gold_threshold),
+               tier_silver_threshold=%s, tier_gold_threshold=%s, tier_platinum_threshold=%s WHERE id=1""",
+            (points_per_lkr, points_per_usd, tier_silver_threshold, tier_gold_threshold, tier_platinum_threshold),
         )
         conn.commit()
         cursor.execute("SELECT * FROM loyalty_settings WHERE id=1")
@@ -606,6 +645,74 @@ def get_booking_by_ticket_number(ticket_number: str) -> dict | None:
     if row:
         return _hydrate_bookings([row])[0]
     return None
+
+
+def create_cancellation_request(
+    customer_id: int | None, booking_locator: str, travel_date: str,
+    requester_name: str, email: str, phone: str, all_passengers_cancelling: bool,
+) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO cancellation_requests
+               (customer_id, booking_locator, travel_date, requester_name, email, phone, all_passengers_cancelling)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (customer_id, booking_locator, travel_date, requester_name, email, phone, all_passengers_cancelling),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM cancellation_requests WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_cancellation_requests(status: str | None = None) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if status:
+        cursor.execute("SELECT * FROM cancellation_requests WHERE status=%s ORDER BY requested_at DESC", (status,))
+    else:
+        cursor.execute("SELECT * FROM cancellation_requests ORDER BY requested_at DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_cancellation_request_by_id(request_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM cancellation_requests WHERE id=%s", (request_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def resolve_cancellation_request(request_id: int, status: str, admin_id: int, admin_note: str | None) -> dict:
+    """status must be 'resolved' or 'rejected'."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE cancellation_requests SET status=%s, admin_note=%s,
+               reviewed_at=CURRENT_TIMESTAMP, reviewed_by_admin_id=%s WHERE id=%s""",
+            (status, admin_note, admin_id, request_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM cancellation_requests WHERE id=%s", (request_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def cancel_booking(locator_code: str) -> bool:

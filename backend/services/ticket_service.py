@@ -406,8 +406,7 @@ def issue_ticket(locator_code: str) -> dict:
 
     try:
         # ── Step 1: Create post-commit workbench from locator ─────────────────
-        base_path = TravelportConfig.base_path()
-        wb_url = f"{base_path}/air/book/session/reservationworkbench/buildfromlocator?Locator={locator_code}"
+        wb_url = TravelportEndpoints.create_workbench_from_locator(locator_code)
         logger.info(f"Step 1: POST buildfromlocator for PNR {locator_code}")
         wb_result = _api_post(wb_url, {})
 
@@ -599,7 +598,7 @@ def issue_ticket(locator_code: str) -> dict:
             logger.info("Step 3 OK: Payment applied to workbench.")
 
         # ── Step 4: Commit workbench with Issuance=Ticket ─────────────────────
-        commit_url = f"{base_path}/air/book/reservation/reservations/{workbench_id}?Issuance=Ticket&DocumentValue=Retain"
+        commit_url = f"{TravelportConfig.base_path()}/air/book/reservation/reservations/{workbench_id}?Issuance=Ticket&DocumentValue=Retain"
         logger.info(f"Step 4: Committing workbench {workbench_id} to issue ticket")
         commit_result = _api_post(commit_url, "")
 
@@ -680,8 +679,7 @@ def cancel_reservation(locator_code: str) -> bool:
     """
     logger.info(f"Cancelling reservation: {locator_code}")
     try:
-        base_path = TravelportConfig.base_path()
-        wb_url = f"{base_path}/air/book/session/reservationworkbench/buildfromlocator?Locator={locator_code}"
+        wb_url = TravelportEndpoints.create_workbench_from_locator(locator_code)
         wb_result = _api_post(wb_url, {})
 
         reservation = (

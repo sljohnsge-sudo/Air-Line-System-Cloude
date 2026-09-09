@@ -16,7 +16,7 @@ import time
 from datetime import datetime
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
-from services.auth_service import get_auth_headers, invalidate_token
+from services.auth_service import get_auth_headers, invalidate_token, flow_trace_id
 from services.pricing_service import get_settings as get_pricing_settings, apply_markup
 from utils import tp_logger
 
@@ -281,6 +281,22 @@ def create_workbench() -> str:
 
 # ── STEP 5: Add Offer to Workbench ────────────────────────────────────────────
 
+def _get_leg_offerings(raw_offering: dict) -> list:
+    """
+    Normalize raw_offering (one-way / round-trip {"outbound","inbound"} /
+    multi-city {"legs":[...]}) into a flat list of per-leg raw offering
+    dicts. Shared by add_offer_to_workbench and confirm_price so both walk
+    the same leg structure the same way.
+    """
+    is_round_trip = isinstance(raw_offering, dict) and "outbound" in raw_offering and "inbound" in raw_offering
+    is_multi_leg = isinstance(raw_offering, dict) and "legs" in raw_offering
+    if is_round_trip:
+        return [raw_offering["outbound"], raw_offering["inbound"]]
+    elif is_multi_leg:
+        return raw_offering["legs"]
+    return [raw_offering]
+
+
 def _build_offering_selection(raw_offering: dict) -> dict:
     """
     Build a single CatalogProductOfferingSelection entry (offer id + product refs)
@@ -356,6 +372,17 @@ def _build_specific_flight_criteria(segments: list, cabin: str | None = None, cl
             entry["cabin"] = cabin
         if class_of_service:
             entry["classOfService"] = class_of_service
+        # Both carried straight through from the search response (see
+        # search_service.py's segments_list build) — never hardcoded.
+        # AvailabilitySourceCode is "optional but recommended" per
+        # Travelport's Add Offer Full Payload API Reference; boundFlightsInd
+        # is only included when the search response actually marked this
+        # segment bound to the next (omitted otherwise, same as Travelport's
+        # own response does).
+        if seg.get("availability_source_code"):
+            entry["AvailabilitySourceCode"] = seg["availability_source_code"]
+        if seg.get("bound_flights_ind"):
+            entry["boundFlightsInd"] = True
         criteria.append(entry)
     return criteria
 
@@ -441,6 +468,84 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
     }
 
 
+def confirm_price(raw_offering: dict) -> str:
+    """
+    STEP 3b: Confirm pricing via AirPrice — NDC/low-cost-carrier offers only.
+
+    Per Travelport's own AirPrice Reference Payload docs: "air pricing is
+    generally an optional but recommended step, it is required for low cost
+    carriers and some NDC carriers." GDS content skips this (existing
+    full-payload Add Offer already pins the exact fare/brand for GDS, and
+    AirPrice is only "recommended" there, not required).
+
+    Not tied to any workbench — POSTs directly to /air/price/offers/... using
+    the same CatalogProductOfferingsIdentifier/CatalogProductOfferingSelection
+    reference payload as the reference-payload Add Offer call, against the
+    same cached Search transaction (relies on the same offersPerPage caching
+    that Add Offer already depends on).
+
+    Returns:
+        str: The AirPrice response's transactionId. Per Travelport docs,
+        "If you add the offer after a price request, you can send the
+        transaction identifier from the AirPrice response" — the caller
+        should use this value as the CatalogProductOfferingsIdentifier for
+        the subsequent Add Offer call instead of the original Search one.
+    """
+    leg_offerings = _get_leg_offerings(raw_offering)
+    catalog_offerings_id = leg_offerings[0].get("CatalogProductOfferingsIdentifier", "")
+    offering_selections = [_build_offering_selection(leg) for leg in leg_offerings]
+
+    payload = {
+        "OfferQueryBuildFromCatalogProductOfferings": {
+            "BuildFromCatalogProductOfferingsRequest": {
+                "@type": "BuildFromCatalogProductOfferingsRequestAir",
+                "CatalogProductOfferingsIdentifier": {
+                    "Identifier": {
+                        "value": catalog_offerings_id
+                    }
+                },
+                "CatalogProductOfferingSelection": offering_selections
+            }
+        }
+    }
+
+    logger.info("Confirming price via AirPrice (NDC/LCC offer)...")
+    # AirPrice is not workbench-scoped, so no session_id.
+    result = _api_post_with_retry(TravelportEndpoints.AIRPRICE_REFERENCE, payload, session_id=None)
+
+    errors = (
+        result.get("OfferListResponse", {}).get("Result", {}).get("Error", []) or
+        result.get("Result", {}).get("Error", [])
+    )
+    if errors:
+        raise ValueError(f"Travelport AirPrice failed: {errors[0].get('Message')}")
+
+    # Confirmed live: the AirPrice response does NOT carry a "transactionId"
+    # field at all (despite the docs' mock example showing one) — the field
+    # that actually replaces the original CatalogProductOfferingsIdentifier
+    # for the subsequent Add Offer call is OfferListResponse.Identifier.value,
+    # which Travelport returns as the original identifier with a "_PC" suffix
+    # appended (e.g. "<original-uuid>_PC"). transactionId is kept as a
+    # fallback only in case a different content source/carrier ever returns
+    # that shape instead.
+    offer_list = result.get("OfferListResponse", result)
+    priced_transaction_id = (
+        offer_list.get("Identifier", {}).get("value") or
+        offer_list.get("transactionId")
+    )
+    if not priced_transaction_id:
+        # Log the full raw response so any future shape mismatch can be
+        # fixed from evidence rather than guessed at again (see
+        # commit_workbench's multi-shape Reservation lookup, issue_ticket's
+        # multi-shape workbench lookup, etc. — this codebase has repeatedly
+        # found live Travelport responses to omit documented wrapper keys).
+        logger.error(f"AirPrice did not return a usable identifier. Full response: {result}")
+        raise ValueError("Travelport AirPrice did not return a transactionId.")
+
+    logger.info(f"AirPrice confirmed. transactionId for Add Offer: {priced_transaction_id}")
+    return priced_transaction_id
+
+
 def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
     """
     STEP 5: Add the selected flight offer(s) to the workbench.
@@ -461,14 +566,7 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
     """
     logger.info(f"Adding offer to workbench {workbench_id}...")
 
-    is_round_trip = isinstance(raw_offering, dict) and "outbound" in raw_offering and "inbound" in raw_offering
-    is_multi_leg = isinstance(raw_offering, dict) and "legs" in raw_offering
-    if is_round_trip:
-        leg_offerings = [raw_offering["outbound"], raw_offering["inbound"]]
-    elif is_multi_leg:
-        leg_offerings = raw_offering["legs"]
-    else:
-        leg_offerings = [raw_offering]
+    leg_offerings = _get_leg_offerings(raw_offering)
 
     # Travelport GDS certification: use the full-payload AddOffer request for
     # GDS carrier bookings. NDC/LCC content keeps the existing reference
@@ -843,6 +941,22 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
         6. Add all travelers
         7. Commit → PNR
 
+    NOTE on AirPrice (STEP 3b): Travelport's docs describe AirPrice as
+    "required for low cost carriers and some NDC carriers" and "not
+    workbench-scoped." Confirmed live on this account it is NOT safe to call:
+    an AirPrice call before booking an NDC offer (Air India AI2275, CMB-BOM-DXB,
+    2026-09-09) reliably wedges this PCC — every subsequent workbench commit,
+    even a brand-new one, immediately fails with Galileo error 4350 (COMMIT OR
+    IGNORE RESERVATION WORKBENCH), and the error carries no identifier for the
+    existing stale-workbench recovery logic to target, so retries never
+    recover. The exact same NDC offer commits cleanly (PNR confirmed) when
+    AirPrice is skipped and Add Offer is sent straight from the Search
+    response's CatalogProductOfferingsIdentifier, as before. confirm_price()
+    is kept below, unused, in case this is account/PCC-specific and worth
+    revisiting later (e.g. after checking with Travelport support) — do not
+    call it from this flow without re-verifying against a live NDC booking
+    first.
+
     Args:
         raw_offering (dict): The raw flight offer from the catalog search.
         travelers (list[dict]): List of passenger dicts.
@@ -854,57 +968,64 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
     Raises:
         ValueError: if all retries are exhausted or a non-recoverable error occurs.
     """
-    for attempt in range(1, max_retries + 1):
-        workbench_id = None
-        try:
-            # STEP 4
-            workbench_id = create_workbench()
-            logger.info(f"[Flow attempt {attempt}/{max_retries}] Workbench: {workbench_id}")
+    # One TraceId for every Travelport call this flow makes (create workbench
+    # -> add offer -> add travelers -> commit, across all retry attempts) —
+    # per Travelport's own guidance that TraceId correlates one flow's linked
+    # calls rather than being unique per individual request.
+    with flow_trace_id():
+        # AirPrice (STEP 3b) is deliberately NOT called here — see the
+        # docstring above for the live-tested finding on why.
 
-            # STEP 5
-            add_offer_to_workbench(workbench_id, raw_offering)
+        for attempt in range(1, max_retries + 1):
+            workbench_id = None
+            try:
+                # STEP 4
+                workbench_id = create_workbench()
+                logger.info(f"[Flow attempt {attempt}/{max_retries}] Workbench: {workbench_id}")
 
-            # STEP 6 — All travelers on this PNR (Adult/Child/Infant) are sent
-            # to Travelport in ONE combined TravelerListRequest, not one call
-            # per traveler. Travelport GDS certification requires travelers to
-            # appear in this exact passenger-type sequence within that request:
-            # Adult, Infant, Child.
-            passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
-            ordered_travelers = sorted(
-                travelers,
-                key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
-            )
-            add_travelers_to_workbench(workbench_id, ordered_travelers)
+                # STEP 5
+                add_offer_to_workbench(workbench_id, raw_offering)
 
-            # STEP 7
-            return commit_workbench(workbench_id)
+                # STEP 6 — All travelers on this PNR (Adult/Child/Infant) are sent
+                # to Travelport in ONE combined TravelerListRequest, not one call
+                # per traveler. Travelport GDS certification requires travelers to
+                # appear in this exact passenger-type sequence within that request:
+                # Adult, Infant, Child.
+                passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+                ordered_travelers = sorted(
+                    travelers,
+                    key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
+                )
+                add_travelers_to_workbench(workbench_id, ordered_travelers)
 
-        except StaleWorkbenchError as e:
-            logger.warning(
-                f"[Flow attempt {attempt}/{max_retries}] Stale workbench error caught: {e}. "
-                f"{'Retrying...' if attempt < max_retries else 'All retries exhausted.'}"
-            )
-            if attempt < max_retries:
-                time.sleep(2)  # Brief pause before retry
-                continue
-            raise ValueError(
-                f"Travelport booking failed after {max_retries} attempts due to persistent "
-                "stale workbench error (4350 COMMIT OR IGNORE RESERVATION WORKBENCH). "
-                "Please wait a moment and try again."
-            )
-        except Exception as e:
-            # If any other error occurs, we must discard the workbench we just created
-            # so that it doesn't stay open and lock the GDS PCC session!
-            if workbench_id:
-                logger.warning(f"Error occurred during booking flow. Discarding workbench {workbench_id}...")
-                try:
-                    discard_workbench(workbench_id)
-                except Exception as discard_ex:
-                    logger.warning(f"Failed to discard workbench: {discard_ex}")
-            raise e
+                # STEP 7
+                return commit_workbench(workbench_id)
 
+            except StaleWorkbenchError as e:
+                logger.warning(
+                    f"[Flow attempt {attempt}/{max_retries}] Stale workbench error caught: {e}. "
+                    f"{'Retrying...' if attempt < max_retries else 'All retries exhausted.'}"
+                )
+                if attempt < max_retries:
+                    time.sleep(2)  # Brief pause before retry
+                    continue
+                raise ValueError(
+                    f"Travelport booking failed after {max_retries} attempts due to persistent "
+                    "stale workbench error (4350 COMMIT OR IGNORE RESERVATION WORKBENCH). "
+                    "Please wait a moment and try again."
+                )
+            except Exception as e:
+                # If any other error occurs, we must discard the workbench we just created
+                # so that it doesn't stay open and lock the GDS PCC session!
+                if workbench_id:
+                    logger.warning(f"Error occurred during booking flow. Discarding workbench {workbench_id}...")
+                    try:
+                        discard_workbench(workbench_id)
+                    except Exception as discard_ex:
+                        logger.warning(f"Failed to discard workbench: {discard_ex}")
+                raise e
 
-    raise ValueError("Booking flow failed after all retries.")
+        raise ValueError("Booking flow failed after all retries.")
 
 
 # ── STEP 10: Live Seat Map Query ──────────────────────────────────────────────
