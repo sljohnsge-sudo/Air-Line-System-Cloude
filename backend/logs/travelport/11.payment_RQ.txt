@@ -1,0 +1,37 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/paymentoffer/reservationworkbench/f310f4e2-a9ec-48c2-98ca-b6d4801f4685/payments' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODkzNTkwMTksImV4cCI6MTc4OTQ0NTQxOSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.DQAjEUkuqvz-fAu9FK2EwT-6V6JXpf6PUw-qfHO20qHu7kZVfF0a41VD9n4PRa9MyrzohPXF_nvOz56mbGPz0NCNpkpv7C28kFiss5yplqsNOgBuUml__TKdvm_wWEKV7EIxrxjn4VZOpLAyCfHF1OIRHRUj-NTEaENVs4SQsYOIphhqC2HBY440KegSQP60SwjcT74Z9ZQmpDdiNcTeepmlQkTCLADZHRSsbnwJXCiWt5h323ii83pInkLSUjo9F370X4EFG_uHSEnk-5gJk0_LKGFjDSiZ5uvjkzBn2sXg63oN7icrWP1frSU7D3ciuh9Z01T1OhlUvX_SGsRVeA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_9438AB40717B' \
+--data-raw '{
+    "Payment": {
+        "id": "payment_1",
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "6DD99EBB-4FAB-4AC1-8F1E-A3EAFCBCF544"
+        },
+        "Amount": {
+            "value": 0.0,
+            "code": "USD"
+        },
+        "FormOfPaymentIdentifier": {
+            "id": "formOfPayment_1",
+            "FormOfPaymentRef": "formOfPayment_1",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "6249aaf8-e876-4fe2-947c-ac4ab4bad8e3"
+            }
+        },
+        "TravelerIdentifierRef": [
+            {
+                "passengerTypeCode": "ADT",
+                "id": "travelerRefId_1"
+            }
+        ]
+    }
+}'

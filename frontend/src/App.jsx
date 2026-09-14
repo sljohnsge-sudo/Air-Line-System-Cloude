@@ -691,6 +691,275 @@ export default function App() {
       .catch(err => { setCancelError(err.message); setCancelSubmitting(false); });
   };
 
+  // ── Tour / Travel Packages State (B2C, admin-curated catalog) ─────────────
+  // Fixed packages staff create in the Admin Portal — customers browse this
+  // public catalog and submit a booking request (same manual-review pattern
+  // as cancellation requests above); no live Travelport search involved.
+  const [packages, setPackages] = useState([]);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [packagesError, setPackagesError] = useState('');
+  const [selectedPackage, setSelectedPackage] = useState(null);
+
+  const emptyPackageBookingForm = { full_name: '', email: '', phone: '', num_travelers: 1, preferred_date: '', notes: '' };
+  const [packageBookingForm, setPackageBookingForm] = useState(emptyPackageBookingForm);
+  const [packageBookingSubmitting, setPackageBookingSubmitting] = useState(false);
+  const [packageBookingSubmitted, setPackageBookingSubmitted] = useState(false);
+  const [packageBookingError, setPackageBookingError] = useState('');
+
+  const loadPackages = () => {
+    setPackagesLoading(true);
+    setPackagesError('');
+    fetch(`${API_BASE}/packages`)
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(d => { setPackages(d.packages || []); setPackagesLoading(false); })
+      .catch(err => { setPackagesError(err.message); setPackagesLoading(false); });
+  };
+
+  const openPackages = () => {
+    setSelectedPackage(null);
+    setPackageBookingSubmitted(false);
+    setPackageBookingError('');
+    setActiveTab('packages');
+    loadPackages();
+  };
+
+  const openPackageDetail = (pkg) => {
+    setSelectedPackage(pkg);
+    setPackageBookingSubmitted(false);
+    setPackageBookingError('');
+    setPackageBookingForm({
+      ...emptyPackageBookingForm,
+      full_name: customerProfile?.full_name || '',
+      email: customerProfile?.email || '',
+    });
+  };
+
+  const submitPackageBookingRequest = (e) => {
+    e.preventDefault();
+    if (!selectedPackage) return;
+    setPackageBookingError('');
+    setPackageBookingSubmitting(true);
+    fetch(`${API_BASE}/packages/${selectedPackage.id}/book-request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
+      },
+      body: JSON.stringify({
+        ...packageBookingForm,
+        num_travelers: parseInt(packageBookingForm.num_travelers, 10) || 1,
+      }),
+    })
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(() => { setPackageBookingSubmitted(true); setPackageBookingSubmitting(false); })
+      .catch(err => { setPackageBookingError(err.message); setPackageBookingSubmitting(false); });
+  };
+
+  // ── Visa Requirements State (B2C, admin-curated lookup) ───────────────────
+  // Customer picks nationality + destination and gets a real answer if staff
+  // have documented that route; a "not found" result is a normal, expected
+  // outcome, not an error — the lookup just isn't exhaustive by design.
+  const [visaNationality, setVisaNationality] = useState('');
+  const [visaDestination, setVisaDestination] = useState('');
+  const [visaResult, setVisaResult] = useState(null);
+  const [visaChecking, setVisaChecking] = useState(false);
+  const [visaError, setVisaError] = useState('');
+
+  // Looked up as soon as a destination is picked (admin-assigned per country
+  // in Admin Portal → Visa Consultants), so the customer sees who they'd be
+  // booking with before they even check requirements.
+  const [destinationConsultant, setDestinationConsultant] = useState(null);
+
+  const selectVisaDestination = (destination) => {
+    setVisaDestination(destination);
+    setVisaResult(null);
+    setDestinationConsultant(null);
+    if (!destination) return;
+    fetch(`${API_BASE}/visa-consultants/by-country?country=${encodeURIComponent(destination)}`)
+      .then(r => r.ok ? r.json() : { found: false })
+      .then(d => setDestinationConsultant(d))
+      .catch(() => setDestinationConsultant(null));
+  };
+
+  const checkVisaRequirement = (e) => {
+    e.preventDefault();
+    if (!visaNationality || !visaDestination) return;
+    setVisaError('');
+    setVisaChecking(true);
+    setVisaResult(null);
+    setShowConsultForm(false);
+    fetch(`${API_BASE}/visa-requirements/check?nationality=${encodeURIComponent(visaNationality)}&destination=${encodeURIComponent(visaDestination)}`)
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(d => { setVisaResult(d); setVisaChecking(false); })
+      .catch(err => { setVisaError(err.message); setVisaChecking(false); });
+  };
+
+  // ── Visa Consultation Booking State (B2C, public) ──────────────────────────
+  // Follow-on to the requirements check above: customer picks a date and one
+  // of two fixed daily slots (10:30 AM / 3:30 PM) to talk to the visa
+  // consultant. Booking emails the consultant mailbox server-side.
+  const VISA_CONSULT_SLOT_TIMES = ['10:30 AM', '3:30 PM'];
+  const [showConsultForm, setShowConsultForm] = useState(false);
+  const [consultDate, setConsultDate] = useState('');
+  const [consultSlots, setConsultSlots] = useState([]);
+  const [consultSlotsLoading, setConsultSlotsLoading] = useState(false);
+  const [consultSlotsError, setConsultSlotsError] = useState('');
+  const [selectedConsultSlot, setSelectedConsultSlot] = useState('');
+  const [consultForm, setConsultForm] = useState({ full_name: '', email: '', phone: '', notes: '' });
+  const [consultSubmitting, setConsultSubmitting] = useState(false);
+  const [consultError, setConsultError] = useState('');
+  const [consultSuccess, setConsultSuccess] = useState(null);
+
+  const loadConsultSlots = (date) => {
+    setConsultDate(date);
+    setSelectedConsultSlot('');
+    setConsultSlotsError('');
+    setConsultSlots([]);
+    if (!date) return;
+    setConsultSlotsLoading(true);
+    fetch(`${API_BASE}/visa-consultation/slots?date=${encodeURIComponent(date)}`)
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(d => { setConsultSlots(d.slots || []); setConsultSlotsLoading(false); })
+      .catch(err => { setConsultSlotsError(err.message); setConsultSlotsLoading(false); });
+  };
+
+  const openConsultForm = () => {
+    setShowConsultForm(true);
+    setConsultSuccess(null);
+    setConsultError('');
+    setConsultForm({ full_name: '', email: '', phone: '', notes: '' });
+    loadConsultSlots(getTomorrow());
+  };
+
+  const submitConsultBooking = (e) => {
+    e.preventDefault();
+    if (!consultDate || !selectedConsultSlot || !consultForm.full_name || !consultForm.email || !consultForm.phone) return;
+    setConsultSubmitting(true);
+    setConsultError('');
+    fetch(`${API_BASE}/visa-consultation/book`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nationality: visaNationality,
+        destination: visaDestination,
+        full_name: consultForm.full_name.trim(),
+        email: consultForm.email.trim(),
+        phone: consultForm.phone.trim(),
+        slot_date: consultDate,
+        slot_time: selectedConsultSlot,
+        notes: consultForm.notes.trim() || null,
+      }),
+    })
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(d => { setConsultSuccess(d); setConsultSubmitting(false); })
+      .catch(err => { setConsultError(err.message); setConsultSubmitting(false); });
+  };
+
+  // ── Hotel Booking State (B2C, live Travelport Stays search + book) ────────
+  // Independent product from the flight search below — separate Travelport
+  // Stays v11/v12 endpoints (services/hotel_search_service.py,
+  // services/hotel_booking_service.py). The sandbox account isn't yet
+  // provisioned for Hotel/Stays (confirmed live 403s), so search/book calls
+  // will surface that as a normal error banner until Travelport enables the
+  // product — no frontend changes needed when that happens.
+  const [hotelDestination, setHotelDestination] = useState('');
+  const [hotelCheckIn, setHotelCheckIn] = useState(getTomorrow());
+  const [hotelCheckOut, setHotelCheckOut] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split('T')[0];
+  });
+  const [hotelAdults, setHotelAdults] = useState(2);
+  const [hotelRooms, setHotelRooms] = useState(1);
+  const [hotelSearching, setHotelSearching] = useState(false);
+  const [hotelSearchError, setHotelSearchError] = useState('');
+  const [hotelProperties, setHotelProperties] = useState([]);
+  const [hotelSearched, setHotelSearched] = useState(false);
+  const [selectedHotelProperty, setSelectedHotelProperty] = useState(null);
+  const [selectedHotelRoom, setSelectedHotelRoom] = useState(null);
+
+  const emptyHotelGuestForm = { first_name: '', last_name: '', email: '', phone: '' };
+  const [hotelGuestForm, setHotelGuestForm] = useState(emptyHotelGuestForm);
+  const [hotelBookingSubmitting, setHotelBookingSubmitting] = useState(false);
+  const [hotelBookingError, setHotelBookingError] = useState('');
+  const [hotelBookingConfirmation, setHotelBookingConfirmation] = useState(null);
+
+  const searchHotels = (e) => {
+    if (e) e.preventDefault();
+    if (!hotelDestination || !hotelCheckIn || !hotelCheckOut) return;
+    setHotelSearching(true);
+    setHotelSearchError('');
+    setHotelProperties([]);
+    setSelectedHotelProperty(null);
+    fetch(`${API_BASE}/hotels/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location_type: 'cityIATACode',
+        location_value: hotelDestination,
+        check_in_date: hotelCheckIn,
+        check_out_date: hotelCheckOut,
+        adults: parseInt(hotelAdults, 10) || 1,
+        rooms: parseInt(hotelRooms, 10) || 1,
+      }),
+    })
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(d => { setHotelProperties(d.properties || []); setHotelSearching(false); setHotelSearched(true); })
+      .catch(err => { setHotelSearchError(err.message); setHotelSearching(false); setHotelSearched(true); });
+  };
+
+  const openHotelProperty = (property) => {
+    setSelectedHotelProperty(property);
+    setSelectedHotelRoom(null);
+    setHotelBookingConfirmation(null);
+    setHotelBookingError('');
+  };
+
+  const selectHotelRoom = (room) => {
+    setSelectedHotelRoom(room);
+    setHotelBookingError('');
+    setHotelGuestForm({
+      ...emptyHotelGuestForm,
+      first_name: customerProfile?.full_name?.split(' ')[0] || '',
+      last_name: customerProfile?.full_name?.split(' ').slice(1).join(' ') || '',
+      email: customerProfile?.email || '',
+    });
+  };
+
+  const submitHotelBooking = (e) => {
+    e.preventDefault();
+    if (!selectedHotelProperty || !selectedHotelRoom) return;
+    setHotelBookingSubmitting(true);
+    setHotelBookingError('');
+    fetch(`${API_BASE}/hotels/book`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
+      },
+      body: JSON.stringify({
+        chain_code: selectedHotelProperty.chain_code,
+        property_code: selectedHotelProperty.property_code,
+        property_name: selectedHotelProperty.property_name,
+        city: selectedHotelProperty.address?.city,
+        country_code: selectedHotelProperty.address?.country_code,
+        booking_code: selectedHotelRoom.booking_code,
+        check_in_date: selectedHotelProperty.check_in_date,
+        check_out_date: selectedHotelProperty.check_out_date,
+        rooms: parseInt(hotelRooms, 10) || 1,
+        currency: selectedHotelRoom.currency,
+        base_price: selectedHotelRoom.base_price,
+        total_taxes: selectedHotelRoom.total_taxes,
+        total_price: selectedHotelRoom.total_price,
+        room_description: selectedHotelRoom.room_description,
+        travelers: [hotelGuestForm],
+      }),
+    })
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(d => { setHotelBookingConfirmation(d.booking); setHotelBookingSubmitting(false); })
+      .catch(err => { setHotelBookingError(err.message); setHotelBookingSubmitting(false); });
+  };
+
   // Search state
   const [searchType, setSearchType] = useState('oneway'); // 'oneway' | 'roundtrip' | 'multicity'
   const [searchOrigin, setSearchOrigin] = useState('CMB');
@@ -1477,6 +1746,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               ✈ Results ({flights.length})
             </button>
           )}
+          <button className={`nav-tab ${activeTab === 'hotels' ? 'active' : ''}`} onClick={() => setActiveTab('hotels')}>Hotels</button>
+          <button className={`nav-tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={openPackages}>Tour Packages</button>
+          <button className={`nav-tab ${activeTab === 'visa' ? 'active' : ''}`} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>Visa</button>
           <button className={`nav-tab ${activeTab === 'cancelRequest' ? 'active' : ''}`} onClick={() => openCancellationRequest(null)}>Cancel Booking</button>
           <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
           <button className={`nav-tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -1518,10 +1790,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </button>
                 <button className="btn btn-secondary" onClick={() => setActiveTab('account')}>My Account</button>
               </div>
-              <div className="hero-badge-container">
-                <span className="hero-badge">✅ Instant PNR &amp; Ticketing</span>
-                <span className="hero-badge">🔒 Live GDS Data</span>
-              </div>
             </div>
           </section>
 
@@ -1537,10 +1805,61 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
               <div>
                 <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Book Flights</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Search live global GDS inventory and book flights in real time with instant PNR generation.</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Search live global GDS inventory, choose your seat, and book flights in real time with instant PNR generation.</div>
               </div>
               <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#c3122e', fontWeight: '700', fontSize: '0.82rem' }}>
                 Open Booking Engine
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </div>
+            </div>
+
+            {/* Hotel Booking */}
+            <div onClick={() => setActiveTab('hotels')} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#0369a1'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(3,105,161,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #0369a1, #075985)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M3 21h18M5 21V9l7-6 7 6v12M9 21v-6h6v6"/></svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Hotel Booking</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Search live hotel availability worldwide and book your stay on the same global Travelport network as our flights.</div>
+              </div>
+              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#0369a1', fontWeight: '700', fontSize: '0.82rem' }}>
+                Browse Hotels
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </div>
+            </div>
+
+            {/* Tour Packages */}
+            <div onClick={openPackages} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#b45309'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(180,83,9,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #b45309, #92400e)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Tour Packages</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Handpicked holiday packages — flights, stay and activities bundled together. Pick the best one for you and request to book.</div>
+              </div>
+              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#b45309', fontWeight: '700', fontSize: '0.82rem' }}>
+                View Packages
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </div>
+            </div>
+
+            {/* Visa Requirements */}
+            <div onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#6d28d9'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(109,40,217,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #6d28d9, #5b21b6)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2"/><circle cx="12" cy="9" r="2.5"/><path d="M8 17c0-2 1.8-3 4-3s4 1 4 3"/></svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Visa Requirements</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Check visa requirements for your destination based on your nationality before you travel.</div>
+              </div>
+              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6d28d9', fontWeight: '700', fontSize: '0.82rem' }}>
+                Check Visa
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
               </div>
             </div>
@@ -2912,7 +3231,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           {flight.stops > 0 && <div className="rc-stops-badge">{flight.stops} Stop{flight.stops > 1 ? 's' : ''}</div>}
                           {flight.stops === 0 && <div className="rc-nonstop-badge">Non-stop</div>}
                           {/* Seat-map availability badge — heuristic from carrier code Travelport returned.
-                              Definitive check is always the live Travelport /api/bookings/initiate call. */}
+                              Definitive check is always the live Travelport /api/bookings/initiate call
+                              (after the customer submits traveler details) — a search-time live check
+                              was tried and reverted: Travelport's live inventory can change between
+                              search and the customer actually clicking through, so a "verified" badge
+                              at search time can already be stale by the time it matters, and checking
+                              10 flights per search also made requests slow enough to intermittently
+                              hit "NetworkError" on real networks. The initiate-time check is the single
+                              source of truth. */}
                           {flight.seat_map_heuristic === true ? (
                             <div title="This airline typically supports seat selection via Travelport GDS. The actual seat map will be confirmed when you proceed to booking." style={{
                               display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
@@ -4228,6 +4554,534 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
         </div>
       )}
 
+      {/* ── TOUR / TRAVEL PACKAGES TAB (public — no sign-in required) ──────── */}
+      {activeTab === 'packages' && (
+        <div className="tab-content animate-fade" style={{ maxWidth: '900px', margin: '0 auto' }}>
+          {!selectedPackage ? (
+            <>
+              <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+                <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Tour Packages</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+                  Curated holiday packages — flights, stay, and activities bundled together. Pick one and request to book; our team will confirm availability and payment with you directly.
+                </p>
+              </section>
+
+              {packagesError && <div className="error-banner">{packagesError}</div>}
+              {packagesLoading ? (
+                <div className="loading-state"><div className="spinner"></div><p>Loading packages...</p></div>
+              ) : packages.length === 0 ? (
+                <div className="empty-state glass-panel animate-fade">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 17h20M2 12h20M2 7h20"/></svg>
+                  <p>No tour packages available right now — check back soon.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.25rem' }}>
+                  {packages.map(pkg => (
+                    <div key={pkg.id} className="glass-panel" style={{ borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{
+                        height: '150px', background: pkg.image_url ? `url(${pkg.image_url}) center/cover no-repeat` : 'linear-gradient(135deg,#0f172a,#334155)',
+                        display: 'flex', alignItems: 'flex-end', padding: '0.75rem',
+                      }}>
+                        <span style={{ background: 'rgba(15,23,42,0.75)', color: 'white', fontSize: '0.72rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '999px' }}>
+                          {pkg.duration_days}D / {pkg.duration_nights}N
+                        </span>
+                      </div>
+                      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1 }}>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--gs-dark)' }}>{pkg.title}</h3>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{pkg.destination}</p>
+                        {pkg.summary && <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{pkg.summary}</p>}
+                        <div style={{ marginTop: 'auto', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>From</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gs-crimson)' }}>{pkg.currency} {Number(pkg.price).toLocaleString()}</div>
+                          </div>
+                          <button className="btn btn-primary btn-sm" onClick={() => openPackageDetail(pkg)}>View Details</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <section className="search-section glass-panel">
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedPackage(null)} style={{ marginBottom: '1rem' }}>← Back to Packages</button>
+
+              {selectedPackage.image_url && (
+                <div style={{ height: '220px', borderRadius: '10px', overflow: 'hidden', marginBottom: '1.25rem', background: `url(${selectedPackage.image_url}) center/cover no-repeat` }} />
+              )}
+
+              <h2 className="section-title" style={{ marginBottom: '0.2rem' }}>{selectedPackage.title}</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1rem' }}>
+                {selectedPackage.destination} · {selectedPackage.duration_days} Days / {selectedPackage.duration_nights} Nights
+              </p>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--gs-crimson)', marginBottom: '1.25rem' }}>
+                {selectedPackage.currency} {Number(selectedPackage.price).toLocaleString()} <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>per person</span>
+              </div>
+
+              {selectedPackage.description && (
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: 1.6 }}>{selectedPackage.description}</p>
+              )}
+
+              {selectedPackage.itinerary && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--gs-dark)', marginBottom: '0.4rem' }}>Itinerary</h4>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-line', lineHeight: 1.6 }}>{selectedPackage.itinerary}</p>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                {selectedPackage.inclusions && (
+                  <div style={{ flex: 1, minWidth: '220px' }}>
+                    <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#166534', marginBottom: '0.4rem' }}>✅ Inclusions</h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-line', lineHeight: 1.6 }}>{selectedPackage.inclusions}</p>
+                  </div>
+                )}
+                {selectedPackage.exclusions && (
+                  <div style={{ flex: 1, minWidth: '220px' }}>
+                    <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#991b1b', marginBottom: '0.4rem' }}>❌ Exclusions</h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-line', lineHeight: 1.6 }}>{selectedPackage.exclusions}</p>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '1.25rem' }}>
+                {packageBookingSubmitted ? (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1.25rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>✅</div>
+                    <p style={{ fontWeight: 700, color: '#166534', margin: '0 0 0.35rem' }}>Booking request submitted</p>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                      Our team will contact you at <strong>{packageBookingForm.email}</strong> to confirm availability and payment.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={submitPackageBookingRequest}>
+                    <h4 style={{ fontSize: '0.95rem', color: 'var(--gs-dark)', marginBottom: '0.75rem' }}>Request to Book</h4>
+                    {packageBookingError && <div className="error-banner">{packageBookingError}</div>}
+                    <div className="form-group">
+                      <label className="form-label">Full Name *</label>
+                      <input className="form-input" required value={packageBookingForm.full_name}
+                        onChange={e => setPackageBookingForm(f => ({ ...f, full_name: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Email Address *</label>
+                      <input type="email" className="form-input" required value={packageBookingForm.email}
+                        onChange={e => setPackageBookingForm(f => ({ ...f, email: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Phone *</label>
+                      <input type="tel" className="form-input" required value={packageBookingForm.phone}
+                        onChange={e => setPackageBookingForm(f => ({ ...f, phone: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Number of Travelers *</label>
+                      <input type="number" min="1" max="50" className="form-input" required value={packageBookingForm.num_travelers}
+                        onChange={e => setPackageBookingForm(f => ({ ...f, num_travelers: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Preferred Travel Date</label>
+                      <input type="date" className="form-input" value={packageBookingForm.preferred_date}
+                        onChange={e => setPackageBookingForm(f => ({ ...f, preferred_date: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Notes (optional)</label>
+                      <textarea className="form-input" rows={3} value={packageBookingForm.notes}
+                        onChange={e => setPackageBookingForm(f => ({ ...f, notes: e.target.value }))} />
+                    </div>
+                    <button type="submit" className="btn btn-primary" disabled={packageBookingSubmitting} style={{ width: '100%', marginTop: '0.5rem' }}>
+                      {packageBookingSubmitting ? 'Submitting…' : 'Submit Booking Request'}
+                    </button>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.75rem', textAlign: 'center' }}>
+                      This submits a request only — no payment is taken now. Our team will follow up to confirm.
+                    </p>
+                  </form>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+
+      {/* ── HOTEL BOOKING TAB (public — Travelport Stays search + book) ────── */}
+      {activeTab === 'hotels' && (
+        <div className="tab-content animate-fade" style={{ maxWidth: '900px', margin: '0 auto' }}>
+          {hotelBookingConfirmation ? (
+            <section className="search-section glass-panel" style={{ textAlign: 'center', padding: '2rem' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✅</div>
+              <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Hotel Booking Confirmed</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.25rem' }}>
+                {hotelBookingConfirmation.property_name} · {hotelBookingConfirmation.check_in_date} → {hotelBookingConfirmation.check_out_date}
+              </p>
+              <div style={{ display: 'inline-block', textAlign: 'left', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1.25rem 1.5rem' }}>
+                <p style={{ margin: '0 0 0.4rem' }}><strong>Locator:</strong> {hotelBookingConfirmation.locator_code || '—'}</p>
+                <p style={{ margin: '0 0 0.4rem' }}><strong>Confirmation #:</strong> {hotelBookingConfirmation.confirmation_number || '—'}</p>
+                <p style={{ margin: '0 0 0.4rem' }}><strong>Room:</strong> {hotelBookingConfirmation.room_description || '—'}</p>
+                <p style={{ margin: 0 }}><strong>Total:</strong> {hotelBookingConfirmation.currency} {Number(hotelBookingConfirmation.total_price).toLocaleString()}</p>
+              </div>
+              <div style={{ marginTop: '1.5rem' }}>
+                <button className="btn btn-secondary" onClick={() => {
+                  setHotelBookingConfirmation(null);
+                  setSelectedHotelProperty(null);
+                  setSelectedHotelRoom(null);
+                  setHotelProperties([]);
+                  setHotelSearched(false);
+                }}>Search More Hotels</button>
+              </div>
+            </section>
+          ) : selectedHotelProperty && selectedHotelRoom ? (
+            <section className="search-section glass-panel">
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedHotelRoom(null)} style={{ marginBottom: '1rem' }}>← Back to Rooms</button>
+              <h2 className="section-title" style={{ marginBottom: '0.2rem' }}>{selectedHotelProperty.property_name}</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1rem' }}>
+                {selectedHotelRoom.room_description} · {selectedHotelProperty.check_in_date} → {selectedHotelProperty.check_out_date}
+              </p>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--gs-crimson)', marginBottom: '1.25rem' }}>
+                {selectedHotelRoom.currency} {Number(selectedHotelRoom.total_price).toLocaleString()} <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>total for stay</span>
+              </div>
+
+              <form onSubmit={submitHotelBooking}>
+                <h4 style={{ fontSize: '0.95rem', color: 'var(--gs-dark)', marginBottom: '0.75rem' }}>Lead Guest Details</h4>
+                {hotelBookingError && <div className="error-banner">{hotelBookingError}</div>}
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
+                    <label className="form-label">First Name *</label>
+                    <input className="form-input" required value={hotelGuestForm.first_name}
+                      onChange={e => setHotelGuestForm(f => ({ ...f, first_name: e.target.value }))} />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
+                    <label className="form-label">Last Name *</label>
+                    <input className="form-input" required value={hotelGuestForm.last_name}
+                      onChange={e => setHotelGuestForm(f => ({ ...f, last_name: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email Address *</label>
+                  <input type="email" className="form-input" required value={hotelGuestForm.email}
+                    onChange={e => setHotelGuestForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Phone *</label>
+                  <input type="tel" className="form-input" required value={hotelGuestForm.phone}
+                    onChange={e => setHotelGuestForm(f => ({ ...f, phone: e.target.value }))} />
+                </div>
+                <button type="submit" className="btn btn-primary" disabled={hotelBookingSubmitting} style={{ width: '100%', marginTop: '0.5rem' }}>
+                  {hotelBookingSubmitting ? 'Booking…' : `Confirm Booking — ${selectedHotelRoom.currency} ${Number(selectedHotelRoom.total_price).toLocaleString()}`}
+                </button>
+              </form>
+            </section>
+          ) : selectedHotelProperty ? (
+            <section className="search-section glass-panel">
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedHotelProperty(null)} style={{ marginBottom: '1rem' }}>← Back to Results</button>
+              <h2 className="section-title" style={{ marginBottom: '0.2rem' }}>{selectedHotelProperty.property_name}</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>
+                {[selectedHotelProperty.address?.street, selectedHotelProperty.address?.city, selectedHotelProperty.address?.country_code].filter(Boolean).join(', ')}
+              </p>
+              {(selectedHotelProperty.rooms || []).length === 0 ? (
+                <div className="empty-state glass-panel animate-fade">
+                  <p>No rooms available for this property on your selected dates.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {selectedHotelProperty.rooms.map((room, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem' }}>
+                      <div>
+                        <p style={{ margin: '0 0 0.2rem', fontWeight: 700, color: 'var(--gs-dark)' }}>{room.room_description || 'Room'}</p>
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          {room.refundable ? 'Refundable' : 'Non-refundable'}
+                          {room.breakfast_included ? ' · Breakfast included' : ''}
+                          {room.wifi_included ? ' · WiFi included' : ''}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gs-crimson)' }}>{room.currency} {Number(room.total_price).toLocaleString()}</div>
+                        <button className="btn btn-primary btn-sm" style={{ marginTop: '0.35rem' }} onClick={() => selectHotelRoom(room)}>Select Room</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : (
+            <>
+              <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+                <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Hotel Booking</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>
+                  Search live hotel availability and book your stay — powered by the same Travelport network as our flights.
+                </p>
+                <form onSubmit={searchHotels}>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <AirportSearchSelect
+                      value={hotelDestination}
+                      onChange={setHotelDestination}
+                      label="Destination *"
+                      placeholder="Search city or airport..."
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
+                      <label className="form-label">Check-in *</label>
+                      <input type="date" className="form-input" required value={hotelCheckIn} min={getTomorrow()}
+                        onChange={e => setHotelCheckIn(e.target.value)} />
+                    </div>
+                    <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
+                      <label className="form-label">Check-out *</label>
+                      <input type="date" className="form-input" required value={hotelCheckOut} min={hotelCheckIn}
+                        onChange={e => setHotelCheckOut(e.target.value)} />
+                    </div>
+                    <div className="form-group" style={{ flex: 1, minWidth: '120px' }}>
+                      <label className="form-label">Adults</label>
+                      <input type="number" min="1" max="9" className="form-input" value={hotelAdults}
+                        onChange={e => setHotelAdults(e.target.value)} />
+                    </div>
+                    <div className="form-group" style={{ flex: 1, minWidth: '120px' }}>
+                      <label className="form-label">Rooms</label>
+                      <input type="number" min="1" max="9" className="form-input" value={hotelRooms}
+                        onChange={e => setHotelRooms(e.target.value)} />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn btn-primary" disabled={hotelSearching || !hotelDestination} style={{ width: '100%', marginTop: '0.5rem' }}>
+                    {hotelSearching ? 'Searching…' : 'Search Hotels'}
+                  </button>
+                </form>
+              </section>
+
+              {hotelSearchError && <div className="error-banner">{hotelSearchError}</div>}
+              {hotelSearching ? (
+                <div className="loading-state"><div className="spinner"></div><p>Searching hotels...</p></div>
+              ) : hotelSearched && hotelProperties.length === 0 && !hotelSearchError ? (
+                <div className="empty-state glass-panel animate-fade">
+                  <p>No hotels found for this destination and dates.</p>
+                </div>
+              ) : hotelProperties.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.25rem' }}>
+                  {hotelProperties.map((property, idx) => (
+                    <div key={`${property.chain_code}-${property.property_code}-${idx}`} className="glass-panel" style={{ borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{
+                        height: '150px', background: property.image_urls?.[0] ? `url(${property.image_urls[0]}) center/cover no-repeat` : 'linear-gradient(135deg,#0f172a,#334155)',
+                      }} />
+                      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1 }}>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--gs-dark)' }}>{property.property_name}</h3>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {[property.address?.city, property.address?.country_code].filter(Boolean).join(', ')}
+                        </p>
+                        <div style={{ marginTop: 'auto', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>From</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gs-crimson)' }}>
+                              {property.lowest_price != null ? `${property.lowest_price_currency} ${Number(property.lowest_price).toLocaleString()}` : '—'}
+                            </div>
+                          </div>
+                          <button className="btn btn-primary btn-sm" onClick={() => openHotelProperty(property)}>View Rooms</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── VISA REQUIREMENTS TAB (public — no sign-in required) ───────────── */}
+      {activeTab === 'visa' && (
+        <div className="tab-content animate-fade" style={{ maxWidth: '640px', margin: '0 auto' }}>
+          <section className="search-section glass-panel">
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Visa Requirements</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0, marginBottom: '1.25rem' }}>
+              Check visa requirements for your destination based on your nationality.
+            </p>
+
+            <form onSubmit={checkVisaRequirement}>
+              <div className="form-group">
+                <label className="form-label">Your Nationality *</label>
+                <select className="form-input" required value={visaNationality} onChange={e => { setVisaNationality(e.target.value); setVisaResult(null); }}>
+                  <option value="">-- Select nationality --</option>
+                  {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Destination Country *</label>
+                <select className="form-input" required value={visaDestination} onChange={e => selectVisaDestination(e.target.value)}>
+                  <option value="">-- Select destination --</option>
+                  {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+                {destinationConsultant?.found && (
+                  <p style={{ fontSize: '0.78rem', color: 'var(--gs-crimson)', fontWeight: 600, marginTop: '0.4rem', marginBottom: 0 }}>
+                    👤 Your visa consultant for {visaDestination}: {destinationConsultant.consultant_name}
+                  </p>
+                )}
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={visaChecking || !visaNationality || !visaDestination} style={{ width: '100%', marginTop: '0.5rem' }}>
+                {visaChecking ? 'Checking…' : 'Check Requirements'}
+              </button>
+            </form>
+
+            {visaError && <div className="error-banner" style={{ marginTop: '1rem' }}>{visaError}</div>}
+
+            {visaResult && (
+              <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px dashed var(--border-color)' }}>
+                {visaResult.found ? (
+                  (() => {
+                    const styleMap = {
+                      required: { bg: '#fef2f2', border: '#fecaca', color: '#991b1b', label: '⚠️ Visa Required' },
+                      not_required: { bg: '#f0fdf4', border: '#bbf7d0', color: '#166534', label: '✅ Visa Not Required' },
+                      visa_on_arrival: { bg: '#eff6ff', border: '#bfdbfe', color: '#1e40af', label: '🛬 Visa on Arrival' },
+                      e_visa: { bg: '#eff6ff', border: '#bfdbfe', color: '#1e40af', label: '💻 e-Visa Available' },
+                    };
+                    const s = styleMap[visaResult.visa_required] || styleMap.required;
+                    return (
+                      <div>
+                        <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: '10px', padding: '1rem 1.1rem', marginBottom: '1rem' }}>
+                          <div style={{ fontWeight: 800, fontSize: '1rem', color: s.color }}>{s.label}</div>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                            {visaResult.nationality} passport holders traveling to {visaResult.destination}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
+                          {visaResult.visa_type && <div><strong>Visa Type:</strong> {visaResult.visa_type}</div>}
+                          {visaResult.processing_time && <div><strong>Processing Time:</strong> {visaResult.processing_time}</div>}
+                          {visaResult.validity && <div><strong>Validity:</strong> {visaResult.validity}</div>}
+                          {visaResult.notes && <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}><strong>Notes:</strong> {visaResult.notes}</div>}
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '10px', padding: '1.25rem', textAlign: 'center' }}>
+                    <p style={{ fontWeight: 700, color: '#475569', margin: '0 0 0.35rem' }}>No information available yet</p>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                      We don't have documented visa requirements for {visaResult.nationality} → {visaResult.destination} yet.
+                      Please contact our team directly for the latest requirements.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {visaResult && !showConsultForm && !consultSuccess && (
+              <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px dashed var(--border-color)', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                  {destinationConsultant?.found
+                    ? <>Want expert help with your application? Book a slot with <strong>{destinationConsultant.consultant_name}</strong>, our {visaDestination} visa consultant.</>
+                    : 'Want expert help with your application? Book a slot with our visa consultant.'}
+                </p>
+                <button type="button" className="btn btn-primary" onClick={openConsultForm} style={{ width: '100%' }}>
+                  Book a Visa Consultation
+                </button>
+              </div>
+            )}
+
+            {showConsultForm && !consultSuccess && (
+              <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px dashed var(--border-color)' }}>
+                <h3 className="results-heading" style={{ fontSize: '1rem' }}>Book a Visa Consultation</h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 0, marginBottom: '1rem' }}>
+                  {visaNationality} → {visaDestination}. Two slots available each day.
+                  {destinationConsultant?.found && <> With <strong>{destinationConsultant.consultant_name}</strong>.</>}
+                </p>
+
+                <form onSubmit={submitConsultBooking}>
+                  <div className="form-group">
+                    <label className="form-label">Consultation Date *</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      required
+                      min={getTomorrow()}
+                      value={consultDate}
+                      onChange={e => loadConsultSlots(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Time Slot *</label>
+                    {consultSlotsLoading ? (
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Loading slots…</p>
+                    ) : consultSlotsError ? (
+                      <div className="error-banner">{consultSlotsError}</div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '0.6rem' }}>
+                        {(consultSlots.length ? consultSlots : VISA_CONSULT_SLOT_TIMES.map(t => ({ time: t, available: true }))).map(s => (
+                          <button
+                            type="button"
+                            key={s.time}
+                            disabled={!s.available}
+                            onClick={() => setSelectedConsultSlot(s.time)}
+                            style={{
+                              flex: 1, padding: '0.7rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: s.available ? 'pointer' : 'not-allowed',
+                              border: selectedConsultSlot === s.time ? '2px solid var(--gs-crimson)' : '1px solid var(--border-color)',
+                              background: !s.available ? '#f1f5f9' : (selectedConsultSlot === s.time ? '#fef2f2' : 'white'),
+                              color: !s.available ? '#94a3b8' : (selectedConsultSlot === s.time ? 'var(--gs-crimson)' : '#1e293b'),
+                              textDecoration: !s.available ? 'line-through' : 'none',
+                            }}
+                          >
+                            {s.time}{!s.available && ' (booked)'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Your Name *</label>
+                    <input type="text" className="form-input" required value={consultForm.full_name} onChange={e => setConsultForm(f => ({ ...f, full_name: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Email *</label>
+                    <input type="email" className="form-input" required value={consultForm.email} onChange={e => setConsultForm(f => ({ ...f, email: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Phone *</label>
+                    <input type="tel" className="form-input" required value={consultForm.phone} onChange={e => setConsultForm(f => ({ ...f, phone: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Notes (optional)</label>
+                    <textarea className="form-input" rows={2} value={consultForm.notes} onChange={e => setConsultForm(f => ({ ...f, notes: e.target.value }))} />
+                  </div>
+
+                  {consultError && <div className="error-banner" style={{ marginBottom: '1rem' }}>{consultError}</div>}
+
+                  <div style={{ display: 'flex', gap: '0.6rem' }}>
+                    <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowConsultForm(false)}>Cancel</button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      style={{ flex: 2 }}
+                      disabled={consultSubmitting || !consultDate || !selectedConsultSlot || !consultForm.full_name || !consultForm.email || !consultForm.phone}
+                    >
+                      {consultSubmitting ? 'Booking…' : 'Confirm Booking'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {consultSuccess && (
+              <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px dashed var(--border-color)' }}>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1.25rem', textAlign: 'center' }}>
+                  <p style={{ fontWeight: 800, color: '#166534', margin: '0 0 0.35rem' }}>✅ Consultation Booked</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    {consultSuccess.slot_date} at {consultSuccess.slot_time}. We'll be in touch at {consultSuccess.email}.
+                  </p>
+                  {!consultSuccess.email_sent && (
+                    <p style={{ fontSize: '0.75rem', color: '#92400e', marginTop: '0.6rem' }}>
+                      Your booking is saved, but the confirmation email couldn't be sent — our team will still see it and follow up.
+                    </p>
+                  )}
+                </div>
+                <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: '0.75rem' }} onClick={() => { setConsultSuccess(null); setShowConsultForm(false); }}>
+                  Done
+                </button>
+              </div>
+            )}
+
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1.25rem', textAlign: 'center' }}>
+              Visa requirements can change — always confirm with the relevant embassy or consulate before traveling.
+            </p>
+          </section>
+        </div>
+      )}
+
       {/* ── CANCEL BOOKING REQUEST TAB (public — no sign-in required) ──────── */}
       {activeTab === 'cancelRequest' && (
         <div className="tab-content animate-fade" style={{ maxWidth: '640px', margin: '0 auto' }}>
@@ -5285,35 +6139,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               padding: '1rem 1.5rem',
               borderBottom: '1px solid #e2e8f0',
               display: 'flex',
-              flexWrap: 'wrap',
-              justifyContent: 'space-between',
               alignItems: 'center',
-              gap: '0.6rem'
+              gap: '0.5rem'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>✈️</span>
-                <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#1e293b' }}>Official E-Ticket & Itinerary</span>
-              </div>
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => handleRefreshTicket(issuedTicket.locator_code || issuedTicket.pnr)} disabled={refreshingTicket} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: '#7c3aed', color: 'white', border: '1px solid #7c3aed' }}>
-                  <span>🔄</span> {refreshingTicket ? 'Syncing...' : 'Sync PNR'}
-                </button>
-                <button className="btn btn-primary btn-sm" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
-                  <span>🖨️</span> Print
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={handleDownloadPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: '#0284c7', color: 'white', border: '1px solid #0284c7' }}>
-                  <span>📥</span> PDF
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={handleShareWhatsApp} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: '#22c55e', color: 'white', border: '1px solid #22c55e' }}>
-                  <span>💬</span> WhatsApp
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={handleShareEmail} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: '#64748b', color: 'white', border: '1px solid #64748b' }}>
-                  <span>✉️</span> Email
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={closeBookingFlow} style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
-                  Close
-                </button>
-              </div>
+              <span style={{ fontSize: '1.25rem' }}>✈️</span>
+              <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#1e293b' }}>Official E-Ticket & Itinerary</span>
             </div>
 
             {/* THE PRINTABLE TICKET RECEIPT */}

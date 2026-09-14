@@ -11,6 +11,7 @@ To modify ticket issuance or retrieval logic: edit only this file.
 import httpx
 import logging
 import uuid
+import database
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
@@ -671,6 +672,22 @@ def cancel_reservation(locator_code: str) -> bool:
       2. POST cancelitems (cancelAllInd: true) — cancel the offer.
       3. POST commit — finalize the cancellation on the reservation.
 
+    Step 3's commit body differs by content source (developer.travelport.com/
+    docs/flights/ndc/ndc-guide): NDC requires an explicit
+    {"RetainFlag": false} body to signal a cancel rather than a retain/modify;
+    GDS keeps the existing empty-string commit body used for both booking and
+    cancellation there.
+
+    Content source is read from the LOCAL database cache's fare_source
+    (saved at /confirm time from the original commit response), not from
+    this buildfromlocator response — confirmed live that buildfromlocator
+    returns no Offer[] at all here (top-level keys: @type, Identifier,
+    Traveler, FormOfPayment, Receipt, ReservationComment), the same gap
+    already documented elsewhere in this file for retrieve_reservation() on
+    NDC PNRs. Falls back to the (likely always-empty) Offer/Product lookup
+    only if there's no local cache row, so an uncached PNR still defaults
+    safely to the existing GDS-style empty-body commit rather than guessing.
+
     Args:
         locator_code (str): PNR to cancel
 
@@ -691,11 +708,24 @@ def cancel_reservation(locator_code: str) -> bool:
         if not workbench_id:
             raise ValueError("No workbench ID returned from post-commit workbench creation")
 
+        cached_booking = database.get_booking_by_locator(locator_code)
+        if cached_booking and cached_booking.get("fare_source"):
+            content_source = cached_booking["fare_source"]
+        else:
+            offers = reservation.get("Offer", [])
+            products = offers[0].get("Product", []) if offers else []
+            content_source = products[0].get("ContentSource", "GDS") if products else "GDS"
+        is_ndc = content_source == "NDC"
+
         cancel_url = TravelportEndpoints.cancel_items(workbench_id)
         _api_post(cancel_url, {"cancelAllInd": True})
 
         commit_url = TravelportEndpoints.commit_workbench(workbench_id)
-        _api_post(commit_url, "")
+        if is_ndc:
+            logger.info(f"NDC content — committing cancellation with RetainFlag: false ({locator_code})")
+            _api_post(commit_url, {"RetainFlag": False})
+        else:
+            _api_post(commit_url, "")
 
         logger.info(f"Reservation {locator_code} cancelled.")
         return True

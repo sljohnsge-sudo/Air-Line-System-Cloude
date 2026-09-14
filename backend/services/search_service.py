@@ -1118,6 +1118,18 @@ def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: 
         m["price"] = cheapest["price"]
         m["currency"] = cheapest["currency"]
         m["raw_offering"] = cheapest["raw_offering"]
+        # fare_source must be derived from this same cheapest fare option's
+        # raw_offering, not copied from the outbound one-way offer's own
+        # top-level tag (via the earlier **o_offer spread) — that tag reflects
+        # only the FIRST fare option ever grouped under that flight, which can
+        # differ in ContentSource from the cheapest one actually shown here.
+        # Confirmed live: left unfixed, a mixed itinerary (one leg GDS, one
+        # NDC) displayed as pure "GDS", which misled a review of the booking
+        # logs into expecting full-payload fields (classOfService, etc.) that
+        # a mixed/NDC leg's reference-payload Add Offer never carries.
+        ob_source = cheapest["raw_offering"].get("outbound", {}).get("fare_source")
+        ib_source = cheapest["raw_offering"].get("inbound", {}).get("fare_source")
+        m["fare_source"] = ob_source if ob_source == ib_source else "Mixed"
 
     merged.sort(key=lambda x: x["price"])
     return merged

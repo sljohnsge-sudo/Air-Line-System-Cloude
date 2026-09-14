@@ -12,7 +12,7 @@ Workflow Steps:
   STEP 2d — Premium Flex Search
   STEP 2e — Premium Flex Flight Specific Search
   STEP 3  — (Frontend: user selects an offer)
-  STEP 3b — AirPrice / Price Confirmation (NDC/LCC only)
+  STEP 3b — AirPrice / Price Confirmation (GDS only — NDC/LCC wedges the PCC, see workbench_service.py)
   STEP 4  — Create Reservation Workbench
   STEP 5  — Add Offer to Workbench
   STEP 6  — Add Traveler(s) to Workbench
@@ -69,12 +69,10 @@ class TravelportEndpoints:
     # POST  → upsells for Premium Flex (GDS only, up to 99 upsells)
 
     # ── STEP 3b: AirPrice (Price Confirmation) ─────────────────────────────────
-    # "Air pricing is generally an optional but recommended step, it is
-    # required for low cost carriers and some NDC carriers." (Travelport's
-    # own AirPrice Reference Payload docs.) Not workbench-scoped — called
-    # directly against the cached Search transaction, before workbench
-    # creation. GDS content skips this (optional there; already pinned via
-    # the full-payload Add Offer).
+    # Called for GDS content only — confirmed live that calling this before
+    # booking an NDC offer wedges the PCC (see workbench_service.py's
+    # run_booking_flow docstring). Not workbench-scoped — called directly
+    # against the cached Search transaction, before workbench creation.
     AIRPRICE_REFERENCE = f"{_air}/price/offers/buildfromcatalogproductofferings"
 
     # ── STEP 4: Reservation Workbench ─────────────────────────────────────────

@@ -62,6 +62,14 @@ def _step_name(method: str, url: str) -> str:
         return "price_premiumflex"
     if "airavailability" in path.lower():
         return "availability"
+    # AirPrice (STEP 3b, GDS-only — see workbench_service.confirm_price) posts
+    # to /air/price/offers/buildfromcatalogproductofferings, which shares its
+    # trailing segment with the real workbench-scoped Add Offer call below
+    # ("/offers/buildfromcatalogproductofferings"). Must be checked first, or
+    # every AirPrice call gets mislabeled "add_offer" and is indistinguishable
+    # from the actual Add Offer step in the logs.
+    if "/price/offers/" in path:
+        return "airprice"
     if path.endswith("/travelers/list"):
         return "add_travelers_batch"
     if re.search(r"/travelers$", path):

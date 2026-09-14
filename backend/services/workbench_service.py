@@ -46,6 +46,25 @@ def _api_post(url: str, payload: dict | str, session_id: str | None = None) -> d
         return response.json()
 
 
+def _raise_if_error(result: dict, step_name: str) -> None:
+    """
+    Per Travelport support feedback on submitted logs: a GDS Add Offer call
+    returned HTTP 200 with an embedded failure ("0 Avail Closed" — the booked
+    class had closed for sale between search and book) that the caller never
+    checked for, so the flow continued as if it had succeeded. This checks
+    every response for an embedded Result.Error the same way commit_workbench()
+    and confirm_price() already did, and raises immediately with Travelport's
+    own error text instead of silently proceeding.
+    """
+    errors = (
+        result.get("Result", {}).get("Error", []) or
+        result.get("OfferListResponse", {}).get("Result", {}).get("Error", []) or
+        result.get("ReservationResponse", {}).get("Result", {}).get("Error", [])
+    )
+    if errors:
+        raise ValueError(f"Travelport {step_name} failed: {errors[0].get('Message')}")
+
+
 def _api_get(url: str, session_id: str | None = None) -> dict:
     """Internal helper for GET requests with automatic token retry."""
     headers = get_auth_headers(session_id)
@@ -470,13 +489,13 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
 
 def confirm_price(raw_offering: dict) -> str:
     """
-    STEP 3b: Confirm pricing via AirPrice — NDC/low-cost-carrier offers only.
-
-    Per Travelport's own AirPrice Reference Payload docs: "air pricing is
-    generally an optional but recommended step, it is required for low cost
-    carriers and some NDC carriers." GDS content skips this (existing
-    full-payload Add Offer already pins the exact fare/brand for GDS, and
-    AirPrice is only "recommended" there, not required).
+    STEP 3b: Confirm pricing via AirPrice — GDS offers only (see
+    run_booking_flow's docstring for why NDC/LCC content does not call this:
+    confirmed live to wedge the PCC for NDC on this account). Also serves
+    Travelport support's request to validate availability/fare between
+    Search and Book and catch a closed-for-sale class ("0 Avail Closed")
+    before spending a full workbench create/add-offer/add-traveler/commit
+    attempt on it.
 
     Not tied to any workbench — POSTs directly to /air/price/offers/... using
     the same CatalogProductOfferingsIdentifier/CatalogProductOfferingSelection
@@ -546,7 +565,27 @@ def confirm_price(raw_offering: dict) -> str:
     return priced_transaction_id
 
 
-def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
+def _build_reference_payload_offer(leg_offerings: list) -> dict:
+    """Reference-payload Add Offer request body — the proven path for
+    NDC/LCC content, and the fallback for GDS content with no segments."""
+    catalog_offerings_id = leg_offerings[0].get("CatalogProductOfferingsIdentifier", "")
+    offering_selections = [_build_offering_selection(leg) for leg in leg_offerings]
+    return {
+        "OfferQueryBuildFromCatalogProductOfferings": {
+            "BuildFromCatalogProductOfferingsRequest": {
+                "@type": "BuildFromCatalogProductOfferingsRequestAir",
+                "CatalogProductOfferingsIdentifier": {
+                    "Identifier": {
+                        "value": catalog_offerings_id
+                    }
+                },
+                "CatalogProductOfferingSelection": offering_selections
+            }
+        }
+    }
+
+
+def add_offer_to_workbench(workbench_id: str, raw_offering: dict, force_reference_payload: bool = False) -> dict:
     """
     STEP 5: Add the selected flight offer(s) to the workbench.
 
@@ -560,6 +599,11 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
               (2..N legs) produced by search_service.pair_multi_leg_offers
             All legs share the same CatalogProductOfferingsIdentifier since
             they come from the same search.
+        force_reference_payload (bool): Skip the full-payload attempt
+            entirely and go straight to reference payload. Set by
+            run_booking_flow() on its whole-flow retry after a full-payload
+            NDC/LCC attempt got past Add Offer but failed at Commit — see
+            its docstring for why that's a real, confirmed failure mode.
 
     Returns:
         dict: Updated workbench item response
@@ -568,37 +612,39 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict) -> dict:
 
     leg_offerings = _get_leg_offerings(raw_offering)
 
-    # Travelport GDS certification: use the full-payload AddOffer request for
-    # GDS carrier bookings. NDC/LCC content keeps the existing reference
-    # payload (Travelport: full payload is not supported for NDC).
     is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
     has_segments = all(leg.get("segments") for leg in leg_offerings)
 
-    if is_gds and has_segments:
+    if has_segments and not force_reference_payload:
+        # Per Travelport support's explicit request: include classOfService /
+        # AvailabilitySourceCode / boundFlightsInd, which only exist in the
+        # full-payload SpecificFlightCriteria block. Travelport's own Add
+        # Offer docs say full payload is "not supported for NDC" — attempted
+        # here anyway per instruction, but with a safety net: if it's
+        # rejected for non-GDS content, fall back to the reference payload
+        # immediately rather than letting the booking fail outright.
         payload = _build_full_payload_offer(leg_offerings)
         url = TravelportEndpoints.add_offer_to_workbench_full_payload(workbench_id)
-    else:
-        catalog_offerings_id = leg_offerings[0].get("CatalogProductOfferingsIdentifier", "")
-        offering_selections = [_build_offering_selection(leg) for leg in leg_offerings]
-        payload = {
-            "OfferQueryBuildFromCatalogProductOfferings": {
-                "BuildFromCatalogProductOfferingsRequest": {
-                    "@type": "BuildFromCatalogProductOfferingsRequestAir",
-                    "CatalogProductOfferingsIdentifier": {
-                        "Identifier": {
-                            "value": catalog_offerings_id
-                        }
-                    },
-                    "CatalogProductOfferingSelection": offering_selections
-                }
-            }
-        }
-        url = TravelportEndpoints.add_offer_to_workbench(workbench_id)
+        try:
+            result = _api_post_with_retry(url, payload, session_id=workbench_id)
+            _raise_if_error(result, "Add Offer (full payload)")
+            logger.info("Offer added to workbench (full payload).")
+            return result
+        except (ValueError, httpx.HTTPStatusError) as e:
+            if is_gds:
+                raise  # GDS full payload is the proven path — a real failure here must surface
+            logger.warning(
+                f"Full-payload Add Offer failed for non-GDS content ({e}); "
+                "falling back to reference payload (Travelport docs: full payload not supported for NDC)."
+            )
 
-    # Subsequent calls must include the workbench_id as session_id
-    # Use retry helper — this call frequently 504s on the Travelport sandbox
+    # Reference payload: either segments were unavailable, or (for non-GDS
+    # content) the full-payload attempt above failed and this is the fallback.
+    payload = _build_reference_payload_offer(leg_offerings)
+    url = TravelportEndpoints.add_offer_to_workbench(workbench_id)
     result = _api_post_with_retry(url, payload, session_id=workbench_id)
-    logger.info("Offer added to workbench.")
+    _raise_if_error(result, "Add Offer")
+    logger.info("Offer added to workbench (reference payload).")
     return result
 
 
@@ -627,7 +673,7 @@ def _calculate_age(date_of_birth: str) -> int | None:
         return None
 
 
-def _build_traveler_payload(traveler: dict, traveler_id: str | None = None) -> dict:
+def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_gds: bool = True) -> dict:
     """
     Build a single Traveler object from our internal passenger dict. Shared by
     both the single-traveler request (add_traveler_to_workbench) and the
@@ -645,6 +691,12 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None) -> d
         traveler_id (str | None): Set to "trav_1", "trav_2", ... when this
             traveler is part of a TravelerListRequest (required so Travelport
             can distinguish multiple passengers in one request).
+        is_gds (bool): False for NDC/LCC content. Per Travelport's NDC guide
+            (developer.travelport.com/docs/flights/ndc/ndc-guide), the Add
+            Traveler request must omit Telephone/extension for NDC — it's
+            listed there as a GDS-only field. docType is unaffected since this
+            codebase always sends "Passport", never the other GDS-only
+            "PassportCard" value the same guide calls out.
     """
     # Clean phone number and parse country code for Galileo 1G
     phone_clean = traveler.get("phone", "").replace("+", "").replace(" ", "").replace("-", "")
@@ -678,7 +730,7 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None) -> d
     }
     if traveler.get("phone_area_city_code"):
         telephone_entry["areaCityCode"] = traveler.get("phone_area_city_code")
-    if traveler.get("phone_extension"):
+    if traveler.get("phone_extension") and is_gds:
         telephone_entry["extension"] = traveler.get("phone_extension")
     if traveler.get("phone_city_code"):
         telephone_entry["cityCode"] = traveler.get("phone_city_code")
@@ -770,7 +822,7 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None) -> d
     return payload
 
 
-def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
+def add_traveler_to_workbench(workbench_id: str, traveler: dict, is_gds: bool = True) -> dict:
     """
     Add a SINGLE passenger/traveler to the workbench.
 
@@ -784,7 +836,7 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
     """
     logger.info(f"Adding traveler to workbench {workbench_id}: {traveler.get('first_name')} {traveler.get('last_name')}")
 
-    payload = {"Traveler": _build_traveler_payload(traveler)}
+    payload = {"Traveler": _build_traveler_payload(traveler, is_gds=is_gds)}
 
     url = TravelportEndpoints.update_workbench(workbench_id)
     result = _api_post(url, payload, session_id=workbench_id)
@@ -792,7 +844,7 @@ def add_traveler_to_workbench(workbench_id: str, traveler: dict) -> dict:
     return result
 
 
-def add_travelers_to_workbench(workbench_id: str, travelers: list) -> dict:
+def add_travelers_to_workbench(workbench_id: str, travelers: list, is_gds: bool = True) -> dict:
     """
     STEP 6: Add ALL passengers for a booking to the workbench in a SINGLE
     Travelport request (TravelerListRequest → .../travelers/list), instead of
@@ -804,6 +856,10 @@ def add_travelers_to_workbench(workbench_id: str, travelers: list) -> dict:
         workbench_id (str): Workbench ID from STEP 4
         travelers (list[dict]): All passengers for this booking/PNR — see
             _build_traveler_payload for the expected dict shape.
+        is_gds (bool): False for NDC/LCC content — passed through to
+            _build_traveler_payload to omit the GDS-only Telephone/extension
+            field per Travelport's NDC guide. Defaults True so any caller
+            that doesn't know the offer's content source keeps prior behavior.
 
     Returns:
         dict: Updated workbench response
@@ -815,7 +871,7 @@ def add_travelers_to_workbench(workbench_id: str, travelers: list) -> dict:
     logger.info(f"Adding {len(travelers)} traveler(s) to workbench {workbench_id} in a single request: {names}")
 
     traveler_payloads = [
-        _build_traveler_payload(t, traveler_id=f"trav_{i}")
+        _build_traveler_payload(t, traveler_id=f"trav_{i}", is_gds=is_gds)
         for i, t in enumerate(travelers, start=1)
     ]
 
@@ -828,6 +884,7 @@ def add_travelers_to_workbench(workbench_id: str, travelers: list) -> dict:
 
     url = TravelportEndpoints.add_travelers_list(workbench_id)
     result = _api_post(url, payload, session_id=workbench_id)
+    _raise_if_error(result, "Add Traveler(s)")
     logger.info(f"{len(travelers)} traveler(s) added to workbench in a single Travelport request.")
     return result
 
@@ -936,26 +993,43 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
     Galileo error 4350 (COMMIT OR IGNORE RESERVATION WORKBENCH).
 
     Steps:
+        3b. Confirm price via AirPrice (GDS offers only — see note below)
         4. Create workbench
         5. Add offer
         6. Add all travelers
         7. Commit → PNR
 
-    NOTE on AirPrice (STEP 3b): Travelport's docs describe AirPrice as
-    "required for low cost carriers and some NDC carriers" and "not
-    workbench-scoped." Confirmed live on this account it is NOT safe to call:
-    an AirPrice call before booking an NDC offer (Air India AI2275, CMB-BOM-DXB,
-    2026-09-09) reliably wedges this PCC — every subsequent workbench commit,
-    even a brand-new one, immediately fails with Galileo error 4350 (COMMIT OR
-    IGNORE RESERVATION WORKBENCH), and the error carries no identifier for the
-    existing stale-workbench recovery logic to target, so retries never
-    recover. The exact same NDC offer commits cleanly (PNR confirmed) when
-    AirPrice is skipped and Add Offer is sent straight from the Search
-    response's CatalogProductOfferingsIdentifier, as before. confirm_price()
-    is kept below, unused, in case this is account/PCC-specific and worth
-    revisiting later (e.g. after checking with Travelport support) — do not
-    call it from this flow without re-verifying against a live NDC booking
-    first.
+    NOTE on AirPrice (STEP 3b) — scoped to GDS only, per Travelport support
+    feedback on submitted logs asking for a Price step between Search and
+    Book: confirmed live on this account that calling AirPrice before booking
+    an NDC offer (Air India AI2275, CMB-BOM-DXB, 2026-09-09) reliably wedges
+    the PCC — every subsequent workbench commit, even a brand-new one,
+    immediately fails with Galileo error 4350 (COMMIT OR IGNORE RESERVATION
+    WORKBENCH), with no identifier in the error for the existing
+    stale-workbench recovery logic to target, so retries never recover. GDS
+    bookings showed no such issue in testing, and GDS is also where
+    Travelport support's own log review found the unchecked failure
+    ("0 Avail Closed") this step is meant to catch early. So: AirPrice runs
+    for GDS content only; NDC/LCC content still skips straight to Add Offer
+    as before. Do not extend this to NDC without first re-verifying against
+    a live NDC booking and/or hearing back from Travelport support on the
+    PCC-lock behavior above.
+
+    NOTE on full-payload Add Offer for non-GDS content: per Travelport
+    support's explicit request to include classOfService/
+    AvailabilitySourceCode/boundFlightsInd (full-payload-only fields),
+    add_offer_to_workbench() attempts the full payload for NDC/LCC content
+    too, despite Travelport's docs saying it's "not supported for NDC." Its
+    own internal fallback only catches a failure AT the Add Offer call
+    itself. Confirmed live: a full-payload NDC Add Offer can pass cleanly
+    (HTTP 200, no error) and then fail at Commit with a real fare-validation
+    error ("FARE IS NOT AVAILABLE FOR INPUT CRITERIA", Qatar Airways
+    QR659 CMB-DXB, 2026-09-09) — a clean failure (no PCC lock, unlike the
+    AirPrice incident), but still a booking that reference payload would
+    have completed successfully. So: on any non-stale-workbench ValueError
+    for non-GDS content, if this attempt used the full payload, this flow
+    retries ONCE more with a fresh workbench and force_reference_payload=True
+    rather than surfacing that failure to the caller.
 
     Args:
         raw_offering (dict): The raw flight offer from the catalog search.
@@ -973,8 +1047,24 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
     # per Travelport's own guidance that TraceId correlates one flow's linked
     # calls rather than being unique per individual request.
     with flow_trace_id():
-        # AirPrice (STEP 3b) is deliberately NOT called here — see the
-        # docstring above for the live-tested finding on why.
+        # STEP 3b — AirPrice, GDS content only. See docstring above for why
+        # NDC/LCC content still skips this. Confirmed once per flow, not per
+        # retry attempt, since it isn't workbench-scoped and its result (the
+        # priced transactionId) stays valid across workbench create/retry
+        # attempts below.
+        leg_offerings = _get_leg_offerings(raw_offering)
+        is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
+        if is_gds:
+            priced_transaction_id = confirm_price(raw_offering)
+            for leg in leg_offerings:
+                leg["CatalogProductOfferingsIdentifier"] = priced_transaction_id
+
+        # See docstring above: non-GDS content attempts the full-payload Add
+        # Offer first (for classOfService/etc.); if that gets past Add Offer
+        # but fails later at Commit, this flips to True for one whole-flow
+        # retry on a fresh workbench with reference payload forced.
+        force_reference_payload = False
+        already_fell_back_to_reference = False
 
         for attempt in range(1, max_retries + 1):
             workbench_id = None
@@ -984,7 +1074,7 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
                 logger.info(f"[Flow attempt {attempt}/{max_retries}] Workbench: {workbench_id}")
 
                 # STEP 5
-                add_offer_to_workbench(workbench_id, raw_offering)
+                add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=force_reference_payload)
 
                 # STEP 6 — All travelers on this PNR (Adult/Child/Infant) are sent
                 # to Travelport in ONE combined TravelerListRequest, not one call
@@ -996,7 +1086,7 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
                     travelers,
                     key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
                 )
-                add_travelers_to_workbench(workbench_id, ordered_travelers)
+                add_travelers_to_workbench(workbench_id, ordered_travelers, is_gds=is_gds)
 
                 # STEP 7
                 return commit_workbench(workbench_id)
@@ -1014,6 +1104,25 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
                     "stale workbench error (4350 COMMIT OR IGNORE RESERVATION WORKBENCH). "
                     "Please wait a moment and try again."
                 )
+            except ValueError as e:
+                # A real (non-stale-workbench) failure — e.g. commit_workbench's
+                # "did not return a PNR locator code" for a rejected fare.
+                if workbench_id:
+                    logger.warning(f"Error occurred during booking flow. Discarding workbench {workbench_id}...")
+                    try:
+                        discard_workbench(workbench_id)
+                    except Exception as discard_ex:
+                        logger.warning(f"Failed to discard workbench: {discard_ex}")
+                if not is_gds and not force_reference_payload and not already_fell_back_to_reference and attempt < max_retries:
+                    logger.warning(
+                        f"[Flow attempt {attempt}/{max_retries}] Full-payload booking attempt failed for "
+                        f"non-GDS content ({e}); retrying with reference payload forced (Travelport docs: "
+                        "full payload not supported for NDC)."
+                    )
+                    force_reference_payload = True
+                    already_fell_back_to_reference = True
+                    continue
+                raise
             except Exception as e:
                 # If any other error occurs, we must discard the workbench we just created
                 # so that it doesn't stay open and lock the GDS PCC session!

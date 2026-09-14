@@ -259,6 +259,146 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # ── Tour / Travel Packages (B2C, admin-curated catalog) ─────────────────
+    # Fixed, staff-created package listings (title, itinerary, price) that
+    # customers browse and request to book — no live Travelport search
+    # involved in building a package itself.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tour_packages (
+            id              INT AUTO_INCREMENT PRIMARY KEY,
+            title           VARCHAR(200) NOT NULL,
+            destination     VARCHAR(150) NOT NULL,
+            duration_days   INT NOT NULL,
+            duration_nights INT NOT NULL,
+            price           DOUBLE NOT NULL,
+            currency        VARCHAR(10) NOT NULL DEFAULT 'LKR',
+            image_url       VARCHAR(500),
+            summary         VARCHAR(500),
+            description     TEXT,
+            itinerary       TEXT,
+            inclusions      TEXT,
+            exclusions      TEXT,
+            valid_from      DATE NULL,
+            valid_to        DATE NULL,
+            is_active       TINYINT(1) NOT NULL DEFAULT 1,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_tour_package_active (is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # Customer booking requests for a package — same manual-review pattern as
+    # cancellation_requests: no payment/availability engine here, an admin
+    # reviews and arranges confirmation + payment directly with the customer.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS package_booking_requests (
+            id                  INT AUTO_INCREMENT PRIMARY KEY,
+            package_id          INT NOT NULL,
+            customer_id         INT NULL,
+            full_name           VARCHAR(150) NOT NULL,
+            email               VARCHAR(200) NOT NULL,
+            phone               VARCHAR(30) NOT NULL,
+            num_travelers       INT NOT NULL DEFAULT 1,
+            preferred_date      DATE NULL,
+            notes               VARCHAR(1000),
+            status              VARCHAR(20) NOT NULL DEFAULT 'pending',
+            admin_note          VARCHAR(500),
+            requested_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at         DATETIME NULL,
+            reviewed_by_admin_id INT NULL,
+            CONSTRAINT fk_package_request_package FOREIGN KEY (package_id) REFERENCES tour_packages(id) ON DELETE CASCADE,
+            CONSTRAINT fk_package_request_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+            INDEX idx_package_request_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── Visa Requirements (B2C, admin-curated lookup table) ─────────────────
+    # Staff enter known nationality->destination visa info; customers look it
+    # up by picking their nationality and destination. Not exhaustive — a
+    # missing pair just means we don't have that route documented yet.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS visa_requirements (
+            id               INT AUTO_INCREMENT PRIMARY KEY,
+            nationality      VARCHAR(100) NOT NULL,
+            destination      VARCHAR(100) NOT NULL,
+            visa_required    VARCHAR(30) NOT NULL DEFAULT 'required',
+            visa_type        VARCHAR(150),
+            processing_time  VARCHAR(100),
+            validity         VARCHAR(100),
+            notes            VARCHAR(1000),
+            created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_visa_pair (nationality, destination)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── Visa Consultants (admin-curated roster, one per destination country) ──
+    # Staff assign a named consultant to each destination country; the B2C
+    # visa consultation booking flow looks this up by the customer's chosen
+    # destination so the email is routed to the right person (falling back to
+    # the general VISA_CONSULTANT_EMAIL in .env when a country has none set).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS visa_consultants (
+            id               INT AUTO_INCREMENT PRIMARY KEY,
+            country          VARCHAR(100) NOT NULL,
+            consultant_name  VARCHAR(150) NOT NULL,
+            email            VARCHAR(200) NOT NULL,
+            phone            VARCHAR(30),
+            is_active        TINYINT(1) NOT NULL DEFAULT 1,
+            created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_visa_consultant_country (country)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── Visa Consultation Bookings (B2C, public) ─────────────────────────────
+    # Customer picks a date and one of two fixed daily slots (10:30 AM /
+    # 3:30 PM) to talk to the visa consultant. uq_visa_slot enforces one
+    # booking per date+slot at the database level, so a race between two
+    # customers submitting the same slot fails one of them with a clean
+    # duplicate-key error rather than double-booking the consultant.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS visa_consultations (
+            id                   INT AUTO_INCREMENT PRIMARY KEY,
+            customer_id          INT NULL,
+            nationality          VARCHAR(100) NOT NULL,
+            destination          VARCHAR(100) NOT NULL,
+            full_name            VARCHAR(150) NOT NULL,
+            email                VARCHAR(200) NOT NULL,
+            phone                VARCHAR(30) NOT NULL,
+            slot_date            DATE NOT NULL,
+            slot_time            VARCHAR(20) NOT NULL,
+            notes                VARCHAR(1000),
+            status               VARCHAR(20) NOT NULL DEFAULT 'pending',
+            email_sent           TINYINT(1) NOT NULL DEFAULT 0,
+            admin_note           VARCHAR(500),
+            requested_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at          DATETIME NULL,
+            reviewed_by_admin_id INT NULL,
+            CONSTRAINT fk_visa_consultation_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+            UNIQUE KEY uq_visa_slot (slot_date, slot_time),
+            INDEX idx_visa_consultation_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # visa_consultations.consultant_id/consultant_name/consultant_email —
+    # added via a guarded ALTER (same reasoning as bookings.customer_id
+    # above): visa_consultants didn't exist when visa_consultations was first
+    # created, and the consultant fields are snapshotted onto the booking row
+    # so a later edit/removal of the consultant doesn't rewrite history.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='visa_consultations' AND COLUMN_NAME='consultant_id'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE visa_consultations ADD COLUMN consultant_id INT NULL AFTER destination")
+        cursor.execute("ALTER TABLE visa_consultations ADD COLUMN consultant_name VARCHAR(150) NULL AFTER consultant_id")
+        cursor.execute("ALTER TABLE visa_consultations ADD COLUMN consultant_email VARCHAR(200) NULL AFTER consultant_name")
+        cursor.execute("""
+            ALTER TABLE visa_consultations ADD CONSTRAINT fk_visa_consultation_consultant
+            FOREIGN KEY (consultant_id) REFERENCES visa_consultants(id) ON DELETE SET NULL
+        """)
+
     conn.commit()
     cursor.close()
     populate_airports_table(conn)
@@ -706,6 +846,437 @@ def resolve_cancellation_request(request_id: int, status: str, admin_id: int, ad
         )
         conn.commit()
         cursor.execute("SELECT * FROM cancellation_requests WHERE id=%s", (request_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Tour / Travel Packages ────────────────────────────────────────────────────
+
+def create_tour_package(data: dict) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO tour_packages
+               (title, destination, duration_days, duration_nights, price, currency,
+                image_url, summary, description, itinerary, inclusions, exclusions,
+                valid_from, valid_to, is_active)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (data["title"], data["destination"], data["duration_days"], data["duration_nights"],
+             data["price"], data.get("currency", "LKR"), data.get("image_url"), data.get("summary"),
+             data.get("description"), data.get("itinerary"), data.get("inclusions"), data.get("exclusions"),
+             data.get("valid_from"), data.get("valid_to"), data.get("is_active", True)),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM tour_packages WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_tour_package(package_id: int, data: dict) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE tour_packages SET title=%s, destination=%s, duration_days=%s,
+               duration_nights=%s, price=%s, currency=%s, image_url=%s, summary=%s,
+               description=%s, itinerary=%s, inclusions=%s, exclusions=%s,
+               valid_from=%s, valid_to=%s, is_active=%s WHERE id=%s""",
+            (data["title"], data["destination"], data["duration_days"], data["duration_nights"],
+             data["price"], data.get("currency", "LKR"), data.get("image_url"), data.get("summary"),
+             data.get("description"), data.get("itinerary"), data.get("inclusions"), data.get("exclusions"),
+             data.get("valid_from"), data.get("valid_to"), data.get("is_active", True), package_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM tour_packages WHERE id=%s", (package_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_tour_package(package_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM tour_packages WHERE id=%s", (package_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_tour_packages(active_only: bool = True) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if active_only:
+        cursor.execute("SELECT * FROM tour_packages WHERE is_active=1 ORDER BY created_at DESC")
+    else:
+        cursor.execute("SELECT * FROM tour_packages ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_tour_package_by_id(package_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM tour_packages WHERE id=%s", (package_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def create_package_booking_request(
+    package_id: int, customer_id: int | None, full_name: str, email: str, phone: str,
+    num_travelers: int, preferred_date: str | None, notes: str | None,
+) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO package_booking_requests
+               (package_id, customer_id, full_name, email, phone, num_travelers, preferred_date, notes)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (package_id, customer_id, full_name, email, phone, num_travelers, preferred_date, notes),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM package_booking_requests WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_package_booking_requests(status: str | None = None) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if status:
+        cursor.execute(
+            """SELECT r.*, p.title AS package_title FROM package_booking_requests r
+               JOIN tour_packages p ON p.id = r.package_id
+               WHERE r.status=%s ORDER BY r.requested_at DESC""",
+            (status,),
+        )
+    else:
+        cursor.execute(
+            """SELECT r.*, p.title AS package_title FROM package_booking_requests r
+               JOIN tour_packages p ON p.id = r.package_id
+               ORDER BY r.requested_at DESC"""
+        )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_package_booking_request_by_id(request_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM package_booking_requests WHERE id=%s", (request_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def resolve_package_booking_request(request_id: int, status: str, admin_id: int, admin_note: str | None) -> dict:
+    """status must be 'confirmed' or 'rejected'."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE package_booking_requests SET status=%s, admin_note=%s,
+               reviewed_at=CURRENT_TIMESTAMP, reviewed_by_admin_id=%s WHERE id=%s""",
+            (status, admin_note, admin_id, request_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM package_booking_requests WHERE id=%s", (request_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Visa Requirements ──────────────────────────────────────────────────────────
+
+def create_visa_requirement(data: dict) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO visa_requirements
+               (nationality, destination, visa_required, visa_type, processing_time, validity, notes)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (data["nationality"], data["destination"], data["visa_required"], data.get("visa_type"),
+             data.get("processing_time"), data.get("validity"), data.get("notes")),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM visa_requirements WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_visa_requirement(requirement_id: int, data: dict) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE visa_requirements SET nationality=%s, destination=%s, visa_required=%s,
+               visa_type=%s, processing_time=%s, validity=%s, notes=%s WHERE id=%s""",
+            (data["nationality"], data["destination"], data["visa_required"], data.get("visa_type"),
+             data.get("processing_time"), data.get("validity"), data.get("notes"), requirement_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM visa_requirements WHERE id=%s", (requirement_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_visa_requirement(requirement_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM visa_requirements WHERE id=%s", (requirement_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Visa Consultants (admin-curated roster, one per destination country) ──────
+
+def get_visa_consultants() -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM visa_consultants ORDER BY country")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_visa_consultant_by_country(country: str) -> dict | None:
+    """Public lookup — only ever returns an active consultant."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM visa_consultants WHERE country=%s AND is_active=1",
+        (country,),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def create_visa_consultant(data: dict) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO visa_consultants (country, consultant_name, email, phone, is_active)
+               VALUES (%s,%s,%s,%s,%s)""",
+            (data["country"], data["consultant_name"], data["email"], data.get("phone"), data.get("is_active", True)),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM visa_consultants WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_visa_consultant(consultant_id: int, data: dict) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE visa_consultants SET country=%s, consultant_name=%s, email=%s, phone=%s, is_active=%s
+               WHERE id=%s""",
+            (data["country"], data["consultant_name"], data["email"], data.get("phone"), data.get("is_active", True), consultant_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM visa_consultants WHERE id=%s", (consultant_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_visa_consultant(consultant_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM visa_consultants WHERE id=%s", (consultant_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_visa_requirements() -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM visa_requirements ORDER BY nationality, destination")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_visa_requirement(nationality: str, destination: str) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM visa_requirements WHERE nationality=%s AND destination=%s",
+        (nationality, destination),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+# Fixed daily consultation slots — deliberately hardcoded (not admin-editable)
+# per the two-slots-a-day business rule.
+VISA_CONSULTATION_SLOT_TIMES = ["10:30 AM", "3:30 PM"]
+
+
+def get_visa_consultation_booked_slots(slot_date: str) -> set[str]:
+    """Returns the subset of VISA_CONSULTATION_SLOT_TIMES already taken on slot_date."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT slot_time FROM visa_consultations WHERE slot_date=%s AND status != 'rejected'",
+        (slot_date,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return {r["slot_time"] for r in rows}
+
+
+def create_visa_consultation(
+    customer_id: int | None, nationality: str, destination: str, full_name: str,
+    email: str, phone: str, slot_date: str, slot_time: str, notes: str | None,
+    consultant_id: int | None = None, consultant_name: str | None = None, consultant_email: str | None = None,
+) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO visa_consultations
+               (customer_id, nationality, destination, consultant_id, consultant_name, consultant_email,
+                full_name, email, phone, slot_date, slot_time, notes)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (customer_id, nationality, destination, consultant_id, consultant_name, consultant_email,
+             full_name, email, phone, slot_date, slot_time, notes),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM visa_consultations WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def mark_visa_consultation_email_sent(consultation_id: int, sent: bool) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE visa_consultations SET email_sent=%s WHERE id=%s", (sent, consultation_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def get_visa_consultations(status: str | None = None) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if status:
+        cursor.execute("SELECT * FROM visa_consultations WHERE status=%s ORDER BY slot_date, slot_time", (status,))
+    else:
+        cursor.execute("SELECT * FROM visa_consultations ORDER BY slot_date, slot_time")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_visa_consultation_by_id(consultation_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM visa_consultations WHERE id=%s", (consultation_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def resolve_visa_consultation(consultation_id: int, status: str, admin_id: int, admin_note: str | None) -> dict:
+    """status must be 'resolved' or 'rejected'."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE visa_consultations SET status=%s, admin_note=%s,
+               reviewed_at=CURRENT_TIMESTAMP, reviewed_by_admin_id=%s WHERE id=%s""",
+            (status, admin_note, admin_id, consultation_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM visa_consultations WHERE id=%s", (consultation_id,))
         return cursor.fetchone()
     except Exception as e:
         conn.rollback()

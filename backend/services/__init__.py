@@ -11,6 +11,7 @@ from .invoice_service import retrieve_invoice_data
 from .paycorp_service import init_payment, complete_payment, PayCorpError
 from .pricing_service import get_settings as get_pricing_settings_cfg, apply_markup
 from .loyalty_service import award_points_for_booking, get_loyalty_summary
+from .email_service import send_visa_consultation_email
 
 __all__ = [
     "get_access_token", "get_auth_headers", "invalidate_token", "flow_trace_id", "start_flow_trace_id", "end_flow_trace_id",
@@ -21,4 +22,5 @@ __all__ = [
     "init_payment", "complete_payment", "PayCorpError",
     "get_pricing_settings_cfg", "apply_markup",
     "award_points_for_booking", "get_loyalty_summary",
+    "send_visa_consultation_email",
 ]

@@ -14,9 +14,13 @@ Booking Workflow:
 """
 
 import logging
+import os
+import uuid
+from datetime import datetime
 import httpx
-from fastapi import FastAPI, HTTPException, Query, status, Depends
+from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 import database
@@ -47,6 +51,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Uploaded Images (Admin Portal → Tour Packages poster images) ────────────────
+# Saved to disk under backend/uploads/<category>/ and served back at /uploads/...;
+# admin_upload_image below is the only writer. Not used for any Travelport data —
+# purely a place for admin-curated marketing images (package posters, etc).
+UPLOAD_ROOT = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(os.path.join(UPLOAD_ROOT, "packages"), exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
 
 
 # ── Request / Response Schemas ─────────────────────────────────────────────────
@@ -1372,6 +1384,364 @@ def admin_reject_cancellation_request(request_id: int, body: CancellationRequest
         raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
     updated = database.resolve_cancellation_request(request_id, "rejected", admin["admin_id"], body.admin_note)
     return updated
+
+
+# ── Tour / Travel Packages (B2C, admin-curated catalog) ───────────────────────
+# Fixed packages staff create and price in the Admin Portal — no live
+# Travelport search involved. Customers browse the public catalog and submit
+# a booking request (same manual-review pattern as cancellation requests
+# above); an admin confirms availability/payment with the customer directly.
+
+class TourPackageInput(BaseModel):
+    title: str = Field(..., min_length=2, max_length=200)
+    destination: str = Field(..., min_length=2, max_length=150)
+    duration_days: int = Field(..., ge=1)
+    duration_nights: int = Field(..., ge=0)
+    price: float = Field(..., ge=0)
+    currency: str = Field(default="LKR", min_length=3, max_length=10)
+    image_url: Optional[str] = None
+    summary: Optional[str] = Field(None, max_length=500)
+    description: Optional[str] = None
+    itinerary: Optional[str] = None
+    inclusions: Optional[str] = None
+    exclusions: Optional[str] = None
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    is_active: bool = True
+
+
+class PackageBookingRequestCreate(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=150)
+    email: EmailStr
+    phone: str = Field(..., min_length=7, max_length=30)
+    num_travelers: int = Field(default=1, ge=1, le=50)
+    preferred_date: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=1000)
+
+
+class PackageBookingReview(BaseModel):
+    admin_note: Optional[str] = None
+
+
+@app.get("/api/packages")
+def list_packages():
+    """Public catalog — active packages only."""
+    return {"packages": database.get_tour_packages(active_only=True)}
+
+
+@app.get("/api/packages/{package_id}")
+def get_package(package_id: int):
+    pkg = database.get_tour_package_by_id(package_id)
+    if not pkg or not pkg["is_active"]:
+        raise HTTPException(status_code=404, detail="Package not found.")
+    return pkg
+
+
+@app.post("/api/packages/{package_id}/book-request", status_code=status.HTTP_201_CREATED)
+def submit_package_booking_request(
+    package_id: int,
+    request: PackageBookingRequestCreate,
+    customer_id: Optional[int] = Depends(auth.get_optional_customer_id),
+):
+    pkg = database.get_tour_package_by_id(package_id)
+    if not pkg or not pkg["is_active"]:
+        raise HTTPException(status_code=404, detail="Package not found.")
+    return database.create_package_booking_request(
+        package_id, customer_id, request.full_name.strip(), str(request.email),
+        request.phone.strip(), request.num_travelers, request.preferred_date, request.notes,
+    )
+
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
+
+
+@app.post("/api/admin/upload-image")
+async def admin_upload_image(file: UploadFile = File(...), _admin: dict = Depends(auth.get_current_admin)):
+    """Saves an admin-uploaded poster/cover image (e.g. for a Tour Package) to disk
+    and returns its public URL. Not tied to any specific package — the returned
+    url is meant to be stored in that record's image_url field by the caller."""
+    ext = ALLOWED_IMAGE_TYPES.get(file.content_type)
+    if not ext:
+        raise HTTPException(status_code=400, detail="Unsupported image type — use JPEG, PNG, WEBP, or GIF.")
+
+    contents = await file.read()
+    if len(contents) > MAX_IMAGE_SIZE_BYTES:
+        raise HTTPException(status_code=400, detail="Image too large — max 5MB.")
+
+    filename = f"{uuid.uuid4().hex}{ext}"
+    with open(os.path.join(UPLOAD_ROOT, "packages", filename), "wb") as f:
+        f.write(contents)
+
+    return {"url": f"http://localhost:8000/uploads/packages/{filename}"}
+
+
+@app.get("/api/admin/packages")
+def admin_list_packages(_admin: dict = Depends(auth.get_current_admin)):
+    """All packages, including inactive — for Admin Portal management."""
+    return {"packages": database.get_tour_packages(active_only=False)}
+
+
+@app.post("/api/admin/packages", status_code=status.HTTP_201_CREATED)
+def admin_create_package(request: TourPackageInput, _admin: dict = Depends(auth.get_current_admin)):
+    return database.create_tour_package(request.model_dump())
+
+
+@app.put("/api/admin/packages/{package_id}")
+def admin_update_package(package_id: int, request: TourPackageInput, _admin: dict = Depends(auth.get_current_admin)):
+    updated = database.update_tour_package(package_id, request.model_dump())
+    if not updated:
+        raise HTTPException(status_code=404, detail="Package not found.")
+    return updated
+
+
+@app.delete("/api/admin/packages/{package_id}")
+def admin_delete_package(package_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    deleted = database.delete_tour_package(package_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Package not found.")
+    return {"message": f"Package {package_id} deleted."}
+
+
+@app.get("/api/admin/package-booking-requests")
+def admin_list_package_booking_requests(status_filter: Optional[str] = Query(None, alias="status"), _admin: dict = Depends(auth.get_current_admin)):
+    return {"requests": database.get_package_booking_requests(status_filter)}
+
+
+@app.post("/api/admin/package-booking-requests/{request_id}/resolve")
+def admin_resolve_package_booking_request(request_id: int, body: PackageBookingReview, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_package_booking_request_by_id(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Booking request not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
+    return database.resolve_package_booking_request(request_id, "confirmed", admin["admin_id"], body.admin_note)
+
+
+@app.post("/api/admin/package-booking-requests/{request_id}/reject")
+def admin_reject_package_booking_request(request_id: int, body: PackageBookingReview, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_package_booking_request_by_id(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Booking request not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
+    return database.resolve_package_booking_request(request_id, "rejected", admin["admin_id"], body.admin_note)
+
+
+# ── Visa Requirements (B2C, admin-curated lookup) ─────────────────────────────
+# Staff enter known nationality->destination visa info; customers pick their
+# nationality and destination and get a real answer if we have that route
+# documented. Not exhaustive by design — a missing pair is a normal, expected
+# result, not an error.
+
+class VisaRequirementInput(BaseModel):
+    nationality: str = Field(..., min_length=2, max_length=100)
+    destination: str = Field(..., min_length=2, max_length=100)
+    visa_required: str = Field(..., description="required|not_required|visa_on_arrival|e_visa")
+    visa_type: Optional[str] = Field(None, max_length=150)
+    processing_time: Optional[str] = Field(None, max_length=100)
+    validity: Optional[str] = Field(None, max_length=100)
+    notes: Optional[str] = Field(None, max_length=1000)
+
+
+@app.get("/api/visa-requirements/check")
+def check_visa_requirement(nationality: str, destination: str):
+    """Public lookup — returns {found: false} rather than 404 when the
+    specific pair isn't documented, since that's an expected, normal case."""
+    req = database.get_visa_requirement(nationality.strip(), destination.strip())
+    if not req:
+        return {"found": False, "nationality": nationality, "destination": destination}
+    return {"found": True, **req}
+
+
+@app.get("/api/admin/visa-requirements")
+def admin_list_visa_requirements(_admin: dict = Depends(auth.get_current_admin)):
+    return {"requirements": database.get_visa_requirements()}
+
+
+@app.post("/api/admin/visa-requirements", status_code=status.HTTP_201_CREATED)
+def admin_create_visa_requirement(request: VisaRequirementInput, _admin: dict = Depends(auth.get_current_admin)):
+    try:
+        return database.create_visa_requirement(request.model_dump())
+    except Exception as e:
+        if "uq_visa_pair" in str(e) or "Duplicate entry" in str(e):
+            raise HTTPException(status_code=409, detail="A visa requirement for this nationality/destination pair already exists — edit it instead.")
+        raise
+
+
+@app.put("/api/admin/visa-requirements/{requirement_id}")
+def admin_update_visa_requirement(requirement_id: int, request: VisaRequirementInput, _admin: dict = Depends(auth.get_current_admin)):
+    updated = database.update_visa_requirement(requirement_id, request.model_dump())
+    if not updated:
+        raise HTTPException(status_code=404, detail="Visa requirement not found.")
+    return updated
+
+
+@app.delete("/api/admin/visa-requirements/{requirement_id}")
+def admin_delete_visa_requirement(requirement_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    deleted = database.delete_visa_requirement(requirement_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Visa requirement not found.")
+    return {"message": f"Visa requirement {requirement_id} deleted."}
+
+
+# ── Visa Consultants (admin-curated roster, one per destination country) ──────
+# Staff assign a named consultant + email to each destination country. The
+# B2C visa consultation flow looks this up by destination so the customer
+# sees who they're booking with, and so the booking email below routes to
+# the right person (falling back to the general VISA_CONSULTANT_EMAIL when a
+# country has no consultant assigned).
+
+class VisaConsultantInput(BaseModel):
+    country: str = Field(..., min_length=2, max_length=100)
+    consultant_name: str = Field(..., min_length=2, max_length=150)
+    email: EmailStr
+    phone: Optional[str] = Field(None, max_length=30)
+    is_active: bool = True
+
+
+@app.get("/api/visa-consultants/by-country")
+def get_visa_consultant_for_country(country: str):
+    """Public lookup — used by the B2C form to show who the customer will be booking
+    with. Returns only the display name, never the consultant's email/phone."""
+    consultant = database.get_visa_consultant_by_country(country.strip())
+    if not consultant:
+        return {"found": False}
+    return {"found": True, "consultant_name": consultant["consultant_name"]}
+
+
+@app.get("/api/admin/visa-consultants")
+def admin_list_visa_consultants(_admin: dict = Depends(auth.get_current_admin)):
+    return {"consultants": database.get_visa_consultants()}
+
+
+@app.post("/api/admin/visa-consultants", status_code=status.HTTP_201_CREATED)
+def admin_create_visa_consultant(request: VisaConsultantInput, _admin: dict = Depends(auth.get_current_admin)):
+    try:
+        return database.create_visa_consultant(request.model_dump())
+    except Exception as e:
+        if "uq_visa_consultant_country" in str(e) or "Duplicate entry" in str(e):
+            raise HTTPException(status_code=409, detail="A consultant is already assigned to this country — edit it instead.")
+        raise
+
+
+@app.put("/api/admin/visa-consultants/{consultant_id}")
+def admin_update_visa_consultant(consultant_id: int, request: VisaConsultantInput, _admin: dict = Depends(auth.get_current_admin)):
+    updated = database.update_visa_consultant(consultant_id, request.model_dump())
+    if not updated:
+        raise HTTPException(status_code=404, detail="Visa consultant not found.")
+    return updated
+
+
+@app.delete("/api/admin/visa-consultants/{consultant_id}")
+def admin_delete_visa_consultant(consultant_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    deleted = database.delete_visa_consultant(consultant_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Visa consultant not found.")
+    return {"message": f"Visa consultant {consultant_id} deleted."}
+
+
+# ── Visa Consultation Booking (B2C, public) ───────────────────────────────────
+# Customer books one of two fixed daily slots (10:30 AM / 3:30 PM) to talk to
+# the visa consultant assigned to their destination country. The booking is
+# always saved first; the consultant notification email is best-effort on
+# top of that — see services/email_service.py.
+
+class VisaConsultationBookingCreate(BaseModel):
+    nationality: str = Field(..., min_length=2, max_length=100)
+    destination: str = Field(..., min_length=2, max_length=100)
+    full_name: str = Field(..., min_length=2, max_length=150)
+    email: EmailStr
+    phone: str = Field(..., min_length=7, max_length=30)
+    slot_date: str = Field(..., description="YYYY-MM-DD")
+    slot_time: str = Field(..., description="One of: 10:30 AM, 3:30 PM")
+    notes: Optional[str] = Field(None, max_length=1000)
+
+
+@app.get("/api/visa-consultation/slots")
+def get_visa_consultation_slots(date: str = Query(..., description="YYYY-MM-DD")):
+    try:
+        requested = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date must be in YYYY-MM-DD format.")
+    if requested < datetime.now().date():
+        raise HTTPException(status_code=400, detail="date cannot be in the past.")
+    booked = database.get_visa_consultation_booked_slots(date)
+    return {
+        "date": date,
+        "slots": [{"time": t, "available": t not in booked} for t in database.VISA_CONSULTATION_SLOT_TIMES],
+    }
+
+
+@app.post("/api/visa-consultation/book", status_code=status.HTTP_201_CREATED)
+def book_visa_consultation(request: VisaConsultationBookingCreate, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+    if request.slot_time not in database.VISA_CONSULTATION_SLOT_TIMES:
+        raise HTTPException(status_code=400, detail=f"slot_time must be one of: {', '.join(database.VISA_CONSULTATION_SLOT_TIMES)}")
+    try:
+        requested = datetime.strptime(request.slot_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="slot_date must be in YYYY-MM-DD format.")
+    if requested < datetime.now().date():
+        raise HTTPException(status_code=400, detail="slot_date cannot be in the past.")
+
+    destination = request.destination.strip()
+    consultant = database.get_visa_consultant_by_country(destination)
+
+    try:
+        booking = database.create_visa_consultation(
+            customer_id,
+            request.nationality.strip(),
+            destination,
+            request.full_name.strip(),
+            str(request.email),
+            request.phone.strip(),
+            request.slot_date,
+            request.slot_time,
+            request.notes.strip() if request.notes else None,
+            consultant["id"] if consultant else None,
+            consultant["consultant_name"] if consultant else None,
+            consultant["email"] if consultant else None,
+        )
+    except Exception as e:
+        if "uq_visa_slot" in str(e) or "Duplicate entry" in str(e):
+            raise HTTPException(status_code=409, detail="That slot was just booked by someone else — please pick another.")
+        raise
+
+    sent, email_error = services.send_visa_consultation_email(booking)
+    database.mark_visa_consultation_email_sent(booking["id"], sent)
+    booking["email_sent"] = sent
+    if not sent:
+        logger.warning(f"Visa consultation #{booking['id']} email not sent: {email_error}")
+    return booking
+
+
+class VisaConsultationReview(BaseModel):
+    admin_note: Optional[str] = None
+
+
+@app.get("/api/admin/visa-consultations")
+def admin_list_visa_consultations(status_filter: Optional[str] = Query(None, alias="status"), _admin: dict = Depends(auth.get_current_admin)):
+    return {"consultations": database.get_visa_consultations(status_filter)}
+
+
+@app.post("/api/admin/visa-consultations/{consultation_id}/resolve")
+def admin_resolve_visa_consultation(consultation_id: int, body: VisaConsultationReview, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_visa_consultation_by_id(consultation_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Visa consultation booking not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Booking already {req['status']}.")
+    return database.resolve_visa_consultation(consultation_id, "resolved", admin["admin_id"], body.admin_note)
+
+
+@app.post("/api/admin/visa-consultations/{consultation_id}/reject")
+def admin_reject_visa_consultation(consultation_id: int, body: VisaConsultationReview, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_visa_consultation_by_id(consultation_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Visa consultation booking not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Booking already {req['status']}.")
+    return database.resolve_visa_consultation(consultation_id, "rejected", admin["admin_id"], body.admin_note)
 
 
 # ── Customer Portal ─────────────────────────────────────────────────────────────
