@@ -271,8 +271,17 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
         for t in raw_travelers:
             name = t.get("PersonName", {})
             full_name = clean_passenger_name(name.get('Given', ''), name.get('Surname', ''))
+            # Since the Add Travel Agency step was added, a traveler's Email[]
+            # can carry TWO entries — the agency's own address (emailType
+            # "FROM") alongside the passenger's (emailType "TO") — confirmed
+            # live (booking_HN4Q32): Travelport returned FROM=agency email
+            # before TO=passenger email in the array. Blindly taking index
+            # [0] picked the agency's email. Prefer the "TO"-typed entry;
+            # fall back to [0] for older/GDS responses with a single
+            # untyped entry (no emailType at all).
             emails = t.get("ContactInformation", {}).get("Email", []) or t.get("Email", [])
-            email = emails[0].get("value", "") if emails else ""
+            to_email = next((e for e in emails if e.get("emailType") == "TO"), None)
+            email = (to_email or (emails[0] if emails else {})).get("value", "")
             travel_docs = t.get("TravelDocument", [])
             passport_number = travel_docs[0].get("docNumber", "") if travel_docs else ""
             parsed_travelers.append({
@@ -344,6 +353,25 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
         if issued_tickets:
             ticket["ticket_number"] = issued_tickets[0].get("number", None)
             ticket["status"] = "Ticketed"
+        else:
+            # Confirmed live 2026-09-15 (PNR HN4Q4N): a ticketed GDS booking
+            # doesn't always echo its ticket in the top-level Ticket[] array
+            # on a Retrieve Reservation response — the real number is instead
+            # nested in Receipt[], as a ReceiptPayment entry whose Document[]
+            # holds a DocumentTicket with a "Number" field (this is the same
+            # place issue_ticket()'s own commit response was found to hide
+            # it). Without this fallback, an already-ticketed PNR looks
+            # permanently "on hold" on every later retrieve/Sync PNR too.
+            for receipt in reservation.get("Receipt", []):
+                if receipt.get("@type") != "ReceiptPayment":
+                    continue
+                for doc in receipt.get("Document", []):
+                    if doc.get("@type") == "DocumentTicket" and doc.get("Number"):
+                        ticket["ticket_number"] = doc["Number"]
+                        ticket["status"] = "Ticketed"
+                        break
+                if ticket["ticket_number"]:
+                    break
 
         # ── Agency PNR + Airline PNRs from Receipt[] ──────────────────────────
         # Receipt[] contains one entry per PNR:
@@ -576,7 +604,14 @@ def issue_ticket(locator_code: str) -> dict:
                 },
                 "Amount": {
                     "value": total_fare,
-                    "code": currency_code
+                    "code": currency_code,
+                    # minorUnit/currencySource/approximateInd match Travelport's
+                    # own GDS certification reference (booking_HMZ9HH/
+                    # 11.Payment_RQ). minorUnit=2 is standard decimal-currency
+                    # precision (matches every currency this system prices in).
+                    "minorUnit": 2,
+                    "currencySource": "Supplier",
+                    "approximateInd": True
                 },
                 "FormOfPaymentIdentifier": fop_identifier_block
             }
@@ -603,30 +638,73 @@ def issue_ticket(locator_code: str) -> dict:
         logger.info(f"Step 4: Committing workbench {workbench_id} to issue ticket")
         commit_result = _api_post(commit_url, "")
 
-        # Extract ticket number from commit response
+        # Extract ticket number(s) from commit response. Two possible
+        # locations, both checked: the top-level Ticket[] array, and (per a
+        # gap confirmed live 2026-09-15 on PNR HN4Q4N and several earlier
+        # bookings wrongly assumed to have failed ticketing) Receipt[] — a
+        # ReceiptPayment entry whose Document[] holds a DocumentTicket with
+        # a "Number". Every "ticketless" booking (HTTP 200, no Ticket[], no
+        # Error[]) that was previously assumed to have failed actually had a
+        # real ticket number sitting in Receipt[] the whole time — this was
+        # a parsing gap in our code, not a failed issuance.
         res4 = (
             commit_result.get("Reservation") or
             commit_result.get("ReservationResponse", {}).get("Reservation", {})
         )
         issued_tickets = res4.get("Ticket", []) if res4 else commit_result.get("Ticket", [])
+        found_tickets: list[tuple[str, str]] = []  # [(passengerTypeCode, number), ...]
         if issued_tickets:
             issued_ticket_number = issued_tickets[0].get("number")
+            if issued_ticket_number:
+                found_tickets.append(("ADT", issued_ticket_number))
             logger.info(f"Step 4 OK: Ticket issued — number: {issued_ticket_number}")
         else:
-            errors = (
-                commit_result.get("ReservationResponse", {}).get("Result", {}).get("Error", []) or
-                commit_result.get("Result", {}).get("Error", [])
-            )
-            for err in errors:
-                logger.warning(
-                    f"Commit warning [{err.get('SourceCode')}]: {err.get('Message')} "
-                    f"(category={err.get('category')})"
+            seen_numbers = set()
+            for receipt in (res4.get("Receipt", []) if res4 else []):
+                if receipt.get("@type") != "ReceiptPayment":
+                    continue
+                for doc in receipt.get("Document", []):
+                    if doc.get("@type") != "DocumentTicket":
+                        continue
+                    number = doc.get("Number")
+                    if not number or number in seen_numbers:
+                        continue
+                    seen_numbers.add(number)
+                    ptc = doc.get("TravelerIdentifierRef", {}).get("passengerTypeCode", "ADT")
+                    found_tickets.append((ptc, number))
+                    if not issued_ticket_number:
+                        issued_ticket_number = number
+
+            if issued_ticket_number:
+                logger.info(f"Step 4 OK: Ticket issued (via Receipt/DocumentTicket) — number: {issued_ticket_number}")
+            else:
+                errors = (
+                    commit_result.get("ReservationResponse", {}).get("Result", {}).get("Error", []) or
+                    commit_result.get("Result", {}).get("Error", [])
                 )
-            if not errors:
-                logger.warning(
-                    "Commit returned HTTP 200 but no Ticket[] and no Error[]. "
-                    "Check that FOP + Payment were applied correctly."
-                )
+                for err in errors:
+                    logger.warning(
+                        f"Commit warning [{err.get('SourceCode')}]: {err.get('Message')} "
+                        f"(category={err.get('category')})"
+                    )
+                if not errors:
+                    logger.warning(
+                        "Commit returned HTTP 200 but no Ticket[] and no Error[], and no "
+                        "DocumentTicket found in Receipt[] either. Check that FOP + Payment "
+                        "were applied correctly."
+                    )
+
+        # ── Step 5: Retrieve Ticket (one call per passenger's ticket number)
+        # — matches Travelport's GDS certification reference (booking_HMZ9HH/
+        # 14-16.Retrieve Ticket ADT/INF/CHD). Purely informational (fetches
+        # full document detail for a ticket that's already issued) —
+        # best-effort, never fails the booking if it errors.
+        for ptc, number in found_tickets:
+            try:
+                _api_get(TravelportEndpoints.retrieve_ticket_by_number(number))
+                logger.info(f"Step 5 OK: Retrieved ticket document for {ptc} — {number}")
+            except Exception as rt_e:
+                logger.warning(f"Step 5: Retrieve Ticket failed for {ptc} {number} (non-fatal): {rt_e}")
 
     except httpx.HTTPStatusError as e:
         logger.warning(

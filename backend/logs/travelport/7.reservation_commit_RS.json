@@ -1,0 +1,211 @@
+{
+    "ReservationResponse": {
+        "@type": "ReservationResponse",
+        "Reservation": {
+            "@type": "Reservation",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "b5377490-3b1a-4302-914b-c180b09d3bbd"
+            },
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "birthDate": "1990-01-01",
+                    "gender": "Male",
+                    "passengerTypeCode": "ADT",
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "6e9bec02-2be7-418f-a414-f7b2cf462558"
+                    },
+                    "PersonName": {
+                        "@type": "PersonName",
+                        "Given": "TEST MR",
+                        "Surname": "TEST"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "771234567",
+                            "id": "telephone_1",
+                            "cityCode": "CMB",
+                            "role": "Mobile"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "emailType": "TO",
+                            "value": "test@example.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N1234567",
+                            "docType": "Passport",
+                            "expireDate": "2030-01-01",
+                            "issueCountry": "LK",
+                            "birthDate": "1990-01-01",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonName",
+                                "Given": "TEST",
+                                "Surname": "TEST"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "FormOfPayment": [
+                {
+                    "@type": "FormOfPaymentCash",
+                    "id": "formOfPayment_1",
+                    "FormOfPaymentRef": "formOfPayment_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "7d3bc3ad-a2b8-4d75-a7ca-8f9bcfb9d43c"
+                    }
+                }
+            ],
+            "Receipt": [
+                {
+                    "@type": "ReceiptCancellation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "c729a06c-4cef-475c-b219-b9d1f2247b69"
+                    },
+                    "Cancellation": {
+                        "@type": "CancellationHold",
+                        "Locator": {
+                            "source": "1G",
+                            "value": "HN4PX0"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptCancellation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "077cdb0d-9ba7-4709-b574-2051930308c8"
+                    },
+                    "Cancellation": {
+                        "@type": "CancellationHold",
+                        "Locator": {
+                            "source": "FZ",
+                            "value": "RGOEGH"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptPayment",
+                    "dateTime": "2026-09-15T07:35:00Z",
+                    "id": "receipt_1",
+                    "ReceiptRef": "receipt_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "f5630e47-124d-4578-88e0-07093ed06a6d"
+                    },
+                    "OfferRef": [],
+                    "Document": [
+                        {
+                            "@type": "DocumentTicket",
+                            "Number": "1412903683599",
+                            "TravelerIdentifierRef": {
+                                "passengerTypeCode": "ADT",
+                                "id": "travelerRefId_1",
+                                "value": "fd63b91f-128b-4fdd-9213-c380bb6f7b56"
+                            },
+                            "Amount": {
+                                "@type": "Amount",
+                                "CurrencyCode": {
+                                    "decimalPlace": 0,
+                                    "value": "LKR"
+                                },
+                                "Base": 44300,
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "TotalTaxes": 23900,
+                                    "Tax": [
+                                        {
+                                            "taxCode": "LK",
+                                            "value": 20436
+                                        },
+                                        {
+                                            "taxCode": "ZR",
+                                            "value": 464
+                                        },
+                                        {
+                                            "taxCode": "YR",
+                                            "value": 3000
+                                        }
+                                    ]
+                                },
+                                "Total": 68200
+                            },
+                            "IssuingPCC": "7F3C",
+                            "FiledAmount": {
+                                "currencyCode": "USD",
+                                "decimalPlace": 0,
+                                "value": 13000
+                            }
+                        }
+                    ]
+                }
+            ],
+            "ReservationComment": [
+                {
+                    "@type": "ReservationComment",
+                    "commentSource": "Supplier",
+                    "shareWith": "Agency",
+                    "shareWithSupplier": [
+                        "FZ"
+                    ],
+                    "id": "RSRVComment_1",
+                    "Comment": [
+                        {
+                            "id": "VeiComment_1",
+                            "name": "Vendor Remarks",
+                            "value": "ADTK1GADVISE TICKET NUMBER TO FZ BY 15SEP/1305 CMBLT TO AVOID AUTOXXL"
+                        },
+                        {
+                            "id": "VeiComment_2",
+                            "name": "Vendor Remarks",
+                            "value": "PAX 17YRS AND BELOW ON TOURIST/VISIT VISA TO UAE"
+                        },
+                        {
+                            "id": "VeiComment_3",
+                            "name": "Vendor Remarks",
+                            "value": "MUST TRVL WZ PARENT/AUTHORISED GUARDIAN REFER TO"
+                        },
+                        {
+                            "id": "VeiComment_4",
+                            "name": "Vendor Remarks",
+                            "value": "UAE EMBASSY FOR DETAILS"
+                        },
+                        {
+                            "id": "VeiComment_5",
+                            "name": "Vendor Remarks",
+                            "value": "PLS UPDATE CTC DTLS OF PAX IN THE CORRECT FORMAT"
+                        },
+                        {
+                            "id": "VeiComment_6",
+                            "name": "Vendor Remarks",
+                            "value": "TALIABLE FOR INVALID OR MISSING CTC DTLS"
+                        }
+                    ]
+                }
+            ]
+        },
+        "Result": {
+            "@type": "Result",
+            "Warning": [
+                {
+                    "@type": "WarningDetail",
+                    "SourceDescription": "ITIN CHANGE - FILED FARES CANCELLED"
+                }
+            ]
+        }
+    }
+}

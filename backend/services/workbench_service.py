@@ -356,7 +356,7 @@ def _build_offering_selection(raw_offering: dict) -> dict:
     }
 
 
-def _build_specific_flight_criteria(segments: list, cabin: str | None = None, class_of_service: str | None = None) -> list:
+def _build_specific_flight_criteria(segments: list, cabin: str | None = None, class_of_service: str | None = None, content_source: str | None = None) -> list:
     """
     Build the SpecificFlightCriteria array (one entry per physical flight segment)
     for the full-payload AddOffer request, from one leg's parsed `segments` list
@@ -367,6 +367,10 @@ def _build_specific_flight_criteria(segments: list, cabin: str | None = None, cl
     number against a different available class within the same cabin/brand —
     confirmed live: omitting them let a flydubai fare reprice ~3.4x higher at
     commit than what was quoted at search.
+
+    content_source: carried through from the leg's own fare_source (GDS/NDC/LCC)
+    per Travelport's GDS full-payload certification reference (booking_HMZ9HH/
+    5.Add Offer RQ), which sends "ContentSource" on every segment.
     """
     criteria = []
     for idx, seg in enumerate(segments, start=1):
@@ -402,6 +406,8 @@ def _build_specific_flight_criteria(segments: list, cabin: str | None = None, cl
             entry["AvailabilitySourceCode"] = seg["availability_source_code"]
         if seg.get("bound_flights_ind"):
             entry["boundFlightsInd"] = True
+        if content_source:
+            entry["ContentSource"] = content_source
         criteria.append(entry)
     return criteria
 
@@ -457,7 +463,8 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
             "SpecificFlightCriteria": _build_specific_flight_criteria(
                 leg.get("segments", []),
                 cabin=leg.get("cabin_class"),
-                class_of_service=cos_list[0] if cos_list else None
+                class_of_service=cos_list[0] if cos_list else None,
+                content_source=leg.get("fare_source")
             )
         })
 
@@ -483,6 +490,11 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
 
     return {
         "@type": "OfferQueryBuildFromProducts",
+        # Per Travelport's own GDS full-payload certification reference
+        # (booking_HMZ9HH/5.Add Offer RQ) — asks Travelport to check live
+        # inventory before adding the offer, rather than trusting the
+        # search-time snapshot. Confirmed present on their reference request.
+        "validateInventoryInd": True,
         "BuildFromProductsRequest": request_air
     }
 
@@ -889,6 +901,50 @@ def add_travelers_to_workbench(workbench_id: str, travelers: list, is_gds: bool 
     return result
 
 
+def add_travel_agency_to_workbench(workbench_id: str) -> dict:
+    """
+    STEP 6b: Attach George Steuart Travel's own agency address/contact/
+    corporate code to the workbench (Travelport GDS certification step 7 —
+    booking_HMZ9HH/7.Add Travel Agency RQ). Optional per Travelport docs
+    (mandatory only for AF/KL NDC bookings), called here for GDS content to
+    match the certification reference. Values come from TravelportConfig,
+    sourced from George Steuart Travel's own registered details, not
+    fabricated.
+    """
+    logger.info(f"Adding travel agency details to workbench {workbench_id}...")
+
+    payload = {
+        "TravelAgencyQueryTravelAgencyWrapper": {
+            "TravelAgencyQueryTravelAgency": {
+                "Address": {
+                    "AddressLine": TravelportConfig.AGENCY_ADDRESS_LINE,
+                    "City": TravelportConfig.AGENCY_CITY,
+                    "Country": {"name": TravelportConfig.AGENCY_COUNTRY},
+                    "PostalCode": TravelportConfig.AGENCY_POSTAL_CODE,
+                    "Addressee": TravelportConfig.AGENCY_NAME
+                },
+                "CorporateCode": TravelportConfig.AGENCY_CORPORATE_CODE,
+                "Telephone": [
+                    {
+                        "countryAccessCode": TravelportConfig.AGENCY_PHONE_COUNTRY_CODE,
+                        "areaCityCode": TravelportConfig.AGENCY_PHONE_AREA_CODE,
+                        "phoneNumber": TravelportConfig.AGENCY_PHONE_NUMBER
+                    }
+                ],
+                "Email": {
+                    "value": TravelportConfig.AGENCY_EMAIL
+                }
+            }
+        }
+    }
+
+    url = TravelportEndpoints.add_travel_agency(workbench_id)
+    result = _api_post(url, payload, session_id=workbench_id)
+    _raise_if_error(result, "Add Travel Agency")
+    logger.info("Travel agency details added to workbench.")
+    return result
+
+
 def get_workbench_details(workbench_id: str) -> dict:
     """
     Retrieve the current state of an open workbench session — optional
@@ -1087,6 +1143,15 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
                     key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
                 )
                 add_travelers_to_workbench(workbench_id, ordered_travelers, is_gds=is_gds)
+
+                # STEP 6b — Add Travel Agency, GDS content only (matches the
+                # GDS certification reference, which includes this step; the
+                # NDC certification reference does not call it at all, and per
+                # Travelport docs it's only mandatory for AF/KL NDC bookings —
+                # not extending to other NDC content without evidence it's
+                # needed there, same caution as AirPrice's GDS-only scoping).
+                if is_gds:
+                    add_travel_agency_to_workbench(workbench_id)
 
                 # STEP 7
                 return commit_workbench(workbench_id)

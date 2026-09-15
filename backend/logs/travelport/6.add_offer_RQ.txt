@@ -1,0 +1,56 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/c1080def-789b-46db-b883-373656ba2b62/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NTk0MDUsImV4cCI6MTc4OTU0NTgwNSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.LMRF2ReUrE2Te4B3jWN1seXfdt5HQV-oPv63tGzzl4UKsm7AKeOzfXzP_QwziPqtyIpGBrBJjTPEfonFP25RhSYmpNVAT6gYW1iGGUEtIb8gAwSX0mRiV6_tQrDx4qLApE4xWtz1V55pyvsKyUZhz_fGmpIfsPegA99AG_pMv2AJIGyl3JNKucVg2jaPhZT1r7SryYIMas9ByqlZ2qbkH4oDnFSFCQbelLgREOS1O4XTEpg9Nw9uA6vGGfB-74l8Zh7FDJ8Ox8pbXKxpvk5H4TGp_2Cy0udV8DQ9CK2oY-rI-y3I_RySxx0S_9_9xJ9WgT1G0fQ6fPJ0v0CMu9aqhQ' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_1AF81AD5AA4C' \
+--data-raw '{
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "FZ",
+                        "flightNumber": "570",
+                        "from": "CMB",
+                        "to": "DXB",
+                        "departureDate": "2026-09-16",
+                        "segmentSequence": 1,
+                        "departureTime": "02:05:00",
+                        "arrivalDate": "2026-09-16",
+                        "arrivalTime": "05:10:00",
+                        "cabin": "Economy",
+                        "classOfService": "T",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Standard"
+            }
+        }
+    }
+}'

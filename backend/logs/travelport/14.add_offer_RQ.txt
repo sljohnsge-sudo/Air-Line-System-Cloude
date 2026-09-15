@@ -1,0 +1,38 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/baf20db3-d467-4539-b2c6-a1caed807403/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NTE0NTQsImV4cCI6MTc4OTUzNzg1NCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.DWiVwBxvSpvd5Rf0BNnI7FrNLuEZigr9gXbKS3dVkp26ilU2GiGHIM0M-vqisptL5G1kshkUieeSvCiAzPjNU5GgUNYdW7tGAnu5vXI_mINB4XJa9MB1l1CsdKpG-RqLSnnC5RH0f-ZCR89Phv6gP7B8qs4v1OM8yOXgzyupxLJnE66LCzUToCwfsaET45u4AcUsLyVJSzmnbZnyOvuSgrvAZUv2s5IFvo3VEDiz2IM05I4F1sAmCeGb1VBaBQjg4JaQeYSm2DqHFNkkMha0n9aTsZh7_ZxeecUB9NcIxE499ZZPtqjyTIn2cngr6e_b-MvJFYQmMr2625mWv_b6kg' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_CBB1EBD2A415' \
+--data-raw '{
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "0945e574-35e0-4b79-8516-4b1587f6fcd5_PC"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "EK_CPO0"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "EKp0"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}'

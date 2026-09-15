@@ -198,11 +198,17 @@ def _parse_invoice(raw: dict, locator_code: str) -> dict:
             surname   = name_obj.get("Surname", "")
             full_name = clean_passenger_name(given, surname)
 
+            # Since the Add Travel Agency step was added, a traveler's Email[]
+            # can carry both the agency's address (emailType "FROM") and the
+            # passenger's (emailType "TO") — same fix as ticket_service.py's
+            # _parse_reservation(); prefer "TO", fall back to [0] for older/
+            # GDS responses with a single untyped entry.
             emails = (
                 t.get("ContactInformation", {}).get("Email", [])
                 or t.get("Email", [])
             )
-            email = emails[0].get("value", "") if emails else ""
+            to_email = next((e for e in emails if e.get("emailType") == "TO"), None)
+            email = (to_email or (emails[0] if emails else {})).get("value", "")
 
             phones = (
                 t.get("ContactInformation", {}).get("Phone", [])

@@ -114,6 +114,15 @@ class TravelportEndpoints:
         (e.g. to verify travelers were added correctly before committing)."""
         return f"{_air}/book/session/reservationworkbench/{workbench_id}"
 
+    # ── STEP 6b: Add Travel Agency (GDS certification step 7) ─────────────────
+    @staticmethod
+    def add_travel_agency(workbench_id: str) -> str:
+        """POST → attach the booking agency's own address/contact/corporate
+        code to the workbench. Optional per Travelport docs (mandatory only
+        for AF/KL NDC bookings), but sent on GDS bookings to match Travelport's
+        GDS full-payload certification reference."""
+        return f"{_air}/ticket/travelagency/reservationworkbench/{workbench_id}/travelagency"
+
     # ── STEP 7: Commit Workbench → Generate PNR ───────────────────────────────
     @staticmethod
     def commit_workbench(workbench_id: str) -> str:
@@ -123,8 +132,10 @@ class TravelportEndpoints:
     # ── STEP 8: Retrieve PNR / Reservation Details ────────────────────────────
     @staticmethod
     def retrieve_reservation(locator_code: str) -> str:
-        """GET → retrieve full PNR and itinerary details by locator."""
-        return f"{_air}/book/reservation/reservations/{locator_code}"
+        """GET → retrieve full PNR and itinerary details by locator.
+        detailViewInd=true matches Travelport's own GDS certification
+        reference (booking_HMZ9HH/13.Retrieve Reservation RQ)."""
+        return f"{_air}/book/reservation/reservations/{locator_code}?detailViewInd=true"
 
     # ── Cancel Reservation ─────────────────────────────────────────────────────
     # NOTE: There is no DELETE on /air/book/reservation/reservations/{Identifier} —
@@ -145,6 +156,14 @@ class TravelportEndpoints:
     # Dedicated ticket lookup, separate from Reservation Retrieve's Ticket[].
     # https://developer.travelport.com/apis/flights/ticketing/ticketgetbylocator
     TICKET_RETRIEVE_BY_LOCATOR = f"{_air}/ticket/tickets/getbylocator"
+
+    @staticmethod
+    def retrieve_ticket_by_number(ticket_number: str) -> str:
+        """GET → retrieve full document details for one issued ticket number.
+        Matches Travelport's GDS certification reference (booking_HMZ9HH/
+        14-16.Retrieve Ticket ADT/INF/CHD RQ), called once per passenger's
+        ticket number after issuance."""
+        return f"{_air}/ticket/tickets/{ticket_number}"
 
     # ── Post-Commit Ticketing Workflow ─────────────────────────────────────────
     # For ticketing a held PNR (already committed), a NEW workbench must be

@@ -1,0 +1,102 @@
+{
+    "ReservationResponse": {
+        "@type": "ReservationResponse",
+        "Reservation": {
+            "@type": "Reservation",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "30539311-ae96-41ab-bf78-2e0131717fd1"
+            },
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "birthDate": "1990-01-01",
+                    "gender": "Male",
+                    "passengerTypeCode": "ADT",
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "dbd149db-2ce6-45af-b771-855a6c716ef6"
+                    },
+                    "PersonName": {
+                        "@type": "PersonName",
+                        "Given": "TEST MR",
+                        "Surname": "TEST"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "771234567",
+                            "id": "telephone_1",
+                            "cityCode": "CMB",
+                            "role": "Mobile"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "emailType": "TO",
+                            "value": "test@example.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N1234567",
+                            "docType": "Passport",
+                            "expireDate": "2030-01-01",
+                            "issueCountry": "LK",
+                            "birthDate": "1990-01-01",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonName",
+                                "Given": "TEST",
+                                "Surname": "TEST"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "Receipt": [
+                {
+                    "@type": "ReceiptCancellation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "bf0dbd20-9199-475a-83a0-d7362cd85114"
+                    },
+                    "Cancellation": {
+                        "@type": "CancellationHold",
+                        "Locator": {
+                            "source": "1G",
+                            "value": "HN4P48"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptCancellation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "74755de5-4095-414a-b6aa-8e98c835b72f"
+                    },
+                    "Cancellation": {
+                        "@type": "CancellationHold",
+                        "Locator": {
+                            "source": "FZ",
+                            "value": "X7V6HG"
+                        }
+                    }
+                }
+            ]
+        },
+        "Result": {
+            "@type": "Result",
+            "Warning": [
+                {
+                    "@type": "WarningDetail",
+                    "SourceDescription": "ITIN CHANGE - FILED FARES CANCELLED"
+                }
+            ]
+        }
+    }
+}

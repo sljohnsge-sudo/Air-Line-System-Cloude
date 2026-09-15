@@ -36,6 +36,22 @@ class TravelportConfig:
     # ── PCC Core header (TVP-PCC-Core) — same as PCC by default ───────────────
     TVP_PCC_CORE: str = os.getenv("TVP_PCC_CORE", os.getenv("TP_PCC", "7F3C"))
 
+    # ── Agency Identity (Add Travel Agency step, GDS bookings) ────────────────
+    # George Steuart Travel's own registered address/contact/corporate code,
+    # sent on the Add Travel Agency call (Travelport GDS certification step 7).
+    # Optional per Travelport docs (mandatory only for AF/KL NDC bookings), but
+    # included on GDS bookings to match Travelport's certification reference.
+    AGENCY_NAME: str = os.getenv("TP_AGENCY_NAME", "George Steuart Travel")
+    AGENCY_ADDRESS_LINE: str = os.getenv("TP_AGENCY_ADDRESS_LINE", "Ground Floor, 439 Galle Rd")
+    AGENCY_CITY: str = os.getenv("TP_AGENCY_CITY", "Colombo")
+    AGENCY_POSTAL_CODE: str = os.getenv("TP_AGENCY_POSTAL_CODE", "00300")
+    AGENCY_COUNTRY: str = os.getenv("TP_AGENCY_COUNTRY", "LK")
+    AGENCY_CORPORATE_CODE: str = os.getenv("TP_AGENCY_CORPORATE_CODE", "7F3C")
+    AGENCY_PHONE_COUNTRY_CODE: str = os.getenv("TP_AGENCY_PHONE_COUNTRY_CODE", "94")
+    AGENCY_PHONE_AREA_CODE: str = os.getenv("TP_AGENCY_PHONE_AREA_CODE", "11")
+    AGENCY_PHONE_NUMBER: str = os.getenv("TP_AGENCY_PHONE_NUMBER", "7792400")
+    AGENCY_EMAIL: str = os.getenv("TP_AGENCY_EMAIL", "ticketing@gstravels.lk")
+
     # ── Content Source ─────────────────────────────────────────────────────────
     # "GDS" for Travelport GDS content, "NDC" for NDC carriers
     CONTENT_SOURCE: str = os.getenv("TP_CONTENT_SOURCE", "GDS")

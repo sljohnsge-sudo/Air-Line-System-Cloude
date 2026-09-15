@@ -1,0 +1,20 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/payment/reservationworkbench/742a0b99-09f3-47a0-b6aa-ce3301ffcc4f/formofpayment' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NTc3MDgsImV4cCI6MTc4OTU0NDEwOCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.DvFvy7Q7RKfcioVKg9rQICvAd77nXLovBSlsycHJWUtZaFKXa2nA-6F_DhH1FYiwQUM3_ro9J5FeotvPwUz38iP5mdmyNv6pnme8qlRrH5OlsvrG2QQm-RsKha0BQbzDCA4q91sjt0HolW_AN9M_19AarWrJKDvGI46V2IQT8qbw8Qnl4pq329Dz5s_LlrT01eyqnDPhuPJBl0MlRjXm5MInHZNsOxJqtgg2V37CRsnjqpcSiW7y8GOZ1akU-SVSyfrmsXhx3n4f6KZuVFsMRzdK5HHX9UnKYsh3y9iC0guw-wOWDvIwj8lz0DhtJIKC7NMwFYXLl07c9mFVo-NqYQ' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_CAC8D3EDE6BE' \
+--data-raw '{
+    "FormOfPaymentCash": {
+        "id": "formOfPayment_1",
+        "FormOfPaymentRef": "formOfPayment_1",
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "715C74F7-239C-4262-AC5B-DAF02790A2CA"
+        }
+    }
+}'

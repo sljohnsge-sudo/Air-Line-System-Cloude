@@ -96,6 +96,8 @@ def _step_name(method: str, url: str) -> str:
         return "retrieve"
     if "seatavailabilities" in path.lower():
         return "seatmap"
+    if re.search(r"/ticket/tickets/\d+$", path):
+        return "retrieve_ticket"
 
     fallback = path.strip("/").split("/")[-1]
     return re.sub(r"[^a-zA-Z0-9]+", "_", fallback) or "request"

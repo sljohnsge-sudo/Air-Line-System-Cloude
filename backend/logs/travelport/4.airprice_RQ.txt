@@ -1,0 +1,38 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NTc1NzAsImV4cCI6MTc4OTU0Mzk3MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.G4NqqH3Az_vcZIFTY0Ch5tPaiVm8WHdrjtm9ZlZRWqluB--VlvRzoKs7JtCBuScqD7hBFtP8P5ArEWt3gOR59U2jkj2grV_Mmwq0IBVUYiLyeLw6kgTS6LPLoDKLJpWhwqP3TWlx5ABDAJHohtb9PQOEL1aZhOpn5hBOHMfWj-ttiS92AbTT3BcsZd1BxADwglAO44JCr8mmNACVIyat35S1HwCkESpPYC3eSbJuQu-cWnkKdGOYAgG8s7JwIOXqPd-lazBDLKviLMTwujsajT8gx38Nv2-eX-tSO_ZuzsypU4dAo80GcOBbLzSA-uKNUNeWitI8bsxfoYOqLcQiYg' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_B6FFA701FB5B' \
+--data-raw '{
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "c6d1e8f6-bb89-4606-8f48-a4f28bdd5066"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "o1"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "p0"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}'
