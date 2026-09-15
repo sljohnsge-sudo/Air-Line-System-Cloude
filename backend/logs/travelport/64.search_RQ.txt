@@ -1,0 +1,49 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODkzNzY3NjksImV4cCI6MTc4OTQ2MzE2OSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.SgE2BfvVYxEGWtmzbvNqL3JbW-AhnQN2hwucT81-k4nSz492TZ8FAkvWoyCToMqPlB9Dgm8v-yqSis4-DLNCzAPYfUeqJ-KM4uNWOMdlV2XnZM_YVb7f4uo85hpJ2DqkCulSujk1vKk4V2wWEVeAyHdTqZ9e0CP-C2PZkjxGVMPNYzRx6UdtzmKFpL2b1G5DNBTng75iKDAMoU2Zajc5V1OPjTCUwgy17YkezxrX_0qH413lup794z7mqsqJmcxgGzDiZYOD7N30GuwORsTeq6lcdpj3yqpe3wuUIpVw5xBnrbAjI8HfLTKtlOTr-C3j2BHu_-4aNkiqObKPGxn89Q' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_455FEC56CDEF' \
+--header 'fareindicator: true' \
+--data-raw '{
+    "@type": "CatalogProductOfferingsQueryRequest",
+    "CatalogProductOfferingsRequest": {
+        "@type": "CatalogProductOfferingsRequestAir",
+        "maxNumberOfUpsellsToReturn": 1,
+        "offersPerPage": 999,
+        "contentSourceList": [
+            "GDS",
+            "NDC"
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "SearchCriteriaFlight": [
+            {
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2026-09-15",
+                "From": {
+                    "value": "CMB"
+                },
+                "To": {
+                    "value": "DXB"
+                }
+            }
+        ],
+        "SearchModifiersAir": [
+            {
+                "@type": "SearchModifiersAir",
+                "cabinPreference": "Economy"
+            }
+        ]
+    }
+}'

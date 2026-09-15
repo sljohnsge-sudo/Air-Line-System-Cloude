@@ -703,8 +703,15 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                     # Stops
                     stops = (len(all_segments) - 1) + sum(len(f.get("IntermediateStop", [])) for f in all_segments)
 
-                    # Unique key for segment combinations
-                    seg_key = "-".join([f"{seg['flight_number']}_{seg['departure_time']}" for seg in segments_list])
+                    # Unique key for segment combinations — includes content
+                    # source so a GDS fare and an NDC fare for the identical
+                    # flight+time show as two separate result cards, not one
+                    # merged card. (Reverted from an earlier attempt at merging
+                    # them into one card with combined badges — B2C wants them
+                    # kept genuinely separate.)
+                    _seg_key_source = brand_offering.get("ContentSource") or offering.get("ContentSource") or "GDS"
+                    _seg_key_source = "LCC" if _seg_key_source == "APIPAC" else _seg_key_source
+                    seg_key = "-".join([f"{seg['flight_number']}_{seg['departure_time']}" for seg in segments_list]) + f"_{_seg_key_source}"
 
                     currency_code = best_price.get("CurrencyCode", {}).get("value", "LKR")
                     total_price = float(best_price.get("TotalPrice", 0))
@@ -801,6 +808,12 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                         "currency": currency_code,
                         "price_breakdown": price_breakdown,
                         "raw_offering": selected_raw_offering,
+                        # Surfaced directly on the fare option (not just nested in
+                        # raw_offering) so the B2C UI can show GDS/NDC/LCC per fare
+                        # tile — the same flight+time can legitimately carry both a
+                        # GDS fare and an NDC fare at different prices, and both
+                        # should be visible, not just whichever is cheaper.
+                        "fare_source": selected_raw_offering["fare_source"],
                         "fare_basis_codes": fare_basis_codes,
                         "classes_of_service": classes_of_service,
                         "baggage_allowance": baggage_allowance,
@@ -844,10 +857,15 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                             "raw_offering": selected_raw_offering
                         }
                     else:
-                        # Append options (make sure we don't add exact duplicate prices with the same brand name)
+                        # Append options (skip only genuine duplicates: same brand,
+                        # cabin, price AND content source — a GDS and an NDC fare
+                        # that happen to land on the same brand/cabin/price for this
+                        # flight are two real, distinct offers, not a duplicate, and
+                        # both must stay so the B2C results can show them together).
                         exists = any(
                             x["brand_name"] == fare_opt["brand_name"] and
                             x["cabin_class"] == fare_opt["cabin_class"] and
+                            x["fare_source"] == fare_opt["fare_source"] and
                             abs(x["price"] - fare_opt["price"]) < 1.0
                             for x in grouped_offers[seg_key]["fare_options"]
                         )
@@ -863,6 +881,13 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
             o["cabin_class"] = cheapest["cabin_class"]
             o["price_breakdown"] = cheapest["price_breakdown"]
             o["raw_offering"] = cheapest["raw_offering"]
+            o["fare_source"] = cheapest["fare_source"]
+            # Every distinct content source available on this exact flight+time
+            # (e.g. a GDS fare and an NDC fare both existing for the same
+            # AI2275) — top-level fare_source above stays the cheapest one for
+            # the collapsed card badge, but the UI uses this list to show all
+            # sources are available, not just the cheapest.
+            o["fare_sources"] = sorted({fo["fare_source"] for fo in o["fare_options"]})
 
     except Exception as e:
         logger.error(f"Error parsing flight offers: {e}", exc_info=True)
@@ -930,7 +955,7 @@ def pair_multi_leg_offers(offers: list[dict], legs: list[dict]) -> list[dict]:
                 global_code_map.setdefault(code, []).append((offer, fo))
 
     def _flight_key(offer: dict) -> str:
-        return f"{offer.get('flight_number', '')}_{offer.get('departure_time', '')}"
+        return f"{offer.get('flight_number', '')}_{offer.get('departure_time', '')}_{offer.get('fare_source', '')}"
 
     def _od_key(offer: dict) -> tuple:
         return (offer.get("departure_airport", ""), offer.get("arrival_airport", ""))
@@ -989,6 +1014,7 @@ def pair_multi_leg_offers(offers: list[dict], legs: list[dict]) -> list[dict]:
                 exists = any(
                     x["brand_name"] == merged_fare_opt["brand_name"] and
                     x["cabin_class"] == merged_fare_opt["cabin_class"] and
+                    x["fare_source"] == merged_fare_opt["fare_source"] and
                     abs(x["price"] - merged_fare_opt["price"]) < 1.0
                     for x in existing_opts
                 )
@@ -1002,6 +1028,9 @@ def pair_multi_leg_offers(offers: list[dict], legs: list[dict]) -> list[dict]:
         m["price"] = cheapest["price"]
         m["currency"] = cheapest["currency"]
         m["raw_offering"] = cheapest["raw_offering"]
+        leg_sources = [fo.get("fare_source") for fo in cheapest["raw_offering"].get("legs", [])]
+        m["fare_source"] = leg_sources[0] if leg_sources and all(s == leg_sources[0] for s in leg_sources) else "Mixed"
+        m["fare_sources"] = sorted({fo["fare_source"] for fo in m["fare_options"]})
 
     merged.sort(key=lambda x: x["price"])
     return merged
@@ -1065,7 +1094,7 @@ def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: 
     itineraries: dict = {}  # (outbound flight key, inbound flight key) -> merged offer dict
 
     def _flight_key(offer: dict) -> str:
-        return f"{offer.get('flight_number', '')}_{offer.get('departure_time', '')}"
+        return f"{offer.get('flight_number', '')}_{offer.get('departure_time', '')}_{offer.get('fare_source', '')}"
 
     for code in shared_codes:
         outbound_candidates = outbound_code_map[code][:MAX_PAIRS_PER_CODE]
@@ -1105,6 +1134,7 @@ def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: 
                     exists = any(
                         x["brand_name"] == merged_fare_opt["brand_name"] and
                         x["cabin_class"] == merged_fare_opt["cabin_class"] and
+                        x["fare_source"] == merged_fare_opt["fare_source"] and
                         abs(x["price"] - merged_fare_opt["price"]) < 1.0
                         for x in existing_opts
                     )
@@ -1130,6 +1160,7 @@ def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: 
         ob_source = cheapest["raw_offering"].get("outbound", {}).get("fare_source")
         ib_source = cheapest["raw_offering"].get("inbound", {}).get("fare_source")
         m["fare_source"] = ob_source if ob_source == ib_source else "Mixed"
+        m["fare_sources"] = sorted({fo["fare_source"] for fo in m["fare_options"]})
 
     merged.sort(key=lambda x: x["price"])
     return merged

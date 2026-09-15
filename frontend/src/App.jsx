@@ -699,6 +699,7 @@ export default function App() {
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [packagesError, setPackagesError] = useState('');
   const [selectedPackage, setSelectedPackage] = useState(null);
+  const [packagesTypeView, setPackagesTypeView] = useState('tour');
 
   const emptyPackageBookingForm = { full_name: '', email: '', phone: '', num_travelers: 1, preferred_date: '', notes: '' };
   const [packageBookingForm, setPackageBookingForm] = useState(emptyPackageBookingForm);
@@ -715,10 +716,11 @@ export default function App() {
       .catch(err => { setPackagesError(err.message); setPackagesLoading(false); });
   };
 
-  const openPackages = () => {
+  const openPackages = (type = 'tour') => {
     setSelectedPackage(null);
     setPackageBookingSubmitted(false);
     setPackageBookingError('');
+    setPackagesTypeView(type);
     setActiveTab('packages');
     loadPackages();
   };
@@ -1059,6 +1061,7 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab === 'bookings' && adminToken) fetchBookings();
+    if (activeTab === 'home' && packages.length === 0 && !packagesLoading) loadPackages();
   }, [activeTab]);
 
   const showNotification = (message, type = 'success') => {
@@ -1185,8 +1188,10 @@ export default function App() {
       }));
     }
 
-    // Guarantee search animation is visible for at least 2.5s for professional feel
-    const minLoaderPromise = new Promise(resolve => setTimeout(resolve, 2500));
+    // Guarantee search animation is visible for at least 6s — long enough to
+    // actually register/play, not just flash on screen for a live search
+    // that resolves in well under a second.
+    const minLoaderPromise = new Promise(resolve => setTimeout(resolve, 6000));
 
     try {
       const searchPromise = fetchWithRetry(`${API_BASE}/flights/search`, {
@@ -1793,94 +1798,82 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             </div>
           </section>
 
-          {/* Quick Action Cards */}
-          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem', margin: '0.5rem 0 2rem' }}>
+          {/* Featured Tour Packages & Special Hotel Packages — 4-package
+              teasers with a link through to the full catalog (filtered by
+              type there), so the homepage doesn't have to load/show every
+              package staff have created. Shown above the quick-action boxes
+              so they're the first thing visitors see under the hero. */}
+          {(() => {
+            const tourTeasers = packages.filter(p => (p.package_type || 'tour') === 'tour').slice(0, 4);
+            const hotelTeasers = packages.filter(p => p.package_type === 'hotel').slice(0, 4);
+            const openPackageFromHome = (pkg, type) => {
+              setSelectedPackage(pkg);
+              setPackageBookingSubmitted(false);
+              setPackageBookingError('');
+              setPackagesTypeView(type);
+              setActiveTab('packages');
+            };
+            const teaserCard = (pkg, type) => (
+              <div key={pkg.id} className="glass-panel" style={{ borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
+                onClick={() => openPackageFromHome(pkg, type)}>
+                <div style={{
+                  height: '130px', background: pkg.image_url ? `url(${pkg.image_url}) center/cover no-repeat` : 'linear-gradient(135deg,#0f172a,#334155)',
+                  display: 'flex', alignItems: 'flex-end', padding: '0.75rem',
+                }}>
+                  <span style={{ background: 'rgba(15,23,42,0.75)', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '999px' }}>
+                    {pkg.duration_days}D / {pkg.duration_nights}N
+                  </span>
+                </div>
+                <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: 1 }}>
+                  <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--gs-dark)' }}>{pkg.title}</h3>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>{pkg.destination}</p>
+                  <div style={{ marginTop: 'auto', paddingTop: '0.6rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>From</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--gs-crimson)' }}>{pkg.currency} {Number(pkg.price).toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            );
+            return (
+              <>
+                {tourTeasers.length > 0 && (
+                  <section>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div>
+                        <span className="section-label">Handpicked For You</span>
+                        <h2 className="section-heading" style={{ margin: '0.25rem 0 0' }}>Featured Tour Packages</h2>
+                      </div>
+                      <button className="btn btn-secondary" onClick={() => openPackages('tour')}>
+                        View More
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '0.4rem' }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                      {tourTeasers.map(pkg => teaserCard(pkg, 'tour'))}
+                    </div>
+                  </section>
+                )}
 
-            {/* Book Flights */}
-            <div onClick={() => setActiveTab('book')} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#c3122e'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(195,18,46,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #c3122e, #9b0e24)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-              </div>
-              <div>
-                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Book Flights</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Search live global GDS inventory, choose your seat, and book flights in real time with instant PNR generation.</div>
-              </div>
-              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#c3122e', fontWeight: '700', fontSize: '0.82rem' }}>
-                Open Booking Engine
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </div>
-            </div>
-
-            {/* Hotel Booking */}
-            <div onClick={() => setActiveTab('hotels')} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#0369a1'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(3,105,161,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #0369a1, #075985)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M3 21h18M5 21V9l7-6 7 6v12M9 21v-6h6v6"/></svg>
-              </div>
-              <div>
-                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Hotel Booking</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Search live hotel availability worldwide and book your stay on the same global Travelport network as our flights.</div>
-              </div>
-              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#0369a1', fontWeight: '700', fontSize: '0.82rem' }}>
-                Browse Hotels
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </div>
-            </div>
-
-            {/* Tour Packages */}
-            <div onClick={openPackages} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#b45309'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(180,83,9,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #b45309, #92400e)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-              </div>
-              <div>
-                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Tour Packages</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Handpicked holiday packages — flights, stay and activities bundled together. Pick the best one for you and request to book.</div>
-              </div>
-              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#b45309', fontWeight: '700', fontSize: '0.82rem' }}>
-                View Packages
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </div>
-            </div>
-
-            {/* Visa Requirements */}
-            <div onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#6d28d9'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(109,40,217,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #6d28d9, #5b21b6)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2"/><circle cx="12" cy="9" r="2.5"/><path d="M8 17c0-2 1.8-3 4-3s4 1 4 3"/></svg>
-              </div>
-              <div>
-                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>Visa Requirements</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Check visa requirements for your destination based on your nationality before you travel.</div>
-              </div>
-              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6d28d9', fontWeight: '700', fontSize: '0.82rem' }}>
-                Check Visa
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </div>
-            </div>
-
-            {/* My Account */}
-            <div onClick={() => setActiveTab('account')} style={{ cursor: 'pointer', background: 'white', border: '2px solid #f1f5f9', borderRadius: '16px', padding: '2rem 1.75rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#0f172a'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(15,23,42,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f1f5f9'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #0f172a, #1e293b)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              </div>
-              <div>
-                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#1e293b', marginBottom: '0.3rem' }}>My Account</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.5' }}>Sign in or create an account to view your bookings, boarding passes, and manage reservations.</div>
-              </div>
-              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1e293b', fontWeight: '700', fontSize: '0.82rem' }}>
-                Sign In / Register
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </div>
-            </div>
-          </section>
+                {hotelTeasers.length > 0 && (
+                  <section>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div>
+                        <span className="section-label">Exclusive Rates</span>
+                        <h2 className="section-heading" style={{ margin: '0.25rem 0 0' }}>Special Hotel Packages</h2>
+                      </div>
+                      <button className="btn btn-secondary" onClick={() => openPackages('hotel')}>
+                        View More
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '0.4rem' }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                      {hotelTeasers.map(pkg => teaserCard(pkg, 'hotel'))}
+                    </div>
+                  </section>
+                )}
+              </>
+            );
+          })()}
 
           {/* Features */}
           <section className="features-section">
@@ -4560,23 +4553,31 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           {!selectedPackage ? (
             <>
               <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-                <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Tour Packages</h2>
+                <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>{packagesTypeView === 'hotel' ? 'Special Hotel Packages' : 'Tour Packages'}</h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-                  Curated holiday packages — flights, stay, and activities bundled together. Pick one and request to book; our team will confirm availability and payment with you directly.
+                  {packagesTypeView === 'hotel'
+                    ? 'Handpicked hotel stays at special rates. Pick one and request to book; our team will confirm availability and payment with you directly.'
+                    : 'Curated holiday packages — flights, stay, and activities bundled together. Pick one and request to book; our team will confirm availability and payment with you directly.'}
                 </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                  <button type="button" className={`btn btn-sm ${packagesTypeView === 'tour' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setPackagesTypeView('tour')}>Tour Packages</button>
+                  <button type="button" className={`btn btn-sm ${packagesTypeView === 'hotel' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setPackagesTypeView('hotel')}>Hotel Packages</button>
+                </div>
               </section>
 
               {packagesError && <div className="error-banner">{packagesError}</div>}
-              {packagesLoading ? (
-                <div className="loading-state"><div className="spinner"></div><p>Loading packages...</p></div>
-              ) : packages.length === 0 ? (
-                <div className="empty-state glass-panel animate-fade">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 17h20M2 12h20M2 7h20"/></svg>
-                  <p>No tour packages available right now — check back soon.</p>
-                </div>
-              ) : (
+              {(() => {
+                const filteredPackages = packages.filter(p => (p.package_type || 'tour') === packagesTypeView);
+                return packagesLoading ? (
+                  <div className="loading-state"><div className="spinner"></div><p>Loading packages...</p></div>
+                ) : filteredPackages.length === 0 ? (
+                  <div className="empty-state glass-panel animate-fade">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 17h20M2 12h20M2 7h20"/></svg>
+                    <p>No {packagesTypeView === 'hotel' ? 'hotel' : 'tour'} packages available right now — check back soon.</p>
+                  </div>
+                ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.25rem' }}>
-                  {packages.map(pkg => (
+                  {filteredPackages.map(pkg => (
                     <div key={pkg.id} className="glass-panel" style={{ borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                       <div style={{
                         height: '150px', background: pkg.image_url ? `url(${pkg.image_url}) center/cover no-repeat` : 'linear-gradient(135deg,#0f172a,#334155)',
@@ -4601,7 +4602,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </div>
                   ))}
                 </div>
-              )}
+                );
+              })()}
             </>
           ) : (
             <section className="search-section glass-panel">
@@ -6489,12 +6491,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       {/* Global Flight Search Loading Modal (Step 10 / Custom request) */}
       {loadingFlights && (
         <div className="modal-overlay animate-fade-only" style={{ zIndex: 99999, background: 'rgba(255, 255, 255, 0.95)' }}>
-          <div style={{ textAlign: 'center', maxWidth: '550px', padding: '2.5rem 2rem' }}>
+          <div style={{ textAlign: 'center', maxWidth: '780px', padding: '2.5rem 2rem' }}>
             <FlightSearchAnimation />
-            <h3 style={{ color: 'var(--gs-crimson)', margin: '1.5rem 0 1rem', fontFamily: 'var(--font-heading)', fontSize: '1.35rem' }}>
-              Searching Live Inventory
+            <h3 style={{ color: 'var(--gs-crimson)', margin: '1.5rem 0 1rem', fontFamily: 'var(--font-heading)', fontSize: '1.35rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="loading-blink">Searching Live Inventory</span>
+              <span className="loading-dots" aria-hidden="true">
+                <span>.</span><span>.</span><span>.</span>
+              </span>
             </h3>
-            <p style={{ color: '#475569', fontSize: '0.98rem', lineHeight: '1.6', fontWeight: '500' }}>
+            <p className="loading-subtext" style={{ color: '#475569', fontSize: '0.98rem', lineHeight: '1.6', fontWeight: '500' }}>
               Please wait while we search across multiple airlines to find the best available options for your journey
             </p>
           </div>
@@ -6508,10 +6513,10 @@ function FlightSearchAnimation() {
   return (
     <div className="lottie-loader-container animate-fade">
       <lottie-player
-        src="https://assets-v2.lottiefiles.com/a/cc98d310-116a-11ee-9baa-434a3bdd76b7/Gqbk5P02sM.json"
+        src="/animations/flight-search.json"
         background="transparent"
         speed="1"
-        style={{ width: '100%', height: '100%', maxWidth: '350px', maxHeight: '300px' }}
+        style={{ width: '100%', height: '100%', maxWidth: '620px', maxHeight: '520px' }}
         loop
         autoplay
       ></lottie-player>

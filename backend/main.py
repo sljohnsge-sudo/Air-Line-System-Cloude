@@ -22,7 +22,7 @@ from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 import database
 import services
 import auth
@@ -662,6 +662,13 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     else:
         logger.info(f"Issuing ticket for {locator_code} without a PayCorp reqid (cash/bank transfer)...")
 
+    return _issue_and_save_ticket(locator_code, payment_result)
+
+
+def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = None) -> dict:
+    """Shared by the normal PayCorp-gated issue-ticket flow and the admin
+    force-issue override below — everything after payment has already been
+    decided (succeeded, or deliberately overridden by an admin)."""
     # One TraceId for every Travelport call issue_ticket() makes internally
     # (buildfromlocator -> formofpayment -> payment -> commit-with-ticketing).
     trace_token = services.start_flow_trace_id()
@@ -742,6 +749,75 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
         "ticket": ticket,
         "cached_id": saved.get("id")
     }
+
+
+# ── Admin: Force Issue Ticket (manual override, audited) ───────────────────────
+# For bookings stuck because the payment gateway itself returned a sandbox-only
+# failure (PayCorp "(TEST TRANSACTION ONLY)" responses have hit this repeatedly —
+# confirmed each time as a gateway-side issue via the correct official test card,
+# not a bug here). An admin reviews the booking + gateway response and force-
+# issues with one click. Every use is logged to force_issued_tickets (who, why,
+# what the gateway said) — this bypasses payment verification, so it is never
+# automatic or silent, and is not reachable from the customer-facing flow.
+
+class ForceIssueTicketRequest(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=1000)
+    reqid: Optional[str] = Field(
+        default=None,
+        description="PayCorp reqid from the failed attempt, if any — used only "
+                     "to capture the gateway's response code/text/txnReference "
+                     "into the audit log, not to gate issuance."
+    )
+
+
+@app.post("/api/admin/bookings/{locator_code}/force-issue-ticket")
+def force_issue_ticket(
+    locator_code: str,
+    request: ForceIssueTicketRequest,
+    admin: dict = Depends(auth.get_current_admin),
+):
+    """
+    Admin-only override: issue the ticket for a PNR regardless of payment
+    gateway result. Always logged to force_issued_tickets for audit.
+    """
+    locator_code = locator_code.upper().strip()
+
+    gateway_code = gateway_text = txn_ref = None
+    if request.reqid:
+        try:
+            payment_result = services.complete_payment(request.reqid)
+            gateway_code = (
+                str(payment_result.get("response_code"))
+                if payment_result.get("response_code") is not None else None
+            )
+            gateway_text = payment_result.get("response_text")
+            txn_ref = payment_result.get("txn_reference")
+        except services.PayCorpError as e:
+            gateway_text = str(e)
+
+    logger.warning(
+        f"ADMIN FORCE-ISSUE: {locator_code} by {admin.get('sub')} "
+        f"(admin_id={admin.get('admin_id')}) — reason: {request.reason} — "
+        f"gateway: code={gateway_code} text={gateway_text}"
+    )
+    database.log_force_issued_ticket(
+        locator_code=locator_code,
+        admin_id=admin.get("admin_id"),
+        admin_username=admin.get("sub"),
+        reason=request.reason,
+        gateway_response_code=gateway_code,
+        gateway_response_text=gateway_text,
+        txn_reference=txn_ref,
+    )
+
+    result = _issue_and_save_ticket(locator_code, payment_result=None)
+    result["force_issued"] = True
+    return result
+
+
+@app.get("/api/admin/force-issued-tickets")
+def list_force_issued_tickets(_admin: dict = Depends(auth.get_current_admin)):
+    return {"items": database.get_force_issued_tickets()}
 
 
 # ── STEP 8: Retrieve PNR ───────────────────────────────────────────────────────
@@ -1394,6 +1470,7 @@ def admin_reject_cancellation_request(request_id: int, body: CancellationRequest
 
 class TourPackageInput(BaseModel):
     title: str = Field(..., min_length=2, max_length=200)
+    package_type: Literal["tour", "hotel"] = Field(default="tour", description="Hotel packages show in the B2C homepage's Special Hotel Packages section instead of Tour Packages")
     destination: str = Field(..., min_length=2, max_length=150)
     duration_days: int = Field(..., ge=1)
     duration_nights: int = Field(..., ge=0)
@@ -1424,9 +1501,11 @@ class PackageBookingReview(BaseModel):
 
 
 @app.get("/api/packages")
-def list_packages():
-    """Public catalog — active packages only."""
-    return {"packages": database.get_tour_packages(active_only=True)}
+def list_packages(package_type: Optional[str] = Query(None, alias="type")):
+    """Public catalog — active packages only. Pass ?type=tour or ?type=hotel
+    to filter; omit to get both (used nowhere currently — every caller passes
+    an explicit type so Tour Packages and Special Hotel Packages stay separate)."""
+    return {"packages": database.get_tour_packages(active_only=True, package_type=package_type)}
 
 
 @app.get("/api/packages/{package_id}")

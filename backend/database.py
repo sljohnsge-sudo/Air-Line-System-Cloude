@@ -287,6 +287,19 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # tour_packages.package_type — added via a guarded ALTER (same reasoning
+    # as bookings.customer_id above): distinguishes an admin-curated "tour"
+    # package from a "hotel" package (shown as a separate "Special Hotel
+    # Packages" section on the B2C homepage) without standing up a second,
+    # near-identical table + CRUD + booking-request pipeline for hotels.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='tour_packages' AND COLUMN_NAME='package_type'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE tour_packages ADD COLUMN package_type VARCHAR(20) NOT NULL DEFAULT 'tour' AFTER title")
+        cursor.execute("CREATE INDEX idx_tour_package_type ON tour_packages(package_type)")
+
     # Customer booking requests for a package — same manual-review pattern as
     # cancellation_requests: no payment/availability engine here, an admin
     # reviews and arranges confirmation + payment directly with the customer.
@@ -398,6 +411,27 @@ def init_db():
             ALTER TABLE visa_consultations ADD CONSTRAINT fk_visa_consultation_consultant
             FOREIGN KEY (consultant_id) REFERENCES visa_consultants(id) ON DELETE SET NULL
         """)
+
+    # ── Force Issue Ticket audit log (admin-only, manual override) ──────────
+    # Records every time an admin manually issues a ticket for a PNR whose
+    # card payment failed at the gateway (e.g. PayCorp sandbox returning a
+    # "(TEST TRANSACTION ONLY)" response). This bypasses payment verification,
+    # so every use is logged with who did it, why, and the gateway response
+    # that prompted it — reviewable later, never silent/automatic.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS force_issued_tickets (
+            id                    INT AUTO_INCREMENT PRIMARY KEY,
+            locator_code          VARCHAR(20) NOT NULL,
+            admin_id              INT NOT NULL,
+            admin_username        VARCHAR(100) NOT NULL,
+            reason                VARCHAR(1000) NOT NULL,
+            gateway_response_code VARCHAR(20),
+            gateway_response_text VARCHAR(300),
+            txn_reference         VARCHAR(100),
+            created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_force_issued_locator (locator_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
 
     conn.commit()
     cursor.close()
@@ -863,11 +897,11 @@ def create_tour_package(data: dict) -> dict:
     try:
         cursor.execute(
             """INSERT INTO tour_packages
-               (title, destination, duration_days, duration_nights, price, currency,
+               (title, package_type, destination, duration_days, duration_nights, price, currency,
                 image_url, summary, description, itinerary, inclusions, exclusions,
                 valid_from, valid_to, is_active)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (data["title"], data["destination"], data["duration_days"], data["duration_nights"],
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (data["title"], data.get("package_type", "tour"), data["destination"], data["duration_days"], data["duration_nights"],
              data["price"], data.get("currency", "LKR"), data.get("image_url"), data.get("summary"),
              data.get("description"), data.get("itinerary"), data.get("inclusions"), data.get("exclusions"),
              data.get("valid_from"), data.get("valid_to"), data.get("is_active", True)),
@@ -888,11 +922,11 @@ def update_tour_package(package_id: int, data: dict) -> dict | None:
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            """UPDATE tour_packages SET title=%s, destination=%s, duration_days=%s,
+            """UPDATE tour_packages SET title=%s, package_type=%s, destination=%s, duration_days=%s,
                duration_nights=%s, price=%s, currency=%s, image_url=%s, summary=%s,
                description=%s, itinerary=%s, inclusions=%s, exclusions=%s,
                valid_from=%s, valid_to=%s, is_active=%s WHERE id=%s""",
-            (data["title"], data["destination"], data["duration_days"], data["duration_nights"],
+            (data["title"], data.get("package_type", "tour"), data["destination"], data["duration_days"], data["duration_nights"],
              data["price"], data.get("currency", "LKR"), data.get("image_url"), data.get("summary"),
              data.get("description"), data.get("itinerary"), data.get("inclusions"), data.get("exclusions"),
              data.get("valid_from"), data.get("valid_to"), data.get("is_active", True), package_id),
@@ -923,13 +957,18 @@ def delete_tour_package(package_id: int) -> bool:
         conn.close()
 
 
-def get_tour_packages(active_only: bool = True) -> list[dict]:
+def get_tour_packages(active_only: bool = True, package_type: str | None = None) -> list[dict]:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    where = []
+    params = []
     if active_only:
-        cursor.execute("SELECT * FROM tour_packages WHERE is_active=1 ORDER BY created_at DESC")
-    else:
-        cursor.execute("SELECT * FROM tour_packages ORDER BY created_at DESC")
+        where.append("is_active=1")
+    if package_type:
+        where.append("package_type=%s")
+        params.append(package_type)
+    clause = f"WHERE {' AND '.join(where)}" if where else ""
+    cursor.execute(f"SELECT * FROM tour_packages {clause} ORDER BY created_at DESC", tuple(params))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -1284,6 +1323,43 @@ def resolve_visa_consultation(consultation_id: int, status: str, admin_id: int, 
     finally:
         cursor.close()
         conn.close()
+
+
+def log_force_issued_ticket(
+    locator_code: str, admin_id: int, admin_username: str, reason: str,
+    gateway_response_code: str | None, gateway_response_text: str | None,
+    txn_reference: str | None,
+) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO force_issued_tickets
+               (locator_code, admin_id, admin_username, reason, gateway_response_code,
+                gateway_response_text, txn_reference)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (locator_code, admin_id, admin_username, reason, gateway_response_code,
+             gateway_response_text, txn_reference),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM force_issued_tickets WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_force_issued_tickets() -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM force_issued_tickets ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
 
 
 def cancel_booking(locator_code: str) -> bool:

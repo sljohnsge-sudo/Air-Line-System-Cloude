@@ -40,8 +40,18 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [visaConsultationsError, setVisaConsultationsError] = useState('');
   const [visaConsultationActionId, setVisaConsultationActionId] = useState(null);
 
+  const [forceIssueLocator, setForceIssueLocator] = useState('');
+  const [forceIssueReason, setForceIssueReason] = useState('');
+  const [forceIssueReqid, setForceIssueReqid] = useState('');
+  const [forceIssueSubmitting, setForceIssueSubmitting] = useState(false);
+  const [forceIssueError, setForceIssueError] = useState('');
+  const [forceIssueResult, setForceIssueResult] = useState(null);
+  const [forceIssuedLog, setForceIssuedLog] = useState([]);
+  const [forceIssuedLogLoading, setForceIssuedLogLoading] = useState(false);
+  const [forceIssuedLogError, setForceIssuedLogError] = useState('');
+
   const emptyPackageForm = {
-    title: '', destination: '', duration_days: 1, duration_nights: 0, price: 0, currency: 'LKR',
+    title: '', package_type: 'tour', destination: '', duration_days: 1, duration_nights: 0, price: 0, currency: 'LKR',
     image_url: '', summary: '', description: '', itinerary: '', inclusions: '', exclusions: '',
     valid_from: '', valid_to: '', is_active: true,
   };
@@ -52,6 +62,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [editingPackageId, setEditingPackageId] = useState(null);
   const [packageFormOpen, setPackageFormOpen] = useState(false);
   const [packageSaving, setPackageSaving] = useState(false);
+  const [packageTypeFilter, setPackageTypeFilter] = useState('all');
   const [packageImageUploading, setPackageImageUploading] = useState(false);
   const [packageImageUploadError, setPackageImageUploadError] = useState('');
 
@@ -239,6 +250,20 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
+  const loadForceIssuedLog = async () => {
+    setForceIssuedLogLoading(true);
+    setForceIssuedLogError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/force-issued-tickets`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load force-issue audit log');
+      setForceIssuedLog(data.items || []);
+    } catch (err) {
+      setForceIssuedLogError(err.message);
+    } finally {
+      setForceIssuedLogLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (adminToken) {
       loadSettings();
@@ -251,8 +276,37 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       loadPackages();
       loadPackageRequests();
       loadVisaRequirements();
+      loadForceIssuedLog();
     }
   }, [adminToken]);
+
+  const submitForceIssueTicket = async () => {
+    const locator = forceIssueLocator.trim().toUpperCase();
+    if (!locator || forceIssueReason.trim().length < 3) {
+      setForceIssueError('Enter the PNR and a reason (at least a few words).');
+      return;
+    }
+    setForceIssueSubmitting(true);
+    setForceIssueError('');
+    setForceIssueResult(null);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/bookings/${locator}/force-issue-ticket`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ reason: forceIssueReason.trim(), reqid: forceIssueReqid.trim() || null }),
+      });
+      const data = await adminApiResponse(res, 'Failed to force-issue ticket');
+      setForceIssueResult(data.ticket);
+      setForceIssueLocator('');
+      setForceIssueReason('');
+      setForceIssueReqid('');
+      loadForceIssuedLog();
+    } catch (err) {
+      setForceIssueError(err.message);
+    } finally {
+      setForceIssueSubmitting(false);
+    }
+  };
 
   const handleSaveLoyaltySettings = async () => {
     setLoyaltySaving(true);
@@ -347,7 +401,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     if (pkg) {
       setEditingPackageId(pkg.id);
       setPackageForm({
-        title: pkg.title, destination: pkg.destination, duration_days: pkg.duration_days,
+        title: pkg.title, package_type: pkg.package_type || 'tour', destination: pkg.destination, duration_days: pkg.duration_days,
         duration_nights: pkg.duration_nights, price: pkg.price, currency: pkg.currency,
         image_url: pkg.image_url || '', summary: pkg.summary || '', description: pkg.description || '',
         itinerary: pkg.itinerary || '', inclusions: pkg.inclusions || '', exclusions: pkg.exclusions || '',
@@ -650,6 +704,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     { id: 'visa-requirements', label: 'Visa Requirements' },
     { id: 'visa-consultants', label: 'Visa Consultants' },
     { id: 'assign-booking', label: 'Assign Booking' },
+    { id: 'force-issue', label: 'Force Issue Ticket' },
     { id: 'reports', label: 'Reports' },
     { id: 'tickets', label: 'Tickets & Invoices' },
   ];
@@ -881,14 +936,33 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       {activeAdminSection === 'packages' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem' }}>
-          <h3 className="results-heading" style={{ margin: 0 }}>Tour Packages {packages.length > 0 && `(${packages.length})`}</h3>
+          <h3 className="results-heading" style={{ margin: 0 }}>Packages {packages.length > 0 && `(${packages.length})`}</h3>
           <button className="btn btn-primary btn-sm" onClick={() => openPackageForm(null)}>+ Add Package</button>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.35rem', marginBottom: '0' }}>
+          "Tour" packages show in the B2C homepage's Featured Tour Packages section; "Hotel" packages show separately in Special Hotel Packages.
+        </p>
+        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.75rem' }}>
+          {['all', 'tour', 'hotel'].map(t => (
+            <button key={t} type="button"
+              className={`btn btn-sm ${packageTypeFilter === t ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setPackageTypeFilter(t)}>
+              {t === 'all' ? 'All' : t === 'tour' ? 'Tour Packages' : 'Hotel Packages'}
+            </button>
+          ))}
         </div>
         {packagesError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{packagesError}</div>}
 
         {packageFormOpen && (
           <form onSubmit={handleSavePackage} style={{ marginTop: '1rem', marginBottom: '1.25rem', padding: '1rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
             <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', color: 'var(--gs-dark)' }}>{editingPackageId ? 'Edit Package' : 'New Package'}</h4>
+            <div className="form-group" style={{ maxWidth: '260px' }}>
+              <label className="form-label">Package Type *</label>
+              <select className="form-input" required value={packageForm.package_type} onChange={e => setPackageForm(f => ({ ...f, package_type: e.target.value }))}>
+                <option value="tour">Tour Package</option>
+                <option value="hotel">Hotel Package</option>
+              </select>
+            </div>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: 2, minWidth: '220px' }}>
                 <label className="form-label">Title *</label>
@@ -986,32 +1060,42 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           </form>
         )}
 
-        {packagesLoading ? (
-          <div className="loading-state"><div className="spinner"></div><p>Loading packages...</p></div>
-        ) : packages.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No packages yet — add one above.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {packages.map(pkg => (
-              <div key={pkg.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
-                  <div style={{
-                    width: '56px', height: '40px', flexShrink: 0, borderRadius: '6px', border: '1px solid var(--border-color)',
-                    background: pkg.image_url ? `url(${pkg.image_url}) center/cover no-repeat` : '#e2e8f0',
-                  }} />
-                  <div>
-                    <strong>{pkg.title}</strong> — {pkg.destination} · {pkg.duration_days}D/{pkg.duration_nights}N · {pkg.currency} {Number(pkg.price).toLocaleString()}
-                    {!pkg.is_active && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '0.1rem 0.5rem', borderRadius: '999px' }}>Inactive</span>}
+        {(() => {
+          const filteredPackages = packageTypeFilter === 'all' ? packages : packages.filter(p => (p.package_type || 'tour') === packageTypeFilter);
+          return packagesLoading ? (
+            <div className="loading-state"><div className="spinner"></div><p>Loading packages...</p></div>
+          ) : filteredPackages.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.75rem' }}>No packages in this category yet — add one above.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.75rem' }}>
+              {filteredPackages.map(pkg => (
+                <div key={pkg.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
+                    <div style={{
+                      width: '56px', height: '40px', flexShrink: 0, borderRadius: '6px', border: '1px solid var(--border-color)',
+                      background: pkg.image_url ? `url(${pkg.image_url}) center/cover no-repeat` : '#e2e8f0',
+                    }} />
+                    <div>
+                      <span style={{
+                        fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '999px', marginRight: '0.4rem',
+                        background: (pkg.package_type || 'tour') === 'hotel' ? '#e0f2fe' : '#fef3c7',
+                        color: (pkg.package_type || 'tour') === 'hotel' ? '#075985' : '#92400e',
+                      }}>
+                        {(pkg.package_type || 'tour') === 'hotel' ? 'Hotel' : 'Tour'}
+                      </span>
+                      <strong>{pkg.title}</strong> — {pkg.destination} · {pkg.duration_days}D/{pkg.duration_nights}N · {pkg.currency} {Number(pkg.price).toLocaleString()}
+                      {!pkg.is_active && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '0.1rem 0.5rem', borderRadius: '999px' }}>Inactive</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openPackageForm(pkg)}>Edit</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDeletePackage(pkg.id)}>Delete</button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => openPackageForm(pkg)}>Edit</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => handleDeletePackage(pkg.id)}>Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </section>
       )}
 
@@ -1225,6 +1309,66 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         </form>
         {assignMsg && <p style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.75rem' }}>{assignMsg}</p>}
         {assignError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{assignError}</div>}
+      </section>
+      )}
+
+      {activeAdminSection === 'force-issue' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Force Issue Ticket</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
+          For a PNR held because the card payment gateway itself returned a sandbox/test-only failure
+          (e.g. PayCorp "(TEST TRANSACTION ONLY)" responses) — verify the booking and the gateway response
+          first, then issue directly. This skips payment verification, so every use is logged below with
+          your username and the reason given.
+        </p>
+        <form onSubmit={e => { e.preventDefault(); submitForceIssueTicket(); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '520px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">PNR / Locator Code</label>
+            <input className="form-input" required value={forceIssueLocator} onChange={e => setForceIssueLocator(e.target.value.toUpperCase())} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">PayCorp reqid (optional — captures the gateway response into the audit log)</label>
+            <input className="form-input" value={forceIssueReqid} onChange={e => setForceIssueReqid(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Reason *</label>
+            <textarea className="form-input" required rows={2} value={forceIssueReason} onChange={e => setForceIssueReason(e.target.value)}
+              placeholder="e.g. PayCorp sandbox returned INVALID RESPONSE (TEST TRANSACTION ONLY) with the correct test card — verified in Travelport logs." />
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={forceIssueSubmitting} style={{ alignSelf: 'flex-start' }}>
+            {forceIssueSubmitting ? 'Issuing…' : 'Force Issue Ticket'}
+          </button>
+        </form>
+        {forceIssueError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{forceIssueError}</div>}
+        {forceIssueResult && (
+          <p style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.75rem' }}>
+            Issued — {forceIssueResult.locator_code}, {forceIssueResult.passenger_name}, {forceIssueResult.airline} {forceIssueResult.flight_number},
+            {' '}{forceIssueResult.currency} {forceIssueResult.total_fare}. Status: {forceIssueResult.status}.
+          </p>
+        )}
+
+        <h4 style={{ margin: '1.5rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--gs-dark)' }}>Audit Log</h4>
+        {forceIssuedLogError && <div className="error-banner">{forceIssuedLogError}</div>}
+        {forceIssuedLogLoading ? (
+          <div className="loading-state"><div className="spinner"></div><p>Loading…</p></div>
+        ) : forceIssuedLog.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No force-issued tickets yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {forceIssuedLog.map(l => (
+              <div key={l.id} style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.65rem 0.9rem', fontSize: '0.8rem' }}>
+                <div><strong style={{ color: 'var(--gs-crimson)' }}>{l.locator_code}</strong> — by {l.admin_username} on {new Date(l.created_at).toLocaleString()}</div>
+                <div style={{ color: 'var(--text-secondary)', marginTop: '0.15rem' }}>{l.reason}</div>
+                {(l.gateway_response_code || l.gateway_response_text) && (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.15rem' }}>
+                    Gateway: code={l.gateway_response_code || '—'} · {l.gateway_response_text || '—'}
+                    {l.txn_reference && ` · txnRef=${l.txn_reference}`}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
       )}
 

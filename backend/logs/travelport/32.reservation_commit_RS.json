@@ -1,0 +1,197 @@
+{
+    "ReservationResponse": {
+        "@type": "ReservationResponse",
+        "Reservation": {
+            "@type": "Reservation",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "4a3826d6-ad6b-40ed-b057-a86b4653c62d"
+            },
+            "Offer": [
+                {
+                    "@type": "Offer",
+                    "id": "offer_1",
+                    "Identifier": {
+                        "authority": "EK",
+                        "value": "RUtfQ1BPMA=="
+                    },
+                    "ContentSource": "NDC",
+                    "Product": [
+                        {
+                            "@type": "ProductAir",
+                            "totalDuration": "PT4H20M",
+                            "id": "EKp0",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "adbc4d6b-44df-42aa-8e5f-bc7dfa7eedc2"
+                            },
+                            "FlightSegment": [
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "1",
+                                    "sequence": 1,
+                                    "Flight": {
+                                        "@type": "FlightDetail",
+                                        "distance": 2042,
+                                        "stops": 0,
+                                        "duration": "PT4H20M",
+                                        "carrier": "EK",
+                                        "number": "651",
+                                        "operatingCarrier": "EK",
+                                        "operatingCarrierName": "Emirates",
+                                        "equipment": "77W",
+                                        "id": "EKs10",
+                                        "Departure": {
+                                            "@type": "DepartureDetail",
+                                            "location": "CMB",
+                                            "date": "2026-09-16",
+                                            "time": "10:05:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "ArrivalDetail",
+                                            "terminal": "3",
+                                            "location": "DXB",
+                                            "date": "2026-09-16",
+                                            "time": "12:55:00"
+                                        }
+                                    }
+                                }
+                            ],
+                            "PassengerFlight": [
+                                {
+                                    "@type": "PassengerFlight",
+                                    "passengerQuantity": 1,
+                                    "passengerTypeCode": "ADT",
+                                    "requestedPassengerTypeCodes": [
+                                        "ADT"
+                                    ],
+                                    "FlightProduct": [
+                                        {
+                                            "@type": "FlightProduct",
+                                            "segmentSequence": [
+                                                1
+                                            ],
+                                            "classOfService": "T",
+                                            "cabin": "Economy",
+                                            "fareBasisCode": "TAAOPLK1/NDC2",
+                                            "fareType": "AirlinePrivateFare",
+                                            "Brand": {
+                                                "@type": "BrandID"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "birthDate": "2026-09-07",
+                    "gender": "Male",
+                    "passengerTypeCode": "ADT",
+                    "age": 0,
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "value": "f27ff2d4-bf3a-422c-bab2-2d686e3e3c8c"
+                    },
+                    "PersonName": {
+                        "@type": "PersonNameDetail",
+                        "Prefix": "MR",
+                        "Given": "JOHNA",
+                        "Surname": "DOE"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "Telephone",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "23123233",
+                            "id": "1",
+                            "role": "Mobile"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "value": "aaaa@gamil.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N21321334",
+                            "docType": "Passport",
+                            "expireDate": "2026-09-17",
+                            "issueCountry": "LK",
+                            "birthDate": "2026-09-07",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonNameDetail",
+                                "Given": "JOHNA",
+                                "Surname": "DOE"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "Receipt": [
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "3dc1a574-63b8-4358-87ba-8b9e01f172f9"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "Locator": {
+                            "source": "1G",
+                            "creationDate": "2026-09-15",
+                            "value": "HN4N2D"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "ebd91736-e6a9-449b-9dae-f3639a2d2a5c"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "Locator": {
+                            "source": "TripContainer",
+                            "creationDate": "2026-09-15",
+                            "value": "9DE10D99-2A5A-0E00-0202-609150336163"
+                        }
+                    }
+                }
+            ],
+            "ReservationDisplaySequence": {
+                "@type": "ReservationDisplaySequence",
+                "DisplaySequence": [
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 1,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "EKp0",
+                        "Sequence": 1
+                    }
+                ]
+            }
+        },
+        "Result": {
+            "@type": "Result",
+            "Error": [
+                {
+                    "@type": "ErrorDetail",
+                    "StatusCode": 500,
+                    "Message": "INTERNAL SERVER ERROR",
+                    "SourceID": "API",
+                    "SourceCode": "1"
+                }
+            ]
+        }
+    }
+}
