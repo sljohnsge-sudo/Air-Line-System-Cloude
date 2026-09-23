@@ -21,7 +21,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import Optional, List, Literal
 import database
 import services
@@ -79,6 +79,7 @@ class FlightSearchRequest(BaseModel):
     child_count: int = Field(default=0, ge=0, le=8)
     infant_count: int = Field(default=0, ge=0, le=8)
     cabin_preference: Optional[str] = Field(default=None, description="Economy|Business|First")
+    content_source: Optional[str] = Field(default=None, description="Per-request override: 'GDS' or 'NDC' — defaults to server config when omitted")
 
 
 class TravelerInfo(BaseModel):
@@ -155,6 +156,7 @@ class BookingConfirmRequest(BaseModel):
     cabin_class: Optional[str] = None
     fare_family: Optional[str] = None
     custom_price: Optional[float] = None
+    reference_payload_only: bool = False
     # Legacy fields — kept for backward compat but no longer used at commit time
     workbench_id: Optional[str] = None
     offer_id: Optional[str] = None
@@ -227,7 +229,8 @@ def search_flights(request: FlightSearchRequest):
             child_count=request.child_count,
             infant_count=request.infant_count,
             cabin_preference=request.cabin_preference,
-            legs=legs
+            legs=legs,
+            content_source=request.content_source
         )
         offers = services.parse_flight_offers(raw, legs=legs)
         return {"flights": offers, "count": len(offers)}
@@ -332,6 +335,16 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
         # POST /api/bookings/{locator_code}/issue-ticket, gated on a
         # successful PayCorp payment confirmation. Do NOT issue here.
         ticket = services.retrieve_reservation(locator_code)
+
+        # Cache the Offer local id/UUID from the commit response — issue_ticket()
+        # falls back to this when a later buildfromlocator doesn't return Offer[]
+        # (a real, confirmed gap for NDC content — see commit_workbench's docstring).
+        if commit_result.get("offer_local_id"):
+            ticket["offer_local_id"] = commit_result["offer_local_id"]
+        if commit_result.get("offer_uuid"):
+            ticket["offer_uuid"] = commit_result["offer_uuid"]
+        if commit_result.get("offer_authority"):
+            ticket["offer_authority"] = commit_result["offer_authority"]
 
         # Apply pricing overrides if selecting custom fare family
         if request.custom_price:
@@ -500,7 +513,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # run_booking_flow() handles Galileo error 4350 (COMMIT OR IGNORE
         # RESERVATION WORKBENCH) at both create and commit stages by DELETing
         # the stale workbench and retrying the entire flow (up to 3 attempts).
-        commit_result = services.run_booking_flow(raw_offering, travelers)
+        commit_result = services.run_booking_flow(raw_offering, travelers, reference_payload_only=request.reference_payload_only)
         locator_code = commit_result["locator_code"]
         logger.info(f"PNR generated: {locator_code}")
 
@@ -508,6 +521,16 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # POST /api/bookings/{locator_code}/issue-ticket, gated on a
         # successful PayCorp payment confirmation. Do NOT issue here.
         ticket = services.retrieve_reservation(locator_code)
+
+        # Cache the Offer local id/UUID from the commit response — issue_ticket()
+        # falls back to this when a later buildfromlocator doesn't return Offer[]
+        # (a real, confirmed gap for NDC content — see commit_workbench's docstring).
+        if commit_result.get("offer_local_id"):
+            ticket["offer_local_id"] = commit_result["offer_local_id"]
+        if commit_result.get("offer_uuid"):
+            ticket["offer_uuid"] = commit_result["offer_uuid"]
+        if commit_result.get("offer_authority"):
+            ticket["offer_authority"] = commit_result["offer_authority"]
 
         # Galileo GDS segment compiler takes a second to generate the airline PNR.
         # If it is null, sleep 1.5 seconds and retrieve reservation again to populate it.
@@ -694,7 +717,8 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
     existing = database.get_booking_by_locator(locator_code)
     if existing:
         for key in ("seat_charge", "email", "phone", "date_of_birth", "gender",
-                     "nationality", "passport_expiry", "offer_id", "payment_method", "customer_id"):
+                     "nationality", "passport_expiry", "offer_id", "payment_method", "customer_id",
+                     "offer_local_id", "offer_uuid", "offer_authority"):
             if existing.get(key) not in (None, "", []):
                 ticket.setdefault(key, existing.get(key))
         # NDC bookings: retrieve_reservation() doesn't return Offer[] for NDC
@@ -749,6 +773,242 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         "ticket": ticket,
         "cached_id": saved.get("id")
     }
+
+
+# ── Dedicated NDC flow: search → book → issue ticket ───────────────────────────
+# A separate, NDC-only path (content source always NDC, cash form of payment,
+# Travelport's NDC certification step order). It reuses the same Travelport
+# services as the main booking flow; nothing here touches GDS behaviour.
+
+class NdcSearchRequest(BaseModel):
+    origin: str = Field(..., min_length=3, max_length=3)
+    destination: str = Field(..., min_length=3, max_length=3)
+    departure_date: str
+    return_date: Optional[str] = Field(default=None, description="Omit for one-way")
+    adult_count: int = Field(default=1, ge=1, le=9)
+    child_count: int = Field(default=0, ge=0, le=8)
+    infant_count: int = Field(default=0, ge=0, le=8)
+
+    @model_validator(mode="after")
+    def _infants_not_more_than_adults(self):
+        # NDC carriers allow only one lap infant per adult (Travelport error 2014).
+        if self.infant_count > self.adult_count:
+            raise ValueError("The number of infants cannot exceed the number of adults for NDC.")
+        return self
+
+
+class NdcBookAndIssueRequest(BaseModel):
+    raw_offering: dict = Field(..., description="raw_offering of the chosen fare option from /api/ndc/search")
+    travelers: List[TravelerInfo]
+
+
+# Carriers whose post-commit workbench has no offer to pay against, so they
+# must be ticketed with Travelport's NDC Instant Pay workflow instead.
+NDC_INSTANT_PAY_CARRIERS = {"EK"}
+
+
+def _ndc_carrier_of(raw_offering: dict) -> str:
+    legs = services.workbench_service._get_leg_offerings(raw_offering)
+    return str((legs[0] if legs else {}).get("id", "")).split("_")[0]
+
+
+def _ndc_instant_pay(raw_offering: dict, travelers: list) -> dict:
+    try:
+        ip = services.workbench_service.run_instant_pay_flow(raw_offering, travelers)
+    except services.workbench_service.InstantPayError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    locator = ip["locator_code"]
+
+    ticket = services.retrieve_reservation(locator)
+    if not ticket.get("flight_number"):
+        commit_ticket = services.parse_commit_response(ip["raw_response"], locator)
+        for key in ("flight_number", "airline", "airline_code", "departure_airport", "arrival_airport",
+                    "departure_time", "arrival_time", "duration", "segments", "legs", "cabin_class",
+                    "fare_basis", "fare_source", "baggage_allowance", "total_fare", "currency"):
+            if commit_ticket.get(key):
+                ticket[key] = commit_ticket[key]
+    ticket["ticket_number"] = ip["ticket_numbers"][0][1]
+    ticket["ticket_numbers"] = [{"passenger_type": p, "number": n} for p, n in ip["ticket_numbers"]]
+    ticket["status"] = "Ticketed"
+    ticket["fare_source"] = "NDC"
+    ticket["payment_method"] = "Cash"
+    if not ticket.get("total_fare"):
+        ticket["total_fare"], ticket["currency"] = ip["total_fare"], ip["currency"]
+    _attach_traveler_details(ticket, travelers)
+    database.save_booking(ticket)
+
+    for _, number in ip["ticket_numbers"]:
+        try:
+            services.retrieve_ndc_ticket(locator, number)
+        except Exception as e:
+            logger.warning(f"NDC ticket retrieve failed for {number} (non-fatal): {e}")
+
+    return {
+        "success": True, "locator_code": locator, "airline_pnr": ticket.get("airline_pnr"),
+        "status": "Ticketed", "ticket_numbers": ticket["ticket_numbers"],
+        "total_fare": ticket.get("total_fare"), "currency": ticket.get("currency"), "message": None,
+    }
+
+
+# Emirates (Instant Pay) has no separate "hold" step — Travelport does not
+# store a form of payment added before the ticketing commit, so a PNR can't
+# usefully exist before payment. Its raw_offering/travelers are held here,
+# in memory only, between /api/ndc/book and the PayCorp return.
+_ndc_pending_instant_pay: dict[str, dict] = {}
+
+
+class NdcInstantPayCompleteRequest(BaseModel):
+    pending_id: str
+    reqid: str
+
+
+@app.post("/api/ndc/book")
+def ndc_book(request: NdcBookAndIssueRequest):
+    """
+    STEP 1 of the pay-before-ticket NDC flow: creates the PNR (held, not yet
+    ticketed) for carriers whose post-commit workbench can pay normally.
+    Emirates (Instant Pay) has no such hold — its request is stashed instead,
+    and the PNR + ticket are created together, after payment, by
+    /api/ndc/instant-pay/complete.
+    """
+    if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
+        pending_id = str(uuid.uuid4())
+        _ndc_pending_instant_pay[pending_id] = {
+            "raw_offering": request.raw_offering,
+            "travelers": [t.model_dump() for t in request.travelers],
+        }
+        return {"requires_prepay": True, "pending_id": pending_id}
+
+    trace_token = services.start_flow_trace_id()
+    try:
+        booked = confirm_booking(
+            BookingConfirmRequest(
+                raw_offering=request.raw_offering, travelers=request.travelers,
+                selected_seats=[], payment_method="card", reference_payload_only=True,
+            ),
+            customer_id=None,
+        )
+    finally:
+        services.end_flow_trace_id(trace_token)
+    ticket = booked["ticket"]
+    return {
+        "requires_prepay": False, "locator_code": ticket["locator_code"],
+        "airline_pnr": ticket.get("airline_pnr"), "status": ticket.get("status"),
+        "total_fare": ticket.get("total_fare"), "currency": ticket.get("currency"),
+    }
+
+
+@app.post("/api/ndc/instant-pay/complete")
+def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
+    """STEP 3 (Emirates only): payment confirmed — now book and ticket in one Instant Pay commit."""
+    pending = _ndc_pending_instant_pay.pop(request.pending_id, None)
+    if not pending:
+        raise HTTPException(status_code=404, detail="This booking has expired or was already completed. Please search and select the flight again.")
+    try:
+        payment_result = services.complete_payment(request.reqid)
+    except services.PayCorpError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    if not payment_result.get("success"):
+        raise HTTPException(
+            status_code=402,
+            detail=f"Payment not successful (code={payment_result.get('response_code')}): "
+                   f"{payment_result.get('response_text')}. No booking was made.",
+        )
+    trace_token = services.start_flow_trace_id()
+    try:
+        result = _ndc_instant_pay(pending["raw_offering"], pending["travelers"])
+    finally:
+        services.end_flow_trace_id(trace_token)
+    result["payment_txn_reference"] = payment_result.get("txn_reference")
+    return result
+
+
+@app.post("/api/ndc/search")
+def ndc_search(request: NdcSearchRequest):
+    """NDC-only search (contentSourceList: ["NDC"]); one-way or round trip."""
+    o, d = request.origin.upper(), request.destination.upper()
+    legs = None
+    if request.return_date:
+        legs = [
+            {"origin": o, "destination": d, "departure_date": request.departure_date},
+            {"origin": d, "destination": o, "departure_date": request.return_date},
+        ]
+    try:
+        raw = services.search_flights(
+            origin=None if legs else o, destination=None if legs else d,
+            departure_date=None if legs else request.departure_date,
+            adult_count=request.adult_count, child_count=request.child_count,
+            infant_count=request.infant_count, legs=legs, content_source="NDC",
+        )
+        offers = services.parse_flight_offers(raw, legs=legs)
+    except Exception as e:
+        logger.error(f"NDC search failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Travelport NDC search error: {str(e)[:400]}")
+    result = raw.get("CatalogProductOfferingsResponse", {}).get("Result", {}) or {}
+    carrier_notes = [f"{e.get('SourceID')}: {e.get('Message')}" for e in result.get("Error", []) or []]
+    return {"flights": offers, "count": len(offers), "content_source": "NDC", "carrier_notes": carrier_notes}
+
+
+@app.post("/api/ndc/book-and-issue")
+def ndc_book_and_issue(request: NdcBookAndIssueRequest):
+    """
+    Books the chosen NDC offer (PNR), then issues the ticket, in Travelport's
+    NDC certification order: price → session → add offer → travelers → commit
+    → retrieve → post-commit workbench → form of payment → payment →
+    ticketing commit → retrieve. Paid by cash form of payment (no card gateway).
+
+    confirm_booking() already retrieves the reservation itself (with one
+    conditional re-retrieve only if the airline PNR isn't populated yet —
+    see its own docstring); this endpoint used to also call
+    retrieve_reservation() again here, unconditionally, and discard the
+    result. That extra call never fed into `ticket` or `booked` and only
+    added a redundant Travelport call — removed.
+    """
+    trace_token = services.start_flow_trace_id()
+    try:
+        if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
+            return _ndc_instant_pay(request.raw_offering, [t.model_dump() for t in request.travelers])
+        booked = confirm_booking(
+            BookingConfirmRequest(
+                raw_offering=request.raw_offering, travelers=request.travelers,
+                selected_seats=[], payment_method="cash", reference_payload_only=True,
+            ),
+            customer_id=None,
+        )
+        locator = booked["ticket"]["locator_code"]
+        issued = issue_ticket_after_payment(locator, IssueTicketRequest())
+        ticket = issued["ticket"]
+        ticketed = bool(ticket.get("ticket_number"))
+        return {
+            "success": ticketed,
+            "locator_code": locator,
+            "airline_pnr": ticket.get("airline_pnr"),
+            "status": ticket.get("status"),
+            "ticket_numbers": ticket.get("ticket_numbers") or (
+                [{"passenger_type": "ADT", "number": ticket["ticket_number"]}] if ticketed else []),
+            "total_fare": ticket.get("total_fare"),
+            "currency": ticket.get("currency"),
+            "message": None if ticketed else
+                "PNR created but Travelport did not issue a ticket. Nothing was charged; retry issuing or cancel the PNR.",
+        }
+    finally:
+        services.end_flow_trace_id(trace_token)
+
+
+@app.get("/api/ndc/tickets/{locator_code}")
+def ndc_verify_tickets(locator_code: str, numbers: str = Query(..., description="comma-separated ticket numbers")):
+    """Confirms NDC tickets with Travelport's Ticket Retrieve API."""
+    out = []
+    for number in [n.strip() for n in numbers.split(",") if n.strip()]:
+        try:
+            res = services.retrieve_ndc_ticket(locator_code.upper(), number)
+            segs = (res.get("TicketListResponse", {}).get("TicketID") or [{}])[0].get("TicketSegment", [])
+            out.append({"number": number, "valid": True,
+                        "segments": [f"{s.get('Carrier')}{s.get('Number')} {s.get('Departure', {}).get('location')}-"
+                                     f"{s.get('Arrival', {}).get('location')} {s.get('Status')}" for s in segs]})
+        except Exception as e:
+            out.append({"number": number, "valid": False, "error": str(e)})
+    return {"locator_code": locator_code.upper(), "tickets": out}
 
 
 # ── Admin: Force Issue Ticket (manual override, audited) ───────────────────────
@@ -1664,29 +1924,32 @@ def admin_delete_visa_requirement(requirement_id: int, _admin: dict = Depends(au
     return {"message": f"Visa requirement {requirement_id} deleted."}
 
 
-# ── Visa Consultants (admin-curated roster, one per destination country) ──────
-# Staff assign a named consultant + email to each destination country. The
-# B2C visa consultation flow looks this up by destination so the customer
-# sees who they're booking with, and so the booking email below routes to
-# the right person (falling back to the general VISA_CONSULTANT_EMAIL when a
-# country has no consultant assigned).
+# ── Visa Consultants (admin-curated officer roster + country coverage) ────────
+# Staff maintain a roster of named officers and assign each one to any number
+# of destination countries (a country can have several officers covering it).
+# The B2C visa consultation flow looks up every active officer assigned to
+# the customer's destination so they see who they'd be booking with, and so
+# the booking email below routes to all of them (falling back to the general
+# VISA_CONSULTANT_EMAIL when a country has no officer assigned).
 
 class VisaConsultantInput(BaseModel):
-    country: str = Field(..., min_length=2, max_length=100)
     consultant_name: str = Field(..., min_length=2, max_length=150)
-    email: EmailStr
+    email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=30)
     is_active: bool = True
 
 
 @app.get("/api/visa-consultants/by-country")
-def get_visa_consultant_for_country(country: str):
+def get_visa_consultants_for_country(country: str):
     """Public lookup — used by the B2C form to show who the customer will be booking
-    with. Returns only the display name, never the consultant's email/phone."""
-    consultant = database.get_visa_consultant_by_country(country.strip())
-    if not consultant:
-        return {"found": False}
-    return {"found": True, "consultant_name": consultant["consultant_name"]}
+    with. Returns only display names, never emails/phones."""
+    consultants = database.get_visa_consultants_by_country(country.strip())
+    if not consultants:
+        return {"found": False, "consultants": []}
+    return {
+        "found": True,
+        "consultants": [{"consultant_name": c["consultant_name"]} for c in consultants],
+    }
 
 
 @app.get("/api/admin/visa-consultants")
@@ -1696,12 +1959,7 @@ def admin_list_visa_consultants(_admin: dict = Depends(auth.get_current_admin)):
 
 @app.post("/api/admin/visa-consultants", status_code=status.HTTP_201_CREATED)
 def admin_create_visa_consultant(request: VisaConsultantInput, _admin: dict = Depends(auth.get_current_admin)):
-    try:
-        return database.create_visa_consultant(request.model_dump())
-    except Exception as e:
-        if "uq_visa_consultant_country" in str(e) or "Duplicate entry" in str(e):
-            raise HTTPException(status_code=409, detail="A consultant is already assigned to this country — edit it instead.")
-        raise
+    return database.create_visa_consultant(request.model_dump())
 
 
 @app.put("/api/admin/visa-consultants/{consultant_id}")
@@ -1718,6 +1976,18 @@ def admin_delete_visa_consultant(consultant_id: int, _admin: dict = Depends(auth
     if not deleted:
         raise HTTPException(status_code=404, detail="Visa consultant not found.")
     return {"message": f"Visa consultant {consultant_id} deleted."}
+
+
+@app.put("/api/admin/visa-consultants/{consultant_id}/countries/{country}")
+def admin_assign_visa_consultant_country(consultant_id: int, country: str, _admin: dict = Depends(auth.get_current_admin)):
+    database.assign_visa_consultant_country(consultant_id, country.strip())
+    return {"message": f"{country} assigned."}
+
+
+@app.delete("/api/admin/visa-consultants/{consultant_id}/countries/{country}")
+def admin_unassign_visa_consultant_country(consultant_id: int, country: str, _admin: dict = Depends(auth.get_current_admin)):
+    database.unassign_visa_consultant_country(consultant_id, country.strip())
+    return {"message": f"{country} unassigned."}
 
 
 # ── Visa Consultation Booking (B2C, public) ───────────────────────────────────
@@ -1764,7 +2034,9 @@ def book_visa_consultation(request: VisaConsultationBookingCreate, customer_id: 
         raise HTTPException(status_code=400, detail="slot_date cannot be in the past.")
 
     destination = request.destination.strip()
-    consultant = database.get_visa_consultant_by_country(destination)
+    consultants = database.get_visa_consultants_by_country(destination)
+    consultant_names = ", ".join(c["consultant_name"] for c in consultants) or None
+    consultant_emails = ", ".join(c["email"] for c in consultants if c.get("email")) or None
 
     try:
         booking = database.create_visa_consultation(
@@ -1777,9 +2049,8 @@ def book_visa_consultation(request: VisaConsultationBookingCreate, customer_id: 
             request.slot_date,
             request.slot_time,
             request.notes.strip() if request.notes else None,
-            consultant["id"] if consultant else None,
-            consultant["consultant_name"] if consultant else None,
-            consultant["email"] if consultant else None,
+            consultant_names,
+            consultant_emails,
         )
     except Exception as e:
         if "uq_visa_slot" in str(e) or "Duplicate entry" in str(e):

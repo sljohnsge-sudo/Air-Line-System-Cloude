@@ -135,7 +135,8 @@ def search_flights(
     child_count: int = 0,
     infant_count: int = 0,
     cabin_preference: Optional[str] = None,
-    legs: Optional[list] = None
+    legs: Optional[list] = None,
+    content_source: Optional[str] = None
 ) -> dict:
     """
     STEP 2: Search for available flights from Travelport.
@@ -149,6 +150,10 @@ def search_flights(
         infant_count (int): Number of infant passengers (default 0)
         cabin_preference (str|None): "Economy", "Business", "First" — or None for all
         legs (list|None): List of flight search legs for round-trip or multi-city
+        content_source (str|None): Per-request override for contentSourceList
+            ("GDS" or "NDC") — falls back to TravelportConfig.CONTENT_SOURCE
+            when not given. Lets a single running backend serve both a
+            GDS-only and an NDC-only certification search without a restart.
 
     Returns:
         dict: Raw Travelport catalog search response (parsed JSON)
@@ -223,10 +228,14 @@ def search_flights(
             # the reference the offer/price request needs downstream. 999 keeps
             # caching on while still satisfying the certification guidance.
             "offersPerPage": 999,
-            # Only GDS and NDC are valid content sources on this account —
-            # Travelport support flagged APIPAC as incorrect (not a real
-            # provider) after reviewing our round-trip search logs.
-            "contentSourceList": ["GDS", "NDC"],
+            # Search now queries a SINGLE content source per Travelport
+            # certification guidance (2026-09-16 call): certify GDS and NDC
+            # separately rather than searching both at once. Driven by
+            # TravelportConfig.CONTENT_SOURCE (TP_CONTENT_SOURCE env var,
+            # defaults to "GDS") — that setting is left in place and still
+            # supports switching to NDC-only search; it's just not hardcoded
+            # to query both content sources simultaneously any more.
+            "contentSourceList": [content_source or TravelportConfig.CONTENT_SOURCE],
             "PassengerCriteria": passenger_criteria,
             "SearchCriteriaFlight": search_criteria_flight
         }

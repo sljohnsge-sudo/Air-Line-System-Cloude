@@ -7,6 +7,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [loggingIn, setLoggingIn] = useState(false);
 
   const [activeAdminSection, setActiveAdminSection] = useState('pricing');
+  const [visaSectionOpen, setVisaSectionOpen] = useState(false);
 
   const [settings, setSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -80,10 +81,13 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [visaFormOpen, setVisaFormOpen] = useState(false);
   const [visaSaving, setVisaSaving] = useState(false);
 
-  const emptyConsultantForm = { country: '', consultant_name: '', email: '', phone: '', is_active: true };
+  const emptyConsultantForm = { consultant_name: '', email: '', phone: '', is_active: true };
   const [visaConsultantRoster, setVisaConsultantRoster] = useState([]);
   const [visaConsultantRosterLoading, setVisaConsultantRosterLoading] = useState(false);
   const [visaConsultantRosterError, setVisaConsultantRosterError] = useState('');
+  const [visaAssignmentSaving, setVisaAssignmentSaving] = useState(null); // `${consultantId}:${country}` while a toggle is in flight
+  const [newAssignmentCountry, setNewAssignmentCountry] = useState('');
+  const [extraAssignmentCountries, setExtraAssignmentCountries] = useState([]); // countries typed in but not yet assigned to anyone
   const [consultantForm, setConsultantForm] = useState(emptyConsultantForm);
   const [editingConsultantId, setEditingConsultantId] = useState(null);
   const [consultantFormOpen, setConsultantFormOpen] = useState(false);
@@ -530,7 +534,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const openConsultantForm = (c) => {
     if (c) {
       setEditingConsultantId(c.id);
-      setConsultantForm({ country: c.country, consultant_name: c.consultant_name, email: c.email, phone: c.phone || '', is_active: !!c.is_active });
+      setConsultantForm({ consultant_name: c.consultant_name, email: c.email || '', phone: c.phone || '', is_active: !!c.is_active });
     } else {
       setEditingConsultantId(null);
       setConsultantForm(emptyConsultantForm);
@@ -547,7 +551,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       const res = await fetchWithRetry(url, {
         method: editingConsultantId ? 'PUT' : 'POST',
         headers: authHeaders,
-        body: JSON.stringify(consultantForm),
+        body: JSON.stringify({ ...consultantForm, email: consultantForm.email.trim() || null }),
       });
       await adminApiResponse(res, 'Failed to save visa consultant');
       setConsultantFormOpen(false);
@@ -569,6 +573,29 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setVisaConsultantRoster(list => list.filter(c => c.id !== id));
     } catch (err) {
       setVisaConsultantRosterError(err.message);
+    }
+  };
+
+  const toggleConsultantCountry = async (consultantId, country, isAssigned) => {
+    const key = `${consultantId}:${country}`;
+    setVisaAssignmentSaving(key);
+    setVisaConsultantRosterError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/visa-consultants/${consultantId}/countries/${encodeURIComponent(country)}`, {
+        method: isAssigned ? 'DELETE' : 'PUT',
+        headers: authHeaders,
+      });
+      await adminApiResponse(res, 'Failed to update country assignment');
+      setVisaConsultantRoster(list => list.map(c => {
+        if (c.id !== consultantId) return c;
+        const countries = isAssigned ? c.countries.filter(x => x !== country) : [...c.countries, country].sort();
+        return { ...c, countries };
+      }));
+      if (!isAssigned) setExtraAssignmentCountries(list => list.filter(x => x !== country));
+    } catch (err) {
+      setVisaConsultantRosterError(err.message);
+    } finally {
+      setVisaAssignmentSaving(null);
     }
   };
 
@@ -693,6 +720,8 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     );
   };
 
+  const visaGroupSectionIds = ['visa-requirements', 'visa-consultants', 'visa-assignments'];
+
   const adminNavItems = [
     { id: 'pricing', label: 'Pricing & Markup' },
     { id: 'loyalty', label: 'Loyalty Program' },
@@ -701,13 +730,20 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
     { id: 'packages', label: 'Tour Packages' },
     { id: 'package-requests', label: 'Package Booking Requests', count: packageRequests.length },
-    { id: 'visa-requirements', label: 'Visa Requirements' },
-    { id: 'visa-consultants', label: 'Visa Consultants' },
+    {
+      group: 'VISA',
+      items: [
+        { id: 'visa-requirements', label: 'Visa Requirements' },
+        { id: 'visa-consultants', label: 'Visa Consultants' },
+        { id: 'visa-assignments', label: 'Visa Country Assignments' },
+      ],
+    },
     { id: 'assign-booking', label: 'Assign Booking' },
     { id: 'force-issue', label: 'Force Issue Ticket' },
     { id: 'reports', label: 'Reports' },
     { id: 'tickets', label: 'Tickets & Invoices' },
   ];
+  const visaGroupOpen = visaSectionOpen || visaGroupSectionIds.includes(activeAdminSection);
 
   return (
     <div className="tab-content animate-fade">
@@ -720,31 +756,72 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
         <nav style={{ width: '230px', flexShrink: 0, position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-          {adminNavItems.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveAdminSection(item.id)}
-              style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
-                padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                fontSize: '0.85rem', fontWeight: activeAdminSection === item.id ? 700 : 500,
-                background: activeAdminSection === item.id ? 'var(--gs-crimson)' : 'transparent',
-                color: activeAdminSection === item.id ? 'white' : 'var(--gs-dark)',
-              }}
-            >
-              <span>{item.label}</span>
-              {item.count > 0 && (
-                <span style={{
-                  fontSize: '0.7rem', fontWeight: 700, padding: '0.05rem 0.45rem', borderRadius: '999px',
-                  background: activeAdminSection === item.id ? 'rgba(255,255,255,0.25)' : '#fef2f2',
-                  color: activeAdminSection === item.id ? 'white' : '#991b1b',
-                }}>
-                  {item.count}
-                </span>
-              )}
-            </button>
-          ))}
+          {adminNavItems.map(item => {
+            if (item.group) {
+              return (
+                <div key={item.group}>
+                  <button
+                    type="button"
+                    onClick={() => setVisaSectionOpen(o => !o)}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
+                      width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                      fontSize: '0.85rem', fontWeight: 700,
+                      background: 'transparent', color: 'var(--gs-dark)',
+                    }}
+                  >
+                    <span>{item.group}</span>
+                    <span style={{ fontSize: '0.7rem', transform: visaGroupOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+                  </button>
+                  {visaGroupOpen && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', paddingLeft: '0.6rem' }}>
+                      {item.items.map(sub => (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => setActiveAdminSection(sub.id)}
+                          style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
+                            padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                            fontSize: '0.85rem', fontWeight: activeAdminSection === sub.id ? 700 : 500,
+                            background: activeAdminSection === sub.id ? 'var(--gs-crimson)' : 'transparent',
+                            color: activeAdminSection === sub.id ? 'white' : 'var(--gs-dark)',
+                          }}
+                        >
+                          <span>{sub.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveAdminSection(item.id)}
+                style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
+                  padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.85rem', fontWeight: activeAdminSection === item.id ? 700 : 500,
+                  background: activeAdminSection === item.id ? 'var(--gs-crimson)' : 'transparent',
+                  color: activeAdminSection === item.id ? 'white' : 'var(--gs-dark)',
+                }}
+              >
+                <span>{item.label}</span>
+                {item.count > 0 && (
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 700, padding: '0.05rem 0.45rem', borderRadius: '999px',
+                    background: activeAdminSection === item.id ? 'rgba(255,255,255,0.25)' : '#fef2f2',
+                    color: activeAdminSection === item.id ? 'white' : '#991b1b',
+                  }}>
+                    {item.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -873,7 +950,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                     {r.full_name} · {r.email} · {r.phone}
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    Consultant: {r.consultant_name ? `${r.consultant_name} (${r.consultant_email})` : 'none assigned — sent to general mailbox'}
+                    Consultant(s): {r.consultant_names ? `${r.consultant_names}${r.consultant_emails ? ` (${r.consultant_emails})` : ''}` : 'none assigned — sent to general mailbox'}
                   </div>
                   {r.notes && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Notes: {r.notes}</div>}
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
@@ -1222,9 +1299,10 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           <button className="btn btn-primary btn-sm" onClick={() => openConsultantForm(null)}>+ Add Consultant</button>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.35rem', marginBottom: '0' }}>
-          One consultant per destination country. Shown to customers on the B2C Visa page once they pick that
-          destination, and used to route consultation booking emails — falls back to the general
-          VISA_CONSULTANT_EMAIL (.env) for any country with no consultant assigned here.
+          A named officer can cover any number of destination countries. Assign countries to an officer on the
+          "Visa Country Assignments" screen. Shown to customers on the B2C Visa page once they pick a destination,
+          and used to route consultation booking emails to every officer assigned there — falls back to the
+          general VISA_CONSULTANT_EMAIL (.env) for any country with nobody assigned.
         </p>
         {visaConsultantRosterError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{visaConsultantRosterError}</div>}
 
@@ -1233,18 +1311,12 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', color: 'var(--gs-dark)' }}>{editingConsultantId ? 'Edit Consultant' : 'New Consultant'}</h4>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
-                <label className="form-label">Destination Country *</label>
-                <input className="form-input" required placeholder="e.g. Sri Lanka" value={consultantForm.country} onChange={e => setConsultantForm(f => ({ ...f, country: e.target.value }))} />
-              </div>
-              <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
                 <label className="form-label">Consultant Name *</label>
-                <input className="form-input" required placeholder="e.g. Nadeesha Perera" value={consultantForm.consultant_name} onChange={e => setConsultantForm(f => ({ ...f, consultant_name: e.target.value }))} />
+                <input className="form-input" required placeholder="e.g. Rashini" value={consultantForm.consultant_name} onChange={e => setConsultantForm(f => ({ ...f, consultant_name: e.target.value }))} />
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
-                <label className="form-label">Email *</label>
-                <input type="email" className="form-input" required value={consultantForm.email} onChange={e => setConsultantForm(f => ({ ...f, email: e.target.value }))} />
+                <label className="form-label">Email</label>
+                <input type="email" className="form-input" placeholder="filled in later if not known yet" value={consultantForm.email} onChange={e => setConsultantForm(f => ({ ...f, email: e.target.value }))} />
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
                 <label className="form-label">Phone</label>
@@ -1265,17 +1337,22 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         {visaConsultantRosterLoading ? (
           <div className="loading-state"><div className="spinner"></div><p>Loading visa consultants...</p></div>
         ) : visaConsultantRoster.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.75rem' }}>No visa consultants assigned yet — add one above.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.75rem' }}>No visa consultants added yet — add one above.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.75rem' }}>
             {visaConsultantRoster.map(c => (
               <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
                 <div style={{ fontSize: '0.85rem' }}>
-                  <strong>{c.country}</strong> → {c.consultant_name}
+                  <strong>{c.consultant_name}</strong>
                   {!c.is_active && (
                     <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, padding: '0.1rem 0.5rem', borderRadius: '999px', background: '#fef2f2', color: '#991b1b' }}>Inactive</span>
                   )}
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{c.email}{c.phone && ` · ${c.phone}`}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                    {c.email || 'no email yet'}{c.phone && ` · ${c.phone}`}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                    {c.countries.length > 0 ? `Countries: ${c.countries.join(', ')}` : 'No countries assigned yet'}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <button className="btn btn-secondary btn-sm" onClick={() => openConsultantForm(c)}>Edit</button>
@@ -1285,6 +1362,83 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             ))}
           </div>
         )}
+      </section>
+      )}
+
+      {activeAdminSection === 'visa-assignments' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading" style={{ margin: 0 }}>Visa Country Assignments</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.35rem', marginBottom: '0.75rem' }}>
+          Tick every officer who covers a destination country. A country with several officers checked routes the
+          customer's request to all of them.
+        </p>
+        {visaConsultantRosterError && <div className="error-banner" style={{ marginBottom: '0.75rem' }}>{visaConsultantRosterError}</div>}
+
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            const country = newAssignmentCountry.trim();
+            if (!country) return;
+            const known = new Set(visaConsultantRoster.flatMap(c => c.countries));
+            if (!known.has(country) && !extraAssignmentCountries.includes(country)) {
+              setExtraAssignmentCountries(list => [...list, country].sort());
+            }
+            setNewAssignmentCountry('');
+          }}
+          style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', maxWidth: '360px' }}
+        >
+          <input className="form-input" placeholder="Add a new country row" value={newAssignmentCountry} onChange={e => setNewAssignmentCountry(e.target.value)} />
+          <button type="submit" className="btn btn-secondary btn-sm">+ Add Country</button>
+        </form>
+
+        {visaConsultantRosterLoading ? (
+          <div className="loading-state"><div className="spinner"></div><p>Loading assignments...</p></div>
+        ) : visaConsultantRoster.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Add a visa consultant first on the "Visa Consultants" screen.</p>
+        ) : (() => {
+          const allCountries = Array.from(new Set([
+            ...visaConsultantRoster.flatMap(c => c.countries),
+            ...extraAssignmentCountries,
+          ])).sort();
+          if (allCountries.length === 0) {
+            return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No countries yet — add one above, then tick the officers who cover it.</p>;
+          }
+          return (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.82rem' }}>
+                <thead>
+                  <tr>
+                    <th style={{ position: 'sticky', left: 0, background: 'var(--gs-crimson)', color: 'white', textAlign: 'left', padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)' }}>Country</th>
+                    {visaConsultantRoster.map(c => (
+                      <th key={c.id} style={{ background: 'var(--gs-crimson)', color: 'white', padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>{c.consultant_name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {allCountries.map(country => (
+                    <tr key={country}>
+                      <td style={{ position: 'sticky', left: 0, background: '#f8fafc', padding: '0.4rem 0.75rem', border: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>{country}</td>
+                      {visaConsultantRoster.map(c => {
+                        const isAssigned = c.countries.includes(country);
+                        const key = `${c.id}:${country}`;
+                        return (
+                          <td key={c.id} style={{ textAlign: 'center', padding: '0.4rem 0.75rem', border: '1px solid var(--border-color)' }}>
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              disabled={visaAssignmentSaving === key}
+                              onChange={() => toggleConsultantCountry(c.id, country, isAssigned)}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
       </section>
       )}
 

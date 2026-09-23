@@ -1,0 +1,130 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/fdcc51bd-1741-4deb-9ec8-439b415f45d2/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk1MzExNDcsImV4cCI6MTc4OTYxNzU0NywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ezCn6yWztIFcxvCBH2tYgCZSLrs9k_5z_cwUiWqn_qG8mqwUWC-jeJwvyoDyoZ8Stb1PGlNKwvee33ftevyUDlRO3uZqVgu-TmuGbgP4Th_Pdd6nU8p75fJ3tgsJ6129OD0adM6wjRceueETWZuBFC3CW0DFkvOXsrZY1ty-ancomjQEte4OLCOP09VXU3eSeLiLG480FCAIYwI2sfEqYEq5Fq53p3-kDmr6TVbnjrefDUUprDUxvhWOQoQVn8iHzlf_HfS_52AnnXXjxEeZu-HH-DvuxMFobCGVNE0ebh1hkjDhKb5ux7vtGvjbAIBm9e3JR9JzBqP9miilhpur9Q' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_5DEBC438A8B1' \
+--data-raw '{
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "651",
+                        "from": "CMB",
+                        "to": "DXB",
+                        "departureDate": "2026-11-02",
+                        "segmentSequence": 1,
+                        "departureTime": "09:55:00",
+                        "arrivalDate": "2026-11-02",
+                        "arrivalTime": "12:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "L",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            },
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 2,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "65",
+                        "from": "DXB",
+                        "to": "STN",
+                        "departureDate": "2026-11-03",
+                        "segmentSequence": 1,
+                        "departureTime": "08:15:00",
+                        "arrivalDate": "2026-11-03",
+                        "arrivalTime": "12:05:00",
+                        "cabin": "Economy",
+                        "classOfService": "L",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            },
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 3,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "66",
+                        "from": "STN",
+                        "to": "DXB",
+                        "departureDate": "2026-11-12",
+                        "segmentSequence": 1,
+                        "departureTime": "14:05:00",
+                        "arrivalDate": "2026-11-13",
+                        "arrivalTime": "01:00:00",
+                        "cabin": "Economy",
+                        "classOfService": "L",
+                        "AvailabilitySourceCode": "S",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "650",
+                        "from": "DXB",
+                        "to": "CMB",
+                        "departureDate": "2026-11-13",
+                        "segmentSequence": 2,
+                        "departureTime": "02:35:00",
+                        "arrivalDate": "2026-11-13",
+                        "arrivalTime": "08:20:00",
+                        "cabin": "Economy",
+                        "classOfService": "L",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 1,
+                "passengerTypeCode": "INF"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 10,
+                "passengerTypeCode": "CNN"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Eco Saver",
+                "BrandRef": "b0"
+            }
+        }
+    }
+}'

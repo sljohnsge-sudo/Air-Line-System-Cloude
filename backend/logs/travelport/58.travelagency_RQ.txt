@@ -1,0 +1,36 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/ticket/travelagency/reservationworkbench/6bbd686f-7804-4093-8d38-84c6db711788/travelagency' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTg0NzAsImV4cCI6MTc4OTgwNDg3MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Msb7gSXSCpMEpRLR--us9aNfO2nArKdJXbRGgwZvTbqkLrBmuXyc7HS2O5zKxh1j-WC9zbJnjVY5U8EItERwIgm7A4EUgkqAJyqLr-dx8hw9POfkLw_iZk1ZjmNFPT77rYPX0NJSFaMOatimucydbeVpUr6aGmpPvz5vaR6xDEPnkDj3vOBgx9t7XYwsBLdDrRNzQjPX0zOf_MG9y8rze73yVQKZ_JPSq-K_ZxeO5DBDEia_5nW63ZLpfi3x5jgVjMUZ4DT_kJzeZZXLIKcrU4yebBP8Z8C5o_y71BHnk5Si9Mn8WOBylZ3APuKXdJvNtppahrL1frx0RUsLdzNPzA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_355FA7624563' \
+--data-raw '{
+    "TravelAgencyQueryTravelAgencyWrapper": {
+        "TravelAgencyQueryTravelAgency": {
+            "Address": {
+                "AddressLine": "Ground Floor, 439 Galle Rd",
+                "City": "Colombo",
+                "Country": {
+                    "name": "LK"
+                },
+                "PostalCode": "00300",
+                "Addressee": "George Steuart Travel"
+            },
+            "CorporateCode": "7F3C",
+            "Telephone": [
+                {
+                    "countryAccessCode": "94",
+                    "areaCityCode": "11",
+                    "phoneNumber": "7792400"
+                }
+            ],
+            "Email": {
+                "value": "ticketing@gstravels.lk"
+            }
+        }
+    }
+}'

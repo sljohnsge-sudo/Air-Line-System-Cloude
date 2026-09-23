@@ -2,14 +2,18 @@
 services/auth_service.py
 ========================
 STEP 1 — OAuth 2.0 Token Management
-Handles obtaining and caching the Bearer access token from Travelport.
-
-Token is valid for 24 hours. This service automatically refreshes when expired.
+Bearer access token management. Travelport tokens are valid for 24h and are
+meant to be reused across calls, so one token is kept in this process's
+memory only (never on disk, never logged, never sent to the browser) and
+refreshed 5 minutes before expiry or after a 401.
 To update auth logic: modify only this file.
 """
 
-import httpx
+import base64
+import json
+import threading
 import time
+import httpx
 import logging
 import contextvars
 from contextlib import contextmanager
@@ -61,15 +65,29 @@ def end_flow_trace_id(token) -> None:
     if token is not None:
         _flow_trace_id.reset(token)
 
-# ── In-memory token cache ──────────────────────────────────────────────────────
+
+_token_lock = threading.Lock()
 _cached_token: str | None = None
-_token_expiry: float = 0.0          # Unix timestamp when token expires
+_cached_expiry: float = 0.0
+_REFRESH_MARGIN_SECONDS = 300
+
+
+def _token_expiry(token: str, expires_in) -> float:
+    """Expiry (epoch seconds) from the JWT's own exp claim, falling back to expires_in."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        return float(json.loads(base64.urlsafe_b64decode(payload))["exp"])
+    except Exception:
+        return time.time() + float(expires_in or 3600)
 
 
 def get_access_token() -> str:
     """
-    Returns a valid Bearer access token for Travelport API calls.
-    Automatically refreshes if the current token has expired.
+    Returns a Bearer access token, reusing one in memory until 5 minutes
+    before its expiry (Travelport tokens last 24h and are meant to be reused
+    across calls). Held only in this process's memory — never written to
+    disk, never logged, never sent to the browser.
 
     Returns:
         str: Bearer token string (without 'Bearer ' prefix)
@@ -78,13 +96,15 @@ def get_access_token() -> str:
         httpx.HTTPStatusError: if OAuth server returns an error
         Exception: on network failures
     """
-    global _cached_token, _token_expiry
-
-    # Return cached token if still valid (with 60s safety buffer)
-    if _cached_token and time.time() < (_token_expiry - 60):
-        logger.debug("Using cached Travelport access token.")
+    global _cached_token, _cached_expiry
+    with _token_lock:
+        if _cached_token and time.time() < _cached_expiry - _REFRESH_MARGIN_SECONDS:
+            return _cached_token
+        _cached_token, _cached_expiry = _request_new_token()
         return _cached_token
 
+
+def _request_new_token() -> tuple[str, float]:
     logger.info("Requesting new Travelport access token...")
 
     payload = {
@@ -104,13 +124,9 @@ def get_access_token() -> str:
         response.raise_for_status()
         token_data = response.json()
 
-    _cached_token = token_data["access_token"]
-    # expires_in is in seconds; store absolute expiry time
-    expires_in = token_data.get("expires_in", 86400)
-    _token_expiry = time.time() + expires_in
-
-    logger.info(f"New token obtained. Expires in {expires_in}s.")
-    return _cached_token
+    access_token = token_data["access_token"]
+    logger.info(f"New token obtained. Expires in {token_data.get('expires_in')}s.")
+    return access_token, _token_expiry(access_token, token_data.get("expires_in"))
 
 
 def get_auth_headers(session_id: str | None = None) -> dict:
@@ -157,8 +173,8 @@ def get_auth_headers(session_id: str | None = None) -> dict:
 
 
 def invalidate_token():
-    """Force-invalidate the cached token (call if a 401 is received)."""
-    global _cached_token, _token_expiry
-    _cached_token = None
-    _token_expiry = 0.0
-    logger.warning("Travelport access token invalidated.")
+    """Drop the in-memory token (called after a 401) so the next call re-authenticates."""
+    global _cached_token, _cached_expiry
+    with _token_lock:
+        _cached_token, _cached_expiry = None, 0.0
+    logger.warning("Travelport returned 401 — cached token dropped; a fresh one will be requested.")

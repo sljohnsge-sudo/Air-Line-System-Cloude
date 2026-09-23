@@ -1,0 +1,58 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/paymentoffer/reservationworkbench/d748df7b-37df-4193-aeba-e5afe89611fe/payments' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAwNjgwMDUsImV4cCI6MTc5MDE1NDQwNSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Dq4VfU1AavbMaDNiUM4TBt2r8KK6LecXSJCX_bJ0ELNQFZ4tzrkDdq4dmGcsjt076f-z03L4bPwJfJgFTBeSRKkVZaVNgwUdSDZWWbA59VN7VJP6GjjvaGR8rajEkQm0045mmxJQ6kTZ8FNN0TwA0l3VU-Mt2P8pjYNPcaIasnC-r3rATv9XiOhlUkk_gfEebhbzpJ5flSaVYhwRnubFi1oXwHRfWT-FbAOJQm4YOfIGRkXXzaz0YJsGwsv-ZsHj2H2GH7WZG7sL8itfbEKBSk4hvPYzpagccX9uD4hGZC7_TwVzp9HFg6yQv0xd2qkvzEZqxz3htQKZrEokbRNzmQ' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_5F3761391370' \
+--data-raw '{
+    "Payment": {
+        "id": "payment_1",
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "7423092F-7738-4194-987E-032D13BB029A"
+        },
+        "Amount": {
+            "value": 367450.0,
+            "code": "LKR",
+            "minorUnit": 2,
+            "currencySource": "Supplier",
+            "approximateInd": true
+        },
+        "FormOfPaymentIdentifier": {
+            "id": "formOfPayment_1",
+            "FormOfPaymentRef": "formOfPayment_1",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "675FC885-B085-4D9D-A55B-BDB9BE4C4D4B"
+            }
+        },
+        "OfferIdentifier": [
+            {
+                "id": "offer_1",
+                "offerRef": "offer_1",
+                "Identifier": {
+                    "authority": "QR",
+                    "value": "N0Q4Uk1GfFFSXzdEOFJNRl9BSVItMS0yLTMtNHxRUnxRUl83RDhSTUZ8cHJvZHVjdF8yX3MzLVNFRzMsczQtU0VHNDpwcm9kdWN0XzFfczEtU0VHMSxzMi1TRUcyfElORjpQQVgzLEFEVDpQQVgyLENIRDpQQVg0fFN0YXR1czpVU0VEIE5UQUM="
+                }
+            }
+        ],
+        "TravelerIdentifierRef": [
+            {
+                "passengerTypeCode": "ADT",
+                "id": "travelerRefId_1"
+            },
+            {
+                "passengerTypeCode": "INF",
+                "id": "travelerRefId_2"
+            },
+            {
+                "passengerTypeCode": "CHD",
+                "id": "travelerRefId_3"
+            }
+        ]
+    }
+}'

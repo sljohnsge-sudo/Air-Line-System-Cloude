@@ -21,8 +21,8 @@ class EmailConfig:
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Final Travels Visa Desk")
 
-    # Fallback recipient when a destination country has no assigned consultant
-    # in the visa_consultants table (see database.get_visa_consultant_by_country).
+    # Fallback recipient when a destination country has no assigned officer
+    # in the visa_consultants table (see database.get_visa_consultants_by_country).
     VISA_CONSULTANT_EMAIL: str = os.getenv("VISA_CONSULTANT_EMAIL", "")
 
     @classmethod

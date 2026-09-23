@@ -69,11 +69,17 @@ class TravelportEndpoints:
     # POST  → upsells for Premium Flex (GDS only, up to 99 upsells)
 
     # ── STEP 3b: AirPrice (Price Confirmation) ─────────────────────────────────
-    # Called for GDS content only — confirmed live that calling this before
-    # booking an NDC offer wedges the PCC (see workbench_service.py's
-    # run_booking_flow docstring). Not workbench-scoped — called directly
+    # Called for every content source (GDS and NDC) — see workbench_service.py's
+    # run_booking_flow docstring. Not workbench-scoped — called directly
     # against the cached Search transaction, before workbench creation.
+    # Reference payload (offer id + product refs only) — used for NDC/LCC
+    # content, and as the fallback for GDS content with no segments.
     AIRPRICE_REFERENCE = f"{_air}/price/offers/buildfromcatalogproductofferings"
+    # Full payload (complete itinerary + fare/brand selection, same shape as
+    # add_offer_to_workbench_full_payload) — used for GDS content per
+    # Travelport certification guidance: Price should use the same
+    # full-payload method as Add Offer.
+    AIRPRICE_FULL_PAYLOAD = f"{_air}/price/offers/buildfromproducts"
 
     # ── STEP 4: Reservation Workbench ─────────────────────────────────────────
     CREATE_WORKBENCH = f"{_air}/book/session/reservationworkbench"
@@ -164,6 +170,18 @@ class TravelportEndpoints:
         14-16.Retrieve Ticket ADT/INF/CHD RQ), called once per passenger's
         ticket number after issuance."""
         return f"{_air}/ticket/tickets/{ticket_number}"
+
+    @staticmethod
+    def get_reservation_receipts(workbench_id: str, receipt_type: str | None = None) -> str:
+        """GET → list of ticket/payment receipts for a (post-commit) workbench.
+        https://developer.travelport.com/apis/flights/retrieve-bookings-and-tickets/getreceipts
+        Used as a fallback ticket-number lookup for NDC content, which
+        confirmed live does not always return Ticket[]/Receipt[] on the
+        ticketing commit response itself (see issue_ticket()'s docstring)."""
+        url = f"{_air}/receipt/reservations/{workbench_id}/receipts"
+        if receipt_type:
+            url += f"?ReceiptType={receipt_type}"
+        return url
 
     # ── Post-Commit Ticketing Workflow ─────────────────────────────────────────
     # For ticketing a held PNR (already committed), a NEW workbench must be

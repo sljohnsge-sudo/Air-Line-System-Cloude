@@ -1,0 +1,119 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/ea6a626c-373c-4f6f-b3e1-e4db37491c6c/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk5NzA2NTcsImV4cCI6MTc5MDA1NzA1NywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.eJMwaYx1tNDQjNX4Ry3FBIHlBC_uuBQrUNUsmhdeCQyWPGG84MgoYvqUKdjZN8VsUba0FdN0NFVzk_-i_YM2Qs9OEkPYPecGehuh0G_u6hib85_XuZOsVvqnzF9w4YXpi7VEEAVa4L3gwDXGhNSA0oqnuRJixvrKs2KGrzqcwK9ddcbPc17WVlN_DRAxVtmJO8gO1HJ-9-VRA4h3DTUsMBTRKM72_QS-MeB4dlsT4qEY0s-8O2j-jnE5p7PAatmYTy4MTvL6GpN73FVPfGd_CDkE3toQvqk4WRZWl7jol5_RS36OWQJpv0_V0X82zq5zXcIKHjdobWSHhzX1l3bfrw' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_5C62D98353B6' \
+--data-raw '{
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "659",
+                        "from": "CMB",
+                        "to": "DOH",
+                        "departureDate": "2027-02-15",
+                        "segmentSequence": 1,
+                        "departureTime": "03:25:00",
+                        "arrivalDate": "2027-02-15",
+                        "arrivalTime": "05:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "O",
+                        "ContentSource": "NDC"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "7",
+                        "from": "DOH",
+                        "to": "LHR",
+                        "departureDate": "2027-02-15",
+                        "segmentSequence": 2,
+                        "departureTime": "09:00:00",
+                        "arrivalDate": "2027-02-15",
+                        "arrivalTime": "13:25:00",
+                        "cabin": "Economy",
+                        "classOfService": "O",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            },
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 2,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "6",
+                        "from": "LHR",
+                        "to": "DOH",
+                        "departureDate": "2027-02-22",
+                        "segmentSequence": 1,
+                        "departureTime": "08:05:00",
+                        "arrivalDate": "2027-02-22",
+                        "arrivalTime": "17:50:00",
+                        "cabin": "Economy",
+                        "classOfService": "S",
+                        "ContentSource": "NDC"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "660",
+                        "from": "DOH",
+                        "to": "CMB",
+                        "departureDate": "2027-02-23",
+                        "segmentSequence": 2,
+                        "departureTime": "02:40:00",
+                        "arrivalDate": "2027-02-23",
+                        "arrivalTime": "09:45:00",
+                        "cabin": "Economy",
+                        "classOfService": "S",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 1,
+                "passengerTypeCode": "INF"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "CHD"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "ECONOMY CLASSIC",
+                "BrandRef": "QRb2"
+            }
+        }
+    }
+}'

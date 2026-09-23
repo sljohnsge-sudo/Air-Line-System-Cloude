@@ -1,0 +1,81 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NjkzNjIsImV4cCI6MTc4OTU1NTc2MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.IoaoLLErfEjl4tOFI3bhboWCvByNCXgPFInmC9ctc_Qv59qneVFOAVZ14e55yQZp55Y32jdIobu1gx5NM1zDSjcAbXF9DbO-I1VUo1e0QIj-KMus5W8PiRhrLf9x_p8saGV4T-W_pAsQsbAjjUKjW7WUNqI8FnIjhz7CMaVNRyPx-YaeqGoCd40_Q35cVe5QcGK8bs1Lgir0SM4DXMd5vrCr36wpEa3zUbBnWXSZXyQ_obj7dpXbc_tZXm7VDUztw02uoYYuUA0Oynyx1hDGpunabZ-4k6m6E_Qhda2Gw8g6JlRpCRc7yfQfE6k8x94GhoCREACeBqCnBHiLVS_K0Q' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_FBC2D8EE3ED4' \
+--header 'fareindicator: true' \
+--data-raw '{
+    "@type": "CatalogProductOfferingsQueryRequest",
+    "CatalogProductOfferingsRequest": {
+        "@type": "CatalogProductOfferingsRequestAir",
+        "maxNumberOfUpsellsToReturn": 1,
+        "offersPerPage": 999,
+        "contentSourceList": [
+            "GDS",
+            "NDC"
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 1,
+                "passengerTypeCode": "INF"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 10,
+                "passengerTypeCode": "CNN"
+            }
+        ],
+        "SearchCriteriaFlight": [
+            {
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2026-09-26",
+                "From": {
+                    "value": "CMB"
+                },
+                "To": {
+                    "value": "DOH"
+                }
+            },
+            {
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2026-09-29",
+                "From": {
+                    "value": "DOH"
+                },
+                "To": {
+                    "value": "DXB"
+                }
+            },
+            {
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2026-10-03",
+                "From": {
+                    "value": "DXB"
+                },
+                "To": {
+                    "value": "CMB"
+                }
+            }
+        ],
+        "SearchModifiersAir": [
+            {
+                "@type": "SearchModifiersAir",
+                "cabinPreference": "Economy"
+            }
+        ]
+    }
+}'

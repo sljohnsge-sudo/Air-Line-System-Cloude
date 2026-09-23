@@ -1,0 +1,15 @@
+curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
+--header 'accept: */*' \
+--header 'hmac: 4e0cbc3e4595a646ed4d65b507ff1cfa02802bca2121c436b64ec1b66b409214' \
+--header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
+--header 'content-type: application/json' \
+--data-raw '{
+    "version": "1.04",
+    "msgId": "5dc49308-fd29-4597-920e-b7cf3d450ccd",
+    "operation": "PAYMENT_COMPLETE",
+    "requestDate": "2026-09-15 15:44:47",
+    "validateOnly": false,
+    "requestData": {
+        "reqid": "S5HZIUtfT1WUF51rdn1E"
+    }
+}'

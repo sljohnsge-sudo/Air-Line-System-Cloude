@@ -1,5 +1,5 @@
 curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NDMwOTAsImV4cCI6MTc4OTUyOTQ5MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.VTva4CeJ6nMaiOitj7WHamtIbksvojEnR_2yPGjzS0ZdkcaZodKFQMhIt09-MbyPBVEOGbs5ktOjrsQ0GZZtJbZgEWylzlSgwaAeYY7KkzOeba0uVlPDBrZ6yf2_cvK_TKjYtSDUjBZQt9XAuXnpDH8pUKDF3Yr_8JJ438slBoZxevX6m4R3Bk3Pw3uSHEZsKwQa29WlvLawcWljxa1gLyuIzN6K5B5YWNIhWSJJQEjoLLcixS86ApeWeOJfxdDaTAYcmhmq-VmKidaXJ7uIAJPy4ev22xaZtlN--_WyeJIJYtdECgwtyByiXuTsIcyydndq9OS19hiGbjrhKxltJg' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk5NzA2NTcsImV4cCI6MTc5MDA1NzA1NywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.eJMwaYx1tNDQjNX4Ry3FBIHlBC_uuBQrUNUsmhdeCQyWPGG84MgoYvqUKdjZN8VsUba0FdN0NFVzk_-i_YM2Qs9OEkPYPecGehuh0G_u6hib85_XuZOsVvqnzF9w4YXpi7VEEAVa4L3gwDXGhNSA0oqnuRJixvrKs2KGrzqcwK9ddcbPc17WVlN_DRAxVtmJO8gO1HJ-9-VRA4h3DTUsMBTRKM72_QS-MeB4dlsT4qEY0s-8O2j-jnE5p7PAatmYTy4MTvL6GpN73FVPfGd_CDkE3toQvqk4WRZWl7jol5_RS36OWQJpv0_V0X82zq5zXcIKHjdobWSHhzX1l3bfrw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,7 +7,7 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/c
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_A2876391E2D4' \
+--header 'traceid: TraceID_4BF7B5B6BE46' \
 --header 'fareindicator: true' \
 --data-raw '{
     "@type": "CatalogProductOfferingsQueryRequest",
@@ -16,7 +16,6 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/c
         "maxNumberOfUpsellsToReturn": 1,
         "offersPerPage": 999,
         "contentSourceList": [
-            "GDS",
             "NDC"
         ],
         "PassengerCriteria": [
@@ -25,24 +24,40 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/c
                 "number": 1,
                 "age": 25,
                 "passengerTypeCode": "ADT"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 1,
+                "passengerTypeCode": "INF"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 10,
+                "passengerTypeCode": "CNN"
             }
         ],
         "SearchCriteriaFlight": [
             {
                 "@type": "SearchCriteriaFlight",
-                "departureDate": "2026-09-16",
+                "departureDate": "2027-02-21",
                 "From": {
                     "value": "CMB"
                 },
                 "To": {
-                    "value": "DXB"
+                    "value": "LHR"
                 }
-            }
-        ],
-        "SearchModifiersAir": [
+            },
             {
-                "@type": "SearchModifiersAir",
-                "cabinPreference": "Economy"
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2027-02-28",
+                "From": {
+                    "value": "LHR"
+                },
+                "To": {
+                    "value": "CMB"
+                }
             }
         ]
     }

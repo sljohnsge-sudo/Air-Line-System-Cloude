@@ -1,0 +1,58 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/paymentoffer/reservationworkbench/78d49aab-4396-4153-841c-4e92a2425c40/payments' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk2MzE2NzQsImV4cCI6MTc4OTcxODA3NCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.vejSIN0imiGwtY9mdRBtVp7i9VRVaw3zs_xNcjtpjPipsntoaLCba8RqJTLZZKFvGG5Gh5gTWNLTGSC0N4SVRIZYrddMBOGQq410l39PJnbUdzGSxfpSR1H1p6pG2lh8Dy3bqmiKGxhRzHo1Cq89haUTvwK1X0zMEZ07JJKBe5jt6B70LOlyW_wzLIzBYTlW0rfc1D9oSgDyoGsaiHgPMeneOhKZfSAjvNIulMyX1MLAAexhx2_6XHOQlWQfEmTh8RTVS4nT7CBBIk88Ek_gHf6XzN-YOXetKR9xZ_vjLIpZt8PnGG_qxmYHH1_yBcC0nrM7PSTx7KDFnxfgpUAXlA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_3A45F6FD2047' \
+--data-raw '{
+    "Payment": {
+        "id": "payment_1",
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "123AA945-7DB5-48FE-BC18-9AD40255F572"
+        },
+        "Amount": {
+            "value": 279164.6,
+            "code": "USD",
+            "minorUnit": 2,
+            "currencySource": "Supplier",
+            "approximateInd": true
+        },
+        "FormOfPaymentIdentifier": {
+            "id": "formOfPayment_1",
+            "FormOfPaymentRef": "formOfPayment_1",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "78d49aab-4396-4153-841c-4e92a2425c40"
+            }
+        },
+        "OfferIdentifier": [
+            {
+                "id": "o0",
+                "offerRef": "o0",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "UDgzNkEwRTM0LTYzQ0YtNDA4RC1CNkE0b3NxcXdkeG90NnN4Yi0xfFA4MzZBMEUzNC02M0NGLTQwOEQtQjZBNHwyMDI2LTA5LTE3VDA4OjE5OjExfEFEVDI1OlA4MzZBMEUzNC02M0NGLTQwOEQtQjZBNG9zcXF3ZHhvdDZzeGItMS0xOlQxLENOTjEwOlA4MzZBMEUzNC02M0NGLTQwOEQtQjZBNG9zcXF3ZHhvdDZzeGItMS0yOlQyLElORjE6UDgzNkEwRTM0LTYzQ0YtNDA4RC1CNkE0b3NxcXdkeG90NnN4Yi0xLTM6VDEuMXxFSw=="
+                }
+            }
+        ],
+        "TravelerIdentifierRef": [
+            {
+                "passengerTypeCode": "ADT",
+                "id": "travelerRefId_1"
+            },
+            {
+                "passengerTypeCode": "INF",
+                "id": "travelerRefId_2"
+            },
+            {
+                "passengerTypeCode": "CNN",
+                "id": "travelerRefId_3"
+            }
+        ]
+    }
+}'

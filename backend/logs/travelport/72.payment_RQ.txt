@@ -1,0 +1,58 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/paymentoffer/reservationworkbench/ad7d81ff-280d-457b-a39c-fd0f6b41acad/payments' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTE2MzIsImV4cCI6MTc4OTc5ODAzMiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.X73jDoY_J-cz6GK6NhxCXtYMYdXEENxuhzwoMlh0EQdTXr2rgNcFKp_Uy49hlEiM21h0xVzFPXkc_zhbAcoFvYUYxj4P-gqWU067qsGKpE__QFuBLrPWoiJ1gRUcJ_Rh622Syk-vogErj1hMYj2UECIPZ7Tk6qDOcd58I9qbEAtX-E_kVBRtdTwNUypsaj5wqX-lHT4fEwj3PgPbSWMVW0xkBIgcNYPHL6D01qCyN4hKiAUVvbapnZMtSObsBW81ZugjErn1rPLdiLvyxdFGO2mt4O2doUHwPxEvX0nxKSNb1c1mEXx3ToD2DHnkkrjOwtDl7PFcrrq7odnyW8Pzzg' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_92804F0438CF' \
+--data-raw '{
+    "Payment": {
+        "id": "payment_1",
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "12ADEF8D-3C9E-4920-BA96-306C66D824E8"
+        },
+        "Amount": {
+            "value": 684918.0,
+            "code": "LKR",
+            "minorUnit": 2,
+            "currencySource": "Supplier",
+            "approximateInd": true
+        },
+        "FormOfPaymentIdentifier": {
+            "id": "formOfPayment_1",
+            "FormOfPaymentRef": "formOfPayment_1",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "5CBC63AD-89A8-4FCB-A9D6-C50A9E8D475A"
+            }
+        },
+        "OfferIdentifier": [
+            {
+                "id": "offer_1",
+                "offerRef": "offer_1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "OU5VNVBPfFFSXzlOVTVQT19BSVItMS0yLTMtNHxRUnxRUl85TlU1UE98cHJvZHVjdF8yX3MzLVNFRzMsczQtU0VHNDpwcm9kdWN0XzFfczEtU0VHMSxzMi1TRUcyfElORjpQQVgzLEFEVDpQQVgyLENIRDpQQVg0fFN0YXR1czpVU0VEIE5UQUM="
+                }
+            }
+        ],
+        "TravelerIdentifierRef": [
+            {
+                "passengerTypeCode": "ADT",
+                "id": "travelerRefId_1"
+            },
+            {
+                "passengerTypeCode": "INF",
+                "id": "travelerRefId_2"
+            },
+            {
+                "passengerTypeCode": "CHD",
+                "id": "travelerRefId_3"
+            }
+        ]
+    }
+}'

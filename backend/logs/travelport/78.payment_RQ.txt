@@ -1,0 +1,50 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/paymentoffer/reservationworkbench/887627ef-efb0-443e-8e5e-fe94d6077705/payments' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTg1MTMsImV4cCI6MTc4OTgwNDkxMywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.FbyWtoOEI8HHGEXZs_YGBcXU1FKW6W-flRGhMq0iNUtbMk6Gg64TNcXEozQ5ly2fFgTH7Q0eL173w1M0d1JCMH8DuJJZKf3WY0FZRM9o35liSo7D5UJUTQugxUUT2RyP5tyjesC0HYZJ9u_k1-iwr8Vh_DHpvc04-jKopusscosTEVN7HYu9faPG2shG9ldo0_AmPWYbLtUJB9ecO0ZvU7B3Yi5X1bPgNOnXM3KvEf5DOHycOJ6_KyTe9Ox294BGttwpAVIWWO-Rr-F5rDXAdV_rxUUU9j4N-1pkiy-34h-RO35p4k2dctx8-utErE2WEaxt9x6kjNE8hB9kg1RS0Q' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_ACED318E6463' \
+--data-raw '{
+    "Payment": {
+        "id": "payment_1",
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "D16F7462-E504-4CD6-9410-EB4E44E20409"
+        },
+        "Amount": {
+            "value": 68200.0,
+            "code": "LKR",
+            "minorUnit": 2,
+            "currencySource": "Supplier",
+            "approximateInd": true
+        },
+        "FormOfPaymentIdentifier": {
+            "id": "formOfPayment_1",
+            "FormOfPaymentRef": "formOfPayment_1",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "887627ef-efb0-443e-8e5e-fe94d6077705"
+            }
+        },
+        "OfferIdentifier": [
+            {
+                "id": "offer_1",
+                "offerRef": "offer_1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "18a2d69a-4e51-4ca9-a117-a93995fbe67f"
+                }
+            }
+        ],
+        "TravelerIdentifierRef": [
+            {
+                "passengerTypeCode": "ADT",
+                "id": "travelerRefId_1"
+            }
+        ]
+    }
+}'

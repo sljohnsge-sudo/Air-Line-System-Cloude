@@ -21,6 +21,44 @@ from utils import tp_logger
 logger = logging.getLogger(__name__)
 
 
+def retrieve_ndc_ticket(locator_code: str, ticket_number: str) -> dict:
+    """Ticket Retrieve for an NDC ticket (POST /air/ticket/tickets/getbylocator).
+    Raises ValueError if Travelport answers with an Error[] instead of a ticket."""
+    payload = {
+        "@type": "TicketQueryGetByLocator",
+        "detailViewInd": True,
+        "Locator": {"value": locator_code, "locatorType": "Locator"},
+        "TicketNumber": [{"value": ticket_number, "contentSource": "NDC"}],
+    }
+    result = _api_post(TravelportEndpoints.TICKET_RETRIEVE_BY_LOCATOR, payload)
+    body = result.get("TicketListResponse", result)
+    errors = (body.get("Result") or {}).get("Error") or []
+    if errors:
+        raise ValueError("; ".join(f"{e.get('Message')} ({e.get('SourceCode')})" for e in errors))
+    return result
+
+
+def _find_ticket_numbers(data) -> list[tuple[str, str]]:
+    """Recursively search a Receipt List (or any Travelport response) for
+    DocumentTicket entries and return their (passengerTypeCode, Number)
+    pairs. Used by issue_ticket()'s Step 4b fallback — the Receipt List
+    endpoint's exact nesting isn't pinned down in Travelport's own docs
+    (schema shown collapsed), so this walks the whole structure rather than
+    assuming one fixed path, matching how found_tickets is built from the
+    commit response's own Receipt[]/Document[] above."""
+    found: list[tuple[str, str]] = []
+    if isinstance(data, dict):
+        if data.get("@type") == "DocumentTicket" and data.get("Number"):
+            ptc = data.get("TravelerIdentifierRef", {}).get("passengerTypeCode", "ADT")
+            found.append((ptc, data["Number"]))
+        for v in data.values():
+            found.extend(_find_ticket_numbers(v))
+    elif isinstance(data, list):
+        for item in data:
+            found.extend(_find_ticket_numbers(item))
+    return found
+
+
 def _api_get(url: str) -> dict:
     """Internal helper for GET requests with automatic token retry."""
     headers = get_auth_headers()
@@ -432,6 +470,7 @@ def issue_ticket(locator_code: str) -> dict:
 
     issued_ticket_number = None
     ticket_issuance_diagnostic = None
+    found_tickets: list = []
 
     try:
         # ── Step 1: Create post-commit workbench from locator ─────────────────
@@ -455,13 +494,49 @@ def issue_ticket(locator_code: str) -> dict:
         # Extract the Offer local id and UUID from the workbench (needed for Payment step)
         offer_local_id = None    # e.g. "offer_1"
         offer_uuid = None        # Travelport UUID
+        offer_authority = None   # "Travelport" for GDS, the carrier code for NDC (per NDC guide)
         try:
             offers = reservation.get("Offer", [])
             if offers:
                 offer_local_id = offers[0].get("id")
                 offer_uuid = offers[0].get("Identifier", {}).get("value")
+                offer_authority = offers[0].get("Identifier", {}).get("authority")
         except Exception:
             pass
+
+        if not offer_local_id:
+            # Tried defaulting to "offer_1" (the conventional single-offer
+            # local id seen on every other workbench this session) when
+            # buildfromlocator returns no Offer[] at all — tested live on PNR
+            # HN4RJV and Travelport's own Payment step explicitly REJECTED it:
+            # "OFFER ID/IDENTIFIER VALUES MUST MATCH WITH THE RESERVATION
+            # WORKBENCH OFFER ID/IDENTIFIER VALUES" (SourceCode 4179). Guessing
+            # is confirmed wrong — but the REAL value isn't actually unknown:
+            # confirmed live 2026-09-16 (7 consecutive NDC multi-city PNRs,
+            # including HN50PK) that the ORIGINAL commit response always
+            # embeds the real Offer[] (id + Identifier.value), even when this
+            # later buildfromlocator comes back without it. /create and
+            # /confirm now cache that value onto the booking record
+            # (see workbench_service.commit_workbench's docstring) — use it
+            # here instead of leaving the field unset.
+            cached_booking = database.get_booking_by_locator(locator_code)
+            if cached_booking and cached_booking.get("offer_local_id"):
+                offer_local_id = cached_booking["offer_local_id"]
+                offer_uuid = cached_booking.get("offer_uuid")
+                offer_authority = cached_booking.get("offer_authority")
+                if not offer_authority and cached_booking.get("fare_source") == "NDC":
+                    offer_authority = cached_booking.get("airline_code")
+                logger.warning(
+                    "Step 1: buildfromlocator returned no Offer[] — using the "
+                    f"OfferIdentifier cached from this PNR's original commit instead: "
+                    f"id={offer_local_id}, uuid={offer_uuid}"
+                )
+            else:
+                logger.warning(
+                    "Step 1: buildfromlocator (and a follow-up workbench GET) returned "
+                    "no Offer[], and no cached OfferIdentifier was found for this PNR "
+                    "(booked before this fallback existed) — proceeding without one."
+                )
         logger.info(f"Step 1: Offer local id = {offer_local_id}, UUID = {offer_uuid}")
 
         # Extract total fare from offer for Payment step
@@ -475,6 +550,28 @@ def issue_ticket(locator_code: str) -> dict:
                 currency_code = price.get("CurrencyCode", {}).get("value", "USD")
         except Exception:
             pass
+
+        if not total_fare:
+            # Confirmed live 2026-09-15 (PNR HN4RJV): buildfromlocator does not
+            # always return Offer[] for NDC content — same gap already
+            # documented in cancel_reservation() above (top-level keys were
+            # only @type, Identifier, Traveler, Receipt, ReservationComment).
+            # Without a real fare here, the Payment step below was silently
+            # sending Amount.value=0 against a real fare, so Travelport
+            # accepted the commit but never actually ticketed it — a clean
+            # "HTTP 200, no Ticket[], no Error[]" result that looked like a
+            # generic failure but was really just a missing amount. Fall back
+            # to the local cache's total_fare/currency (saved at /confirm
+            # time from the original commit response), the same source
+            # cancel_reservation() already trusts for fare_source on NDC PNRs.
+            cached_booking = database.get_booking_by_locator(locator_code)
+            if cached_booking and cached_booking.get("total_fare"):
+                total_fare = float(cached_booking["total_fare"])
+                currency_code = cached_booking.get("currency") or currency_code
+                logger.warning(
+                    f"Step 1: buildfromlocator returned no usable Offer/Price — "
+                    f"using cached fare instead: {currency_code} {total_fare}"
+                )
         logger.info(f"Step 1: Fare for payment = {currency_code} {total_fare}")
 
         # Extract every traveler's own workbench-assigned ref id (Travelport's
@@ -591,7 +688,7 @@ def issue_ticket(locator_code: str) -> dict:
             offer_identifier_block["offerRef"] = offer_local_id
         if offer_uuid:
             offer_identifier_block["Identifier"] = {
-                "authority": "Travelport",
+                "authority": offer_authority or "Travelport",
                 "value": offer_uuid
             }
 
@@ -624,6 +721,7 @@ def issue_ticket(locator_code: str) -> dict:
 
         payment_result = _api_post(payment_url, payment_payload)
         payment_errors = (
+            payment_result.get("PaymentResponse", {}).get("Result", {}).get("Error", []) or
             payment_result.get("ReservationResponse", {}).get("Result", {}).get("Error", []) or
             payment_result.get("Result", {}).get("Error", [])
         )
@@ -634,6 +732,14 @@ def issue_ticket(locator_code: str) -> dict:
             logger.info("Step 3 OK: Payment applied to workbench.")
 
         # ── Step 4: Commit workbench with Issuance=Ticket ─────────────────────
+        # A 2-second pause was tried here on 2026-09-16 on the theory that
+        # Commit was racing Payment's persistence — tested on 7 consecutive
+        # NDC multi-city PNRs WITH the pause and all 7 failed to ticket
+        # (vs. succeeding on the very first attempt right after the
+        # offer_local_id/fare caching fix, before this pause existed).
+        # Removed — no live evidence it helps, and some evidence it may
+        # correlate with the post-buildfromlocator workbench session
+        # degrading before Commit runs. Do not re-add without new evidence.
         commit_url = f"{TravelportConfig.base_path()}/air/book/reservation/reservations/{workbench_id}?Issuance=Ticket&DocumentValue=Retain"
         logger.info(f"Step 4: Committing workbench {workbench_id} to issue ticket")
         commit_result = _api_post(commit_url, "")
@@ -670,7 +776,9 @@ def issue_ticket(locator_code: str) -> dict:
                     if not number or number in seen_numbers:
                         continue
                     seen_numbers.add(number)
-                    ptc = doc.get("TravelerIdentifierRef", {}).get("passengerTypeCode", "ADT")
+                    tref = doc.get("TravelerIdentifierRef", {})
+                    ref_ptc = {t["id"]: t["passengerTypeCode"] for t in traveler_refs}
+                    ptc = tref.get("passengerTypeCode") or ref_ptc.get(tref.get("id")) or "ADT"
                     found_tickets.append((ptc, number))
                     if not issued_ticket_number:
                         issued_ticket_number = number
@@ -694,14 +802,50 @@ def issue_ticket(locator_code: str) -> dict:
                         "were applied correctly."
                     )
 
+                # ── Step 4b: Receipt List fallback ─────────────────────────────
+                # NDC content confirmed live to sometimes omit Ticket[]/Receipt[]
+                # from the commit response itself even when the ticket WAS
+                # issued (per developer.travelport.com/apis/flights/
+                # retrieve-bookings-and-tickets/getreceipts — a dedicated
+                # endpoint for exactly this: GET .../receipt/reservations/
+                # {id}/receipts?ReceiptType=ConfirmationTicket). Try it before
+                # giving up, rather than only relying on the commit response.
+                try:
+                    receipts_url = TravelportEndpoints.get_reservation_receipts(
+                        workbench_id, receipt_type="ConfirmationTicket"
+                    )
+                    receipts_result = _api_get(receipts_url)
+                    for ptc, number in _find_ticket_numbers(receipts_result):
+                        if number in seen_numbers:
+                            continue
+                        seen_numbers.add(number)
+                        found_tickets.append((ptc, number))
+                        if not issued_ticket_number:
+                            issued_ticket_number = number
+                    if issued_ticket_number:
+                        logger.info(
+                            f"Step 4b OK: Ticket issued (found via Receipt List fallback) — "
+                            f"number: {issued_ticket_number}"
+                        )
+                except Exception as rl_e:
+                    logger.warning(f"Step 4b: Receipt List fallback failed (non-fatal): {rl_e}")
+
         # ── Step 5: Retrieve Ticket (one call per passenger's ticket number)
         # — matches Travelport's GDS certification reference (booking_HMZ9HH/
         # 14-16.Retrieve Ticket ADT/INF/CHD). Purely informational (fetches
         # full document detail for a ticket that's already issued) —
         # best-effort, never fails the booking if it errors.
+        # NDC tickets must use Ticket Retrieve (POST .../tickets/getbylocator,
+        # contentSource NDC) — the GET-by-number endpoint is GDS only per
+        # Travelport's docs and answers "TICKET IS NOT VALID" for NDC tickets.
+        _cached = database.get_booking_by_locator(locator_code) or {}
+        is_ndc = _cached.get("fare_source") == "NDC" or bool(offer_authority and offer_authority != "Travelport")
         for ptc, number in found_tickets:
             try:
-                _api_get(TravelportEndpoints.retrieve_ticket_by_number(number))
+                if is_ndc:
+                    retrieve_ndc_ticket(locator_code, number)
+                else:
+                    _api_get(TravelportEndpoints.retrieve_ticket_by_number(number))
                 logger.info(f"Step 5 OK: Retrieved ticket document for {ptc} — {number}")
             except Exception as rt_e:
                 logger.warning(f"Step 5: Retrieve Ticket failed for {ptc} {number} (non-fatal): {rt_e}")
@@ -723,6 +867,7 @@ def issue_ticket(locator_code: str) -> dict:
     if issued_ticket_number:
         ticket["ticket_number"] = issued_ticket_number
         ticket["status"] = "Ticketed"
+        ticket["ticket_numbers"] = [{"passenger_type": ptc, "number": num} for ptc, num in found_tickets]
 
     # Surface the Ticket Retrieve fallback's diagnostic (a real Travelport
     # error message, e.g. "DOCUMENT HISTORY NOT FOUND FOR REQUESTED

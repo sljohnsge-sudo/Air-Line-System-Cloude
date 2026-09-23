@@ -1,0 +1,52 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTgzNDAsImV4cCI6MTc4OTgwNDc0MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.U-EQNnPauUJXZaI3FTXqCLuJRPiF82ymekAehmU97pqVLI_nFl9ojMGYnScVUXVJBQzBju98Ixmq8iYmHAvieXpOyZxmTS4gYlFq65rd3QFw74e5sxP3jOf3mHFJTstiil2YToz9CjkBnxJvZWOIgBlDqFv9CwlHwDro8T63igruJqIsT3w_5A-vNTydnEscMk4TYVwTbI0lEzua00-KeOOLTabwSRrKDdpB3JWgW6nwYDPgjLTYxiKjahDx_mkD_ItMGuS4k0F1JEw2OqyMOS3IWU4ZYNUibToQpvKUjW_dYtyPi3KB4Qw8e62bsWr9Ojc5QppVFWqylyUZv-rZAQ' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_F1352D6C0289' \
+--data-raw '{
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "e3edb319-626a-45e4-802d-5d668c7bc937"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "QR_CPO0"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "QRp0"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "QR_CPO1"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "QRp7"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}'

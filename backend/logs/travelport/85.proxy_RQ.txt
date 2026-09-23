@@ -1,29 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: a3b85d0e8616ba05943f5dcfcb19db1a454847afb5df82b116c50bade6bf91f0' \
+--header 'hmac: 30f953754407d0d44e58d692b9ba308b587df5c3ef2f3d9880e42acc9b240441' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "b9e3a309-f716-4130-bed6-a412dd6a8e4a",
+    "msgId": "d821725c-7d83-470b-bca3-7efa8e9bd54f",
     "operation": "PAYMENT_INIT",
-    "requestDate": "2026-09-15 10:04:28",
+    "requestDate": "2026-09-15 15:14:55",
     "validateOnly": false,
     "requestData": {
         "clientId": "14008400",
         "clientIdHash": "",
         "transactionType": "PURCHASE",
         "transactionAmount": {
-            "paymentAmount": 7502000,
+            "paymentAmount": 9035730,
             "currency": "LKR"
         },
         "redirect": {
-            "returnUrl": "http://localhost:5173/?locator=HN4NL1",
+            "returnUrl": "http://localhost:5173/?locator=HN4RJV",
             "returnMethod": "GET",
-            "cancelUrl": "http://localhost:5173/?locator=HN4NL1&payment=cancelled"
+            "cancelUrl": "http://localhost:5173/?locator=HN4RJV&payment=cancelled"
         },
         "useReliability": true,
-        "clientRef": "HN4NL1",
-        "comment": "George Steuart Travel - HN4NL1"
+        "clientRef": "HN4RJV",
+        "comment": "George Steuart Travel - HN4RJV"
     }
 }'

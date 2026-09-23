@@ -1,0 +1,29 @@
+curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
+--header 'accept: */*' \
+--header 'hmac: e731024b9ab3a241b5ccfdd44eca3f53ca0e6be0bf707bdc101b3f696e94cc2f' \
+--header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
+--header 'content-type: application/json' \
+--data-raw '{
+    "version": "1.04",
+    "msgId": "a5872530-79cd-4f93-9c3f-239aefdaecf3",
+    "operation": "PAYMENT_INIT",
+    "requestDate": "2026-09-18 13:31:23",
+    "validateOnly": false,
+    "requestData": {
+        "clientId": "14008400",
+        "clientIdHash": "",
+        "transactionType": "PURCHASE",
+        "transactionAmount": {
+            "paymentAmount": 6820000,
+            "currency": "LKR"
+        },
+        "redirect": {
+            "returnUrl": "http://localhost:5173/?locator=HN5NW1",
+            "returnMethod": "GET",
+            "cancelUrl": "http://localhost:5173/?locator=HN5NW1&payment=cancelled"
+        },
+        "useReliability": true,
+        "clientRef": "HN5NW1",
+        "comment": "George Steuart Travel - HN5NW1"
+    }
+}'

@@ -1,0 +1,152 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/fa9174c2-9398-4131-a855-d0b2930c9cc2/travelers/list' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTIxNTIsImV4cCI6MTc4OTc5ODU1MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.EMewthoRDCj85abw8YpUhbEYTIl6foDcN5mvHUi8xf5YtnQYPXBBz2vx2Zfsl_XWyT6illvnOyBc-dTf66M_Tb37GXOkXeVFYxQw38lwIn2qHOxyOJjCCLt1q2vgeJDEnrL4jDB_xZVBRl6EpgC64ZHmCtgessXuajrZN8gOJnPbpkPoSmTbPq_KweZPYiTulul5UY7rqcIB2Jr5BpnrPaGkUrc7VR-LIlT8SN16BawuSHiFccKPBjbjPIW0vb9n7pCFNcQpbfry7XthHu57HJMTliTz6OJJBbTz4kqD8BZ5n5p0ZC5l4Y2ywSUFZn95AkDowKvxkgV3wTbm775eMg' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_B7EF5618E36D' \
+--data-raw '{
+    "TravelerListRequest": {
+        "@type": "TravelerListRequest",
+        "Traveler": [
+            {
+                "@type": "Traveler",
+                "gender": "Male",
+                "birthDate": "1983-05-10",
+                "passengerTypeCode": "ADT",
+                "PersonName": {
+                    "@type": "PersonNameDetail",
+                    "Prefix": "MR",
+                    "Given": "JOHN",
+                    "Surname": "PERERA"
+                },
+                "Telephone": [
+                    {
+                        "@type": "Telephone",
+                        "countryAccessCode": "94",
+                        "phoneNumber": "771234567",
+                        "id": "1",
+                        "role": "Mobile"
+                    }
+                ],
+                "Email": [
+                    {
+                        "value": "john.perera@gsoptimizetest.lk"
+                    }
+                ],
+                "TravelDocument": [
+                    {
+                        "@type": "TravelDocumentDetail",
+                        "docNumber": "N1234567",
+                        "docType": "Passport",
+                        "expireDate": "2032-01-01",
+                        "issueCountry": "LK",
+                        "Nationality": "LK",
+                        "birthDate": "1983-05-10",
+                        "Gender": "Male",
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Given": "JOHN",
+                            "Surname": "PERERA"
+                        }
+                    }
+                ],
+                "age": 43,
+                "id": "trav_1"
+            },
+            {
+                "@type": "Traveler",
+                "gender": "Male",
+                "birthDate": "2026-01-15",
+                "passengerTypeCode": "INF",
+                "PersonName": {
+                    "@type": "PersonNameDetail",
+                    "Prefix": "MSTR",
+                    "Given": "AIDAN",
+                    "Surname": "PERERA"
+                },
+                "Telephone": [
+                    {
+                        "@type": "Telephone",
+                        "countryAccessCode": "94",
+                        "phoneNumber": "771234567",
+                        "id": "2",
+                        "role": "Mobile"
+                    }
+                ],
+                "Email": [
+                    {
+                        "value": "john.perera@gsoptimizetest.lk"
+                    }
+                ],
+                "TravelDocument": [
+                    {
+                        "@type": "TravelDocumentDetail",
+                        "docNumber": "N3456789",
+                        "docType": "Passport",
+                        "expireDate": "2032-01-01",
+                        "issueCountry": "LK",
+                        "Nationality": "LK",
+                        "birthDate": "2026-01-15",
+                        "Gender": "Male",
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Given": "AIDAN",
+                            "Surname": "PERERA"
+                        }
+                    }
+                ],
+                "age": 1,
+                "id": "trav_2"
+            },
+            {
+                "@type": "Traveler",
+                "gender": "Female",
+                "birthDate": "2015-06-12",
+                "passengerTypeCode": "CNN",
+                "PersonName": {
+                    "@type": "PersonNameDetail",
+                    "Prefix": "MISS",
+                    "Given": "NADIA",
+                    "Surname": "PERERA"
+                },
+                "Telephone": [
+                    {
+                        "@type": "Telephone",
+                        "countryAccessCode": "94",
+                        "phoneNumber": "771234567",
+                        "id": "3",
+                        "role": "Mobile"
+                    }
+                ],
+                "Email": [
+                    {
+                        "value": "john.perera@gsoptimizetest.lk"
+                    }
+                ],
+                "TravelDocument": [
+                    {
+                        "@type": "TravelDocumentDetail",
+                        "docNumber": "N2345678",
+                        "docType": "Passport",
+                        "expireDate": "2032-01-01",
+                        "issueCountry": "LK",
+                        "Nationality": "LK",
+                        "birthDate": "2015-06-12",
+                        "Gender": "Female",
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Given": "NADIA",
+                            "Surname": "PERERA"
+                        }
+                    }
+                ],
+                "age": 11,
+                "id": "trav_3"
+            }
+        ]
+    }
+}'

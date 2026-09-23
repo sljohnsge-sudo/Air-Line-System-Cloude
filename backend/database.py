@@ -345,24 +345,91 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
-    # ── Visa Consultants (admin-curated roster, one per destination country) ──
-    # Staff assign a named consultant to each destination country; the B2C
-    # visa consultation booking flow looks this up by the customer's chosen
-    # destination so the email is routed to the right person (falling back to
-    # the general VISA_CONSULTANT_EMAIL in .env when a country has none set).
+    # ── Visa Consultants (admin-curated officer roster) ────────────────────────
+    # A named officer (e.g. Rashini, Kaveen) can cover any number of destination
+    # countries, and a country can be covered by several officers at once — see
+    # visa_consultant_countries below. The B2C visa consultation booking flow
+    # looks up every active officer assigned to the customer's chosen
+    # destination and emails all of them (falling back to the general
+    # VISA_CONSULTANT_EMAIL in .env when a country has none assigned).
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS visa_consultants (
             id               INT AUTO_INCREMENT PRIMARY KEY,
-            country          VARCHAR(100) NOT NULL,
             consultant_name  VARCHAR(150) NOT NULL,
-            email            VARCHAR(200) NOT NULL,
+            email            VARCHAR(200) NULL,
             phone            VARCHAR(30),
             is_active        TINYINT(1) NOT NULL DEFAULT 1,
             created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY uq_visa_consultant_country (country)
+            updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
+
+    # Many-to-many: which officers cover which destination countries.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS visa_consultant_countries (
+            id               INT AUTO_INCREMENT PRIMARY KEY,
+            consultant_id    INT NOT NULL,
+            country          VARCHAR(100) NOT NULL,
+            created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_vcc_consultant FOREIGN KEY (consultant_id) REFERENCES visa_consultants(id) ON DELETE CASCADE,
+            UNIQUE KEY uq_vcc_consultant_country (consultant_id, country),
+            INDEX idx_vcc_country (country)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # Legacy migration: visa_consultants used to have one row per country
+    # (UNIQUE KEY on country — one consultant per destination). Move any
+    # existing country values into visa_consultant_countries, then drop the
+    # column so a consultant can be assigned to any number of countries.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='visa_consultants' AND COLUMN_NAME='country'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] > 0:
+        cursor.execute("SELECT id, country FROM visa_consultants WHERE country IS NOT NULL AND country != ''")
+        for legacy_id, legacy_country in cursor.fetchall():
+            cursor.execute(
+                "INSERT IGNORE INTO visa_consultant_countries (consultant_id, country) VALUES (%s,%s)",
+                (legacy_id, legacy_country),
+            )
+        cursor.execute("ALTER TABLE visa_consultants DROP KEY uq_visa_consultant_country")
+        cursor.execute("ALTER TABLE visa_consultants DROP COLUMN country")
+
+    # Seed the initial officer roster + country coverage from the assignment
+    # sheet shared by the business — one-time per officer (checked by name,
+    # not by whether the table is empty, so this still fills in any of these
+    # 8 officers that are missing even if unrelated rows already exist).
+    # Emails/phones are left blank for admin to fill in via the Visa
+    # Consultants admin screen — until then, routing falls back to the
+    # general VISA_CONSULTANT_EMAIL for any country only these officers cover.
+    _VISA_OFFICER_COUNTRIES = {
+        "Rashini": ["Australia", "USA", "Canada", "New Zealand", "UK", "Schengen", "Cambodia", "Colombia",
+                    "Dominican Republic", "Greece", "Ireland", "Kenya", "S. Korea", "Morocco", "Namibia",
+                    "Nigeria", "Pakistan", "Peru", "Russia", "Singapore for Indian nationals", "Uganda",
+                    "Vietnam", "Zimbabwe"],
+        "Chathurika": ["Australia", "Canada", "New Zealand", "UK", "Kenya", "Nigeria", "Pakistan", "Zimbabwe"],
+        "Samitha": ["Australia", "Turkey", "Philippine", "Indonesia", "South Africa", "Brazil", "Cambodia",
+                    "Kenya", "Morocco", "Namibia", "Pakistan", "Peru", "Vietnam"],
+        "Madhavi": ["Australia", "USA", "Canada", "New Zealand", "UK", "Schengen", "Pakistan"],
+        "Tiana": ["Australia", "USA", "Canada", "New Zealand", "UK", "Brazil"],
+        "Kaveen": ["Schengen", "Turkey", "China", "Hong Kong", "Azerbaijan", "Cambodia", "Chile", "Cyprus",
+                   "Greece", "Ireland", "S. Korea", "Nigeria", "Pakistan", "Uganda"],
+        "Tharindu": ["India", "Thailand", "Malaysia", "Bangladesh", "Nepal", "Vietnam"],
+        "Dinesh": ["India", "Thailand", "Japan", "Egypt", "Bangladesh", "Nepal", "Vietnam"],
+    }
+    for officer_name, countries in _VISA_OFFICER_COUNTRIES.items():
+        cursor.execute("SELECT id FROM visa_consultants WHERE consultant_name=%s", (officer_name,))
+        existing = cursor.fetchone()
+        if existing:
+            officer_id = existing[0]
+        else:
+            cursor.execute("INSERT INTO visa_consultants (consultant_name) VALUES (%s)", (officer_name,))
+            officer_id = cursor.lastrowid
+        for country in countries:
+            cursor.execute(
+                "INSERT IGNORE INTO visa_consultant_countries (consultant_id, country) VALUES (%s,%s)",
+                (officer_id, country),
+            )
 
     # ── Visa Consultation Bookings (B2C, public) ─────────────────────────────
     # Customer picks a date and one of two fixed daily slots (10:30 AM /
@@ -394,23 +461,36 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
-    # visa_consultations.consultant_id/consultant_name/consultant_email —
-    # added via a guarded ALTER (same reasoning as bookings.customer_id
-    # above): visa_consultants didn't exist when visa_consultations was first
-    # created, and the consultant fields are snapshotted onto the booking row
-    # so a later edit/removal of the consultant doesn't rewrite history.
+    # visa_consultations.consultant_names/consultant_emails — added via a
+    # guarded ALTER (same reasoning as bookings.customer_id above): the
+    # assigned officers are snapshotted onto the booking row (comma-joined,
+    # since a country can now have several officers) so a later edit/removal
+    # of an officer doesn't rewrite history.
     cursor.execute("""
         SELECT COUNT(*) FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='visa_consultations' AND COLUMN_NAME='consultant_id'
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='visa_consultations' AND COLUMN_NAME='consultant_names'
     """, (MYSQL_DATABASE,))
     if cursor.fetchone()[0] == 0:
-        cursor.execute("ALTER TABLE visa_consultations ADD COLUMN consultant_id INT NULL AFTER destination")
-        cursor.execute("ALTER TABLE visa_consultations ADD COLUMN consultant_name VARCHAR(150) NULL AFTER consultant_id")
-        cursor.execute("ALTER TABLE visa_consultations ADD COLUMN consultant_email VARCHAR(200) NULL AFTER consultant_name")
+        # Legacy single-consultant columns from before officers could be
+        # multi-assigned — rename in place to preserve any already-booked
+        # consultations, then drop the now-meaningless single FK.
         cursor.execute("""
-            ALTER TABLE visa_consultations ADD CONSTRAINT fk_visa_consultation_consultant
-            FOREIGN KEY (consultant_id) REFERENCES visa_consultants(id) ON DELETE SET NULL
-        """)
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA=%s AND TABLE_NAME='visa_consultations' AND COLUMN_NAME='consultant_name'
+        """, (MYSQL_DATABASE,))
+        if cursor.fetchone()[0] > 0:
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+                WHERE TABLE_SCHEMA=%s AND TABLE_NAME='visa_consultations' AND CONSTRAINT_NAME='fk_visa_consultation_consultant'
+            """, (MYSQL_DATABASE,))
+            if cursor.fetchone()[0] > 0:
+                cursor.execute("ALTER TABLE visa_consultations DROP FOREIGN KEY fk_visa_consultation_consultant")
+            cursor.execute("ALTER TABLE visa_consultations DROP COLUMN consultant_id")
+            cursor.execute("ALTER TABLE visa_consultations CHANGE COLUMN consultant_name consultant_names VARCHAR(1000) NULL")
+            cursor.execute("ALTER TABLE visa_consultations CHANGE COLUMN consultant_email consultant_emails VARCHAR(1000) NULL")
+        else:
+            cursor.execute("ALTER TABLE visa_consultations ADD COLUMN consultant_names VARCHAR(1000) NULL AFTER destination")
+            cursor.execute("ALTER TABLE visa_consultations ADD COLUMN consultant_emails VARCHAR(1000) NULL AFTER consultant_names")
 
     # ── Force Issue Ticket audit log (admin-only, manual override) ──────────
     # Records every time an admin manually issues a ticket for a PNR whose
@@ -1122,30 +1202,52 @@ def delete_visa_requirement(requirement_id: int) -> bool:
         conn.close()
 
 
-# ── Visa Consultants (admin-curated roster, one per destination country) ──────
+# ── Visa Consultants (admin-curated officer roster + country coverage) ────────
+
+def _attach_visa_consultant_countries(cursor, consultants: list[dict]) -> list[dict]:
+    """Attaches a `countries` list to each consultant dict (empty list if none assigned)."""
+    if not consultants:
+        return consultants
+    ids = [c["id"] for c in consultants]
+    placeholders = ",".join(["%s"] * len(ids))
+    cursor.execute(
+        f"SELECT consultant_id, country FROM visa_consultant_countries WHERE consultant_id IN ({placeholders}) ORDER BY country",
+        ids,
+    )
+    by_consultant: dict[int, list[str]] = {}
+    for row in cursor.fetchall():
+        by_consultant.setdefault(row["consultant_id"], []).append(row["country"])
+    for c in consultants:
+        c["countries"] = by_consultant.get(c["id"], [])
+    return consultants
+
 
 def get_visa_consultants() -> list[dict]:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM visa_consultants ORDER BY country")
+    cursor.execute("SELECT * FROM visa_consultants ORDER BY consultant_name")
     rows = cursor.fetchall()
+    _attach_visa_consultant_countries(cursor, rows)
     cursor.close()
     conn.close()
     return rows
 
 
-def get_visa_consultant_by_country(country: str) -> dict | None:
-    """Public lookup — only ever returns an active consultant."""
+def get_visa_consultants_by_country(country: str) -> list[dict]:
+    """Public lookup — every active officer assigned to this destination."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
-        "SELECT * FROM visa_consultants WHERE country=%s AND is_active=1",
+        """SELECT vc.* FROM visa_consultants vc
+           JOIN visa_consultant_countries vcc ON vcc.consultant_id = vc.id
+           WHERE vcc.country=%s AND vc.is_active=1
+           ORDER BY vc.consultant_name""",
         (country,),
     )
-    row = cursor.fetchone()
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
-    return row
+    return rows
 
 
 def create_visa_consultant(data: dict) -> dict:
@@ -1153,13 +1255,15 @@ def create_visa_consultant(data: dict) -> dict:
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            """INSERT INTO visa_consultants (country, consultant_name, email, phone, is_active)
-               VALUES (%s,%s,%s,%s,%s)""",
-            (data["country"], data["consultant_name"], data["email"], data.get("phone"), data.get("is_active", True)),
+            """INSERT INTO visa_consultants (consultant_name, email, phone, is_active)
+               VALUES (%s,%s,%s,%s)""",
+            (data["consultant_name"], data.get("email"), data.get("phone"), data.get("is_active", True)),
         )
         conn.commit()
         cursor.execute("SELECT * FROM visa_consultants WHERE id=%s", (cursor.lastrowid,))
-        return cursor.fetchone()
+        row = cursor.fetchone()
+        _attach_visa_consultant_countries(cursor, [row])
+        return row
     except Exception as e:
         conn.rollback()
         raise e
@@ -1173,13 +1277,50 @@ def update_visa_consultant(consultant_id: int, data: dict) -> dict | None:
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            """UPDATE visa_consultants SET country=%s, consultant_name=%s, email=%s, phone=%s, is_active=%s
+            """UPDATE visa_consultants SET consultant_name=%s, email=%s, phone=%s, is_active=%s
                WHERE id=%s""",
-            (data["country"], data["consultant_name"], data["email"], data.get("phone"), data.get("is_active", True), consultant_id),
+            (data["consultant_name"], data.get("email"), data.get("phone"), data.get("is_active", True), consultant_id),
         )
         conn.commit()
         cursor.execute("SELECT * FROM visa_consultants WHERE id=%s", (consultant_id,))
-        return cursor.fetchone()
+        row = cursor.fetchone()
+        if row:
+            _attach_visa_consultant_countries(cursor, [row])
+        return row
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def assign_visa_consultant_country(consultant_id: int, country: str) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT IGNORE INTO visa_consultant_countries (consultant_id, country) VALUES (%s,%s)",
+            (consultant_id, country),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def unassign_visa_consultant_country(consultant_id: int, country: str) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "DELETE FROM visa_consultant_countries WHERE consultant_id=%s AND country=%s",
+            (consultant_id, country),
+        )
+        conn.commit()
     except Exception as e:
         conn.rollback()
         raise e
@@ -1248,17 +1389,17 @@ def get_visa_consultation_booked_slots(slot_date: str) -> set[str]:
 def create_visa_consultation(
     customer_id: int | None, nationality: str, destination: str, full_name: str,
     email: str, phone: str, slot_date: str, slot_time: str, notes: str | None,
-    consultant_id: int | None = None, consultant_name: str | None = None, consultant_email: str | None = None,
+    consultant_names: str | None = None, consultant_emails: str | None = None,
 ) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
             """INSERT INTO visa_consultations
-               (customer_id, nationality, destination, consultant_id, consultant_name, consultant_email,
+               (customer_id, nationality, destination, consultant_names, consultant_emails,
                 full_name, email, phone, slot_date, slot_time, notes)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (customer_id, nationality, destination, consultant_id, consultant_name, consultant_email,
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (customer_id, nationality, destination, consultant_names, consultant_emails,
              full_name, email, phone, slot_date, slot_time, notes),
         )
         conn.commit()

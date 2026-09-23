@@ -27,6 +27,7 @@ import os
 import re
 import json
 import threading
+from urllib.parse import parse_qsl, quote
 import httpx
 
 _lock = threading.Lock()
@@ -131,7 +132,14 @@ def _to_curl(request: httpx.Request) -> str:
             parsed = _redact_body(json.loads(body))
             lines.append(f"--data-raw '{json.dumps(parsed, indent=4)}'")
         except Exception:
-            lines.append(f"--data-raw '{body.decode('utf-8', errors='replace')}'")
+            text = body.decode('utf-8', errors='replace')
+            if "application/x-www-form-urlencoded" in request.headers.get("content-type", ""):
+                pairs = parse_qsl(text, keep_blank_values=True)
+                text = "&".join(
+                    f"{k}={'{{redacted}}' if k in _REDACT_BODY_KEYS else quote(v, safe='')}"
+                    for k, v in pairs
+                )
+            lines.append(f"--data-raw '{text}'")
     else:
         lines[-1] = lines[-1].rstrip(" \\")
 

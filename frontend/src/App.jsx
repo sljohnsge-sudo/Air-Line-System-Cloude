@@ -4,6 +4,7 @@ import gsLogo from './assets/george_steuart_logo.png';
 import BookingCard from './BookingCard.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
+import NdcTicketing from './NdcTicketing.jsx';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -540,7 +541,9 @@ function SegmentTimeline({ segments }) {
 
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => (
+    new URLSearchParams(window.location.search).get('tab') === 'ndc' ? 'ndc' : 'home'
+  ));
 
   // ── Admin / Customer auth state (persisted to localStorage) ──────────────
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || null);
@@ -1751,6 +1754,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               ✈ Results ({flights.length})
             </button>
           )}
+          <button className={`nav-tab ${activeTab === 'ndc' ? 'active' : ''}`} onClick={() => setActiveTab('ndc')}>NDC Ticketing</button>
           <button className={`nav-tab ${activeTab === 'hotels' ? 'active' : ''}`} onClick={() => setActiveTab('hotels')}>Hotels</button>
           <button className={`nav-tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={openPackages}>Tour Packages</button>
           <button className={`nav-tab ${activeTab === 'visa' ? 'active' : ''}`} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>Visa</button>
@@ -4910,7 +4914,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </select>
                 {destinationConsultant?.found && (
                   <p style={{ fontSize: '0.78rem', color: 'var(--gs-crimson)', fontWeight: 600, marginTop: '0.4rem', marginBottom: 0 }}>
-                    👤 Your visa consultant for {visaDestination}: {destinationConsultant.consultant_name}
+                    👤 Your visa {destinationConsultant.consultants.length > 1 ? 'consultants' : 'consultant'} for {visaDestination}: {destinationConsultant.consultants.map(c => c.consultant_name).join(', ')}
                   </p>
                 )}
               </div>
@@ -4965,7 +4969,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px dashed var(--border-color)', textAlign: 'center' }}>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
                   {destinationConsultant?.found
-                    ? <>Want expert help with your application? Book a slot with <strong>{destinationConsultant.consultant_name}</strong>, our {visaDestination} visa consultant.</>
+                    ? <>Want expert help with your application? Book a slot with <strong>{destinationConsultant.consultants.map(c => c.consultant_name).join(', ')}</strong>, our {visaDestination} visa {destinationConsultant.consultants.length > 1 ? 'consultants' : 'consultant'}.</>
                     : 'Want expert help with your application? Book a slot with our visa consultant.'}
                 </p>
                 <button type="button" className="btn btn-primary" onClick={openConsultForm} style={{ width: '100%' }}>
@@ -4979,7 +4983,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <h3 className="results-heading" style={{ fontSize: '1rem' }}>Book a Visa Consultation</h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 0, marginBottom: '1rem' }}>
                   {visaNationality} → {visaDestination}. Two slots available each day.
-                  {destinationConsultant?.found && <> With <strong>{destinationConsultant.consultant_name}</strong>.</>}
+                  {destinationConsultant?.found && <> With <strong>{destinationConsultant.consultants.map(c => c.consultant_name).join(', ')}</strong>.</>}
                 </p>
 
                 <form onSubmit={submitConsultBooking}>
@@ -5250,6 +5254,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       )}
 
       {/* ── CUSTOMER (ACCOUNT) PORTAL TAB ───────────────────────────────── */}
+      {activeTab === 'ndc' && <NdcTicketing />}
+
       {activeTab === 'account' && (
         <CustomerPortal
           customerToken={customerToken}

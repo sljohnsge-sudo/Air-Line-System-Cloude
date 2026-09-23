@@ -1,0 +1,152 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/b153b6a2-e51e-46de-9121-4b3249f47b3a/travelers/list' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk1Mzk2NTYsImV4cCI6MTc4OTYyNjA1NiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.dn_0K91e2dWCB317nyG_I6PvennakfdJlqYsSqqaMYeVm0VuQeu-lyyJhSl-YJQCaEDVuRHe90bVze1gLOpgk4-U2yl3EHGTTXUEM9KdD8rs8gm9KrRlkzNGRD10J6CrycVXOn0xh7ezgVUaOeZNmv68UyUa_nUoQMroos8YXJ2tvGKBHyQZ7wUIyGixD7lU8BuMOaFjOLClFKO9O5M3wCxrt3_JpJev67iYauDpe1RWvvc24u67DZDpKwXhLzBh6UOPK_qzinTG9eDI74q2_kWPSjsI__kh09OxaN9ZwZciFtATA3Q0smYEQZZHBV06M2-zsYFCXDnwdRtA9JLeFA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_3EFC1A7B8AD6' \
+--data-raw '{
+    "TravelerListRequest": {
+        "@type": "TravelerListRequest",
+        "Traveler": [
+            {
+                "@type": "Traveler",
+                "gender": "Male",
+                "birthDate": "1980-06-14",
+                "passengerTypeCode": "ADT",
+                "PersonName": {
+                    "@type": "PersonNameDetail",
+                    "Prefix": "MR",
+                    "Given": "MANJULA",
+                    "Surname": "WIJESINGHE"
+                },
+                "Telephone": [
+                    {
+                        "@type": "Telephone",
+                        "countryAccessCode": "94",
+                        "phoneNumber": "779012345",
+                        "id": "1",
+                        "role": "Mobile"
+                    }
+                ],
+                "Email": [
+                    {
+                        "value": "manjula.w@example.com"
+                    }
+                ],
+                "TravelDocument": [
+                    {
+                        "@type": "TravelDocumentDetail",
+                        "docNumber": "N5566990",
+                        "docType": "Passport",
+                        "expireDate": "2031-05-01",
+                        "issueCountry": "LK",
+                        "Nationality": "LK",
+                        "birthDate": "1980-06-14",
+                        "Gender": "Male",
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Given": "MANJULA",
+                            "Surname": "WIJESINGHE"
+                        }
+                    }
+                ],
+                "age": 46,
+                "id": "trav_1"
+            },
+            {
+                "@type": "Traveler",
+                "gender": "Male",
+                "birthDate": "2025-08-30",
+                "passengerTypeCode": "INF",
+                "PersonName": {
+                    "@type": "PersonNameDetail",
+                    "Prefix": "MSTR",
+                    "Given": "YUVIN",
+                    "Surname": "WIJESINGHE"
+                },
+                "Telephone": [
+                    {
+                        "@type": "Telephone",
+                        "countryAccessCode": "94",
+                        "phoneNumber": "779012345",
+                        "id": "2",
+                        "role": "Mobile"
+                    }
+                ],
+                "Email": [
+                    {
+                        "value": "manjula.w@example.com"
+                    }
+                ],
+                "TravelDocument": [
+                    {
+                        "@type": "TravelDocumentDetail",
+                        "docNumber": "N9900223",
+                        "docType": "Passport",
+                        "expireDate": "2031-05-01",
+                        "issueCountry": "LK",
+                        "Nationality": "LK",
+                        "birthDate": "2025-08-30",
+                        "Gender": "Male",
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Given": "YUVIN",
+                            "Surname": "WIJESINGHE"
+                        }
+                    }
+                ],
+                "age": 1,
+                "id": "trav_2"
+            },
+            {
+                "@type": "Traveler",
+                "gender": "Female",
+                "birthDate": "2012-09-08",
+                "passengerTypeCode": "CNN",
+                "PersonName": {
+                    "@type": "PersonNameDetail",
+                    "Prefix": "MISS",
+                    "Given": "HANSIKA",
+                    "Surname": "WIJESINGHE"
+                },
+                "Telephone": [
+                    {
+                        "@type": "Telephone",
+                        "countryAccessCode": "94",
+                        "phoneNumber": "779012345",
+                        "id": "3",
+                        "role": "Mobile"
+                    }
+                ],
+                "Email": [
+                    {
+                        "value": "manjula.w@example.com"
+                    }
+                ],
+                "TravelDocument": [
+                    {
+                        "@type": "TravelDocumentDetail",
+                        "docNumber": "N7788112",
+                        "docType": "Passport",
+                        "expireDate": "2031-05-01",
+                        "issueCountry": "LK",
+                        "Nationality": "LK",
+                        "birthDate": "2012-09-08",
+                        "Gender": "Female",
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Given": "HANSIKA",
+                            "Surname": "WIJESINGHE"
+                        }
+                    }
+                ],
+                "age": 14,
+                "id": "trav_3"
+            }
+        ]
+    }
+}'

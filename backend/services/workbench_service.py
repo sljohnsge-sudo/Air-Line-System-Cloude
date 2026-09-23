@@ -501,19 +501,24 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
 
 def confirm_price(raw_offering: dict) -> str:
     """
-    STEP 3b: Confirm pricing via AirPrice — GDS offers only (see
-    run_booking_flow's docstring for why NDC/LCC content does not call this:
-    confirmed live to wedge the PCC for NDC on this account). Also serves
-    Travelport support's request to validate availability/fare between
-    Search and Book and catch a closed-for-sale class ("0 Avail Closed")
-    before spending a full workbench create/add-offer/add-traveler/commit
-    attempt on it.
+    STEP 3b: Confirm pricing via AirPrice, called for every content source
+    (GDS and NDC) — see run_booking_flow's docstring. Serves Travelport
+    support's request to validate availability/fare between Search and Book
+    and catch a closed-for-sale class ("0 Avail Closed") before spending a
+    full workbench create/add-offer/add-traveler/commit attempt on it.
 
-    Not tied to any workbench — POSTs directly to /air/price/offers/... using
-    the same CatalogProductOfferingsIdentifier/CatalogProductOfferingSelection
-    reference payload as the reference-payload Add Offer call, against the
-    same cached Search transaction (relies on the same offersPerPage caching
-    that Add Offer already depends on).
+    Payload shape differs by content source, per Travelport certification
+    guidance (2026-09-16 call): for GDS content, Price uses the SAME
+    full-payload construction as the full-payload Add Offer call (STEP 5) —
+    see _build_full_payload_offer — POSTed to
+    TravelportEndpoints.AIRPRICE_FULL_PAYLOAD. NDC/LCC content (and GDS
+    content with no segments) keeps the lightweight reference payload
+    (offer id + product refs only, via _build_reference_payload_offer)
+    POSTed to TravelportEndpoints.AIRPRICE_REFERENCE, against the same
+    cached Search transaction (relies on the same offersPerPage caching that
+    Add Offer already depends on).
+
+    Not tied to any workbench either way — POSTs directly to /air/price/....
 
     Returns:
         str: The AirPrice response's transactionId. Per Travelport docs,
@@ -523,26 +528,20 @@ def confirm_price(raw_offering: dict) -> str:
         the subsequent Add Offer call instead of the original Search one.
     """
     leg_offerings = _get_leg_offerings(raw_offering)
-    catalog_offerings_id = leg_offerings[0].get("CatalogProductOfferingsIdentifier", "")
-    offering_selections = [_build_offering_selection(leg) for leg in leg_offerings]
+    is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
+    has_segments = all(leg.get("segments") for leg in leg_offerings)
 
-    payload = {
-        "OfferQueryBuildFromCatalogProductOfferings": {
-            "BuildFromCatalogProductOfferingsRequest": {
-                "@type": "BuildFromCatalogProductOfferingsRequestAir",
-                "CatalogProductOfferingsIdentifier": {
-                    "Identifier": {
-                        "value": catalog_offerings_id
-                    }
-                },
-                "CatalogProductOfferingSelection": offering_selections
-            }
-        }
-    }
+    if is_gds and has_segments:
+        payload = _build_full_payload_offer(leg_offerings)
+        url = TravelportEndpoints.AIRPRICE_FULL_PAYLOAD
+        logger.info("Confirming price via AirPrice (GDS offer, full payload)...")
+    else:
+        payload = _build_reference_payload_offer(leg_offerings)
+        url = TravelportEndpoints.AIRPRICE_REFERENCE
+        logger.info("Confirming price via AirPrice (NDC/LCC offer, reference payload)...")
 
-    logger.info("Confirming price via AirPrice (NDC/LCC offer)...")
     # AirPrice is not workbench-scoped, so no session_id.
-    result = _api_post_with_retry(TravelportEndpoints.AIRPRICE_REFERENCE, payload, session_id=None)
+    result = _api_post_with_retry(url, payload, session_id=None)
 
     errors = (
         result.get("OfferListResponse", {}).get("Result", {}).get("Error", []) or
@@ -822,38 +821,62 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_g
         "TravelDocument": [travel_document]
     }
 
-    # Explicit numeric age (not just birthDate) for every passenger type —
-    # Adult, Child, and Infant — computed from the traveler's actual date
-    # of birth, so Travelport can validate the fare's PTC age bracket.
-    age = _calculate_age(traveler.get("date_of_birth", ""))
-    if age is not None:
-        payload["age"] = age
+    # Explicit numeric age (not just birthDate) for every passenger type, so
+    # Travelport can validate the fare's PTC age bracket. Adult and Child use
+    # the traveler's real computed age from date of birth. Infants are
+    # always reported as age 1 regardless of actual DOB (real infants are
+    # under 12 months, which would compute to 0) — per Travelport
+    # certification guidance (2026-09-16 call), applies to both GDS and NDC.
+    if passenger_type == "INF":
+        payload["age"] = 1
+    else:
+        age = _calculate_age(traveler.get("date_of_birth", ""))
+        if age is not None:
+            payload["age"] = age
 
     if traveler_id:
         payload["id"] = traveler_id
     return payload
 
 
-def add_traveler_to_workbench(workbench_id: str, traveler: dict, is_gds: bool = True) -> dict:
+def add_traveler_to_workbench(workbench_id: str, traveler: dict, is_gds: bool = True, traveler_id: str | None = None) -> dict:
     """
-    Add a SINGLE passenger/traveler to the workbench.
+    Add a SINGLE passenger/traveler to the workbench (.../travelers, not the
+    batched .../travelers/list).
 
-    Kept for callers that need to add one isolated traveler. The main booking
-    flow (run_booking_flow) uses add_travelers_to_workbench instead, so that
-    every passenger on one PNR (Adult/Child/Infant) is sent to Travelport in
-    one combined request rather than one request per traveler.
+    Used both standalone by other callers, and by run_booking_flow() for NDC
+    content specifically — Travelport's own NDC certification reference logs
+    (TravelportNDC_6Aug/6_add adult.txt, 7_add infant.txt, 8_add child.txt)
+    add each traveler with its own separate call to this same single-traveler
+    endpoint, in Adult -> Infant -> Child order, rather than one combined
+    TravelerListRequest. GDS content still uses the combined
+    add_travelers_to_workbench below (matches the GDS full-payload
+    certification logs, which use .../travelers/list).
 
     Returns:
         dict: Updated workbench response
     """
     logger.info(f"Adding traveler to workbench {workbench_id}: {traveler.get('first_name')} {traveler.get('last_name')}")
 
-    payload = {"Traveler": _build_traveler_payload(traveler, is_gds=is_gds)}
+    payload = {"Traveler": _build_traveler_payload(traveler, traveler_id=traveler_id, is_gds=is_gds)}
 
     url = TravelportEndpoints.update_workbench(workbench_id)
     result = _api_post(url, payload, session_id=workbench_id)
+    _raise_if_error(result, "Add Traveler")
     logger.info("Traveler added to workbench.")
     return result
+
+
+def add_travelers_individually_to_workbench(workbench_id: str, travelers: list, is_gds: bool = False) -> None:
+    """
+    STEP 6 (NDC content): add each traveler with its own separate
+    .../travelers call, in the order given by the caller (run_booking_flow
+    already sorts Adult -> Infant -> Child before calling this). See
+    add_traveler_to_workbench's docstring for why NDC uses this instead of
+    the combined TravelerListRequest that GDS content uses.
+    """
+    for i, traveler in enumerate(travelers, start=1):
+        add_traveler_to_workbench(workbench_id, traveler, is_gds=is_gds, traveler_id=f"Trav_{i - 1}")
 
 
 def add_travelers_to_workbench(workbench_id: str, travelers: list, is_gds: bool = True) -> dict:
@@ -1007,8 +1030,28 @@ def commit_workbench(workbench_id: str) -> dict:
         receipts = result.get("Reservation", {}).get("Receipt", []) or \
                    result.get("ReservationResponse", {}).get("Reservation", {}).get("Receipt", [])
         if receipts and isinstance(receipts, list):
-            locator_code = receipts[0].get("Confirmation", {}).get("Locator", {}).get("value")
-            
+            # Must be the Receipt whose Locator.source is "1G" — NOT
+            # necessarily receipts[0]. Confirmed live 2026-09-15 (PNRs
+            # EK176UOF99XA4 and 97LB9M): for NDC content, Travelport lists
+            # the airline's own OrderId/VendorLocator receipts BEFORE the 1G
+            # one, in no fixed order (EK put OrderId first then
+            # VendorLocator; AI put VendorLocator first then OrderId — 1G
+            # was always last for both, but never first). Blindly taking
+            # receipts[0] grabbed the airline's own locator instead of the
+            # actual 1G agency locator, which then made every later
+            # buildfromlocator call (ticket issuance, cancellation) fail
+            # with "RECORD LOCATOR DOES NOT EXIST" — Travelport's 1G lookup
+            # correctly couldn't find a value that was never registered
+            # under 1G in the first place. This was not a Travelport/account
+            # issue; the real 1G locator was in the response all along.
+            locator_1g = next(
+                (r.get("Confirmation", {}).get("Locator", {}).get("value")
+                 for r in receipts
+                 if r.get("Confirmation", {}).get("Locator", {}).get("source") == "1G"),
+                None
+            )
+            locator_code = locator_1g or receipts[0].get("Confirmation", {}).get("Locator", {}).get("value")
+
         if not locator_code:
             locator_code = (
                 result.get("Reservation", {}).get("Locator", {}).get("value") or
@@ -1034,16 +1077,42 @@ def commit_workbench(workbench_id: str) -> dict:
             raise ValueError(f"Travelport booking failed: {error_msg}")
         raise ValueError("Travelport did not return a PNR locator code.")
 
+    # Cache the Offer local id/UUID from THIS commit response — confirmed
+    # live 2026-09-16 (PNR HN50PK and 6 others, all NDC multi-city): the
+    # commit response itself always embeds Offer[] (with the real "id" and
+    # Identifier.value ticket issuance needs), but a later buildfromlocator
+    # call at ticketing time frequently comes back with no Offer[] at all for
+    # NDC content — every one of those ticket attempts then failed at the
+    # Payment step ("OFFER ID/IDENTIFIER VALUES MUST MATCH...", SourceCode
+    # 4179) purely because we had no OfferIdentifier to send, not because the
+    # PNR itself was unticketable. Saving it now, while we know it, lets
+    # issue_ticket() fall back to this instead of leaving it unset.
+    offer_local_id = None
+    offer_uuid = None
+    offer_authority = None
+    try:
+        reservation = result.get("ReservationResponse", {}).get("Reservation", {}) or result.get("Reservation", {})
+        offers = reservation.get("Offer", [])
+        if offers:
+            offer_local_id = offers[0].get("id")
+            offer_uuid = offers[0].get("Identifier", {}).get("value")
+            offer_authority = offers[0].get("Identifier", {}).get("authority")
+    except Exception:
+        pass
+
     logger.info(f"PNR generated successfully: {locator_code}")
     return {
         "locator_code": locator_code,
-        "raw_response": result
+        "raw_response": result,
+        "offer_local_id": offer_local_id,
+        "offer_uuid": offer_uuid,
+        "offer_authority": offer_authority
     }
 
 
 # ── Booking Flow Helper (Steps 4-7 with stale-workbench auto-retry) ───────────
 
-def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) -> dict:
+def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, reference_payload_only: bool = False) -> dict:
     """
     Execute the full GDS booking flow (Steps 4-7) with automatic retry on
     Galileo error 4350 (COMMIT OR IGNORE RESERVATION WORKBENCH).
@@ -1103,15 +1172,30 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
     # per Travelport's own guidance that TraceId correlates one flow's linked
     # calls rather than being unique per individual request.
     with flow_trace_id():
-        # STEP 3b — AirPrice, GDS content only. See docstring above for why
-        # NDC/LCC content still skips this. Confirmed once per flow, not per
-        # retry attempt, since it isn't workbench-scoped and its result (the
-        # priced transactionId) stays valid across workbench create/retry
-        # attempts below.
+        # STEP 3b — AirPrice/Pricing, called for ALL content sources (GDS and
+        # NDC) as of 2026-09-15, matching Travelport's own NDC certification
+        # reference (TravelportNDC_6Aug/3_Pricing.txt calls this same step).
+        #
+        # Whether its result gets substituted into the later Add Offer call
+        # differs by content source, per the certification references:
+        #   - GDS: the priced transactionId (Travelport returns the original
+        #     identifier with a "_PC" suffix) DOES replace
+        #     CatalogProductOfferingsIdentifier for Add Offer — this was
+        #     already proven necessary for GDS.
+        #   - NDC: confirmed from Travelport's own reference (5_addoffer.txt)
+        #     that Add Offer's top-level CatalogProductOfferingsIdentifier
+        #     stays the ORIGINAL search-time id even after Pricing runs —
+        #     Pricing's own returned identifiers are only used for the
+        #     offer/product refs inside Pricing itself, never substituted
+        #     into Add Offer. Live-tested substituting it anyway on
+        #     2026-09-15: Add Offer failed with "OFFER ID AND/OR PRODUCT ID
+        #     DOES NOT EXIST" — confirms the reference's approach is correct
+        #     and substitution must NOT happen for NDC. Do not change this
+        #     without re-testing live first.
         leg_offerings = _get_leg_offerings(raw_offering)
         is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
+        priced_transaction_id = confirm_price(raw_offering)
         if is_gds:
-            priced_transaction_id = confirm_price(raw_offering)
             for leg in leg_offerings:
                 leg["CatalogProductOfferingsIdentifier"] = priced_transaction_id
 
@@ -1119,7 +1203,7 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
         # Offer first (for classOfService/etc.); if that gets past Add Offer
         # but fails later at Commit, this flips to True for one whole-flow
         # retry on a fresh workbench with reference payload forced.
-        force_reference_payload = False
+        force_reference_payload = reference_payload_only
         already_fell_back_to_reference = False
 
         for attempt in range(1, max_retries + 1):
@@ -1132,17 +1216,31 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
                 # STEP 5
                 add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=force_reference_payload)
 
-                # STEP 6 — All travelers on this PNR (Adult/Child/Infant) are sent
-                # to Travelport in ONE combined TravelerListRequest, not one call
-                # per traveler. Travelport GDS certification requires travelers to
-                # appear in this exact passenger-type sequence within that request:
-                # Adult, Infant, Child.
+                # STEP 6 — Travelers must appear in this exact passenger-type
+                # sequence: Adult, Infant, Child (both the GDS and NDC
+                # certification reference logs agree on this order).
+                #
+                # GDS sends ONE combined TravelerListRequest (.../travelers/list)
+                # — matches the GDS full-payload certification logs
+                # (booking_HMZ9HH/6.Add Travelers RQ).
+                #
+                # NDC sends each traveler with its own separate call
+                # (.../travelers) — matches Travelport's NDC certification
+                # reference logs (TravelportNDC_6Aug/6_add adult.txt,
+                # 7_add infant.txt, 8_add child.txt). A batched call was tried
+                # for NDC too per Travelport certification guidance from a
+                # 2026-09-16 call, but the reference set Travelport later
+                # confirmed as current shows the three separate calls, so NDC
+                # reverted back to that on 2026-09-23.
                 passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
                 ordered_travelers = sorted(
                     travelers,
                     key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
                 )
-                add_travelers_to_workbench(workbench_id, ordered_travelers, is_gds=is_gds)
+                if is_gds:
+                    add_travelers_to_workbench(workbench_id, ordered_travelers, is_gds=True)
+                else:
+                    add_travelers_individually_to_workbench(workbench_id, ordered_travelers, is_gds=False)
 
                 # STEP 6b — Add Travel Agency, GDS content only (matches the
                 # GDS certification reference, which includes this step; the
@@ -1200,6 +1298,133 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3) 
                 raise e
 
         raise ValueError("Booking flow failed after all retries.")
+
+
+# ── NDC Instant Pay: book and ticket in the same workbench ───────────────────
+# Travelport's NDC-only Instant Pay workflow: create workbench → add offer →
+# add travelers → form of payment → payment → commit with Issuance=Ticket, all
+# in ONE session. Needed for Emirates, whose post-commit (buildfromlocator)
+# workbench carries no offer, so the normal book-then-ticket path cannot pay.
+
+class InstantPayError(ValueError):
+    pass
+
+
+def _errors_of(result: dict) -> list:
+    body = result.get("ReservationResponse", result)
+    return (body.get("Result") or {}).get("Error") or []
+
+
+def run_instant_pay_flow(raw_offering: dict, travelers: list, max_attempts: int = 3) -> dict:
+    """
+    Returns {"locator_code", "raw_response", "ticket_numbers": [(ptc, number)...],
+    "total_fare", "currency"} for a booked AND ticketed NDC reservation.
+    Raises InstantPayError if the airline refuses the offer or no ticket is issued;
+    any PNR left on hold by a failed attempt is cancelled.
+    """
+    import uuid
+    from services.ticket_service import cancel_reservation
+
+    passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+    ordered = sorted(travelers, key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99))
+    last_error = "unknown error"
+
+    with flow_trace_id():
+        confirm_price(raw_offering)
+        for attempt in range(1, max_attempts + 1):
+            workbench_id = create_workbench()
+            logger.info(f"[Instant Pay {attempt}/{max_attempts}] Workbench: {workbench_id}")
+            held_locator = None
+            try:
+                add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=True)
+                add_travelers_to_workbench(workbench_id, ordered, is_gds=False)
+
+                wb = get_workbench_details(workbench_id)
+                wres = wb.get("ReservationResponse", {}).get("Reservation", {}) or wb.get("Reservation", {}) or wb
+                offers = wres.get("Offer") or []
+                traveler_refs = [{"passengerTypeCode": t.get("passengerTypeCode"), "id": t.get("id")}
+                                 for t in wres.get("Traveler", []) or []]
+                if not offers or len(traveler_refs) != len(ordered):
+                    raise InstantPayError("Travelport workbench is missing the offer or travelers")
+                offer = offers[0]
+
+                fop_uuid = str(uuid.uuid4()).upper()
+                _api_post(TravelportEndpoints.add_fop_to_workbench(workbench_id), {
+                    "FormOfPaymentCash": {"id": "formOfPayment_1", "FormOfPaymentRef": "formOfPayment_1",
+                                          "Identifier": {"authority": "Travelport", "value": fop_uuid}}
+                }, session_id=workbench_id)
+                wb2 = get_workbench_details(workbench_id)
+                r2 = wb2.get("ReservationResponse", {}).get("Reservation", {}) or wb2.get("Reservation", {}) or wb2
+                stored = (r2.get("FormOfPayment") or [{}])[0]
+                fop_id = stored.get("Identifier", {}).get("value") or fop_uuid
+
+                price = offer.get("Price") or {}
+                total = float(price.get("TotalPrice") or 0)
+                currency = (price.get("CurrencyCode") or {}).get("value") or "LKR"
+                pay = _api_post(TravelportEndpoints.add_payment_to_workbench(workbench_id), {
+                    "Payment": {
+                        "id": "payment_1",
+                        "Identifier": {"authority": "Travelport", "value": str(uuid.uuid4()).upper()},
+                        "Amount": {"value": total, "code": currency, "minorUnit": 2,
+                                   "currencySource": "Supplier", "approximateInd": True},
+                        "FormOfPaymentIdentifier": {"id": "formOfPayment_1", "FormOfPaymentRef": "formOfPayment_1",
+                                                    "Identifier": {"authority": "Travelport", "value": fop_id}},
+                        "OfferIdentifier": [{"id": offer.get("id"), "offerRef": offer.get("id"),
+                                             "Identifier": offer.get("Identifier")}],
+                        "TravelerIdentifierRef": traveler_refs,
+                    }
+                }, session_id=workbench_id)
+                pay_errors = (pay.get("PaymentResponse", {}).get("Result") or {}).get("Error") or []
+                if pay_errors:
+                    raise InstantPayError("; ".join(f"{e.get('Message')} ({e.get('SourceCode')})" for e in pay_errors))
+
+                commit_url = (f"{TravelportConfig.base_path()}/air/book/reservation/reservations/"
+                              f"{workbench_id}?Issuance=Ticket&DocumentValue=Retain")
+                result = _api_post(commit_url, "", session_id=workbench_id)
+                res = result.get("ReservationResponse", {}).get("Reservation", {}) or result.get("Reservation", {}) or {}
+
+                ref_ptc = {t["id"]: t["passengerTypeCode"] for t in traveler_refs}
+                tickets = []
+                for rc in res.get("Receipt", []) or []:
+                    for doc in rc.get("Document", []) or []:
+                        if doc.get("@type") == "DocumentTicket" and doc.get("Number"):
+                            ref = doc.get("TravelerIdentifierRef") or {}
+                            tickets.append((ref.get("passengerTypeCode") or ref_ptc.get(ref.get("id")) or "ADT", doc["Number"]))
+                for rc in res.get("Receipt", []) or []:
+                    loc = (rc.get("Confirmation") or {}).get("Locator") or {}
+                    if loc.get("source") == "1G":
+                        held_locator = loc.get("value")
+
+                if tickets and held_locator:
+                    return {"locator_code": held_locator, "raw_response": result, "ticket_numbers": tickets,
+                            "total_fare": total, "currency": currency}
+
+                errs = _errors_of(result)
+                last_error = "; ".join(f"{e.get('SourceID')}: {e.get('Message')} ({e.get('SourceCode')})" for e in errs) \
+                    or "commit returned no ticket"
+                retryable = any(str(e.get("SourceCode")) == "4243" for e in errs)
+                logger.warning(f"[Instant Pay {attempt}/{max_attempts}] not ticketed: {last_error}")
+            except InstantPayError as e:
+                last_error = str(e)
+                retryable = True
+                logger.warning(f"[Instant Pay {attempt}/{max_attempts}] {last_error}")
+
+            if held_locator:
+                try:
+                    cancel_reservation(held_locator)
+                    logger.info(f"Cancelled unticketed PNR {held_locator}")
+                except Exception as ce:
+                    logger.warning(f"Could not cancel unticketed PNR {held_locator}: {ce}")
+            else:
+                try:
+                    discard_workbench(workbench_id)
+                except Exception:
+                    pass
+            if not retryable:
+                break
+            time.sleep(2)
+
+    raise InstantPayError(f"Instant Pay ticketing failed: {last_error}")
 
 
 # ── STEP 10: Live Seat Map Query ──────────────────────────────────────────────

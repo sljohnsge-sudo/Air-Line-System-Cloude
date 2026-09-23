@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/18d280e1-5d05-45c0-a542-24f2449bd9c4/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NDMwOTAsImV4cCI6MTc4OTUyOTQ5MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.VTva4CeJ6nMaiOitj7WHamtIbksvojEnR_2yPGjzS0ZdkcaZodKFQMhIt09-MbyPBVEOGbs5ktOjrsQ0GZZtJbZgEWylzlSgwaAeYY7KkzOeba0uVlPDBrZ6yf2_cvK_TKjYtSDUjBZQt9XAuXnpDH8pUKDF3Yr_8JJ438slBoZxevX6m4R3Bk3Pw3uSHEZsKwQa29WlvLawcWljxa1gLyuIzN6K5B5YWNIhWSJJQEjoLLcixS86ApeWeOJfxdDaTAYcmhmq-VmKidaXJ7uIAJPy4ev22xaZtlN--_WyeJIJYtdECgwtyByiXuTsIcyydndq9OS19hiGbjrhKxltJg' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/94564474-f61b-4c9c-9418-72d0baa4286e/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTE1NjMsImV4cCI6MTc4OTc5Nzk2MywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.UC0U_mmhPwGrzU6LnVx50QpVwKJMFOl0rW1hglXXWKvqIKwTWptCbSCK3dThl5pBKAWpT50ByV2xElXLyY1Me94_Q6BQsCQOCOY_vAA0gbxpZQS775J4TE6yY_NzTknQfVUFOs9MukghDUdgm7CdJXRvK_QOoYAERJSZNlFJwDy-CN-UyeY5oGOuRq2AfpPOFKKpqrWwjW8McRgixD0zXS5ycOnMASqMv3vYEc5Z4LbX-WCSxCvA0Cr24pl4ByRm5_dFgq3_pXAWwweJIQRgk7cMie3LUIEe9Knkrh9Eleq8tlxmpEcUtd6D3yzsO4ERkT4IkctlsG5bIcHDaroJPw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,46 +7,113 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_B73F8F2F5FD2' \
+--header 'traceid: TraceID_041E085B1DB1' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "627dc4c4-ab13-40d9-95af-2ae86961ab43"
-                }
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "659",
+                        "from": "CMB",
+                        "to": "DOH",
+                        "departureDate": "2027-02-15",
+                        "segmentSequence": 1,
+                        "departureTime": "03:25:00",
+                        "arrivalDate": "2027-02-15",
+                        "arrivalTime": "05:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "O",
+                        "ContentSource": "NDC"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "7",
+                        "from": "DOH",
+                        "to": "LHR",
+                        "departureDate": "2027-02-15",
+                        "segmentSequence": 2,
+                        "departureTime": "09:00:00",
+                        "arrivalDate": "2027-02-15",
+                        "arrivalTime": "13:25:00",
+                        "cabin": "Economy",
+                        "classOfService": "O",
+                        "ContentSource": "NDC"
+                    }
+                ]
             },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "EK_CPO0"
-                        }
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 2,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "120",
+                        "from": "LHR",
+                        "to": "DOH",
+                        "departureDate": "2027-02-22",
+                        "segmentSequence": 1,
+                        "departureTime": "09:25:00",
+                        "arrivalDate": "2027-02-22",
+                        "arrivalTime": "19:10:00",
+                        "cabin": "Economy",
+                        "classOfService": "S",
+                        "ContentSource": "NDC"
                     },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "EKp16"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "EK_CPO1"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "EKp59"
-                            }
-                        }
-                    ]
-                }
-            ]
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "660",
+                        "from": "DOH",
+                        "to": "CMB",
+                        "departureDate": "2027-02-23",
+                        "segmentSequence": 2,
+                        "departureTime": "02:40:00",
+                        "arrivalDate": "2027-02-23",
+                        "arrivalTime": "09:45:00",
+                        "cabin": "Economy",
+                        "classOfService": "S",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 1,
+                "passengerTypeCode": "INF"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "CHD"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "ECONOMY CLASSIC",
+                "BrandRef": "QRb2"
+            }
         }
     }
 }'

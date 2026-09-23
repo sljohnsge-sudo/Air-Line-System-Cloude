@@ -15,15 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 def get_hotel_headers() -> dict:
-    """Headers for Travelport Hotel (Stays) v11/v12 API calls.
-    Confirmed against the live interactive spec at
-    https://developer.travelport.com/apis/stays (Unified Check Out sample cURL).
+    """Headers for Travelport Hotel (Stays) v11/v12 API calls, per
+    https://developer.travelport.com/docs/stays/general/common-stays-api-headers
+    — Accept-Encoding and Cache-Control are both listed there as Required and
+    were previously missing from every Hotel/Stays call.
     """
     token = get_access_token()
     return {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Cache-Control": "no-cache",
         "XAUTH_TRAVELPORT_ACCESSGROUP": HotelConfig.ACCESS_GROUP,
         "TVP-PCC-Core": f"{HotelConfig.PCC}_1G",
         "TraceId": HotelConfig.generate_trace_id(),

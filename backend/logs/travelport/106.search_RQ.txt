@@ -1,0 +1,64 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTkyMzIsImV4cCI6MTc4OTgwNTYzMiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.fDnmsjojf7ExByVQvb4E3LgH3ablkgG0mYw2wYPnmLU4BVi9RgE0qHXlF_eFKxrF3sHjk_Wc7kSrY1IHYS-6wwtZVYwtmDZ9IhVHeEkOy6DMrRCcKIxuGG4Ks8MP1bXU5ZND9qohPXJZTLL9FYGboFTV8NSd1J0paTOEScGx752ThIzoTZkLkNr4FuQpSPgT-2Jj3axfkTLXtZ56cWFZzsOLN5T0fUFKuXio_TTY5Kf8Rw768SkeSNMlIxd33oIu2876UT3QqexyhSzCdZMcln5Ggrp3ALqucmZt8oa6g3BHy-VPMEWr3nP51zT2q6tKvmL7IHIsAl7CVnJ9KvmHNA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_B1523078E613' \
+--header 'fareindicator: true' \
+--data-raw '{
+    "@type": "CatalogProductOfferingsQueryRequest",
+    "CatalogProductOfferingsRequest": {
+        "@type": "CatalogProductOfferingsRequestAir",
+        "maxNumberOfUpsellsToReturn": 1,
+        "offersPerPage": 999,
+        "contentSourceList": [
+            "NDC"
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 1,
+                "passengerTypeCode": "INF"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 10,
+                "passengerTypeCode": "CNN"
+            }
+        ],
+        "SearchCriteriaFlight": [
+            {
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2027-01-20",
+                "From": {
+                    "value": "CMB"
+                },
+                "To": {
+                    "value": "BOM"
+                }
+            },
+            {
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2027-01-27",
+                "From": {
+                    "value": "BOM"
+                },
+                "To": {
+                    "value": "CMB"
+                }
+            }
+        ]
+    }
+}'
