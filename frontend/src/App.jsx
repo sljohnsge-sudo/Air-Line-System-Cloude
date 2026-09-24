@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import gsLogo from './assets/george_steuart_logo.png';
 import BookingCard from './BookingCard.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
 import NdcTicketing from './NdcTicketing.jsx';
+import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -541,9 +543,69 @@ function SegmentTimeline({ segments }) {
 
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
+  // ── URL routing ────────────────────────────────────────────────────────
+  // The app is still one big component driven by `activeTab`/`bookingStep`
+  // state (see below) — that render logic is untouched. These two hooks
+  // just keep the URL bar in sync with that state (see the two effects
+  // right after the PayCorp-return handler) so every page/step gets a real,
+  // bookmarkable/shareable/back-button-able URL instead of everything
+  // staying on "/".
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // activeTab value -> URL path. 'results' and 'bookings' are handled
+  // specially (see computeCanonicalPath below) since they need a sub-path
+  // or live under /admin.
+  const TAB_TO_PATH = {
+    home: '/', book: '/book', results: '/results', ndc: '/ndc', hotels: '/hotels',
+    packages: '/packages', visa: '/visa', cancelRequest: '/cancel-booking',
+    admin: '/admin', account: '/account', invoice: '/invoice',
+  };
+
+  // Derives the initial `activeTab` from the real URL the page was loaded
+  // with (not just a hardcoded 'home') — otherwise, on a cold load of e.g.
+  // /admin, activeTab briefly starts as 'home' and the state→URL effect
+  // below fires first and overwrites the address bar back to "/" before
+  // the URL→state effect gets a chance to correct it.
+  const tabFromPath = (pathname) => {
+    if (pathname === '/') return 'home';
+    if (pathname === '/book') return 'book';
+    if (pathname.startsWith('/results')) return 'results';
+    if (pathname.startsWith('/booking/')) return 'results'; // ticket popup is independent of activeTab
+    if (pathname === '/ndc') return 'ndc';
+    if (pathname === '/hotels') return 'hotels';
+    if (pathname === '/packages') return 'packages';
+    if (pathname === '/visa') return 'visa';
+    if (pathname === '/cancel-booking') return 'cancelRequest';
+    if (pathname === '/admin/bookings') return 'bookings';
+    if (pathname.startsWith('/admin')) return 'admin';
+    if (pathname === '/account') return 'account';
+    if (pathname.startsWith('/invoice')) return 'invoice';
+    return 'home';
+  };
+
   const [activeTab, setActiveTab] = useState(() => (
-    new URLSearchParams(window.location.search).get('tab') === 'ndc' ? 'ndc' : 'home'
+    new URLSearchParams(window.location.search).get('tab') === 'ndc' ? 'ndc' : tabFromPath(window.location.pathname)
   ));
+
+  // Seeds the search-form state from the encrypted /results/:token when the
+  // page is first loaded directly there (a shared/bookmarked link) —
+  // without this, these fields start at their plain defaults (CMB/DXB/
+  // tomorrow) for one render, which briefly disagrees with the real URL.
+  // The token (see urlCrypto.js) decrypts to a JSON payload of the search
+  // criteria and the current wizard step, if any — this keeps every part of
+  // the /results URL opaque instead of readable query params.
+  const initialResultsPayload = (() => {
+    if (!window.location.pathname.startsWith('/results/')) return null;
+    const token = window.location.pathname.split('/')[2];
+    const decoded = token ? decryptFromUrl(token) : null;
+    if (!decoded) return null;
+    try {
+      return JSON.parse(decoded);
+    } catch {
+      return null;
+    }
+  })();
 
   // ── Admin / Customer auth state (persisted to localStorage) ──────────────
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || null);
@@ -966,11 +1028,12 @@ export default function App() {
   };
 
   // Search state
-  const [searchType, setSearchType] = useState('oneway'); // 'oneway' | 'roundtrip' | 'multicity'
-  const [searchOrigin, setSearchOrigin] = useState('CMB');
-  const [searchDest, setSearchDest] = useState('DXB');
-  const [searchDate, setSearchDate] = useState(getTomorrow());
+  const [searchType, setSearchType] = useState(() => initialResultsPayload?.type || 'oneway'); // 'oneway' | 'roundtrip' | 'multicity'
+  const [searchOrigin, setSearchOrigin] = useState(() => initialResultsPayload?.origin || 'CMB');
+  const [searchDest, setSearchDest] = useState(() => initialResultsPayload?.destination || 'DXB');
+  const [searchDate, setSearchDate] = useState(() => initialResultsPayload?.date || getTomorrow());
   const [returnDate, setReturnDate] = useState(() => {
+    if (initialResultsPayload?.returnDate) return initialResultsPayload.returnDate;
     const d = new Date();
     d.setDate(d.getDate() + 8); // return in 8 days default
     return d.toISOString().split('T')[0];
@@ -979,10 +1042,10 @@ export default function App() {
     { origin: 'CMB', dest: 'DXB', date: getTomorrow() },
     { origin: 'DXB', dest: 'SIN', date: (() => { const d = new Date(); d.setDate(d.getDate() + 5); return d.toISOString().split('T')[0]; })() }
   ]);
-  const [adultCount, setAdultCount] = useState(1);
-  const [childCount, setChildCount] = useState(0);
-  const [infantCount, setInfantCount] = useState(0);
-  const [cabinPref, setCabinPref] = useState('Economy'); // default to Economy as shown in image
+  const [adultCount, setAdultCount] = useState(() => Number(initialResultsPayload?.adults) || 1);
+  const [childCount, setChildCount] = useState(() => Number(initialResultsPayload?.children) || 0);
+  const [infantCount, setInfantCount] = useState(() => Number(initialResultsPayload?.infants) || 0);
+  const [cabinPref, setCabinPref] = useState(() => initialResultsPayload?.cabin || 'Economy'); // default to Economy as shown in image
   const [showTravelersPopover, setShowTravelersPopover] = useState(false);
   const [showCabinPopover, setShowCabinPopover] = useState(false);
   const [showResultsPopover, setShowResultsPopover] = useState(false);
@@ -1124,6 +1187,134 @@ export default function App() {
       showNotification(`Payment was cancelled. Your booking (PNR: ${locator}) is held — you can complete payment later.`, 'info');
     }
   }, []);
+
+  // ── App state → URL ────────────────────────────────────────────────────
+  // Whenever the current page/step changes through the app's own handlers
+  // (nav clicks, search, selecting a flight, advancing the booking wizard,
+  // ticket issuance...), push the matching URL. Every system-generated,
+  // data-carrying route (results + its search criteria and wizard step, the
+  // issued ticket's PNR) is a single encrypted token — see urlCrypto.js —
+  // so the address bar/history never show a readable PNR or search route.
+  const computeCanonicalPath = () => {
+    if (bookingStep === 'ticket' && issuedTicket) {
+      const loc = issuedTicket.locator_code || issuedTicket.pnr;
+      const token = loc ? encryptForUrl(loc) : null;
+      return { path: token ? `/booking/${token}` : '/results', search: '' };
+    }
+    // A ticket fetch triggered by a direct /booking/:token link may still be
+    // in flight (issuedTicket not set yet) — leave the URL alone rather than
+    // bouncing to a "default" results page out from under it.
+    if (location.pathname.startsWith('/booking/')) {
+      return { path: location.pathname, search: '' };
+    }
+    if (activeTab === 'bookings') return { path: '/admin/bookings', search: '' };
+    if (activeTab === 'results') {
+      const payload = {
+        step: bookingStep && bookingStep !== 'ticket' ? bookingStep : null,
+        origin: searchOrigin, destination: searchDest, date: searchDate,
+        returnDate: searchType === 'roundtrip' ? returnDate : null,
+        type: searchType, adults: adultCount, children: childCount,
+        infants: infantCount, cabin: cabinPref,
+      };
+      const token = encryptForUrl(JSON.stringify(payload));
+      return { path: token ? `/results/${token}` : '/results', search: '' };
+    }
+    return { path: TAB_TO_PATH[activeTab] || '/', search: '' };
+  };
+
+  useEffect(() => {
+    const { path, search } = computeCanonicalPath();
+    if (path + search !== location.pathname + location.search) {
+      navigate({ pathname: path, search }, { replace: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeTab, bookingStep, issuedTicket?.locator_code, issuedTicket?.pnr,
+    searchOrigin, searchDest, searchDate, returnDate, searchType,
+    adultCount, childCount, infantCount, cabinPref,
+  ]);
+
+  // ── URL → app state ────────────────────────────────────────────────────
+  // Runs on first load and whenever the URL changes via browser back/forward
+  // or a typed/bookmarked link, restoring the matching page. Mid-wizard
+  // steps (passenger/seats/review/payment) depend on the selected flight's
+  // full GDS offer, which can't be reconstructed from a URL alone — if
+  // that's missing (e.g. a hard refresh mid-wizard) this falls back to the
+  // plain results view instead of showing a broken step. The ticket
+  // confirmation step DOES fully support a cold load: it re-fetches the
+  // ticket by locator from the existing retrieve-by-PNR endpoint.
+  const KNOWN_PATH_PREFIXES = [
+    '/', '/book', '/results', '/booking/', '/ndc', '/hotels', '/packages',
+    '/visa', '/cancel-booking', '/admin', '/account', '/invoice',
+  ];
+
+  useEffect(() => {
+    const path = location.pathname;
+    const isKnown = KNOWN_PATH_PREFIXES.some(p => p === '/' ? path === '/' : path.startsWith(p));
+    if (!isKnown) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    setActiveTab(tabFromPath(path));
+
+    if (path.startsWith('/results')) {
+      const token = path.split('/')[2] || null;
+      const decoded = token ? decryptFromUrl(token) : null;
+      let payload = null;
+      if (decoded) {
+        try { payload = JSON.parse(decoded); } catch { payload = null; }
+      }
+      const sub = payload?.step || null;
+      if (sub) {
+        if (selectedFlight) {
+          setBookingStep(sub);
+        } else {
+          setBookingStep(null);
+          const strippedToken = encryptForUrl(JSON.stringify({ ...payload, step: null }));
+          navigate({ pathname: strippedToken ? `/results/${strippedToken}` : '/results', search: '' }, { replace: true });
+        }
+      } else {
+        setBookingStep(null);
+      }
+      if (payload?.origin && flights.length === 0 && !loadingFlights) {
+        const origin = payload.origin;
+        const destination = payload.destination || '';
+        const date = payload.date || '';
+        setSearchOrigin(origin);
+        setSearchDest(destination);
+        setSearchDate(date);
+        if (payload.returnDate) setReturnDate(payload.returnDate);
+        if (payload.type) setSearchType(payload.type);
+        if (payload.adults) setAdultCount(Number(payload.adults) || 1);
+        if (payload.children) setChildCount(Number(payload.children) || 0);
+        if (payload.infants) setInfantCount(Number(payload.infants) || 0);
+        if (payload.cabin) setCabinPref(payload.cabin);
+        handleSearch(null, { origin, destination, date });
+      }
+    } else if (path.startsWith('/booking/')) {
+      const token = path.split('/')[2] || '';
+      const locator = token ? decryptFromUrl(token) : null;
+      if (locator && issuedTicket?.locator_code !== locator && issuedTicket?.pnr !== locator) {
+        (async () => {
+          try {
+            const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${locator}`);
+            const data = await handleApiResponse(res, 'Failed to load ticket');
+            setIssuedTicket(data);
+            setBookingStep('ticket');
+          } catch (err) {
+            showNotification(err.message || 'Could not load that ticket.', 'error');
+            navigate('/', { replace: true });
+          }
+        })();
+      } else if (locator) {
+        setBookingStep('ticket');
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search]);
 
   const handleRefreshTicket = async (locatorCode) => {
     if (!locatorCode) return;
@@ -5360,7 +5551,21 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               <div className="summary-col"><span className="label">Price</span><span className="val highlight">{selectedFlight.currency} {(() => { const bdk = selectedFlight.price_breakdown ? Object.keys(selectedFlight.price_breakdown) : []; return (bdk.length > 0 ? bdk.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0) : selectedFlight.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2}); })()}</span></div>
             </div>
 
-            {bookingError && <div className="error-banner">{bookingError}</div>}
+            {bookingError && (
+              <div className="error-banner">
+                {bookingError}
+                {bookingError.includes('availability has changed') && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'block', marginTop: '0.6rem' }}
+                    onClick={() => { closeBookingFlow(); setActiveTab('book'); }}
+                  >
+                    Search Again
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* STEP: Passenger Details Form */}
             {bookingStep === 'passenger' && (

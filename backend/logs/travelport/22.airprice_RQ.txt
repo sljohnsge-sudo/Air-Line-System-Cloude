@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTgxNzAsImV4cCI6MTc4OTgwNDU3MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Wmd6j8k3tmG99LSsrgNPUuaFwcQdNDar1Ua8-9J2UxU3Irj3EV_HfBv6tmHkACozN1RKEkCzkNGti7JqYU7zX0JdzxZqphgLwfiiTjTnTFxWUocsOgX060ING04E15FA9Eoa9XHu7iTqfo3X5rqcbTkFwUiZ8I3jjs_Al1c3KVgeFjJqFsjnXhITP3CPAr7LNefQ55eTDOOnzan4RrNGkWQ91NzkzzgQPysrjLlaICcU4b0E1erVBXF2-E5MlvRnojDXtsHltPeVWPDYws24MXMDlpyYCI9g2lOg5rIbqiHT5rrNntEYoJva2y4sjdhvSLryI8dwzOF4yG0uGKQbGg' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAxNjI0NjgsImV4cCI6MTc5MDI0ODg2OCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.FVll0FzndSdcgGjk39cuCRUBvBmOYoR9YySAGl1CYhVEWAwz9NnYnUD2vDbF0k1YjylX0qMIqYdb0LgKg2hAsyWQJ35xSa5_CMwGVrz15Y6NQ4ITQO-DziURNdMv99SfeVFy3_HtBaW3Hv_06qvnZruRGWnGnCPEf-tXIJ41rlINQPiTMVKLs8xPGp8nYPxBFPO1QSdgchiZUypAkFieGCNzQ3MDgylU724IMdSgiFFr4aeHaHWsi-kt_poKdWv9LXP6iABN0NxqBat67a-G63slt9SZRYNTv6Zm6wfU-1j70pI5EGdpJDnSL01vndiH2QaExSZxZ2tItEPcaNXzEg' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,46 +7,68 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/bui
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_37431E930961' \
+--header 'traceid: TraceID_01C882A0AA92' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "069fc6ee-336a-4da3-b511-db49ce1944b1"
-                }
-            },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "AI_CPO0"
-                        }
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "H1",
+                        "flightNumber": "4489",
+                        "from": "CMB",
+                        "to": "SGN",
+                        "departureDate": "2026-09-24",
+                        "segmentSequence": 1,
+                        "departureTime": "23:00:00",
+                        "arrivalDate": "2026-09-25",
+                        "arrivalTime": "05:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "V",
+                        "AvailabilitySourceCode": "A",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
                     },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "AIp9"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "AI_CPO1"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "AIp1"
-                            }
-                        }
-                    ]
-                }
-            ]
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "H1",
+                        "flightNumber": "2171",
+                        "from": "SGN",
+                        "to": "MEL",
+                        "departureDate": "2026-09-25",
+                        "segmentSequence": 2,
+                        "departureTime": "11:10:00",
+                        "arrivalDate": "2026-09-25",
+                        "arrivalTime": "22:35:00",
+                        "cabin": "Economy",
+                        "classOfService": "V",
+                        "AvailabilitySourceCode": "A",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "VietJet Air Economy",
+                "BrandRef": "b2"
+            }
         }
     }
 }'

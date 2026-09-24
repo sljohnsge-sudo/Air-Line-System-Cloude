@@ -1,0 +1,322 @@
+{
+    "ReservationResponse": {
+        "@type": "ReservationResponse",
+        "Reservation": {
+            "@type": "Reservation",
+            "Offer": [
+                {
+                    "@type": "Offer",
+                    "id": "offer_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "22a53e33-163f-4337-a10f-0276d1d5d2d5"
+                    },
+                    "ContentSource": "GDS",
+                    "Product": [
+                        {
+                            "@type": "ProductAir",
+                            "id": "product_1",
+                            "FlightSegment": [
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_01",
+                                    "sequence": 1,
+                                    "connectionDuration": "PT2H55M",
+                                    "boundFlightsInd": true,
+                                    "Flight": {
+                                        "@type": "FlightDetail",
+                                        "duration": "PT2H30M",
+                                        "carrier": "AI",
+                                        "number": "6221",
+                                        "operatingCarrier": "UL",
+                                        "operatingCarrierName": "SRILANKAN AIRLINES",
+                                        "equipment": "333",
+                                        "id": "Flight_01",
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "CMB",
+                                            "date": "2026-09-24",
+                                            "time": "23:40:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "BOM",
+                                            "date": "2026-09-25",
+                                            "time": "02:10:00"
+                                        },
+                                        "AvailabilitySourceCode": "S"
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_02",
+                                    "sequence": 2,
+                                    "Flight": {
+                                        "@type": "FlightDetail",
+                                        "duration": "PT10H",
+                                        "carrier": "AI",
+                                        "number": "129",
+                                        "equipment": "788",
+                                        "id": "Flight_02",
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "BOM",
+                                            "date": "2026-09-25",
+                                            "time": "05:05:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "LHR",
+                                            "date": "2026-09-25",
+                                            "time": "10:15:00"
+                                        },
+                                        "AvailabilitySourceCode": "S"
+                                    }
+                                }
+                            ],
+                            "PassengerFlight": [
+                                {
+                                    "@type": "PassengerFlight",
+                                    "passengerQuantity": 1,
+                                    "passengerTypeCode": "ADT",
+                                    "FlightProduct": [
+                                        {
+                                            "@type": "FlightProduct",
+                                            "segmentSequence": [
+                                                1,
+                                                2
+                                            ],
+                                            "classOfService": "U",
+                                            "cabin": "Economy"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "id": "PriceDetail_1",
+                        "CurrencyCode": {
+                            "value": "LKR"
+                        },
+                        "Base": 85500,
+                        "TotalTaxes": 89127,
+                        "TotalFees": 0,
+                        "TotalPrice": 174627,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAir",
+                                "quantity": 1,
+                                "requestedPassengerType": "ADT",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "currencySource": "Charged",
+                                    "approximateInd": true,
+                                    "CurrencyCode": {
+                                        "decimalPlace": 0,
+                                        "value": "LKR"
+                                    },
+                                    "Base": 85500,
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "TotalTaxes": 89127,
+                                        "Tax": [
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "LK",
+                                                "value": 20436
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "YQ",
+                                                "value": 68119
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "YR",
+                                                "value": 572
+                                            }
+                                        ]
+                                    },
+                                    "Total": 174627
+                                },
+                                "FiledAmount": {
+                                    "currencyCode": "USD",
+                                    "decimalPlace": 2,
+                                    "value": 251.0
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAir",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "bbb50165-4964-4e5d-909b-fc19f17e7f39"
+                            }
+                        },
+                        {
+                            "@type": "TermsAndConditionsFullAir",
+                            "ExpiryDate": "2026-09-24T18:29:00Z",
+                            "PaymentTimeLimit": "2026-09-24T18:29:00Z"
+                        }
+                    ]
+                }
+            ],
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "birthDate": "2026-09-17",
+                    "gender": "Male",
+                    "passengerTypeCode": "ADT",
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "418407f8-df34-4075-8c6d-a3fb21aaaeaf"
+                    },
+                    "PersonName": {
+                        "@type": "PersonName",
+                        "Given": "AGLKF MR",
+                        "Surname": "FDSF"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "2414314",
+                            "id": "telephone_1",
+                            "cityCode": "CMB",
+                            "role": "Mobile"
+                        },
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "areaCityCode": "11",
+                            "phoneNumber": "7792400",
+                            "id": "telephone_2",
+                            "cityCode": "CMB",
+                            "role": "Other"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "emailType": "FROM",
+                            "value": "ticketing@gstravels.lk"
+                        },
+                        {
+                            "emailType": "TO",
+                            "value": "aaa@gamil.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N323132",
+                            "docType": "Passport",
+                            "expireDate": "2026-09-29",
+                            "issueCountry": "LK",
+                            "birthDate": "2026-09-17",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonName",
+                                "Given": "AGLKF",
+                                "Surname": "FDSF"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "Receipt": [
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "1ebf9edb-3704-405e-b97d-47245b553f3c"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAir",
+                            "StatusAir": [
+                                {
+                                    "flightRefs": [
+                                        "Flight_01",
+                                        "Flight_02"
+                                    ],
+                                    "code": "HK",
+                                    "value": "Confirmed"
+                                }
+                            ]
+                        },
+                        "Locator": {
+                            "source": "1G",
+                            "creationDate": "2026-09-23",
+                            "value": "HN6R5X"
+                        }
+                    }
+                }
+            ],
+            "TravelAgency": {
+                "@type": "TravelAgencyDetail",
+                "id": "travelAgency_1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "6b8442f2-b430-4673-bde6-81747a126be9"
+                },
+                "Telephone": [
+                    {
+                        "@type": "TelephoneDetail",
+                        "countryAccessCode": "94",
+                        "areaCityCode": "11",
+                        "phoneNumber": "7792400",
+                        "id": "telephone_1",
+                        "cityCode": "CMB"
+                    }
+                ],
+                "Address": [
+                    {
+                        "@type": "Address",
+                        "id": "address_1",
+                        "role": "Business",
+                        "AddressLine": [
+                            "Ground Floor, 439 Galle Rd"
+                        ],
+                        "City": "Colombo",
+                        "Country": {
+                            "name": "LK"
+                        },
+                        "PostalCode": "00300"
+                    }
+                ],
+                "Email": [
+                    {
+                        "id": "email_1",
+                        "value": "ticketing@gstravels.lk"
+                    }
+                ]
+            },
+            "ReservationDisplaySequence": {
+                "@type": "ReservationDisplaySequence",
+                "DisplaySequence": [
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 1,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_1",
+                        "Sequence": 1
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 2,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_1",
+                        "Sequence": 2
+                    }
+                ]
+            }
+        }
+    }
+}

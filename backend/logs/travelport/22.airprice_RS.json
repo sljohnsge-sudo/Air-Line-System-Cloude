@@ -1,20 +1,377 @@
 {
     "OfferListResponse": {
         "@type": "OfferListResponse",
-        "transactionId": "6fe77de9e4297dd4c7f964b2599dce73",
-        "traceId": "TraceID_37431E930961",
-        "Result": {
-            "@type": "Result",
-            "Error": [
-                {
-                    "@type": "ErrorDetail",
-                    "category": " ",
-                    "StatusCode": 200,
-                    "Message": "Communication Error",
-                    "SourceID": "AI",
-                    "SourceCode": "2599"
-                }
-            ]
+        "transactionId": "97f57cf468a5a13ce5e8c07e43d3bfa9",
+        "traceId": "TraceID_01C882A0AA92",
+        "OfferID": [
+            {
+                "@type": "Offer",
+                "id": "o0",
+                "ContentSource": "GDS",
+                "Product": [
+                    {
+                        "@type": "ProductAir",
+                        "totalDuration": "PT19H5M",
+                        "id": "p0",
+                        "FlightSegment": [
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s1",
+                                "sequence": 1,
+                                "connectionDuration": "PT5H15M",
+                                "boundFlightsInd": true,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 1844,
+                                    "duration": "PT5H25M",
+                                    "carrier": "H1",
+                                    "number": "4489",
+                                    "operatingCarrier": "VJ",
+                                    "operatingCarrierName": "VIETJET AVIATION",
+                                    "equipment": "32S",
+                                    "id": "f1",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "terminal": "1",
+                                        "location": "CMB",
+                                        "date": "2026-09-24",
+                                        "time": "23:00:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "2",
+                                        "location": "SGN",
+                                        "date": "2026-09-25",
+                                        "time": "05:55:00"
+                                    },
+                                    "AvailabilitySourceCode": "A"
+                                }
+                            },
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s2",
+                                "sequence": 2,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 4166,
+                                    "duration": "PT8H25M",
+                                    "carrier": "H1",
+                                    "number": "2171",
+                                    "operatingCarrier": "VJ",
+                                    "operatingCarrierName": "VIETJET AVIATION",
+                                    "equipment": "330",
+                                    "id": "f2",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "terminal": "2",
+                                        "location": "SGN",
+                                        "date": "2026-09-25",
+                                        "time": "11:10:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "2",
+                                        "location": "MEL",
+                                        "date": "2026-09-25",
+                                        "time": "22:35:00"
+                                    },
+                                    "AvailabilitySourceCode": "A"
+                                }
+                            }
+                        ],
+                        "PassengerFlight": [
+                            {
+                                "@type": "PassengerFlight",
+                                "passengerQuantity": 1,
+                                "passengerTypeCode": "ADT",
+                                "FlightProduct": [
+                                    {
+                                        "@type": "FlightProduct",
+                                        "segmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "classOfService": "V",
+                                        "cabin": "Economy",
+                                        "fareBasisCode": "VOWVJ",
+                                        "fareType": "PublicFare",
+                                        "fareTypeCode": "SIP"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "Price": {
+                    "@type": "PriceDetail",
+                    "id": "price0",
+                    "CurrencyCode": {
+                        "decimalPlace": 0,
+                        "value": "LKR"
+                    },
+                    "Base": 56900,
+                    "TotalTaxes": 85415,
+                    "TotalFees": 0,
+                    "TotalPrice": 142315,
+                    "PriceBreakdown": [
+                        {
+                            "@type": "PriceBreakdownAir",
+                            "quantity": 1,
+                            "requestedPassengerType": "ADT",
+                            "Amount": {
+                                "@type": "Amount",
+                                "CurrencyCode": {
+                                    "decimalPlace": 0,
+                                    "value": "LKR"
+                                },
+                                "Base": 56900,
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "TotalTaxes": 85415,
+                                    "Tax": [
+                                        {
+                                            "taxCode": "LK",
+                                            "description": "EMBARKATION TAX",
+                                            "value": 20436
+                                        },
+                                        {
+                                            "taxCode": "WY",
+                                            "description": "PASSENGER SERVICES CHARGE ARRIVAL INTERNATIONAL",
+                                            "value": 5033
+                                        },
+                                        {
+                                            "taxCode": "YQ",
+                                            "value": 19074
+                                        },
+                                        {
+                                            "taxCode": "YR",
+                                            "value": 40872
+                                        }
+                                    ]
+                                },
+                                "Fees": {
+                                    "@type": "FeesDetail",
+                                    "TotalFees": 0
+                                },
+                                "Total": 142315
+                            },
+                            "FiledAmount": {
+                                "currencyCode": "USD",
+                                "decimalPlace": 2,
+                                "value": 167
+                            },
+                            "FareCalculation": "CMB H1 SGN 109.00VOWVJ H1 MEL 58.00VOWVJ NUC167.00END ROE1.0"
+                        }
+                    ]
+                },
+                "TermsAndConditionsFull": [
+                    {
+                        "@type": "TermsAndConditionsFullAir",
+                        "ExpiryDate": "2026-09-23T23:59:00Z",
+                        "BaggageAllowance": [
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/H1",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "FirstCheckedBag",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO44LB/20KG"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1,
+                                    2
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/H1",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "SecondCheckedBag",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "No",
+                                        "soldByPieceInd": true,
+                                        "Text": "BAGGAGE CHARGES DATA NOT AVAILABLE"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1,
+                                    2
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO41LI/105LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO41LI/105LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    2
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            }
+                        ],
+                        "Restriction": [
+                            {
+                                "value": "OP BY VIETJET AIR/"
+                            },
+                            {
+                                "value": "1BG- 20KG/ PLATE ON 169"
+                            },
+                            {
+                                "value": "OPERATED BY VIETJET AIR/"
+                            },
+                            {
+                                "value": "40KG/PLATE ON 169/"
+                            }
+                        ],
+                        "ValidatingAirline": [
+                            {
+                                "@type": "ValidatingAirline",
+                                "ValidatingAirline": "HR"
+                            }
+                        ],
+                        "TicketingAgency": [
+                            {
+                                "@type": "TicketingAgency",
+                                "Code": "7F3C"
+                            }
+                        ],
+                        "PaymentTimeLimit": "2026-09-23T23:59:00Z",
+                        "Penalties": [
+                            {
+                                "@type": "Penalties",
+                                "Change": [
+                                    {
+                                        "@type": "ChangePermitted",
+                                        "penaltyTypes": [
+                                            "Anytime"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "minorUnit": 0,
+                                                    "value": 29300
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "Cancel": [
+                                    {
+                                        "@type": "CancelPermitted",
+                                        "penaltyTypes": [
+                                            "Anytime"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyPercent",
+                                                "Percent": 100
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "PassengerTypeCodes": [
+                                    "ADT"
+                                ]
+                            }
+                        ],
+                        "FareGuaranteePolicy": [
+                            {
+                                "@type": "FareGuaranteePolicy",
+                                "Code": {
+                                    "value": "G"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "Identifier": {
+            "value": "a96e18ae-ef48-4ca5-a020-bf963d0626c8_PC"
         }
     }
 }

@@ -11,6 +11,14 @@ const emptyTraveler = (type) => ({
 
 const TYPE_LABEL = { ADT: 'Adult', CNN: 'Child', INF: 'Infant' };
 
+// A future date of birth or an already-expired passport are both
+// impossible/invalid — Travelport rejects them outright (e.g. "TRAVELER
+// DATE OF BIRTH IS MISSING OR INVALID"), and only after a PNR is created
+// and cancelled again. These two unlabeled-look-alike date fields are easy
+// to mix up, so bound each picker to what's actually valid as a cheap
+// first line of defense before that round trip even happens.
+const TODAY = new Date().toISOString().split('T')[0];
+
 async function post(path, body) {
   const res = await fetch(`${API}${path}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -279,16 +287,40 @@ export default function NdcTicketing() {
               <div key={i} style={{ borderTop: '1px solid #e5e7eb', marginTop: '0.75rem', paddingTop: '0.75rem' }}>
                 <strong>{TYPE_LABEL[t.passenger_type]} {i + 1}</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginTop: '0.4rem' }}>
-                  <input className="form-input" required minLength={2} placeholder="First name" value={t.first_name} onChange={(e) => setT(i, 'first_name', e.target.value)} />
-                  <input className="form-input" required minLength={2} placeholder="Last name" value={t.last_name} onChange={(e) => setT(i, 'last_name', e.target.value)} />
-                  <input type="date" className="form-input" required title="Date of birth" value={t.date_of_birth} onChange={(e) => setT(i, 'date_of_birth', e.target.value)} />
-                  <select className="form-input" value={t.gender} onChange={(e) => setT(i, 'gender', e.target.value)}>
-                    <option>Male</option><option>Female</option>
-                  </select>
-                  <input className="form-input" required minLength={5} placeholder="Passport no." value={t.passport_number} onChange={(e) => setT(i, 'passport_number', e.target.value)} />
-                  <input type="date" className="form-input" required title="Passport expiry" value={t.passport_expiry} onChange={(e) => setT(i, 'passport_expiry', e.target.value)} />
-                  <input type="email" className="form-input" required placeholder="Email" value={t.email} onChange={(e) => setT(i, 'email', e.target.value)} />
-                  <input type="tel" className="form-input" required minLength={7} placeholder="Phone" value={t.phone} onChange={(e) => setT(i, 'phone', e.target.value)} />
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">First Name *</label>
+                    <input className="form-input" required minLength={2} placeholder="First name" value={t.first_name} onChange={(e) => setT(i, 'first_name', e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Last Name *</label>
+                    <input className="form-input" required minLength={2} placeholder="Last name" value={t.last_name} onChange={(e) => setT(i, 'last_name', e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Date of Birth *</label>
+                    <input type="date" className="form-input" required max={TODAY} value={t.date_of_birth} onChange={(e) => setT(i, 'date_of_birth', e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Gender</label>
+                    <select className="form-input" value={t.gender} onChange={(e) => setT(i, 'gender', e.target.value)}>
+                      <option>Male</option><option>Female</option>
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Passport No. *</label>
+                    <input className="form-input" required minLength={5} placeholder="Passport no." value={t.passport_number} onChange={(e) => setT(i, 'passport_number', e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Passport Expiry *</label>
+                    <input type="date" className="form-input" required min={TODAY} value={t.passport_expiry} onChange={(e) => setT(i, 'passport_expiry', e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Email *</label>
+                    <input type="email" className="form-input" required placeholder="Email" value={t.email} onChange={(e) => setT(i, 'email', e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Phone *</label>
+                    <input type="tel" className="form-input" required minLength={7} placeholder="Phone" value={t.phone} onChange={(e) => setT(i, 'phone', e.target.value)} />
+                  </div>
                 </div>
               </div>
             ))}

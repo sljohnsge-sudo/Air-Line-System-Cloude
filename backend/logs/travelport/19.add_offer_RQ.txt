@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/d8199f79-99a9-4b83-a4e9-f11a93be4fa4/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk2MzE2NzQsImV4cCI6MTc4OTcxODA3NCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.vejSIN0imiGwtY9mdRBtVp7i9VRVaw3zs_xNcjtpjPipsntoaLCba8RqJTLZZKFvGG5Gh5gTWNLTGSC0N4SVRIZYrddMBOGQq410l39PJnbUdzGSxfpSR1H1p6pG2lh8Dy3bqmiKGxhRzHo1Cq89haUTvwK1X0zMEZ07JJKBe5jt6B70LOlyW_wzLIzBYTlW0rfc1D9oSgDyoGsaiHgPMeneOhKZfSAjvNIulMyX1MLAAexhx2_6XHOQlWQfEmTh8RTVS4nT7CBBIk88Ek_gHf6XzN-YOXetKR9xZ_vjLIpZt8PnGG_qxmYHH1_yBcC0nrM7PSTx7KDFnxfgpUAXlA' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/fabf68a5-fe07-4845-8199-890f6a2636dd/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAxNjI0NjgsImV4cCI6MTc5MDI0ODg2OCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.FVll0FzndSdcgGjk39cuCRUBvBmOYoR9YySAGl1CYhVEWAwz9NnYnUD2vDbF0k1YjylX0qMIqYdb0LgKg2hAsyWQJ35xSa5_CMwGVrz15Y6NQ4ITQO-DziURNdMv99SfeVFy3_HtBaW3Hv_06qvnZruRGWnGnCPEf-tXIJ41rlINQPiTMVKLs8xPGp8nYPxBFPO1QSdgchiZUypAkFieGCNzQ3MDgylU724IMdSgiFFr4aeHaHWsi-kt_poKdWv9LXP6iABN0NxqBat67a-G63slt9SZRYNTv6Zm6wfU-1j70pI5EGdpJDnSL01vndiH2QaExSZxZ2tItEPcaNXzEg' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,46 +7,68 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_638700F8E740' \
+--header 'traceid: TraceID_D72C47C3C19F' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "c0298ca0-e575-4001-bd8a-bdf8d680f329"
-                }
-            },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "EK_CPO0"
-                        }
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "H1",
+                        "flightNumber": "4489",
+                        "from": "CMB",
+                        "to": "SGN",
+                        "departureDate": "2026-09-24",
+                        "segmentSequence": 1,
+                        "departureTime": "23:00:00",
+                        "arrivalDate": "2026-09-25",
+                        "arrivalTime": "05:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "V",
+                        "AvailabilitySourceCode": "A",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
                     },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "EKp3"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "EK_CPO1"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "EKp23"
-                            }
-                        }
-                    ]
-                }
-            ]
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "H1",
+                        "flightNumber": "2171",
+                        "from": "SGN",
+                        "to": "MEL",
+                        "departureDate": "2026-09-25",
+                        "segmentSequence": 2,
+                        "departureTime": "11:10:00",
+                        "arrivalDate": "2026-09-25",
+                        "arrivalTime": "22:35:00",
+                        "cabin": "Economy",
+                        "classOfService": "V",
+                        "AvailabilitySourceCode": "A",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "VietJet Air Economy",
+                "BrandRef": "b2"
+            }
         }
     }
 }'

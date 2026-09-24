@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/f6229446-2e2a-4636-9670-022a4de9e21f/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NjkzNjIsImV4cCI6MTc4OTU1NTc2MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.IoaoLLErfEjl4tOFI3bhboWCvByNCXgPFInmC9ctc_Qv59qneVFOAVZ14e55yQZp55Y32jdIobu1gx5NM1zDSjcAbXF9DbO-I1VUo1e0QIj-KMus5W8PiRhrLf9x_p8saGV4T-W_pAsQsbAjjUKjW7WUNqI8FnIjhz7CMaVNRyPx-YaeqGoCd40_Q35cVe5QcGK8bs1Lgir0SM4DXMd5vrCr36wpEa3zUbBnWXSZXyQ_obj7dpXbc_tZXm7VDUztw02uoYYuUA0Oynyx1hDGpunabZ-4k6m6E_Qhda2Gw8g6JlRpCRc7yfQfE6k8x94GhoCREACeBqCnBHiLVS_K0Q' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/5aa23606-4af8-4abb-8daf-38f8ac586b08/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAxNjI0NjgsImV4cCI6MTc5MDI0ODg2OCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.FVll0FzndSdcgGjk39cuCRUBvBmOYoR9YySAGl1CYhVEWAwz9NnYnUD2vDbF0k1YjylX0qMIqYdb0LgKg2hAsyWQJ35xSa5_CMwGVrz15Y6NQ4ITQO-DziURNdMv99SfeVFy3_HtBaW3Hv_06qvnZruRGWnGnCPEf-tXIJ41rlINQPiTMVKLs8xPGp8nYPxBFPO1QSdgchiZUypAkFieGCNzQ3MDgylU724IMdSgiFFr4aeHaHWsi-kt_poKdWv9LXP6iABN0NxqBat67a-G63slt9SZRYNTv6Zm6wfU-1j70pI5EGdpJDnSL01vndiH2QaExSZxZ2tItEPcaNXzEg' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,124 +7,46 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_8257E8012CB6' \
+--header 'traceid: TraceID_25579227F245' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "651",
-                        "from": "CMB",
-                        "to": "DXB",
-                        "departureDate": "2026-09-26",
-                        "segmentSequence": 1,
-                        "departureTime": "10:05:00",
-                        "arrivalDate": "2026-09-26",
-                        "arrivalTime": "12:55:00",
-                        "cabin": "Economy",
-                        "classOfService": "L",
-                        "AvailabilitySourceCode": "Q",
-                        "ContentSource": "GDS"
-                    }
-                ]
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "e709c83f-affd-420a-9264-6cd1c8b3da3f"
+                }
             },
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 2,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "67",
-                        "from": "DXB",
-                        "to": "STN",
-                        "departureDate": "2026-09-29",
-                        "segmentSequence": 1,
-                        "departureTime": "14:15:00",
-                        "arrivalDate": "2026-09-29",
-                        "arrivalTime": "18:45:00",
-                        "cabin": "Economy",
-                        "classOfService": "L",
-                        "AvailabilitySourceCode": "S",
-                        "ContentSource": "GDS"
-                    }
-                ]
-            },
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 3,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "66",
-                        "from": "STN",
-                        "to": "DXB",
-                        "departureDate": "2026-10-03",
-                        "segmentSequence": 1,
-                        "departureTime": "14:55:00",
-                        "arrivalDate": "2026-10-04",
-                        "arrivalTime": "01:00:00",
-                        "cabin": "Economy",
-                        "classOfService": "L",
-                        "AvailabilitySourceCode": "S",
-                        "boundFlightsInd": true,
-                        "ContentSource": "GDS"
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "EK_CPO0"
+                        }
                     },
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "650",
-                        "from": "DXB",
-                        "to": "CMB",
-                        "departureDate": "2026-10-04",
-                        "segmentSequence": 2,
-                        "departureTime": "02:30:00",
-                        "arrivalDate": "2026-10-04",
-                        "arrivalTime": "08:30:00",
-                        "cabin": "Economy",
-                        "classOfService": "L",
-                        "AvailabilitySourceCode": "S",
-                        "ContentSource": "GDS"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 1,
-                "passengerTypeCode": "INF"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 10,
-                "passengerTypeCode": "CNN"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Eco Saver",
-                "BrandRef": "b0"
-            }
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "EKp4"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "EK_CPO1"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "EKp40"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'

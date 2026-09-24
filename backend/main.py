@@ -52,6 +52,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Stale-offer error classification ─────────────────────────────────────────
+# The booking flow prices/validates a real-time GDS offer twice more after
+# search (AirPrice, then Add Offer with validateInventoryInd=true) — by
+# design, so a class/fare/seat that sold out between search and submit is
+# caught before a bad reservation is attempted, rather than silently booking
+# the wrong thing. Travelport's own text for that ("CLASS OF SERVICE DOES NOT
+# EXIST FOR REQUESTED FLIGHTS", etc.) is meaningless to a customer, so this
+# turns it into a clear, actionable message instead of raw GDS jargon — the
+# original text is still logged server-side for diagnostics.
+_STALE_OFFER_MARKERS = (
+    "CLASS OF SERVICE DOES NOT EXIST",
+    "FLIGHT IS NOT AVAILABLE",
+    "OFFER IS NOT AVAILABLE",
+    "FARE IS NOT AVAILABLE",
+    "0 AVAIL",
+    "SOLD OUT",
+    "NOT AVAILABLE AND CANNOT BE BOOKED",
+)
+
+
+def friendly_travelport_error(raw_message: str) -> str:
+    """Returns a customer-facing message for a known stale-offer/availability
+    error, or the original message unchanged if it doesn't match one."""
+    upper = (raw_message or "").upper()
+    if any(marker in upper for marker in _STALE_OFFER_MARKERS):
+        return (
+            "This flight's fare or availability has changed since you searched. "
+            "Please go back and search again to see current prices."
+        )
+    return raw_message
+
+
 # ── Uploaded Images (Admin Portal → Tour Packages poster images) ────────────────
 # Saved to disk under backend/uploads/<category>/ and served back at /uploads/...;
 # admin_upload_image below is the only writer. Not used for any Travelport data —
@@ -386,7 +418,8 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
         }
 
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        friendly = friendly_travelport_error(str(e))
+        raise HTTPException(status_code=409 if friendly != str(e) else 422, detail=friendly)
     except httpx.HTTPStatusError as e:
         error_msg = str(e)
         status_code = e.response.status_code
@@ -466,9 +499,10 @@ def initiate_booking(request: BookingInitiateRequest):
         }
     except Exception as e:
         logger.error(f"Booking initiation failed: {e}")
+        friendly = friendly_travelport_error(str(e))
         raise HTTPException(
-            status_code=502,
-            detail=f"Failed to initiate Travelport booking session: {str(e)}"
+            status_code=409 if friendly != str(e) else 502,
+            detail=friendly if friendly != str(e) else f"Failed to initiate Travelport booking session: {str(e)}"
         )
     finally:
         services.end_flow_trace_id(trace_token)
@@ -623,7 +657,8 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
             "cached_id": saved.get("id")
         }
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        friendly = friendly_travelport_error(str(e))
+        raise HTTPException(status_code=409 if friendly != str(e) else 422, detail=friendly)
     except httpx.HTTPStatusError as e:
         error_msg = str(e)
         status_code = e.response.status_code

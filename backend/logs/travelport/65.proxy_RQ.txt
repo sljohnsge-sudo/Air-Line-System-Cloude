@@ -1,15 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: 819fe14354d62629e4ac1a4bcf54026eefbbf616f33e1e3a3987ed9b2ff56514' \
+--header 'hmac: 48e673db62d36e18fe50928493ae005679456a2d31f7383719219a1552e27ae5' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "08156c6d-f4ef-47de-8e7b-7c7448ac607a",
-    "operation": "PAYMENT_COMPLETE",
-    "requestDate": "2026-09-15 09:28:33",
+    "msgId": "4b77fd83-5c1e-4503-b1d9-cb476ef61a0b",
+    "operation": "PAYMENT_INIT",
+    "requestDate": "2026-09-23 17:37:07",
     "validateOnly": false,
     "requestData": {
-        "reqid": "tFwkfPnqRmyW7g9tbTd2"
+        "clientId": "14008400",
+        "clientIdHash": "",
+        "transactionType": "PURCHASE",
+        "transactionAmount": {
+            "paymentAmount": 15776300,
+            "currency": "LKR"
+        },
+        "redirect": {
+            "returnUrl": "http://localhost:5173/ndc?tab=ndc&ndc_pending=5644a5ac-1f0b-4fa6-8c37-34d6dd99045e",
+            "returnMethod": "GET",
+            "cancelUrl": "http://localhost:5173/ndc?tab=ndc&ndc_pending=5644a5ac-1f0b-4fa6-8c37-34d6dd99045e&payment=cancelled"
+        },
+        "useReliability": true,
+        "clientRef": "5644a5ac-1f0b-4fa6-8c37-34d6dd99045e",
+        "comment": "George Steuart Travel - NDC 5644a5ac-1f0b-4fa6-8c37-34d6dd99045e"
     }
 }'
