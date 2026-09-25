@@ -1220,27 +1220,21 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
                 # sequence: Adult, Infant, Child (both the GDS and NDC
                 # certification reference logs agree on this order).
                 #
-                # GDS sends ONE combined TravelerListRequest (.../travelers/list)
-                # — matches the GDS full-payload certification logs
-                # (booking_HMZ9HH/6.Add Travelers RQ).
-                #
-                # NDC sends each traveler with its own separate call
-                # (.../travelers) — matches Travelport's NDC certification
-                # reference logs (TravelportNDC_6Aug/6_add adult.txt,
-                # 7_add infant.txt, 8_add child.txt). A batched call was tried
-                # for NDC too per Travelport certification guidance from a
-                # 2026-09-16 call, but the reference set Travelport later
-                # confirmed as current shows the three separate calls, so NDC
-                # reverted back to that on 2026-09-23.
+                # Both GDS and NDC now send ONE combined TravelerListRequest
+                # (.../travelers/list) per Travelport's explicit reply on the
+                # certification logs we submitted: "For adding passenger will
+                # suggest using single request only as it was done in the
+                # certification flow of GDS." This supersedes the individual-
+                # call approach NDC used before (reverted back to that on
+                # 2026-09-23 per an earlier, different reference set) — this
+                # latest guidance is the current standard for both content
+                # sources.
                 passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
                 ordered_travelers = sorted(
                     travelers,
                     key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
                 )
-                if is_gds:
-                    add_travelers_to_workbench(workbench_id, ordered_travelers, is_gds=True)
-                else:
-                    add_travelers_individually_to_workbench(workbench_id, ordered_travelers, is_gds=False)
+                add_travelers_to_workbench(workbench_id, ordered_travelers, is_gds=is_gds)
 
                 # STEP 6b — Add Travel Agency, GDS content only (matches the
                 # GDS certification reference, which includes this step; the

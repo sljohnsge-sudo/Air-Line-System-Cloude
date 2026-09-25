@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/545302c9-bc6f-44e4-abe1-ad4d1e1883bd/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAxNjI0NjgsImV4cCI6MTc5MDI0ODg2OCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.FVll0FzndSdcgGjk39cuCRUBvBmOYoR9YySAGl1CYhVEWAwz9NnYnUD2vDbF0k1YjylX0qMIqYdb0LgKg2hAsyWQJ35xSa5_CMwGVrz15Y6NQ4ITQO-DziURNdMv99SfeVFy3_HtBaW3Hv_06qvnZruRGWnGnCPEf-tXIJ41rlINQPiTMVKLs8xPGp8nYPxBFPO1QSdgchiZUypAkFieGCNzQ3MDgylU724IMdSgiFFr4aeHaHWsi-kt_poKdWv9LXP6iABN0NxqBat67a-G63slt9SZRYNTv6Zm6wfU-1j70pI5EGdpJDnSL01vndiH2QaExSZxZ2tItEPcaNXzEg' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/48391060-c60b-496b-9ddf-8858db1400a5/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAyNDIzMjgsImV4cCI6MTc5MDMyODcyOCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Jw79HlIhMO__kE6lUtbULX79AoCbPfcqzrQud8ZNEp-gUR2LhMiuvIiPczg7YsJykqsdcD48Sm6ZUMBFmBJSEN0NT_iKZKXJj2fFAaSlLq2dNoQ16dhrBPfuInkBMofh3dJ6Jv4xS6TXaEHUNtPBU4tE4rtBZmr07BDcvs5cTuqOXIizZ2iF71U4eRiGr0HSQRd2cRI32IU7ACf1kR-WcPVULE_992TG7Ho5IoW66voRq3gBOkkrgpFxRlw63tlcX5qJjDoj4knwWMmYv_751k_hRQpG0nKNCTILS7C4zpHMq0-mkfpNcjQb1Gr4CMGTLGQcyQLqVw5EuODR6kkbEQ' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,7 +7,7 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_01C882A0AA92' \
+--header 'traceid: TraceID_F22EDAD8556D' \
 --data-raw '{
     "@type": "OfferQueryBuildFromProducts",
     "validateInventoryInd": true,
@@ -20,36 +20,75 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
                 "SpecificFlightCriteria": [
                     {
                         "@type": "SpecificFlightCriteria",
-                        "carrier": "H1",
-                        "flightNumber": "4489",
+                        "carrier": "EK",
+                        "flightNumber": "649",
                         "from": "CMB",
-                        "to": "SGN",
-                        "departureDate": "2026-09-24",
+                        "to": "DXB",
+                        "departureDate": "2026-12-15",
                         "segmentSequence": 1,
-                        "departureTime": "23:00:00",
-                        "arrivalDate": "2026-09-25",
-                        "arrivalTime": "05:55:00",
+                        "departureTime": "02:40:00",
+                        "arrivalDate": "2026-12-15",
+                        "arrivalTime": "05:45:00",
                         "cabin": "Economy",
-                        "classOfService": "V",
-                        "AvailabilitySourceCode": "A",
-                        "boundFlightsInd": true,
-                        "ContentSource": "GDS"
+                        "classOfService": "T",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            },
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 2,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "5",
+                        "from": "DXB",
+                        "to": "LHR",
+                        "departureDate": "2026-12-15",
+                        "segmentSequence": 1,
+                        "departureTime": "16:05:00",
+                        "arrivalDate": "2026-12-15",
+                        "arrivalTime": "20:00:00",
+                        "cabin": "Economy",
+                        "classOfService": "T",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            },
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 3,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "4",
+                        "from": "LHR",
+                        "to": "DXB",
+                        "departureDate": "2026-12-22",
+                        "segmentSequence": 1,
+                        "departureTime": "20:20:00",
+                        "arrivalDate": "2026-12-23",
+                        "arrivalTime": "07:20:00",
+                        "cabin": "Economy",
+                        "classOfService": "U",
+                        "ContentSource": "NDC"
                     },
                     {
                         "@type": "SpecificFlightCriteria",
-                        "carrier": "H1",
-                        "flightNumber": "2171",
-                        "from": "SGN",
-                        "to": "MEL",
-                        "departureDate": "2026-09-25",
+                        "carrier": "EK",
+                        "flightNumber": "652",
+                        "from": "DXB",
+                        "to": "CMB",
+                        "departureDate": "2026-12-23",
                         "segmentSequence": 2,
-                        "departureTime": "11:10:00",
-                        "arrivalDate": "2026-09-25",
-                        "arrivalTime": "22:35:00",
+                        "departureTime": "09:40:00",
+                        "arrivalDate": "2026-12-23",
+                        "arrivalTime": "18:25:00",
                         "cabin": "Economy",
-                        "classOfService": "V",
-                        "AvailabilitySourceCode": "A",
-                        "ContentSource": "GDS"
+                        "classOfService": "U",
+                        "ContentSource": "NDC"
                     }
                 ]
             }
@@ -60,14 +99,25 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
                 "number": 1,
                 "age": 25,
                 "passengerTypeCode": "ADT"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 1,
+                "passengerTypeCode": "INF"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 10,
+                "passengerTypeCode": "CNN"
             }
         ],
         "PricingModifiersAir": {
             "@type": "PricingModifiersAir",
             "Brand": {
                 "@type": "Brand",
-                "name": "VietJet Air Economy",
-                "BrandRef": "b2"
+                "name": "Standard"
             }
         }
     }

@@ -19,6 +19,7 @@ Correct payload schema (from Travelport developer portal):
 import httpx
 import logging
 import re
+import time
 from datetime import datetime
 from typing import Optional
 from config.travelport_config import TravelportConfig
@@ -220,7 +221,12 @@ def search_flights(
         "@type": "CatalogProductOfferingsQueryRequest",
         "CatalogProductOfferingsRequest": {
             "@type": "CatalogProductOfferingsRequestAir",
-            "maxNumberOfUpsellsToReturn": 1,
+            # For GDS content, Travelport only returns the single lowest-priced
+            # offer (almost always Economy) unless this is > 0 — confirmed via
+            # Travelport's own API docs assistant. 4 is the max GDS allows and
+            # is what actually surfaces Business/First/PremiumEconomy upsell
+            # brands/cabins for a route, instead of Economy-only results.
+            "maxNumberOfUpsellsToReturn": 4,
             # Travelport GDS certification guidance allows 0, 999, or omitting
             # this field. Empirically on this sandbox account, omitting it (or
             # sending 0) disables server-side caching for journey-based search,
@@ -251,10 +257,25 @@ def search_flights(
         }
         cabin_val = cabin_map.get(cabin_preference)
         if cabin_val:
+            # Field name/shape matters: Travelport's schema wants PascalCase
+            # "CabinPreference" as an array of objects with a "cabins" array —
+            # the previous camelCase "cabinPreference": "<string>" shape doesn't
+            # match the schema and Travelport silently ignores it (confirmed
+            # via Travelport's own API docs assistant), which is why cabin
+            # filtering had no effect regardless of what value was sent.
+            # preferenceType "Permitted" strictly restricts to the requested
+            # cabin; "Preferred" would let Travelport fall back to a lower
+            # cabin (e.g. Economy) when the requested one isn't available.
             payload["CatalogProductOfferingsRequest"]["SearchModifiersAir"] = [
                 {
                     "@type": "SearchModifiersAir",
-                    "cabinPreference": cabin_val
+                    "CabinPreference": [
+                        {
+                            "@type": "CabinPreference",
+                            "preferenceType": "Permitted",
+                            "cabins": [cabin_val]
+                        }
+                    ]
                 }
             ]
 
@@ -264,52 +285,106 @@ def search_flights(
     headers = {**get_auth_headers(), "fareIndicator": "true"}
     logger.info(f"Request payload: {payload}")
 
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
-        try:
-            response = client.post(
-                TravelportEndpoints.FLIGHT_SEARCH,
-                json=payload,
-                headers=headers
-            )
+    # Travelport can return HTTP 200 with a genuine error embedded in
+    # Result.Error instead of a non-200 status — confirmed live (SourceCode
+    # 2599 "COMMUNICATION ERROR. RETRY", category TEMPORARY) causing a search
+    # to come back with zero offerings and no HTTP-level error, which
+    # main.py/the frontend then show as "No flights found for this route and
+    # date" — a false negative, since Travelport's own message says to just
+    # retry. category == "TEMPORARY" is Travelport's own signal that this is
+    # safe/expected to retry.
+    #
+    # SourceCode "9000" ("NO OFFERS FOUND FOR THE CHANNEL", category
+    # VALIDATION — so NOT self-flagged as retry-safe by Travelport) is ALSO
+    # retried here: confirmed live the exact same request (CMB-DXB,
+    # 2026-12-15) returned this error once and then 36 real offers moments
+    # later with no change on our end — so at least some of the time this is
+    # the same kind of transient sandbox glitch as the TEMPORARY case, not a
+    # genuine "no availability" result.
+    RETRYABLE_SOURCE_CODES = {"9000"}
+    max_retries = 3
+    last_retryable_errors = None
 
-            # Auto-retry on token expiry
-            if response.status_code == 401:
-                invalidate_token()
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
+        for attempt in range(1, max_retries + 1):
+            try:
                 response = client.post(
                     TravelportEndpoints.FLIGHT_SEARCH,
                     json=payload,
-                    headers={**get_auth_headers(), "fareIndicator": "true"}
+                    headers=headers
                 )
 
-            # Detailed error logging
-            if response.status_code != 200:
-                try:
-                    err_data = response.json()
-                    errors = (
-                        err_data.get("CatalogProductOfferingsResponse", {})
-                               .get("Result", {})
-                               .get("Error", [])
+                # Auto-retry on token expiry
+                if response.status_code == 401:
+                    invalidate_token()
+                    headers = {**get_auth_headers(), "fareIndicator": "true"}
+                    response = client.post(
+                        TravelportEndpoints.FLIGHT_SEARCH,
+                        json=payload,
+                        headers=headers
                     )
-                    trace_id = err_data.get("CatalogProductOfferingsResponse", {}).get("traceId", "N/A")
-                    for err in errors:
-                        logger.error(
-                            f"Travelport error [{err.get('SourceCode')}]: "
-                            f"{err.get('Message')} | category: {err.get('category')} | TraceId: {trace_id}"
+
+                # Detailed error logging
+                if response.status_code != 200:
+                    try:
+                        err_data = response.json()
+                        errors = (
+                            err_data.get("CatalogProductOfferingsResponse", {})
+                                   .get("Result", {})
+                                   .get("Error", [])
                         )
-                except Exception:
-                    logger.error(f"Raw error response: {response.text[:500]}")
+                        trace_id = err_data.get("CatalogProductOfferingsResponse", {}).get("traceId", "N/A")
+                        for err in errors:
+                            logger.error(
+                                f"Travelport error [{err.get('SourceCode')}]: "
+                                f"{err.get('Message')} | category: {err.get('category')} | TraceId: {trace_id}"
+                            )
+                    except Exception:
+                        logger.error(f"Raw error response: {response.text[:500]}")
 
-            response.raise_for_status()
-            result = response.json()
-            logger.info("Flight search completed successfully.")
-            return result
+                response.raise_for_status()
+                result = response.json()
 
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Flight search API error: {e.response.status_code} -- {e.response.text[:500]}")
-            raise
-        except Exception as e:
-            logger.error(f"Flight search network error: {e}")
-            raise
+                embedded_errors = (
+                    result.get("CatalogProductOfferingsResponse", {})
+                          .get("Result", {})
+                          .get("Error", [])
+                )
+                retryable_errors = [
+                    e for e in embedded_errors
+                    if e.get("category") == "TEMPORARY" or e.get("SourceCode") in RETRYABLE_SOURCE_CODES
+                ]
+                if retryable_errors:
+                    last_retryable_errors = retryable_errors
+                    for err in retryable_errors:
+                        logger.warning(
+                            f"[Search attempt {attempt}/{max_retries}] Travelport retryable error "
+                            f"[{err.get('SourceCode')}]: {err.get('Message')} (category: {err.get('category')}) — retrying."
+                        )
+                    if attempt < max_retries:
+                        time.sleep(1.5)
+                        continue
+                    raise ValueError(
+                        "Travelport search temporarily unavailable "
+                        f"({retryable_errors[0].get('Message', 'COMMUNICATION ERROR')}) "
+                        f"after {max_retries} attempts. Please try again."
+                    )
+
+                logger.info("Flight search completed successfully.")
+                return result
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Flight search API error: {e.response.status_code} -- {e.response.text[:500]}")
+                raise
+            except ValueError:
+                raise
+            except Exception as e:
+                logger.error(f"Flight search network error: {e}")
+                raise
+
+    # Unreachable — the loop above always returns or raises — but keeps a
+    # clear failure mode if that ever stops being true.
+    raise ValueError(f"Travelport search failed after {max_retries} attempts: {last_retryable_errors}")
 
 
 def parse_baggage_allowance(terms: dict, prod_refs: list) -> list:
@@ -674,6 +749,13 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                             "raw_number": seg_number,
                             "departure_airport": seg_dep_info.get("location", ""),
                             "arrival_airport": seg_arr_info.get("location", ""),
+                            # Per Travelport's request to surface terminal info per
+                            # flight — sourced straight from this search response's
+                            # Departure/Arrival.terminal (GDS and NDC alike, both
+                            # flow through this same parser); not every flight has
+                            # one assigned yet, so this is None rather than "".
+                            "departure_terminal": seg_dep_info.get("terminal"),
+                            "arrival_terminal": seg_arr_info.get("terminal"),
                             "departure_time": seg_dep_info.get("date", "") + "T" + seg_dep_info.get("time", ""),
                             "arrival_time": seg_arr_info.get("date", "") + "T" + seg_arr_info.get("time", ""),
                             "duration": seg_duration,
@@ -850,6 +932,8 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
                             "aircraft_type": aircraft_type,
                             "departure_airport": dep_info.get("location", departure_airport),
                             "arrival_airport": arr_info.get("location", arrival_airport),
+                            "departure_terminal": dep_info.get("terminal"),
+                            "arrival_terminal": arr_info.get("terminal"),
                             "departure_time": dep_info.get("date", "") + "T" + dep_info.get("time", ""),
                             "arrival_time": arr_info.get("date", "") + "T" + arr_info.get("time", ""),
                             "duration": duration,

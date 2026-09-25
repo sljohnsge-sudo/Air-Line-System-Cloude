@@ -251,7 +251,7 @@ export default function NdcTicketing() {
           })().map((f, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0', borderTop: '1px solid #e5e7eb' }}>
               <div>
-                <strong>{f.airline}</strong> {f.flight_number} · {f.departure_airport} → {f.arrival_airport}
+                <strong>{f.airline}</strong> {f.flight_number} · {f.departure_airport}{f.departure_terminal && ` (Terminal ${f.departure_terminal})`} → {f.arrival_airport}{f.arrival_terminal && ` (Terminal ${f.arrival_terminal})`}
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   {f.departure_time} · {f.stops} stop(s){f.is_round_trip ? ' · round trip' : ''}
                 </div>

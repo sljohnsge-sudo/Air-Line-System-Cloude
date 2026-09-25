@@ -1,18 +1,12 @@
 {
     "PaymentResponse": {
         "@type": "PaymentResponse",
-        "Result": {
-            "@type": "Result",
-            "Error": [
-                {
-                    "@type": "ErrorDetail",
-                    "category": "VALIDATION",
-                    "StatusCode": 200,
-                    "Message": "OFFER ID/IDENTIFIER VALUES MUST MATCH WITH THE RESERVATION WORKBENCH OFFER ID/IDENTIFIER VALUES",
-                    "SourceID": "1G",
-                    "SourceCode": "4179"
-                }
-            ]
+        "Payment": {
+            "@type": "PaymentIdentifier",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "ddc4990e-2793-4bf4-9aa6-81b9cdf5b0ef"
+            }
         }
     }
 }

@@ -213,6 +213,8 @@ def _parse_reservation_product(product: dict) -> dict | None:
             "flight_number": f"{carrier}{number}",
             "departure_airport": dep.get("location", ""),
             "arrival_airport": arr.get("location", ""),
+            "departure_terminal": dep.get("terminal"),
+            "arrival_terminal": arr.get("terminal"),
             "departure_time": (dep.get("date", "") + " " + dep.get("time", "")).strip(),
             "arrival_time": (arr.get("date", "") + " " + arr.get("time", "")).strip(),
             "duration": flight.get("duration", "")
@@ -253,6 +255,8 @@ def _parse_reservation_product(product: dict) -> dict | None:
         "airline_code": first_seg["carrier"],
         "departure_airport": first_seg["departure_airport"],
         "arrival_airport": last_seg["arrival_airport"],
+        "departure_terminal": first_seg.get("departure_terminal"),
+        "arrival_terminal": last_seg.get("arrival_terminal"),
         "departure_time": first_seg["departure_time"],
         "arrival_time": last_seg["arrival_time"],
         "duration": minutes_to_iso_duration(total_minutes),

@@ -1,5 +1,5 @@
 curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk3MTg2MzcsImV4cCI6MTc4OTgwNTAzNywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.BssUeayZjqVQZLndhmoxKlczBJiNQY8EWoAh2lX45LJNIt1YDg_-GP10mneO2D9IpyUdllfNKeJG7JF-ULnne03zqCL1ZVO5dEYX1auDV9tlTcYOG1wWgW1R20zfxuiZEeSoKIUQVJTJI0cJHFCesQqfSkpPaifk3AmXa79iqZIxIHjWdk2lYJZA_nhf2aHQCAeYWokhSMgoPrDyXY_-hFg9DPHg2QMe2PVQRguNuQlp_knlBUyvG0Pj_E5E58QhDblXsbx16vKMkdEw3smHhA1bnk8X_IvKdz4Kmwlr04uv9mFUK_-6X1D8yirFPykIP8S2LWXhU5oCfuGr1HDYzw' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAyNDIzMjgsImV4cCI6MTc5MDMyODcyOCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Jw79HlIhMO__kE6lUtbULX79AoCbPfcqzrQud8ZNEp-gUR2LhMiuvIiPczg7YsJykqsdcD48Sm6ZUMBFmBJSEN0NT_iKZKXJj2fFAaSlLq2dNoQ16dhrBPfuInkBMofh3dJ6Jv4xS6TXaEHUNtPBU4tE4rtBZmr07BDcvs5cTuqOXIizZ2iF71U4eRiGr0HSQRd2cRI32IU7ACf1kR-WcPVULE_992TG7Ho5IoW66voRq3gBOkkrgpFxRlw63tlcX5qJjDoj4knwWMmYv_751k_hRQpG0nKNCTILS7C4zpHMq0-mkfpNcjQb1Gr4CMGTLGQcyQLqVw5EuODR6kkbEQ' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,7 +7,7 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/c
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_42EC06018E43' \
+--header 'traceid: TraceID_06B6D7027A2B' \
 --header 'fareindicator: true' \
 --data-raw '{
     "@type": "CatalogProductOfferingsQueryRequest",
@@ -16,7 +16,7 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/c
         "maxNumberOfUpsellsToReturn": 1,
         "offersPerPage": 999,
         "contentSourceList": [
-            "NDC"
+            "GDS"
         ],
         "PassengerCriteria": [
             {
@@ -24,40 +24,24 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/c
                 "number": 1,
                 "age": 25,
                 "passengerTypeCode": "ADT"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 1,
-                "passengerTypeCode": "INF"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 10,
-                "passengerTypeCode": "CNN"
             }
         ],
         "SearchCriteriaFlight": [
             {
                 "@type": "SearchCriteriaFlight",
-                "departureDate": "2027-02-15",
+                "departureDate": "2026-12-03",
                 "From": {
                     "value": "CMB"
                 },
                 "To": {
-                    "value": "LHR"
+                    "value": "DXB"
                 }
-            },
+            }
+        ],
+        "SearchModifiersAir": [
             {
-                "@type": "SearchCriteriaFlight",
-                "departureDate": "2027-02-22",
-                "From": {
-                    "value": "LHR"
-                },
-                "To": {
-                    "value": "CMB"
-                }
+                "@type": "SearchModifiersAir",
+                "cabinPreference": "Economy"
             }
         ]
     }

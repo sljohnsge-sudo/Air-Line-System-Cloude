@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/2d37fe73-41ad-4c6d-bb61-8c08366feb7d/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk1NTg2NTAsImV4cCI6MTc4OTY0NTA1MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.h52vppc5rDuMmH_VCkc5MlcPJ1w87bVqVpTZXHlMp-fLXuj2KgCWoaLqiT8EMDCfRAf5O5esKtlOuZLKBJ6AHuBAu6Qk5dLVZ_3ptt2JAINLmm7mrskvGTkNIuwLJeUi0XY3uNlUZAeLs2_sD5bOQoCIihBvTsTitPFffLzD4nmlwMgLJlfbXIEGOq87HVTiKN4S2et_Fij0Tf2_icYMQinuUjHiR3fMBC5LL7LQZKTieG1fYc3wxBUBhTmUiHSM1AE1s_0WCPgNZw1f1nh0KUm4xaVLhY1s5aCDP3a7aZc3wFLSoeyOFTf0hJT0xSsVLZ0hmIwGz05mFP5jSB9PLw' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6feecd0b-7992-4517-9f84-be0a0630c992/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAyMzY3MjQsImV4cCI6MTc5MDMyMzEyNCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.szenH7-U596ama2duy6Tnr7LRetyhOa9-uGV06rOwImlxjU7PIsYhR5PZstq7bYsJCGLnGaZ4J8JwTkn7OxwEXJ3j_fNklC-g_9CimUGS2hdWLLI6NxLZ0qhHHKNAAXwvMsCujyAVBcAUNr23wMRUqRLE2qxH_OaTYRO9GTMGUSal4NZUcAA9n43aoyxWcw3ysPTv8QM5cu_KdIM6Vb_D19b2fDOYuD_OGpOSZO2Vjs_DrdtVT5lMomO4cnZpY5FS3kCHXIuC12awQNM_jyo-MEmSF7JKr3OlFsRgfj0YGi1N9Da4geGtJIllYco6qNXOFtUxm-YUnpnPGJ117Sh3w' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,60 +7,118 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_7A2AC58EDEF3' \
+--header 'traceid: TraceID_6FAE6157A5D1' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "ab9af3d1-f737-42c0-ac55-73f0463d6305"
-                }
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "651",
+                        "from": "CMB",
+                        "to": "DXB",
+                        "departureDate": "2026-12-15",
+                        "segmentSequence": 1,
+                        "departureTime": "09:55:00",
+                        "arrivalDate": "2026-12-15",
+                        "arrivalTime": "12:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "T",
+                        "ContentSource": "NDC"
+                    }
+                ]
             },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "EK_CPO0"
-                        }
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 2,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "5",
+                        "from": "DXB",
+                        "to": "LHR",
+                        "departureDate": "2026-12-15",
+                        "segmentSequence": 1,
+                        "departureTime": "16:05:00",
+                        "arrivalDate": "2026-12-15",
+                        "arrivalTime": "20:00:00",
+                        "cabin": "Economy",
+                        "classOfService": "T",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            },
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 3,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "4",
+                        "from": "LHR",
+                        "to": "DXB",
+                        "departureDate": "2026-12-22",
+                        "segmentSequence": 1,
+                        "departureTime": "20:20:00",
+                        "arrivalDate": "2026-12-23",
+                        "arrivalTime": "07:20:00",
+                        "cabin": "Economy",
+                        "classOfService": "U",
+                        "ContentSource": "NDC"
                     },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "EKp6"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "EK_CPO1"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "EKp7"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "EK_CPO2"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "EKp2"
-                            }
-                        }
-                    ]
-                }
-            ]
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EK",
+                        "flightNumber": "652",
+                        "from": "DXB",
+                        "to": "CMB",
+                        "departureDate": "2026-12-23",
+                        "segmentSequence": 2,
+                        "departureTime": "09:40:00",
+                        "arrivalDate": "2026-12-23",
+                        "arrivalTime": "18:25:00",
+                        "cabin": "Economy",
+                        "classOfService": "U",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 1,
+                "passengerTypeCode": "INF"
+            },
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 10,
+                "passengerTypeCode": "CNN"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Standard"
+            }
         }
     }
 }'
