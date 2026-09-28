@@ -593,6 +593,26 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
                 if commit_ticket.get(key):
                     ticket[key] = commit_ticket[key]
 
+        # fare_source override: retrieve_reservation()'s parse defaults to
+        # "GDS" whenever Travelport's retrieve response doesn't echo back a
+        # ContentSource on the Product (confirmed live — an NDC Emirates
+        # booking came back tagged "GDS" despite offer_authority being "EK",
+        # not "Travelport"). issue_ticket() later reads this exact field from
+        # the DB cache to decide the GDS vs NDC ticketing path, so a wrong
+        # value here silently sends a real NDC PNR down the GDS ticketing
+        # flow. raw_offering is the ground truth of what was actually
+        # selected — reuse the same all-legs-GDS rule add_offer_to_workbench
+        # uses, so a booking counts as NDC the moment any leg is non-GDS.
+        if "outbound" in raw_offering and "inbound" in raw_offering:
+            _fs_legs = [raw_offering["outbound"], raw_offering["inbound"]]
+        elif "legs" in raw_offering:
+            _fs_legs = raw_offering["legs"]
+        else:
+            _fs_legs = [raw_offering]
+        ticket["fare_source"] = "GDS" if all(leg.get("fare_source") == "GDS" for leg in _fs_legs) else (
+            _fs_legs[0].get("fare_source") or "NDC"
+        )
+
         # Apply local seat assignments and seat pricing to ticket summary
         seat_numbers = [s.seat_number for s in selected_seats]
         seat_charges = sum([s.price for s in selected_seats])
@@ -788,6 +808,14 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         # LKR amount.
         if existing.get("currency"):
             ticket["currency"] = existing["currency"]
+        # fare_source override: services.issue_ticket()'s own retrieve_reservation()
+        # has the same "defaults to GDS" bug the /confirm fix above documents —
+        # it's a truthy wrong value, not an empty one, so the setdefault-style
+        # loop above (which only fills falsy fields) never corrects it from
+        # `existing`. /confirm already resolved this correctly at booking time —
+        # that saved value wins here.
+        if existing.get("fare_source"):
+            ticket["fare_source"] = existing["fare_source"]
 
     saved = database.save_booking(ticket)
 
@@ -1166,6 +1194,15 @@ def retrieve_booking(locator_code: str):
                           "baggage_allowance"]:
                 if cached.get(field) and not ticket.get(field):
                     ticket[field] = cached.get(field)
+            # fare_source override: live retrieve_reservation() defaults this to
+            # "GDS" whenever Travelport's response doesn't echo a ContentSource
+            # (confirmed live for NDC PNRs) — a truthy wrong value, so the
+            # setdefault-style loop above never corrects it from `cached`. Left
+            # unfixed, every retrieve/sync of an NDC booking would overwrite the
+            # correct value /confirm saved back to "GDS". The cached value is
+            # the ground truth, resolved once at booking time from raw_offering.
+            if cached.get("fare_source"):
+                ticket["fare_source"] = cached["fare_source"]
 
         # Save/update the local cache
         database.save_booking(ticket)

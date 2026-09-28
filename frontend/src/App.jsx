@@ -5,7 +5,6 @@ import gsLogo from './assets/george_steuart_logo.png';
 import BookingCard from './BookingCard.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
-import NdcTicketing from './NdcTicketing.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -333,6 +332,174 @@ function AirportSearchSelect({ value, onChange, label, placeholder }) {
   );
 }
 
+// ── Custom calendar grid, used by the search form's date popovers ──────────
+// Native <input type="date"> + showPicker() was tried for the auto-advance
+// flow (origin/destination → departure → return → travelers) but proved
+// unreliable for chaining: browsers gate showPicker() behind "transient user
+// activation", which a still-closing native popup doesn't reliably hand off
+// to the next programmatic showPicker() call — confirmed live, it silently
+// no-ops. A plain React-controlled popover (same pattern as the Travelers/
+// Cabin Class popovers, which have never had this problem) sidesteps that
+// restriction entirely, since opening/closing it is just component state.
+function MiniCalendar({ value, minDate, onSelect }) {
+  const parseDate = (s) => {
+    if (!s) return null;
+    const d = new Date(`${s}T00:00:00`);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const initial = parseDate(value) || parseDate(minDate) || today;
+
+  const [viewYear, setViewYear] = useState(initial.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initial.getMonth());
+
+  const minD = parseDate(minDate);
+  const fmt = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const firstOfMonth = new Date(viewYear, viewMonth, 1);
+  const startWeekday = firstOfMonth.getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const monthLabel = firstOfMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const goPrevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else { setViewMonth(m => m - 1); }
+  };
+  const goNextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); } else { setViewMonth(m => m + 1); }
+  };
+
+  return (
+    <div style={{ width: '280px', fontFamily: 'var(--font-body)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+        <button type="button" onClick={goPrevMonth} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+        <span style={{ fontWeight: '700', color: '#1e293b', fontSize: '0.9rem' }}>{monthLabel}</span>
+        <button type="button" onClick={goNextMonth} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '4px' }}>
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+          <div key={i} style={{ textAlign: 'center', fontSize: '0.68rem', fontWeight: '700', color: '#94a3b8' }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+        {cells.map((d, idx) => {
+          if (d === null) return <div key={idx} />;
+          const dateStr = fmt(viewYear, viewMonth, d);
+          const cellDate = new Date(viewYear, viewMonth, d);
+          const isDisabled = minD && cellDate < minD;
+          const isSelected = value === dateStr;
+          return (
+            <button
+              key={idx}
+              type="button"
+              disabled={isDisabled}
+              onClick={() => onSelect(dateStr)}
+              style={{
+                padding: '0.45rem 0',
+                borderRadius: '6px',
+                border: 'none',
+                background: isSelected ? '#245d38' : 'transparent',
+                color: isDisabled ? '#cbd5e1' : (isSelected ? 'white' : '#1e293b'),
+                fontWeight: isSelected ? '700' : '500',
+                fontSize: '0.85rem',
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                outline: 'none',
+              }}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Human-readable date display for the search form's date buttons ─────────
+const formatDisplayDate = (iso) => {
+  if (!iso) return '';
+  const d = new Date(`${iso}T00:00:00`);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// ── Interleave GDS/NDC results so neither source dominates a long stretch ──
+// A plain sort (price, departure time, duration) can legitimately put 20-30
+// results from one content source back to back — confirmed live, NDC's extra
+// connection-routing variations cluster tightly in price order — which reads
+// to a user scrolling through as "only NDC is showing" even though both are
+// there. This keeps each source's own relative order (so within a source it's
+// still exactly as sorted) but caps how many of the same source can appear
+// consecutively, borrowing from the other source (its next-best item, i.e.
+// still respecting the active sort as closely as possible) once that cap is
+// hit — so both sources stay visible throughout the list, not just at the top.
+const interleaveBySource = (list, maxRun = 2, getSource = (item) => item.fare_source || 'GDS') => {
+  // Buckets keep each source's items in their original (already-sorted)
+  // relative order, tagged with that original index — so when forced to
+  // switch sources, picking "whichever bucket's front item has the lowest
+  // original index" respects whatever sort produced `list` (price, departure
+  // time, duration...), not just price specifically. Also used to interleave
+  // FLIGHT GROUPS (see groupFlightsBySameFlight below) — a group tagged
+  // 'MIXED' (it already has both GDS and NDC inside it) never counts toward
+  // either source's run, since it's inherently balanced on its own.
+  const buckets = {};
+  const order = [];
+  list.forEach((item, i) => {
+    const src = getSource(item);
+    if (!buckets[src]) { buckets[src] = []; order.push(src); }
+    buckets[src].push({ item, i });
+  });
+  if (order.length <= 1) return list;
+
+  const result = [];
+  let lastSrc = null;
+  let runLength = 0;
+  const hasAny = () => order.some(s => buckets[s].length > 0);
+
+  while (hasAny()) {
+    const available = order.filter(s => buckets[s].length > 0);
+    let pick;
+    if (lastSrc && lastSrc !== 'MIXED' && runLength < maxRun && buckets[lastSrc]?.length > 0) {
+      pick = lastSrc;
+    } else {
+      const candidates = available.filter(s => s !== lastSrc);
+      const pool = candidates.length > 0 ? candidates : available;
+      pick = pool.reduce((best, s) => (buckets[s][0].i < buckets[best][0].i ? s : best), pool[0]);
+    }
+    result.push(buckets[pick].shift().item);
+    runLength = (pick === lastSrc && pick !== 'MIXED') ? runLength + 1 : 1;
+    lastSrc = pick;
+  }
+  return result;
+};
+
+// ── Group GDS/NDC variants of the same flight so they sit next to each
+// other in the results list, instead of being scattered apart by price/
+// departure/duration sort. "Same flight" = same flight_number + departure
+// time (the identity the top-level card is built around) — confirmed live
+// that Emirates (and others) regularly have BOTH a GDS offer and an NDC
+// offer for the identical flight, and users were missing the GDS one
+// entirely because its price put it far from the NDC card in a plain sort.
+const groupFlightsBySameFlight = (list) => {
+  const groupsMap = new Map();
+  list.forEach((item, i) => {
+    const key = `${item.flight_number}_${item.departure_time}`;
+    if (!groupsMap.has(key)) groupsMap.set(key, { items: [], firstIndex: i });
+    groupsMap.get(key).items.push(item);
+  });
+  const groups = Array.from(groupsMap.values()).sort((a, b) => a.firstIndex - b.firstIndex);
+  const groupSourceTag = (g) => {
+    const sources = new Set(g.items.map(it => it.fare_source || 'GDS'));
+    return sources.size > 1 ? 'MIXED' : [...sources][0];
+  };
+  const balanced = interleaveBySource(groups, 2, groupSourceTag);
+  return balanced.flatMap(g => g.items);
+};
+
 // ── Clean Passenger Name Helper ──────────────────────────────────────────────
 const cleanPassengerName = (name) => {
   if (!name) return '';
@@ -557,11 +724,11 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // activeTab value -> URL path. 'results' and 'bookings' are handled
+  // activeTab value -> URL path. 'book' and 'bookings' are handled
   // specially (see computeCanonicalPath below) since they need a sub-path
   // or live under /admin.
   const TAB_TO_PATH = {
-    home: '/', book: '/book', results: '/results', ndc: '/ndc', hotels: '/hotels',
+    home: '/', book: '/book', hotels: '/hotels',
     packages: '/packages', visa: '/visa', cancelRequest: '/cancel-booking',
     admin: '/admin', account: '/account', invoice: '/invoice',
   };
@@ -574,9 +741,14 @@ export default function App() {
   const tabFromPath = (pathname) => {
     if (pathname === '/') return 'home';
     if (pathname === '/book') return 'book';
-    if (pathname.startsWith('/results')) return 'results';
-    if (pathname.startsWith('/booking/')) return 'results'; // ticket popup is independent of activeTab
-    if (pathname === '/ndc') return 'ndc';
+    // Results render in place on the Book Flights page now — no separate
+    // 'results' tab — so a /results/:token link (search criteria) and the
+    // ticket popup (independent of activeTab) both just land on 'book'.
+    if (pathname.startsWith('/results')) return 'book';
+    if (pathname.startsWith('/booking/')) return 'book';
+    // NDC Ticketing was a separate page; GDS and NDC fares now appear
+    // together in one merged search, so an old /ndc link goes to Book Flights.
+    if (pathname === '/ndc') return 'book';
     if (pathname === '/hotels') return 'hotels';
     if (pathname === '/packages') return 'packages';
     if (pathname === '/visa') return 'visa';
@@ -588,9 +760,7 @@ export default function App() {
     return 'home';
   };
 
-  const [activeTab, setActiveTab] = useState(() => (
-    new URLSearchParams(window.location.search).get('tab') === 'ndc' ? 'ndc' : tabFromPath(window.location.pathname)
-  ));
+  const [activeTab, setActiveTab] = useState(() => tabFromPath(window.location.pathname));
 
   // Seeds the search-form state from the encrypted /results/:token when the
   // page is first loaded directly there (a shared/bookmarked link) —
@@ -1053,6 +1223,18 @@ export default function App() {
   const [showTravelersPopover, setShowTravelersPopover] = useState(false);
   const [showCabinPopover, setShowCabinPopover] = useState(false);
   const [showResultsPopover, setShowResultsPopover] = useState(false);
+  const [showTripTypePopover, setShowTripTypePopover] = useState(false);
+  // Auto-advance popovers for the main search form: once origin+destination
+  // are both picked, the departure date calendar opens itself; picking a
+  // departure date opens the return date calendar (round trip) or the
+  // travelers popover (one way); picking a return date opens the travelers
+  // popover too — all to cut down on clicks needed to search. Custom React-
+  // controlled popovers (MiniCalendar), not native <input type="date">
+  // showPicker() — that was tried first but proved unreliable for chaining
+  // (browsers gate it behind "transient user activation" that a still-
+  // closing native popup doesn't reliably hand off to the next call).
+  const [showDeparturePicker, setShowDeparturePicker] = useState(false);
+  const [showReturnPicker, setShowReturnPicker] = useState(false);
   // On mobile the results search bar collapses to a compact one-line summary
   // (so results are visible without scrolling past the whole form) — tap it
   // to expand back to the full editable form. Desktop always shows the full
@@ -1062,6 +1244,15 @@ export default function App() {
   // Flight results
   const [flights, setFlights] = useState([]);
   const [loadingFlights, setLoadingFlights] = useState(false);
+  // Whether the full search form (with the One Way / Round Trip / Multi City
+  // toggle, traveler counts, etc.) is showing, vs. the results list. Results
+  // render in place on this same 'book' tab, so this — not just "are there
+  // flights yet" — controls which one is visible: it starts true, flips to
+  // false once a search completes, and flips back to true whenever the user
+  // explicitly asks to search again (the Book Flights nav tab, "Launch
+  // Booking Engine"), so they always get the full form back, matching how a
+  // separate Book Flights page used to always start fresh.
+  const [showSearchForm, setShowSearchForm] = useState(true);
   const [searchError, setSearchError] = useState('');
   const [expandedFareIds, setExpandedFareIds] = useState({});
   const [selectedCabins, setSelectedCabins] = useState({});
@@ -1095,7 +1286,7 @@ export default function App() {
   // of flashing the Home page while the mount effect below verifies payment.
   const [verifyingPayment, setVerifyingPayment] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return !!(params.get('locator') && params.get('reqid'));
+    return !!((params.get('locator') || params.get('ndc_pending')) && params.get('reqid'));
   });
 
   // Traveler forms (multiple passengers)
@@ -1160,6 +1351,7 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const locator = params.get('locator');
+    const ndcPending = params.get('ndc_pending');
     const reqid = params.get('reqid');
     const cancelled = params.get('payment') === 'cancelled';
 
@@ -1185,10 +1377,41 @@ export default function App() {
           setVerifyingPayment(false);
         }
       })();
+    } else if (ndcPending && reqid) {
+      // Emirates NDC (Instant Pay): there is no PNR yet — Travelport creates
+      // the PNR and issues the ticket together, only now that payment is
+      // confirmed. See /api/ndc/instant-pay/complete.
+      window.history.replaceState({}, '', window.location.pathname);
+      (async () => {
+        try {
+          const res = await fetchWithRetry(`${API_BASE}/ndc/instant-pay/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pending_id: ndcPending, reqid })
+          });
+          const data = await handleApiResponse(res, 'Ticket issuance failed');
+          if (!data.success) {
+            throw new Error(data.message || 'Payment succeeded but Travelport did not issue a ticket.');
+          }
+          const fullTicketRes = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${data.locator_code}`);
+          const fullTicket = await handleApiResponse(fullTicketRes, 'Ticket issued but failed to load details');
+          setIssuedTicket(fullTicket);
+          setBookingStep('ticket');
+          showNotification('🎉 Payment confirmed — ticket issued!', 'success');
+        } catch (err) {
+          showNotification(err.message || 'Ticket issuance failed after payment', 'error');
+        } finally {
+          setVerifyingPayment(false);
+        }
+      })();
     } else if (locator && cancelled) {
       window.history.replaceState({}, '', window.location.pathname);
       setVerifyingPayment(false);
       showNotification(`Payment was cancelled. Your booking (PNR: ${locator}) is held — you can complete payment later.`, 'info');
+    } else if (ndcPending && cancelled) {
+      window.history.replaceState({}, '', window.location.pathname);
+      setVerifyingPayment(false);
+      showNotification('Payment was cancelled. Your selection was not booked — search and select the flight again.', 'info');
     }
   }, []);
 
@@ -1212,7 +1435,13 @@ export default function App() {
       return { path: location.pathname, search: '' };
     }
     if (activeTab === 'bookings') return { path: '/admin/bookings', search: '' };
-    if (activeTab === 'results') {
+    // Once a search has results, the URL becomes the shareable /results/:token
+    // link (so the search itself stays bookmarkable) even though there's no
+    // separate 'results' tab any more — results render in place on 'book'.
+    // Gated on !showSearchForm too: clicking back to Book Flights shows the
+    // form again even with stale flights still in state, and the URL should
+    // follow that back to plain /book, not stay on the old results link.
+    if (activeTab === 'book' && !showSearchForm && flights.length > 0) {
       const payload = {
         step: bookingStep && bookingStep !== 'ticket' ? bookingStep : null,
         origin: searchOrigin, destination: searchDest, date: searchDate,
@@ -1235,7 +1464,7 @@ export default function App() {
   }, [
     activeTab, bookingStep, issuedTicket?.locator_code, issuedTicket?.pnr,
     searchOrigin, searchDest, searchDate, returnDate, searchType,
-    adultCount, childCount, infantCount, cabinPref,
+    adultCount, childCount, infantCount, cabinPref, flights.length, showSearchForm,
   ]);
 
   // ── URL → app state ────────────────────────────────────────────────────
@@ -1358,9 +1587,25 @@ export default function App() {
   // ── STEP 2: Search Flights ───────────────────────────────────────────────
   const handleSearch = async (e, overrides = {}) => {
     if (e) e.preventDefault();
+
+    // The departure/return date fields are the custom MiniCalendar popovers
+    // now, not native <input type="date" required> — so that validation has
+    // to happen here instead of the browser doing it for free.
+    if (searchType !== 'multicity' && !overrides.date) {
+      if (!searchDate) {
+        showNotification('Please select a departure date.', 'error');
+        return;
+      }
+      if (searchType === 'roundtrip' && !returnDate) {
+        showNotification('Please select a return date.', 'error');
+        return;
+      }
+    }
+
     setLoadingFlights(true);
     setSearchError('');
     setFlights([]);
+    setShowSearchForm(false);
 
     const origin = overrides.origin || searchOrigin;
     const destination = overrides.destination || searchDest;
@@ -1435,7 +1680,10 @@ export default function App() {
     } finally {
       setLoadingFlights(false);
     }
-    setActiveTab('results');
+    // Results render in place on the Book Flights page itself (see the
+    // results section below) — this just makes sure a search triggered from
+    // anywhere else in the app lands back on that page to see them.
+    setActiveTab('book');
   };
 
   // ── STEP 3: Select Flight ────────────────────────────────────────────────
@@ -1607,6 +1855,70 @@ export default function App() {
 
     setBookingStep('processing');
     setBookingError('');
+
+    // Emirates NDC content has no "hold a PNR, then pay, then ticket" step —
+    // Travelport won't store a form of payment before the ticketing commit,
+    // so a PNR can't usefully exist before payment. Every other offer (GDS
+    // or any other NDC carrier) already works through the normal confirm-
+    // then-issue flow below unchanged; only Emirates NDC needs this separate
+    // pay-first sequence via the dedicated /api/ndc/* endpoints.
+    const isInstantPayNdc = selectedFlight.fare_source === 'NDC' && selectedFlight.airline_code === 'EK';
+
+    if (isInstantPayNdc) {
+      try {
+        if (paymentMethod === 'card') {
+          const bookRes = await fetchWithRetry(`${API_BASE}/ndc/book`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raw_offering: selectedFlight.raw_offering, travelers })
+          });
+          const bookData = await handleApiResponse(bookRes, 'Booking failed');
+
+          const baseUrl = `${window.location.origin}${window.location.pathname}`;
+          const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: selectedFlight.price,
+              currency: selectedFlight.currency || 'LKR',
+              return_url: `${baseUrl}?ndc_pending=${bookData.pending_id}`,
+              cancel_url: `${baseUrl}?ndc_pending=${bookData.pending_id}&payment=cancelled`,
+              client_ref: bookData.pending_id,
+              comment: `George Steuart Travel - NDC ${bookData.pending_id}`
+            })
+          });
+          const payData = await handleApiResponse(payRes, 'Failed to start payment');
+          window.location.href = payData.payment_page_url;
+          return;
+        }
+
+        // Cash / Bank Transfer — Emirates Instant Pay has no gateway-free way
+        // to hold a PNR before payment, so book and ticket happen together in
+        // one combined call (the same endpoint the standalone NDC page used).
+        const res = await fetchWithRetry(`${API_BASE}/ndc/book-and-issue`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_offering: selectedFlight.raw_offering, travelers })
+        });
+        const data = await handleApiResponse(res, 'Booking failed');
+        if (!data.success) {
+          throw new Error(data.message || 'PNR created but Travelport did not issue a ticket.');
+        }
+        const fullTicketRes = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${data.locator_code}`);
+        const fullTicket = await handleApiResponse(fullTicketRes, 'Ticket issued but failed to load details');
+        setIssuedTicket(fullTicket);
+        setBookingStep('ticket');
+        showNotification('🎉 Ticket issued successfully!', 'success');
+      } catch (err) {
+        const errMsg = err.message || String(err);
+        setBookingError(errMsg);
+        setBookingStep('payment');
+        showNotification(errMsg, 'error');
+      } finally {
+        confirmBookingInFlightRef.current = false;
+      }
+      return;
+    }
 
     try {
       // Always pass raw_offering so the backend can create a FRESH workbench at
@@ -1943,13 +2255,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
         </div>
         <nav className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
-          <button className={`nav-tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => setActiveTab('book')}>Book Flights</button>
-          {flights.length > 0 && (
-            <button className={`nav-tab ${activeTab === 'results' ? 'active' : ''}`} onClick={() => setActiveTab('results')}>
-              ✈ Results ({flights.length})
-            </button>
-          )}
-          <button className={`nav-tab ${activeTab === 'ndc' ? 'active' : ''}`} onClick={() => setActiveTab('ndc')}>NDC Ticketing</button>
+          <button className={`nav-tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => { setActiveTab('book'); setShowSearchForm(true); }}>Book Flights</button>
           <button className={`nav-tab ${activeTab === 'hotels' ? 'active' : ''}`} onClick={() => setActiveTab('hotels')}>Hotels</button>
           <button className={`nav-tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={openPackages}>Tour Packages</button>
           <button className={`nav-tab ${activeTab === 'visa' ? 'active' : ''}`} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>Visa</button>
@@ -1988,7 +2294,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 Sri Lanka's premier travel partner — <strong>real-time global flight inventory</strong>, live PNR generation, and instant ticket issuance.
               </p>
               <div className="hero-actions">
-                <button className="btn btn-primary" onClick={() => setActiveTab('book')}>
+                <button className="btn btn-primary" onClick={() => { setActiveTab('book'); setShowSearchForm(true); }}>
                   Launch Booking Engine
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </button>
@@ -2115,7 +2421,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       )}
 
       {/* ── BOOK FLIGHTS TAB (search form only) ─────────────────────────── */}
-      {activeTab === 'book' && (
+      {/* showSearchForm (not just "are there flights yet") controls this —
+          the results section below takes over in place once a search runs,
+          but clicking the Book Flights nav tab / Launch Booking Engine
+          always flips this back to true so the full form (with the trip-
+          type toggle results' own compact edit bar doesn't have) comes back,
+          the same as when Book Flights was its own separate page. */}
+      {activeTab === 'book' && showSearchForm && (
         <div className="tab-content animate-fade">
           <section className="search-section glass-panel">
             <h2 className="section-title">Find Your Flight</h2>
@@ -2220,26 +2532,106 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               ) : (
                 <>
                   <div className="form-row" style={{ flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
-                    <AirportSearchSelect value={searchOrigin} onChange={setSearchOrigin} label="From (Origin)" placeholder="Search origin city/airport..." />
+                    <AirportSearchSelect
+                      value={searchOrigin}
+                      onChange={(val) => {
+                        setSearchOrigin(val);
+                        if (val && searchDest) setShowDeparturePicker(true);
+                      }}
+                      label="From (Origin)"
+                      placeholder="Search origin city/airport..."
+                    />
                     <div className="search-divider" style={{ alignSelf: 'center', marginTop: '1.2rem' }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 7h12M20 7l-4-4M20 7l-4 4M16 17H4M4 17l4 4M4 17l4-4"/></svg>
                     </div>
-                    <AirportSearchSelect value={searchDest} onChange={setSearchDest} label="To (Destination)" placeholder="Search destination city/airport..." />
+                    <AirportSearchSelect
+                      value={searchDest}
+                      onChange={(val) => {
+                        setSearchDest(val);
+                        if (val && searchOrigin) setShowDeparturePicker(true);
+                      }}
+                      label="To (Destination)"
+                      placeholder="Search destination city/airport..."
+                    />
                   </div>
                   <div className="form-row" style={{ flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
-                    <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
+                    <div className="form-group" style={{ flex: 1, minWidth: '160px', position: 'relative' }}>
                       <label className="form-label">Departure Date</label>
-                      <input type="date" className="form-input" min={getTomorrow()} value={searchDate} onChange={e => {
-                        setSearchDate(e.target.value);
-                        if (returnDate && returnDate < e.target.value) {
-                          setReturnDate(e.target.value);
-                        }
-                      }} required />
+                      <button
+                        type="button"
+                        className="form-input text-left"
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                          background: 'white', textAlign: 'left', cursor: 'pointer', padding: '0.625rem 0.75rem',
+                          border: '1.5px solid var(--border-color)', borderRadius: '6px', fontWeight: '600',
+                          color: searchDate ? 'var(--text-primary)' : '#94a3b8', minHeight: '42px',
+                          fontFamily: 'var(--font-body)', outline: 'none',
+                        }}
+                        onClick={() => setShowDeparturePicker(!showDeparturePicker)}
+                      >
+                        <span>{searchDate ? formatDisplayDate(searchDate) : 'Select date'}</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showDeparturePicker ? 'rotate(180deg)' : 'none' }}>
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+                      {showDeparturePicker && (
+                        <>
+                          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: 'transparent' }} onClick={() => setShowDeparturePicker(false)} />
+                          <div style={{ position: 'absolute', top: '100%', left: 0, backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', border: '1px solid #cbd5e1', padding: '1.25rem', zIndex: 1000, marginTop: '0.5rem' }}>
+                            <MiniCalendar
+                              value={searchDate}
+                              minDate={getTomorrow()}
+                              onSelect={(d) => {
+                                setSearchDate(d);
+                                if (returnDate && returnDate < d) setReturnDate(d);
+                                setShowDeparturePicker(false);
+                                if (searchType === 'roundtrip') {
+                                  setShowReturnPicker(true);
+                                } else {
+                                  setShowTravelersPopover(true);
+                                }
+                              }}
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                     {searchType === 'roundtrip' && (
-                      <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
+                      <div className="form-group" style={{ flex: 1, minWidth: '160px', position: 'relative' }}>
                         <label className="form-label">Return Date</label>
-                        <input type="date" className="form-input" min={searchDate || getTomorrow()} value={returnDate} onChange={e => setReturnDate(e.target.value)} required />
+                        <button
+                          type="button"
+                          className="form-input text-left"
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                            background: 'white', textAlign: 'left', cursor: 'pointer', padding: '0.625rem 0.75rem',
+                            border: '1.5px solid var(--border-color)', borderRadius: '6px', fontWeight: '600',
+                            color: returnDate ? 'var(--text-primary)' : '#94a3b8', minHeight: '42px',
+                            fontFamily: 'var(--font-body)', outline: 'none',
+                          }}
+                          onClick={() => setShowReturnPicker(!showReturnPicker)}
+                        >
+                          <span>{returnDate ? formatDisplayDate(returnDate) : 'Select date'}</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showReturnPicker ? 'rotate(180deg)' : 'none' }}>
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+                        {showReturnPicker && (
+                          <>
+                            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: 'transparent' }} onClick={() => setShowReturnPicker(false)} />
+                            <div style={{ position: 'absolute', top: '100%', left: 0, backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', border: '1px solid #cbd5e1', padding: '1.25rem', zIndex: 1000, marginTop: '0.5rem' }}>
+                              <MiniCalendar
+                                value={returnDate}
+                                minDate={searchDate || getTomorrow()}
+                                onSelect={(d) => {
+                                  setReturnDate(d);
+                                  setShowReturnPicker(false);
+                                  setShowTravelersPopover(true);
+                                }}
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2458,11 +2850,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           </div>
                         </div>
 
-                        {/* Done button */}
+                        {/* Done button — advances straight to Cabin Class, same reduce-clicks flow as the date pickers above */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
                           <button
                             type="button"
-                            onClick={() => setShowTravelersPopover(false)}
+                            onClick={() => { setShowTravelersPopover(false); setShowCabinPopover(true); }}
                             style={{
                               backgroundColor: '#71717a', color: 'white', border: 'none', borderRadius: '4px',
                               padding: '0.5rem 1.25rem', fontWeight: '600', fontSize: '0.9rem', cursor: 'pointer',
@@ -2587,8 +2979,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
         </div>
       )}
 
-      {/* ── FLIGHT RESULTS PAGE ───────────────────────────────────────────── */}
-      {activeTab === 'results' && (() => {
+      {/* ── FLIGHT RESULTS (shown in place, on the same Book Flights page) ── */}
+      {activeTab === 'book' && !showSearchForm && (() => {
         const legKey = (leg) => `${leg.flight_number}_${leg.departure_time}`;
 
         // Round trip: `flights` holds combinable outbound+return PAIRS (each
@@ -2720,6 +3112,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           return true;
         });
 
+        // Whether the active cabin filter has zero fares from Travelport at
+        // all (checked against sourceFlights, ignoring price/stops/time/
+        // airline filters) — vs. some other filter combination just happening
+        // to leave nothing. Only the former gets the specific "rates are not
+        // available for X" message below; the latter keeps the generic one.
+        const cabinLabel = filterCabin === 'PremiumEconomy' ? 'Premium Economy' : filterCabin === 'First' ? 'First Class' : filterCabin;
+        const cabinHasNoFares = filterCabin !== 'any' && !sourceFlights.some(f => (f.fare_options || []).some(fo => fo.cabin_class === filterCabin));
+
         if (sortBy === 'price') displayed.sort((a,b) => (a.price||0) - (b.price||0));
         else if (sortBy === 'departure') displayed.sort((a,b) => (a.departure_time||'').localeCompare(b.departure_time||''));
         else if (sortBy === 'duration') {
@@ -2733,6 +3133,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           };
           displayed.sort((a,b) => parseDur(a.duration) - parseDur(b.duration));
         }
+
+        // Group each flight's GDS/NDC variants together (so e.g. Emirates'
+        // GDS fare and its NDC fare for the identical flight sit side by
+        // side, not scattered apart by price), then balance those groups so
+        // GDS/NDC-only stretches don't dominate long runs of the list either.
+        displayed = groupFlightsBySameFlight(displayed);
 
         const handleAirlineCheckboxChange = (airlineName) => {
           setFilterAirlines(prev => 
@@ -2763,6 +3169,52 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 onSubmit={(e) => { handleSearch(e); setMobileSearchExpanded(false); }}
                 className={`results-search-bar${mobileSearchExpanded ? '' : ' mobile-collapsed'}`}
               >
+                <div className="rsb-field rsb-field-sm" style={{ position: 'relative', cursor: 'pointer', flex: '0 1 118px' }} onClick={() => setShowTripTypePopover(!showTripTypePopover)}>
+                  <div style={{ flex: 1 }}>
+                    <div className="rsb-label">TRIP</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span className="rsb-input">
+                        {searchType === 'roundtrip' ? 'Round Trip' : searchType === 'multicity' ? 'Multi City' : 'One Way'}
+                      </span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '4px', color: '#64748b', flexShrink: 0, transition: 'transform 0.2s', transform: showTripTypePopover ? 'rotate(180deg)' : 'none' }}>
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </div>
+                  </div>
+                  {showTripTypePopover && (
+                    <>
+                      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: 'transparent' }} onClick={(e) => { e.stopPropagation(); setShowTripTypePopover(false); }} />
+                      <div style={{ position: 'absolute', top: '100%', left: 0, background: 'white', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', border: '1px solid #cbd5e1', padding: '0.4rem', zIndex: 1000, marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', width: '140px' }}>
+                        {[['oneway', 'One Way'], ['roundtrip', 'Round Trip'], ['multicity', 'Multi City']].map(([val, lbl]) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowTripTypePopover(false);
+                              setSearchType(val);
+                              // Multi-city needs several origin/destination/date
+                              // rows that don't fit this one-line compact bar —
+                              // send the user to the full form for it instead.
+                              if (val === 'multicity') {
+                                setActiveTab('book');
+                                setShowSearchForm(true);
+                              }
+                            }}
+                            style={{
+                              padding: '0.4rem 0.6rem', borderRadius: '6px', border: 'none', textAlign: 'left', cursor: 'pointer',
+                              background: searchType === val ? '#245d38' : 'transparent',
+                              color: searchType === val ? 'white' : '#1e293b', fontWeight: '600', fontSize: '0.82rem',
+                              outline: 'none',
+                            }}
+                          >
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
                 <div className="rsb-field">
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="rsb-label">FROM</div>
@@ -3349,12 +3801,21 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                 {!loadingFlights && !searchError && displayed.length === 0 && flights.length > 0 && (
                   <div className="empty-state glass-panel">
-                    <p>No flights match your filters.<br />
-                      <button className="filter-reset-btn" style={{ marginTop: '0.5rem' }}
-                        onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); }}>
-                        Clear all filters
-                      </button>
-                    </p>
+                    {cabinHasNoFares ? (
+                      <p>Rates are not available for {cabinLabel} on this route.<br />
+                        <button className="filter-reset-btn" style={{ marginTop: '0.5rem' }}
+                          onClick={() => setFilterCabin('any')}>
+                          Show all cabin classes
+                        </button>
+                      </p>
+                    ) : (
+                      <p>No flights match your filters.<br />
+                        <button className="filter-reset-btn" style={{ marginTop: '0.5rem' }}
+                          onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); }}>
+                          Clear all filters
+                        </button>
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -3363,7 +3824,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   const totalPax = adultCount + childCount + infantCount;
 
                   const fId = flight.offer_id || idx;
-                  const activeCabin = selectedCabins[fId] || (flight.cabin_class || (flight.fare_options && flight.fare_options.length > 0 ? flight.fare_options[0].cabin_class : 'Economy'));
+                  // When a cabin filter is active (e.g. "Business") and this
+                  // card qualified for the filter because it has a matching
+                  // fare option, show THAT cabin by default — not the card's
+                  // cheapest/default cabin. Without this, a card only shows
+                  // up because it has a Business fare, but still displays its
+                  // Economy price/badge until the user manually opens "Other
+                  // fares & cabins" and picks Business themselves. A manual
+                  // per-card cabin pick (selectedCabins[fId]) still wins.
+                  const filterCabinMatches = filterCabin !== 'any' && (flight.fare_options || []).some(fo => fo.cabin_class === filterCabin);
+                  const activeCabin = selectedCabins[fId] || (filterCabinMatches ? filterCabin : (flight.cabin_class || (flight.fare_options && flight.fare_options.length > 0 ? flight.fare_options[0].cabin_class : 'Economy')));
                   
                   const cabinFares = flight.fare_options ? flight.fare_options.filter(fo => fo.cabin_class === activeCabin) : [];
                   const selectedFareOption = cabinFares.length > 0 ? cabinFares[0] : null;
@@ -5449,8 +5919,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       )}
 
       {/* ── CUSTOMER (ACCOUNT) PORTAL TAB ───────────────────────────────── */}
-      {activeTab === 'ndc' && <NdcTicketing />}
-
       {activeTab === 'account' && (
         <CustomerPortal
           customerToken={customerToken}

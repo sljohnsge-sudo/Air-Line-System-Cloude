@@ -1,16 +1,90 @@
 {
     "ReservationResponse": {
         "@type": "ReservationResponse",
-        "Result": {
-            "@type": "Result",
-            "Error": [
+        "Reservation": {
+            "@type": "Reservation",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "00c7270c-d931-4ac2-a81b-ba3e94373e05"
+            },
+            "Traveler": [
                 {
-                    "@type": "ErrorDetail",
-                    "category": "VALIDATION",
-                    "StatusCode": 200,
-                    "Message": "FARE IS NOT AVAILABLE FOR INPUT CRITERIA",
-                    "SourceID": "1G",
-                    "SourceCode": "4110"
+                    "@type": "Traveler",
+                    "birthDate": "1991-04-10",
+                    "gender": "Female",
+                    "passengerTypeCode": "ADT",
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "8b245efd-9e46-4b30-8cb3-e0d356e45f46"
+                    },
+                    "PersonName": {
+                        "@type": "PersonName",
+                        "Given": "CASH MRS",
+                        "Surname": "EMIRATES"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "771119999",
+                            "id": "telephone_1",
+                            "cityCode": "CMB",
+                            "role": "Mobile"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "emailType": "TO",
+                            "value": "ektest3@example.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N3334445",
+                            "docType": "Passport",
+                            "expireDate": "2030-06-01",
+                            "issueCountry": "LK",
+                            "birthDate": "1991-04-10",
+                            "Gender": "Female",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonName",
+                                "Given": "CASH",
+                                "Surname": "EMIRATES"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "Receipt": [
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "2875367f-50bc-42c2-baee-bec8a362d459"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "Locator": {
+                            "source": "1G",
+                            "creationDate": "2026-09-25",
+                            "value": "HN7CHM"
+                        }
+                    }
+                }
+            ],
+            "ReservationComment": [
+                {
+                    "@type": "ReservationComment",
+                    "shareWith": "Agency",
+                    "id": "RSRVComment_1",
+                    "Comment": [
+                        {
+                            "value": "* PNR CONTAINS NDC AIR SEGMENTS-SERVICE VIA SMARTPOINT NDC APP *"
+                        }
+                    ]
                 }
             ]
         }

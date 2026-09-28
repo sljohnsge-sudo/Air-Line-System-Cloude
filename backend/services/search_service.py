@@ -151,10 +151,9 @@ def search_flights(
         infant_count (int): Number of infant passengers (default 0)
         cabin_preference (str|None): "Economy", "Business", "First" — or None for all
         legs (list|None): List of flight search legs for round-trip or multi-city
-        content_source (str|None): Per-request override for contentSourceList
-            ("GDS" or "NDC") — falls back to TravelportConfig.CONTENT_SOURCE
-            when not given. Lets a single running backend serve both a
-            GDS-only and an NDC-only certification search without a restart.
+        content_source (str|None): Per-request override to restrict the search
+            to a single content source ("GDS" or "NDC"). When omitted, the
+            search queries both GDS and NDC together.
 
     Returns:
         dict: Raw Travelport catalog search response (parsed JSON)
@@ -234,14 +233,14 @@ def search_flights(
             # the reference the offer/price request needs downstream. 999 keeps
             # caching on while still satisfying the certification guidance.
             "offersPerPage": 999,
-            # Search now queries a SINGLE content source per Travelport
-            # certification guidance (2026-09-16 call): certify GDS and NDC
-            # separately rather than searching both at once. Driven by
-            # TravelportConfig.CONTENT_SOURCE (TP_CONTENT_SOURCE env var,
-            # defaults to "GDS") — that setting is left in place and still
-            # supports switching to NDC-only search; it's just not hardcoded
-            # to query both content sources simultaneously any more.
-            "contentSourceList": [content_source or TravelportConfig.CONTENT_SOURCE],
+            # GDS and NDC were queried separately for Travelport's certification
+            # (2026-09-16 call, since certified — see calls below). Now that
+            # certification is complete, a plain search queries both content
+            # sources together so GDS and NDC fares appear side by side in one
+            # result set. An explicit content_source (e.g. "NDC" from the
+            # dedicated /api/ndc/search endpoint) still restricts to just that
+            # one source when a caller specifically wants it.
+            "contentSourceList": [content_source] if content_source else ["GDS", "NDC"],
             "PassengerCriteria": passenger_criteria,
             "SearchCriteriaFlight": search_criteria_flight
         }
