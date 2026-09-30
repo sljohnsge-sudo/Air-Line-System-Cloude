@@ -104,6 +104,10 @@ class HotelEndpoints:
         return f"{HotelConfig.V11_BASE}/book/reservations/{locator_code}"
 
     @staticmethod
-    def cancel_reservation(locator_code: str, supplier_locator: str) -> str:
-        """PUT → cancel a hotel reservation (or a single room/offer on it)."""
-        return f"{HotelConfig.V11_BASE}/book/reservations/{locator_code}/canceloffer?supplierLocator={supplier_locator}"
+    def cancel_reservation(locator_code: str) -> str:
+        """PUT → cancel a hotel reservation. supplierLocator is passed as a
+        query param by the caller (via httpx params=), not baked in here, so
+        it's properly URL-encoded — see
+        https://developer.travelport.com/apis/stays/unified-check-out/cancelhoteloffer.
+        """
+        return f"{HotelConfig.V11_BASE}/book/reservations/{locator_code}/canceloffer"

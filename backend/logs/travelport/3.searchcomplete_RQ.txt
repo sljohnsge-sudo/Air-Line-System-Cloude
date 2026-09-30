@@ -1,0 +1,34 @@
+curl --location --globoff 'https://api.pp.travelport.net/12/hotel/search/searchcomplete' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTA3NDMxMDYsImV4cCI6MTc5MDgyOTUwNiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Lvw0huHgorQaOlP4c1b0a7gdfIr_0FcSgutfcCqz74YHw42J0l5UXYo7Fi-urmCB_Go1jpineySX0Gbu2oxEkH4YgFJOvfQwKZy5rmNpaE9VrgAF09YIkiNguZOvXoUZtBOOsZPHB4pqh-R9cG4vlpUW1xSG5pFN16OCdch4uTFrdvv-wwnRL4rxDdZKx9pqqTMgpXs1Q9KYO0cCpI_L1E8Xk4E7Zp_O9msUkGlfnR2KZoEtlUS31Uc2astJIuOya5tvW5Q_RgphnGQu1ILKSwfflfTJfCwGkZaXNvRK41y5rxFLz6HHhASNGvYYk-mdloP5y9GYloUs0bj-epaB8w' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'tvp-pcc-core: 7F3C_1G' \
+--header 'tvp-trace-id: TraceID_2377CB70C432' \
+--header 'tvp-correlation-id: 74e6c6a2-c09a-42f0-a8ea-bfbde605cb33' \
+--data-raw '{
+    "requestedCurrency": "USD",
+    "stayDetails": {
+        "checkInDateLocal": "2026-10-01",
+        "checkOutDateLocal": "2026-10-02",
+        "rooms": 1,
+        "guests": {
+            "adults": 2
+        }
+    },
+    "propertyFilter": {
+        "location": {
+            "type": "cityIATACode",
+            "details": {
+                "iataCode": "DXB"
+            },
+            "radius": {
+                "value": 30,
+                "unit": "km"
+            }
+        },
+        "returnOnlyAvailableProperties": true,
+        "imageSize": "Medium"
+    }
+}'

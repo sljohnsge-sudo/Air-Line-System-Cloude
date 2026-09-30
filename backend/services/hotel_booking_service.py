@@ -75,19 +75,17 @@ def create_hotel_reservation(
             "in backend/.env before booking hotels — see config/hotel_config.py."
         )
 
-    lead = travelers[0]
-
     reservation_detail = {
         "ReservationDetail": {
+            "@type": "Reservation",
             "Offer": [
                 {
                     "@type": "Offer",
-                    "Identifier": {"authority": "TVPT"},
                     "Product": [
                         {
                             "@type": "ProductHospitality",
                             "bookingCode": booking_code,
-                            "Quantity": str(rooms),
+                            "Quantity": rooms,
                             "guests": guests,
                             "PropertyKey": {
                                 "@type": "PropertyKey",
@@ -113,7 +111,7 @@ def create_hotel_reservation(
                 {
                     "@type": "Traveler",
                     "PersonName": {
-                        "@type": "PersonName",
+                        "@type": "PersonNameDetail",
                         "Given": t.get("first_name", ""),
                         "Surname": t.get("last_name", ""),
                     },
@@ -149,8 +147,8 @@ def create_hotel_reservation(
                         "CardType": HotelConfig.GUARANTEE_CARD_TYPE,
                         "CardCode": HotelConfig.GUARANTEE_CARD_CODE,
                         "CardHolderName": HotelConfig.GUARANTEE_CARD_HOLDER_NAME,
-                        "CardNumber": {"PlainText": HotelConfig.GUARANTEE_CARD_NUMBER},
-                        "SeriesCode": {"PlainText": HotelConfig.GUARANTEE_CARD_CVV},
+                        "CardNumber": {"@type": "CardNumber", "PlainText": HotelConfig.GUARANTEE_CARD_NUMBER},
+                        "SeriesCode": {"@type": "SeriesCode", "PlainText": HotelConfig.GUARANTEE_CARD_CVV},
                         "Address": {
                             "@type": "AddressDetail",
                             "AddressLine": [HotelConfig.GUARANTEE_CARD_BILLING_ADDRESS],
@@ -183,10 +181,18 @@ def create_hotel_reservation(
 
 
 def retrieve_hotel_reservation(locator_code: str) -> dict:
-    """STEP 3 — Retrieve a hotel reservation by its Travelport locator code."""
+    """STEP 3 — Retrieve a hotel reservation by its Travelport locator code.
+
+    identifierType=Locator tells Travelport the path value is a locator code,
+    not its own internal Reservation ID (the endpoint also accepts
+    SupplierLocator/DocumentNumber) — see
+    https://developer.travelport.com/apis/stays/unified-check-out/retrievehotelreservation.
+    detailViewInd=true is required to get the full ReservationDetail back.
+    """
     headers = get_hotel_headers()
+    params = {"identifierType": "Locator", "detailViewInd": "true"}
     with httpx.Client(timeout=HotelConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
-        response = client.get(HotelEndpoints.retrieve_reservation(locator_code), headers=headers)
+        response = client.get(HotelEndpoints.retrieve_reservation(locator_code), params=params, headers=headers)
 
     if response.status_code >= 400:
         logger.error(f"Hotel Retrieve failed for {locator_code}: {response.status_code} — {response.text[:500]}")
@@ -202,8 +208,9 @@ def retrieve_hotel_reservation(locator_code: str) -> dict:
 def cancel_hotel_reservation(locator_code: str, supplier_locator: str) -> bool:
     """STEP 4 — Cancel a hotel reservation."""
     headers = get_hotel_headers()
+    params = {"supplierLocator": supplier_locator}
     with httpx.Client(timeout=HotelConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
-        response = client.put(HotelEndpoints.cancel_reservation(locator_code, supplier_locator), headers=headers)
+        response = client.put(HotelEndpoints.cancel_reservation(locator_code), params=params, headers=headers)
 
     if response.status_code >= 400:
         logger.error(f"Hotel Cancel failed for {locator_code}: {response.status_code} — {response.text[:500]}")

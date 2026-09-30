@@ -1,0 +1,6 @@
+curl --location --globoff 'https://apac.universal-api.pp.travelport.com/B2BGateway/connect/uAPI/AirService' \
+--header 'content-type: text/xml; charset=UTF-8' \
+--header 'accept: text/xml' \
+--header 'authorization: Basic VFA5Mjg0MTA5MDpvJFRDQFtNJHppMCpBWXt5' \
+--data-raw '<?xml version="1.0" encoding="UTF-8"?>
+<air:LowFareSearchReq xmlns:air="http://www.travelport.com/schema/air_v43_0" xmlns:common="http://www.travelport.com/schema/common_v43_0" AuthorizedBy="user" SolutionResult="true" TargetBranch="7F3C" TraceId="UAPI_1601AB690088" xmlns:air="http://www.travelport.com/schema/air_v43_0" xmlns:common="http://www.travelport.com/schema/common_v43_0"><common:BillingPointOfSaleInfo OriginApplication="UAPI" /><air:SearchAirLeg><air:SearchOrigin><common:CityOrAirport Code="BLR" /></air:SearchOrigin><air:SearchDestination><common:CityOrAirport Code="DEL" /></air:SearchDestination><air:SearchDepTime PreferredTime="2026-11-10" /></air:SearchAirLeg><air:AirSearchModifiers><air:PreferredProviders><common:Provider Code="ACH" /></air:PreferredProviders></air:AirSearchModifiers><common:SearchPassenger Code="ADT" /></air:LowFareSearchReq>'

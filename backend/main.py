@@ -29,6 +29,8 @@ import auth
 import hotel_database
 from services import hotel_search_service, hotel_booking_service
 from services.hotel_common import HotelApiError
+from services import indigo_search_service, indigo_booking_service
+from services.indigo_uapi_client import IndigoApiError
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -221,18 +223,40 @@ def root():
 # ── Airport Reference Data ───────────────────────────────────────────────────
 
 @app.get("/api/reference/airports")
-def get_airports(q: str = Query("", description="Search term for airports (IATA code, city, name)")):
+def get_airports(
+    q: str = Query("", description="Search term for airports (IATA code, city, name)"),
+    country: str = Query("", description="ISO alpha-2 country code to restrict results to (e.g. AE)"),
+):
     """
-    Search local airport cache of 7900+ airports.
+    Search local airport cache of 7900+ airports. Optional `country` filter
+    feeds the Hotel destination Country/City selector.
     """
     try:
-        results = database.search_airports(q.strip())
+        limit = 300 if (country and not q) else 15
+        results = database.search_airports(q.strip(), limit=limit, country=country.strip())
         return {"airports": results}
     except Exception as e:
         logger.error(f"Airport search failed: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Airport reference lookup error: {str(e)}"
+        )
+
+
+@app.get("/api/reference/countries")
+def get_airport_countries():
+    """
+    Countries that have at least one airport/city in our reference data —
+    feeds the Hotel destination Country dropdown (see get_airports above for
+    the paired City list, filtered by the chosen country).
+    """
+    try:
+        return {"countries": database.get_airport_countries()}
+    except Exception as e:
+        logger.error(f"Country list lookup failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Country reference lookup error: {str(e)}"
         )
 
 
@@ -289,6 +313,75 @@ def search_flights(request: FlightSearchRequest):
         logger.error(f"Flight search failed: {error_msg}")
         raise HTTPException(status_code=status_code, detail=detail)
 
+
+def _segments_of_offering(raw_offering: dict) -> list:
+    """Flat list of every search-time segment dict in a raw_offering
+    (one-way / {"outbound","inbound"} round-trip / {"legs":[...]} multi-city)."""
+    if not isinstance(raw_offering, dict):
+        return []
+    if "outbound" in raw_offering and "inbound" in raw_offering:
+        legs = [raw_offering["outbound"], raw_offering["inbound"]]
+    elif "legs" in raw_offering:
+        legs = raw_offering["legs"] or []
+    else:
+        legs = [raw_offering]
+    return [s for leg in legs for s in (leg.get("segments") or [])]
+
+
+def _backfill_terminals(ticket: dict, source_segments: list) -> None:
+    """
+    Travelport's reservation retrieve response has no Departure/Arrival
+    `terminal` at all (confirmed live — only the search response carries it),
+    so every ticket built from a retrieve came out with no terminals. Copy
+    them across from segments that do have them (the search-time offer at
+    booking, or the cached booking afterwards), matching on flight number +
+    departure date/time, falling back to flight number alone.
+    """
+    if not source_segments:
+        return
+
+    def _norm(t):
+        return (t or "").replace("T", " ").strip()[:16]
+
+    by_key, by_flight = {}, {}
+    for s in source_segments:
+        if not (s.get("departure_terminal") or s.get("arrival_terminal")):
+            continue
+        by_key[(s.get("flight_number"), _norm(s.get("departure_time")))] = s
+        by_flight.setdefault(s.get("flight_number"), s)
+
+    def _fill(segs):
+        for seg in segs or []:
+            src = by_key.get((seg.get("flight_number"), _norm(seg.get("departure_time")))) or by_flight.get(seg.get("flight_number"))
+            if not src:
+                continue
+            if not seg.get("departure_terminal") and src.get("departure_terminal"):
+                seg["departure_terminal"] = src["departure_terminal"]
+            if not seg.get("arrival_terminal") and src.get("arrival_terminal"):
+                seg["arrival_terminal"] = src["arrival_terminal"]
+
+    _fill(ticket.get("segments"))
+    for leg in ticket.get("legs") or []:
+        _fill(leg.get("segments"))
+        leg_segs = leg.get("segments") or []
+        if leg_segs:
+            leg["departure_terminal"] = leg.get("departure_terminal") or leg_segs[0].get("departure_terminal")
+            leg["arrival_terminal"] = leg.get("arrival_terminal") or leg_segs[-1].get("arrival_terminal")
+
+    segs = ticket.get("segments") or []
+    if segs:
+        ticket["departure_terminal"] = ticket.get("departure_terminal") or segs[0].get("departure_terminal")
+        ticket["arrival_terminal"] = ticket.get("arrival_terminal") or segs[-1].get("arrival_terminal")
+
+
+def _cached_segments(cached: dict) -> list:
+    """Every segment saved on a cached booking (top-level + per-leg)."""
+    if not cached:
+        return []
+    segs = list(cached.get("segments") or [])
+    for leg in cached.get("legs") or []:
+        segs.extend(leg.get("segments") or [])
+    return segs
 
 
 def _attach_traveler_details(ticket: dict, travelers: list) -> None:
@@ -613,6 +706,8 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
             _fs_legs[0].get("fare_source") or "NDC"
         )
 
+        _backfill_terminals(ticket, _segments_of_offering(raw_offering))
+
         # Apply local seat assignments and seat pricing to ticket summary
         seat_numbers = [s.seat_number for s in selected_seats]
         seat_charges = sum([s.price for s in selected_seats])
@@ -816,6 +911,7 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         # that saved value wins here.
         if existing.get("fare_source"):
             ticket["fare_source"] = existing["fare_source"]
+        _backfill_terminals(ticket, _cached_segments(existing))
 
     saved = database.save_booking(ticket)
 
@@ -895,6 +991,7 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list) -> dict:
     ticket["status"] = "Ticketed"
     ticket["fare_source"] = "NDC"
     ticket["payment_method"] = "Cash"
+    _backfill_terminals(ticket, _segments_of_offering(raw_offering))
     if not ticket.get("total_fare"):
         ticket["total_fare"], ticket["currency"] = ip["total_fare"], ip["currency"]
     _attach_traveler_details(ticket, travelers)
@@ -1203,6 +1300,7 @@ def retrieve_booking(locator_code: str):
             # the ground truth, resolved once at booking time from raw_offering.
             if cached.get("fare_source"):
                 ticket["fare_source"] = cached["fare_source"]
+            _backfill_terminals(ticket, _cached_segments(cached))
 
         # Save/update the local cache
         database.save_booking(ticket)
@@ -2484,3 +2582,141 @@ def admin_hotel_reports_summary(
     end_dt = f"{end_date} 23:59:59" if end_date else None
     return hotel_database.get_hotel_sales_summary(start_dt, end_dt)
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INDIGO (6E) ANCILLARIES — Travelport legacy Universal API (uAPI)
+#
+# Fully independent of both the GDS/NDC flight endpoints above (JSON
+# TripServices v11) and the Hotel endpoints — separate service modules
+# (services/indigo_search_service.py, services/indigo_booking_service.py,
+# services/indigo_uapi_client.py), separate credential set (config/
+# indigo_config.py's TP_UAPI_*), separate wire format (SOAP-wrapped XML
+# request/response bodies over HTTP Basic Auth, not JSON over OAuth). No
+# shared code with the Air (GDS/NDC) integration, and nothing above this
+# section was changed to add it.
+#
+# NOTE: TP_UAPI_USERNAME/PASSWORD/TARGET_BRANCH are not yet filled into
+# .env — every endpoint below will raise IndigoApiError("...not
+# configured...") until Travelport issues legacy Universal API credentials
+# for IndiGo/ACH content and they're added there. The transport itself
+# (SOAP envelope, endpoint, auth mechanism) was confirmed reachable live on
+# 2026-09-29 — see indigo_uapi_client.py's docstring. Built strictly to the
+# request/response shapes in the reference logs under "Indigo all ancillary
+# service" (also converted to this project's JSON convention at
+# backend/reference/indigo_uapi_json/).
+# ═══════════════════════════════════════════════════════════════════════════
+
+class IndigoSearchRequest(BaseModel):
+    origin: str = Field(..., min_length=3, max_length=3)
+    destination: str = Field(..., min_length=3, max_length=3)
+    departure_date: str = Field(..., description="YYYY-MM-DD")
+    passenger_type: str = Field(default="ADT", description="ADT | CHD | INF — one type per search, see indigo_search_service module docstring")
+
+
+class IndigoPriceRequest(BaseModel):
+    segments_token: str = Field(..., description="From an /api/indigo/search flight result")
+    fare_basis: str
+    passenger_type: str = Field(default="ADT")
+
+
+class IndigoPriceWithAncillariesRequest(IndigoPriceRequest):
+    ancillary_tokens: List[str] = Field(..., description="`token` values from a prior price response's `ancillaries` list")
+
+
+class IndigoSeatMapRequest(BaseModel):
+    segments_token: str
+    first_name: str
+    last_name: str
+
+
+class IndigoTraveler(BaseModel):
+    first_name: str = Field(..., min_length=1, max_length=50)
+    last_name: str = Field(..., min_length=1, max_length=50)
+    prefix: Optional[str] = None
+    gender: str = Field(..., description="Male | Female")
+    date_of_birth: str = Field(..., description="YYYY-MM-DD")
+    passenger_type_code: str = Field(default="ADT")
+    nationality: str = Field(..., min_length=2, max_length=2, description="ISO country code")
+    passport_number: str
+    passport_issue_country: str = Field(..., min_length=2, max_length=2)
+    passport_expiry: str = Field(..., description="YYYY-MM-DD")
+    phone_number: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class IndigoBookingRequest(BaseModel):
+    pricing_token: str = Field(..., description="From a price/price-with-ancillaries response")
+    travelers: List[IndigoTraveler]
+    selected_ancillary_tokens: Optional[List[str]] = None
+
+
+@app.post("/api/indigo/search")
+def indigo_search(request: IndigoSearchRequest):
+    """STEP 1 — Search IndiGo (6E) flights via Travelport legacy uAPI (LowFareSearchReq)."""
+    try:
+        return indigo_search_service.search_flights(
+            origin=request.origin.upper(),
+            destination=request.destination.upper(),
+            departure_date=request.departure_date,
+            passenger_type=request.passenger_type,
+        )
+    except IndigoApiError as e:
+        logger.error(f"IndiGo search failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.post("/api/indigo/price")
+def indigo_price(request: IndigoPriceRequest):
+    """STEP 2a — Price a selected IndiGo flight and discover available ancillaries (AirPriceReq, no services selected yet)."""
+    try:
+        return indigo_search_service.price_offer(
+            segments_token=request.segments_token,
+            fare_basis=request.fare_basis,
+            passenger_type=request.passenger_type,
+        )
+    except IndigoApiError as e:
+        logger.error(f"IndiGo price failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.post("/api/indigo/price-with-ancillaries")
+def indigo_price_with_ancillaries(request: IndigoPriceWithAncillariesRequest):
+    """STEP 2b — Re-price with the traveler's selected meals/baggage/seats attached (AirPriceReq, services selected)."""
+    try:
+        return indigo_search_service.price_offer_with_ancillaries(
+            segments_token=request.segments_token,
+            fare_basis=request.fare_basis,
+            passenger_type=request.passenger_type,
+            ancillary_tokens=request.ancillary_tokens,
+        )
+    except IndigoApiError as e:
+        logger.error(f"IndiGo price-with-ancillaries failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.post("/api/indigo/seatmap")
+def indigo_seatmap(request: IndigoSeatMapRequest):
+    """Seat map for a priced IndiGo itinerary (SeatMapReq)."""
+    try:
+        return indigo_search_service.get_seat_map(
+            segments_token=request.segments_token,
+            first_name=request.first_name,
+            last_name=request.last_name,
+        )
+    except IndigoApiError as e:
+        logger.error(f"IndiGo seat map failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.post("/api/indigo/book", status_code=status.HTTP_201_CREATED)
+def indigo_book(request: IndigoBookingRequest):
+    """STEP 3 — Create the IndiGo reservation (AirCreateReservationReq, UniversalRecordService)."""
+    try:
+        return indigo_booking_service.create_reservation(
+            pricing_token=request.pricing_token,
+            travelers=[t.model_dump() for t in request.travelers],
+            selected_ancillary_tokens=request.selected_ancillary_tokens,
+        )
+    except IndigoApiError as e:
+        logger.error(f"IndiGo booking failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))

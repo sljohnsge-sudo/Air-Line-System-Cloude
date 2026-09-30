@@ -1523,29 +1523,71 @@ def cancel_booking(locator_code: str) -> bool:
         conn.close()
 
 
-def search_airports(query: str, limit: int = 15) -> list[dict]:
-    """Search airports by IATA, city, or name. Exact IATA match ranked first."""
+def search_airports(query: str, limit: int = 15, country: str = "") -> list[dict]:
+    """Search airports by IATA, city, or name. Exact IATA match ranked first.
+    Optional country filters to a single ISO alpha-2 code (e.g. "AE") — used
+    by the Hotel destination Country/City selector to list only the cities
+    within a chosen country.
+    """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     pattern = f"%{query}%"
     upper   = query.upper()
     prefix  = f"{query}%"
-    cursor.execute("""
-        SELECT * FROM airports
-        WHERE iata LIKE %s OR city LIKE %s OR name LIKE %s
-        ORDER BY
-            CASE
-                WHEN iata = %s    THEN 1
-                WHEN iata LIKE %s THEN 2
-                WHEN city LIKE %s THEN 3
-                ELSE 4
-            END, iata ASC
-        LIMIT %s
-    """, (pattern, pattern, pattern, upper, prefix, prefix, limit))
+    if country:
+        cursor.execute("""
+            SELECT * FROM airports
+            WHERE country = %s AND (iata LIKE %s OR city LIKE %s OR name LIKE %s)
+            ORDER BY
+                CASE
+                    WHEN iata = %s    THEN 1
+                    WHEN iata LIKE %s THEN 2
+                    WHEN city LIKE %s THEN 3
+                    ELSE 4
+                END, city ASC
+            LIMIT %s
+        """, (country.upper(), pattern, pattern, pattern, upper, prefix, prefix, limit))
+    else:
+        cursor.execute("""
+            SELECT * FROM airports
+            WHERE iata LIKE %s OR city LIKE %s OR name LIKE %s
+            ORDER BY
+                CASE
+                    WHEN iata = %s    THEN 1
+                    WHEN iata LIKE %s THEN 2
+                    WHEN city LIKE %s THEN 3
+                    ELSE 4
+                END, iata ASC
+            LIMIT %s
+        """, (pattern, pattern, pattern, upper, prefix, prefix, limit))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
     return rows
+
+
+def get_airport_countries() -> list[dict]:
+    """Distinct countries present in the airports table, with display names,
+    sorted alphabetically by name — feeds the Hotel destination Country
+    dropdown. Only countries that actually have at least one airport/city in
+    our dataset are returned (Travelport's Hotel API has no country-level
+    search of its own — this is a client-side UX filter that resolves down
+    to a real cityIATACode before calling Travelport).
+    """
+    from utils.country_names import country_name
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT country FROM airports
+        WHERE country IS NOT NULL AND country != ''
+    """)
+    codes = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    countries = [{"code": code, "name": country_name(code)} for code in codes]
+    countries.sort(key=lambda c: c["name"])
+    return countries
 
 
 def get_bookings_in_date_range(start_dt: str, end_dt: str) -> list[dict]:

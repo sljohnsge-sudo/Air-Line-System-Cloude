@@ -1,0 +1,780 @@
+{
+  "universal:AirCreateReservationRsp": {
+    "@TransactionId": "1DE1DAAF0A07647864E8002A9DFD0702",
+    "@ResponseTime": "22858",
+    "common:ResponseMessage": [
+      {
+        "@Code": "15014",
+        "@Type": "Warning",
+        "@ProviderCode": "ACH",
+        "#text": "Reservation declined by the Vendor"
+      },
+      {
+        "@Code": "15018",
+        "@Type": "Warning",
+        "@ProviderCode": "ACH",
+        "#text": "Reservation is on hold. Add payment to complete booking"
+      },
+      {
+        "@Code": "0",
+        "@Type": "Warning",
+        "@ProviderCode": "ACH",
+        "#text": "Pricing details in the response do not match the request."
+      },
+      {
+        "@Code": "3007",
+        "@Type": "Warning",
+        "@ProviderCode": "ACH",
+        "#text": "One or more pricings have changed."
+      }
+    ],
+    "universal:UniversalRecord": {
+      "@LocatorCode": "SKFZWY",
+      "@Version": "0",
+      "@Status": "Active",
+      "common:BookingTraveler": {
+        "@Key": "AGtIcD4R2BKA62NTIAAAAA==",
+        "@TravelerType": "ADT",
+        "@Age": "31",
+        "@DOB": "1986-07-12",
+        "@Gender": "M",
+        "@Nationality": "IN",
+        "@ElStat": "A",
+        "common:BookingTravelerName": {
+          "@Prefix": "MR",
+          "@First": "Mukil",
+          "@Last": "Kumar"
+        },
+        "common:DeliveryInfo": {
+          "common:ShippingAddress": {
+            "@Key": "AGtIcD4R2BKA+2NTIAAAAA==",
+            "@ElStat": "A",
+            "common:AddressName": "Home",
+            "common:Street": "Richmond Road",
+            "common:City": "Bangalore",
+            "common:PostalCode": "560025",
+            "common:Country": "IN",
+            "common:ProviderReservationInfoRef": {
+              "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+            }
+          },
+          "common:ProviderReservationInfoRef": {
+            "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+          }
+        },
+        "common:PhoneNumber": [
+          {
+            "@Key": "AGtIcD4R2BKA72NTIAAAAA==",
+            "@Type": "Mobile",
+            "@Number": "7795506000",
+            "@Text": "API Support test",
+            "@ElStat": "A",
+            "common:ProviderReservationInfoRef": {
+              "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+            }
+          },
+          {
+            "@Key": "AGtIcD4R2BKAPVPTIAAAAA==",
+            "@Type": "Other",
+            "@Number": "91808050834511",
+            "@ElStat": "A",
+            "common:ProviderReservationInfoRef": {
+              "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+            }
+          }
+        ],
+        "common:Email": {
+          "@Key": "AGtIcD4R2BKA92NTIAAAAA==",
+          "@Type": "P",
+          "@EmailID": "mukil.kumar@galileo.co.in",
+          "@ElStat": "A",
+          "common:ProviderReservationInfoRef": {
+            "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+          }
+        },
+        "common:SSR": {
+          "@Key": "AGtIcD4R2BKA82NTIAAAAA==",
+          "@Status": "HK",
+          "@Type": "DOCS",
+          "@FreeText": "P/IN/S12345678/IN/12JUL86/M/23OCT26/KUMAR/MUKIL",
+          "@Carrier": "6E",
+          "@ProviderReservationInfoRef": "AGtIcD4R2BKAOVPTIAAAAA==",
+          "@ElStat": "A"
+        },
+        "common:AirSeatAssignment": {
+          "@Key": "AGtIcD4R2BKAQVPTIAAAAA==",
+          "@Status": "PN",
+          "@Seat": "1C",
+          "@SeatTypeCode": "RQST",
+          "@SegmentRef": "AGtIcD4R2BKA12NTIAAAAA==",
+          "@ElStat": "A"
+        },
+        "common:Address": {
+          "@Key": "AGtIcD4R2BKA+2NTIAAAAA==",
+          "@ElStat": "A",
+          "common:AddressName": "Home",
+          "common:Street": "Richmond Road",
+          "common:City": "Bangalore",
+          "common:PostalCode": "560025",
+          "common:Country": "IN",
+          "common:ProviderReservationInfoRef": {
+            "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+          }
+        }
+      },
+      "common:ActionStatus": {
+        "@Key": "AGtIcD4R2BKAVVPTIAAAAA==",
+        "@Type": "TTL",
+        "@TicketDate": "2018-01-22T18:25:07.000+05:30",
+        "@ProviderReservationInfoRef": "AGtIcD4R2BKAOVPTIAAAAA==",
+        "@ProviderCode": "ACH",
+        "@ElStat": "A"
+      },
+      "universal:ProviderReservationInfo": {
+        "@Key": "AGtIcD4R2BKAOVPTIAAAAA==",
+        "@ProviderCode": "ACH",
+        "@LocatorCode": "U9S7HC",
+        "@CreateDate": "2018-01-22T12:40:16.503+00:00",
+        "@ModifiedDate": "2018-01-22T12:40:18.791+00:00"
+      },
+      "air:AirReservation": {
+        "@LocatorCode": "DH1VDR",
+        "@CreateDate": "2018-01-22T12:40:16.478+00:00",
+        "@ModifiedDate": "2018-01-22T12:40:16.478+00:00",
+        "air:OptionalServices": {
+          "air:OptionalServicesTotal": {
+            "@TotalPrice": "INR2025.00",
+            "@BasePrice": "INR2025.00",
+            "@ApproximateTotalPrice": "INR2025.00",
+            "@ApproximateBasePrice": "INR2025.00",
+            "@Taxes": "INR0",
+            "air:TaxInfo": {
+              "@Category": "IGST29",
+              "@Amount": "INR0"
+            }
+          },
+          "air:OptionalService": [
+            {
+              "@Type": "MealOrBeverage",
+              "@TotalPrice": "INR0.00",
+              "@SupplierCode": "6E",
+              "@CreateDate": "2018-01-22T12:40:16.502+00:00",
+              "@ServiceStatus": "Fulfilled",
+              "@ElStat": "A",
+              "@Key": "AGtIcD4R2BKAWVPTIAAAAA==",
+              "@Source": "ACH",
+              "@ProviderCode": "ACH",
+              "@Quantity": "1",
+              "@ProviderDefinedType": "ML__FR",
+              "@BasePrice": "INR0.00",
+              "@ApproximateTotalPrice": "INR0.00",
+              "@ApproximateBasePrice": "INR0.00",
+              "@PseudoCityCode": "35O3",
+              "common:ServiceData": {
+                "@BookingTravelerRef": "AGtIcD4R2BKA62NTIAAAAA==",
+                "@AirSegmentRef": "AGtIcD4R2BKA12NTIAAAAA=="
+              },
+              "common:ServiceInfo": {
+                "common:Description": "Complementary Corporate Meal - Complementary Corporate Meal"
+              }
+            },
+            {
+              "@Type": "PreReservedSeatAssignment",
+              "@TotalPrice": "INR600.00",
+              "@SupplierCode": "6E",
+              "@CreateDate": "2018-01-22T12:40:16.502+00:00",
+              "@ServiceStatus": "Fulfilled",
+              "@ElStat": "A",
+              "@Key": "AGtIcD4R2BKAXVPTIAAAAA==",
+              "@Source": "ACH",
+              "@ProviderCode": "ACH",
+              "@Quantity": "1",
+              "@ProviderDefinedType": "SA__PR",
+              "@BasePrice": "INR600.00",
+              "@ApproximateTotalPrice": "INR600.00",
+              "@ApproximateBasePrice": "INR600.00",
+              "@Taxes": "INR0",
+              "@PseudoCityCode": "35O3",
+              "common:ServiceData": {
+                "@Data": "1-C",
+                "@BookingTravelerRef": "AGtIcD4R2BKA62NTIAAAAA==",
+                "@AirSegmentRef": "AGtIcD4R2BKA12NTIAAAAA=="
+              },
+              "common:ServiceInfo": {
+                "common:Description": "Premium Seat Assignment - Premium Seat Assignment"
+              },
+              "air:TaxInfo": {
+                "@Category": "DU",
+                "@CarrierDefinedCategory": "IGST29",
+                "@Amount": "INR0",
+                "@Key": "AGtIcD4R2BKAYVPTIAAAAA=="
+              }
+            },
+            {
+              "@Type": "Baggage",
+              "@TotalPrice": "INR1425.00",
+              "@SupplierCode": "6E",
+              "@CreateDate": "2018-01-22T12:40:16.502+00:00",
+              "@ServiceStatus": "Fulfilled",
+              "@ElStat": "A",
+              "@Key": "AGtIcD4R2BKAZVPTIAAAAA==",
+              "@Source": "ACH",
+              "@ProviderCode": "ACH",
+              "@Quantity": "1",
+              "@ProviderDefinedType": "BGXS05",
+              "@BasePrice": "INR1425.00",
+              "@ApproximateTotalPrice": "INR1425.00",
+              "@ApproximateBasePrice": "INR1425.00",
+              "@PseudoCityCode": "35O3",
+              "common:ServiceData": {
+                "@BookingTravelerRef": "AGtIcD4R2BKA62NTIAAAAA==",
+                "@AirSegmentRef": "AGtIcD4R2BKA12NTIAAAAA=="
+              },
+              "common:ServiceInfo": {
+                "common:Description": "Check-in baggage - up to 5kg - Check-in baggage - up to 5kg"
+              }
+            }
+          ]
+        },
+        "common:SupplierLocator": {
+          "@SupplierCode": "6E",
+          "@SupplierLocatorCode": "U9S7HC",
+          "@ProviderReservationInfoRef": "AGtIcD4R2BKAOVPTIAAAAA=="
+        },
+        "common:BookingTravelerRef": {
+          "@Key": "AGtIcD4R2BKA62NTIAAAAA=="
+        },
+        "common:ProviderReservationInfoRef": {
+          "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+        },
+        "air:AirSegment": {
+          "@Key": "AGtIcD4R2BKA12NTIAAAAA==",
+          "@Group": "0",
+          "@Carrier": "6E",
+          "@CabinClass": "Economy",
+          "@FlightNumber": "6065",
+          "@ProviderCode": "ACH",
+          "@Origin": "BLR",
+          "@Destination": "DEL",
+          "@DepartureTime": "2018-04-12T12:30:00.000+05:30",
+          "@ArrivalTime": "2018-04-12T15:25:00.000+05:30",
+          "@FlightTime": "175",
+          "@TravelTime": "175",
+          "@ClassOfService": "M",
+          "@ETicketability": "No",
+          "@Equipment": "320",
+          "@Status": "PN",
+          "@ChangeOfPlane": "false",
+          "@SupplierCode": "6E",
+          "@ProviderReservationInfoRef": "AGtIcD4R2BKAOVPTIAAAAA==",
+          "@TravelOrder": "1",
+          "@ProviderSegmentOrder": "1",
+          "@OptionalServicesIndicator": "true",
+          "@ElStat": "A",
+          "air:CodeshareInfo": {
+            "@OperatingCarrier": "6E",
+            "@OperatingFlightNumber": "6065"
+          }
+        },
+        "air:AirPricingInfo": {
+          "@Key": "AGtIcD4R2BKA52NTIAAAAA==",
+          "@TotalPrice": "INR3105.00",
+          "@BasePrice": "INR1000.00",
+          "@ApproximateTotalPrice": "INR3105.00",
+          "@ApproximateBasePrice": "INR1000.00",
+          "@Taxes": "INR2105.00",
+          "@PricingMethod": "Auto",
+          "@ProviderCode": "ACH",
+          "@Fees": "INR0.00",
+          "@ProviderReservationInfoRef": "AGtIcD4R2BKAOVPTIAAAAA==",
+          "@ElStat": "A",
+          "air:FareInfo": {
+            "@Key": "AGtIcD4R2BKA42NTIAAAAA==",
+            "@FareBasis": "RM20AP",
+            "@PassengerTypeCode": "ADT",
+            "@Origin": "BLR",
+            "@Destination": "DEL",
+            "@EffectiveDate": "2018-01-22T17:41:22.489+05:30",
+            "@TravelDate": "2018-04-12",
+            "@DepartureDate": "2018-04-12",
+            "@Amount": "INR1000.00",
+            "@PromotionalFare": "false",
+            "@FareFamily": "SME Fare",
+            "@ElStat": "A",
+            "@SupplierCode": "6E",
+            "air:FareRuleKey": {
+              "@FareInfoRef": "Fare1",
+              "@ProviderCode": "ACH",
+              "#text": "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"
+            }
+          },
+          "air:BookingInfo": {
+            "@BookingCode": "M",
+            "@CabinClass": "Economy",
+            "@FareInfoRef": "AGtIcD4R2BKA42NTIAAAAA==",
+            "@SegmentRef": "AGtIcD4R2BKA12NTIAAAAA=="
+          },
+          "air:TaxInfo": [
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "UDF",
+              "@Amount": "INR352.00",
+              "@Key": "AGtIcD4R2BKADlOTIAAAAA=="
+            },
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "PSF",
+              "@Amount": "INR150.00",
+              "@Key": "AGtIcD4R2BKAElOTIAAAAA=="
+            },
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "IGST29",
+              "@Amount": "INR101.00",
+              "@Key": "AGtIcD4R2BKAFlOTIAAAAA=="
+            },
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "RCF",
+              "@Amount": "INR50.00",
+              "@Key": "AGtIcD4R2BKAGlOTIAAAAA=="
+            },
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "UDFA",
+              "@Amount": "INR477.00",
+              "@Key": "AGtIcD4R2BKAHlOTIAAAAA=="
+            },
+            {
+              "@Category": "YQ",
+              "@Amount": "INR975.00",
+              "@Key": "AGtIcD4R2BKAIlOTIAAAAA=="
+            }
+          ],
+          "air:PassengerType": {
+            "@Code": "ADT",
+            "@BookingTravelerRef": "AGtIcD4R2BKA62NTIAAAAA=="
+          },
+          "common:BookingTravelerRef": {
+            "@Key": "AGtIcD4R2BKA62NTIAAAAA=="
+          },
+          "air:PaymentRef": {
+            "@Key": "AGtIcD4R2BKASVPTIAAAAA=="
+          },
+          "air:FeeInfo": {
+            "@Key": "M2YJcD7Q2BKAIQ76HAAAAA==",
+            "@Amount": "INR0.00",
+            "@Code": "CCFD",
+            "@ProviderCode": "ACH",
+            "@SupplierCode": "6E",
+            "@ElStat": "A",
+            "@Text": "PaymentFee"
+          }
+        },
+        "common:Payment": {
+          "@Key": "AGtIcD4R2BKASVPTIAAAAA==",
+          "@Type": "Itinerary",
+          "@Amount": "INR5130.00",
+          "@ApproximateAmount": "INR5130.00",
+          "@FormOfPaymentRef": "AGtIcD4R2BKAH3NTIAAAAA==",
+          "@ElStat": "A"
+        },
+        "air:FeeInfo": {
+          "@Key": "M2YJcD7Q2BKAIQ76HAAAAA==",
+          "@Amount": "INR0",
+          "@Code": "CCFD",
+          "@ProviderCode": "ACH",
+          "@SupplierCode": "6E",
+          "@ElStat": "A",
+          "@Text": "PaymentFee",
+          "@PaymentRef": "AGtIcD4R2BKASVPTIAAAAA=="
+        },
+        "air:TaxInfo": [
+          {
+            "@Category": "DU",
+            "@CarrierDefinedCategory": "RCF",
+            "@Amount": "INR50.00",
+            "@Key": "AGtIcD4R2BKAaVPTIAAAAA==",
+            "@ProviderCode": "ACH",
+            "@SupplierCode": "6E",
+            "air:PaymentRef": {
+              "@Key": "AGtIcD4R2BKASVPTIAAAAA=="
+            }
+          },
+          {
+            "@Category": "YQ",
+            "@Amount": "INR975.00",
+            "@Key": "AGtIcD4R2BKAbVPTIAAAAA==",
+            "@ProviderCode": "ACH",
+            "@SupplierCode": "6E",
+            "air:PaymentRef": {
+              "@Key": "AGtIcD4R2BKASVPTIAAAAA=="
+            }
+          },
+          {
+            "@Category": "DU",
+            "@CarrierDefinedCategory": "UDFA",
+            "@Amount": "INR477.00",
+            "@Key": "AGtIcD4R2BKAcVPTIAAAAA==",
+            "@ProviderCode": "ACH",
+            "@SupplierCode": "6E",
+            "air:PaymentRef": {
+              "@Key": "AGtIcD4R2BKASVPTIAAAAA=="
+            }
+          },
+          {
+            "@Category": "DU",
+            "@CarrierDefinedCategory": "PSF",
+            "@Amount": "INR150.00",
+            "@Key": "AGtIcD4R2BKAdVPTIAAAAA==",
+            "@ProviderCode": "ACH",
+            "@SupplierCode": "6E",
+            "air:PaymentRef": {
+              "@Key": "AGtIcD4R2BKASVPTIAAAAA=="
+            }
+          },
+          {
+            "@Category": "DU",
+            "@CarrierDefinedCategory": "IGST29",
+            "@Amount": "INR101.00",
+            "@Key": "AGtIcD4R2BKAeVPTIAAAAA==",
+            "@ProviderCode": "ACH",
+            "@SupplierCode": "6E",
+            "air:PaymentRef": {
+              "@Key": "AGtIcD4R2BKASVPTIAAAAA=="
+            }
+          },
+          {
+            "@Category": "DU",
+            "@CarrierDefinedCategory": "UDF",
+            "@Amount": "INR352.00",
+            "@Key": "AGtIcD4R2BKAfVPTIAAAAA==",
+            "@ProviderCode": "ACH",
+            "@SupplierCode": "6E",
+            "air:PaymentRef": {
+              "@Key": "AGtIcD4R2BKASVPTIAAAAA=="
+            }
+          }
+        ]
+      },
+      "common:GeneralRemark": [
+        {
+          "@Key": "AGtIcD4R2BKAgVPTIAAAAA==",
+          "@TypeInGds": "Vendor",
+          "@SupplierType": "Air",
+          "@ProviderCode": "ACH",
+          "@ProviderReservationInfoRef": "AGtIcD4R2BKAOVPTIAAAAA==",
+          "@Direction": "Incoming",
+          "@ElStat": "A",
+          "common:RemarkData": "TVPv01 BKG AGT:1G/35O3/99999992/uAPI4708293572-f6790014/"
+        },
+        {
+          "@Key": "AGtIcD4R2BKAhVPTIAAAAA==",
+          "@TypeInGds": "Vendor",
+          "@SupplierType": "Air",
+          "@ProviderCode": "ACH",
+          "@ProviderReservationInfoRef": "AGtIcD4R2BKAOVPTIAAAAA==",
+          "@Direction": "Incoming",
+          "@ElStat": "A",
+          "common:RemarkData": "Advised of Fare Rule"
+        }
+      ],
+      "common:AgencyInfo": {
+        "common:AgentAction": {
+          "@ActionType": "Created",
+          "@AgentCode": "UAPI4708293572-F6790014",
+          "@BranchCode": "P7033829",
+          "@AgencyCode": "S7033821",
+          "@EventTime": "2018-01-22T12:39:58.149+00:00"
+        }
+      },
+      "common:AgencyContactInfo": {
+        "common:PhoneNumber": {
+          "@Key": "AGtIcD4R2BKAjVPTIAAAAA==",
+          "@Type": "Agency",
+          "@Location": "BLR",
+          "@CountryCode": "0091",
+          "@Number": "8050834511",
+          "@AreaCode": "80",
+          "@Text": "Galileo apisupport ref Mukil",
+          "@ElStat": "A",
+          "common:ProviderReservationInfoRef": {
+            "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+          }
+        }
+      },
+      "common:SSR": [
+        {
+          "@Key": "AGtIcD4R2BKAkVPTIAAAAA==",
+          "@Status": "HK",
+          "@Type": "GSTN",
+          "@FreeText": "/IND/21AACCM1932G1Z1/MSP SPONGE IRON LTD (KEONJHAR)",
+          "@Carrier": "6E",
+          "@ElStat": "A"
+        },
+        {
+          "@Key": "AGtIcD4R2BKAlVPTIAAAAA==",
+          "@Status": "HK",
+          "@Type": "GSTE",
+          "@FreeText": "/IND/MSPTAX//MSPSPONGE.COM",
+          "@Carrier": "6E",
+          "@ElStat": "A"
+        },
+        {
+          "@Key": "AGtIcD4R2BKA82NTIAAAAA==",
+          "@Status": "HK",
+          "@Type": "DOCS",
+          "@FreeText": "P/IN/S12345678/IN/12JUL86/M/23OCT26/KUMAR/MUKIL",
+          "@Carrier": "6E",
+          "@ProviderReservationInfoRef": "AGtIcD4R2BKAOVPTIAAAAA==",
+          "@ElStat": "A"
+        }
+      ],
+      "common:FormOfPayment": {
+        "@Key": "AGtIcD4R2BKAH3NTIAAAAA==",
+        "@Type": "Credit",
+        "@Reusable": "true",
+        "@ProfileKey": "5qev4yPQQdOXLvNxGcNsYQ==",
+        "@ElStat": "A",
+        "common:CreditCard": {
+          "@Type": "VI",
+          "@Number": "************1111",
+          "@ExpDate": "2018-09",
+          "@Name": "Test Travelport",
+          "@CVV": "***",
+          "common:BillingAddress": {
+            "@Key": "AGtIcD4R2BKAI3NTIAAAAA==",
+            "@ElStat": "A",
+            "common:AddressName": "Home",
+            "common:Street": "Richmond Road",
+            "common:City": "Bangalore",
+            "common:State": "KARNATAKA",
+            "common:PostalCode": "560025",
+            "common:Country": "IN"
+          }
+        },
+        "common:ProviderReservationInfoRef": {
+          "@Key": "AGtIcD4R2BKAOVPTIAAAAA=="
+        }
+      }
+    },
+    "air:AirSolutionChangedInfo": {
+      "@ReasonCode": "Price",
+      "air:AirPricingSolution": {
+        "@Key": "AGtIcD4R2BKAz2NTIAAAAA==",
+        "@Services": "INR2025.00",
+        "@ApproximateTaxes": "INR2105.00",
+        "@ApproximateFees": "INR100.00",
+        "air:AirSegment": {
+          "@Key": "AGtIcD4R2BKA12NTIAAAAA==",
+          "@Group": "0",
+          "@Carrier": "6E",
+          "@FlightNumber": "6065",
+          "@ProviderCode": "ACH",
+          "@Origin": "BLR",
+          "@Destination": "DEL",
+          "@DepartureTime": "2018-04-12T12:30:00.000+05:30",
+          "@ArrivalTime": "2018-04-12T15:25:00.000+05:30",
+          "@FlightTime": "175",
+          "@TravelTime": "175",
+          "@ClassOfService": "M",
+          "@Equipment": "320",
+          "@Status": "KK",
+          "@SupplierCode": "6E",
+          "@HostTokenRef": "AGtIcD4R2BKA02NTIAAAAA==",
+          "@TravelOrder": "1",
+          "@OptionalServicesIndicator": "true",
+          "air:CodeshareInfo": {
+            "@OperatingCarrier": "6E",
+            "@OperatingFlightNumber": "6065",
+            "#text": "IndiGo"
+          }
+        },
+        "air:AirPricingInfo": {
+          "@Key": "AGtIcD4R2BKA52NTIAAAAA==",
+          "@TotalPrice": "INR3205.00",
+          "@BasePrice": "INR1000.00",
+          "@ApproximateTotalPrice": "INR3205.00",
+          "@ApproximateBasePrice": "INR1000.00",
+          "@ApproximateTaxes": "INR2105",
+          "@ApproximateFees": "INR100.00",
+          "@Taxes": "INR2105",
+          "@PricingMethod": "Auto",
+          "@ProviderCode": "ACH",
+          "@Fees": "INR100.00",
+          "air:FareInfo": {
+            "@Key": "AGtIcD4R2BKA42NTIAAAAA==",
+            "@FareBasis": "RM20AP",
+            "@PassengerTypeCode": "ADT",
+            "@Origin": "BLR",
+            "@Destination": "DEL",
+            "@EffectiveDate": "2018-01-22T17:41:22.489+05:30",
+            "@TravelDate": "2018-04-12",
+            "@DepartureDate": "2018-04-12",
+            "@Amount": "INR1000.00",
+            "@PromotionalFare": "false",
+            "@FareFamily": "SME Fare",
+            "@SupplierCode": "6E",
+            "air:FareRuleKey": {
+              "@FareInfoRef": "Fare1",
+              "@ProviderCode": "ACH",
+              "#text": "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"
+            },
+            "air:Brand": {
+              "@Key": "Fare1",
+              "@BrandFound": "false"
+            }
+          },
+          "air:BookingInfo": {
+            "@BookingCode": "M",
+            "@CabinClass": "Economy",
+            "@FareInfoRef": "AGtIcD4R2BKA42NTIAAAAA==",
+            "@SegmentRef": "AGtIcD4R2BKA12NTIAAAAA==",
+            "@HostTokenRef": "Host1"
+          },
+          "air:PassengerType": {
+            "@Code": "ADT",
+            "@BookingTravelerRef": "AGtIcD4R2BKA62NTIAAAAA=="
+          },
+          "common:BookingTravelerRef": {
+            "@Key": "AGtIcD4R2BKA62NTIAAAAA=="
+          },
+          "air:FeeInfo": {
+            "@Key": "M2YJcD7Q2BKAIQ76HAAAAA==",
+            "@Amount": "INR100.00",
+            "@Code": "CCFD",
+            "@ProviderCode": "ACH",
+            "@SupplierCode": "6E",
+            "@Text": "PaymentFee"
+          }
+        },
+        "air:FeeInfo": {
+          "@Key": "M2YJcD7Q2BKAJQ76HAAAAA==",
+          "@Amount": "INR100.00",
+          "@Code": "CCFD",
+          "@ProviderCode": "ACH",
+          "@SupplierCode": "6E",
+          "@Text": "PaymentFee"
+        },
+        "common:HostToken": {
+          "@Key": "AGtIcD4R2BKA02NTIAAAAA==",
+          "#text": "NNS6E{IS###}INR{CC###ET}ACHSDv01LPD1:18910bb2-d885-49f8-bad6-47266270b3c6"
+        },
+        "air:OptionalServices": {
+          "air:OptionalServicesTotal": {
+            "@TotalPrice": "INR2025.00",
+            "@BasePrice": "INR2025.00",
+            "@ApproximateTotalPrice": "INR2025.00",
+            "@ApproximateBasePrice": "INR2025.00",
+            "@Taxes": "INR0",
+            "air:TaxInfo": [
+              {
+                "@Category": "DU",
+                "@CarrierDefinedCategory": "CGST29",
+                "@Amount": "INR0"
+              },
+              {
+                "@Category": "DU",
+                "@CarrierDefinedCategory": "SGST29",
+                "@Amount": "INR0"
+              }
+            ]
+          },
+          "air:OptionalService": [
+            {
+              "@Type": "PreReservedSeatAssignment",
+              "@TotalPrice": "INR600.00",
+              "@SupplierCode": "6E",
+              "@CreateDate": "2018-01-22T12:11:22.490+00:00",
+              "@ServiceStatus": "Priced",
+              "@Key": "M2YJcD7Q2BKAOQ76HAAAAA==",
+              "@AssessIndicator": "MileageOrCurrency",
+              "@Source": "ACH",
+              "@ProviderCode": "ACH",
+              "@Quantity": "1",
+              "@ProviderDefinedType": "SA__PR",
+              "@BasePrice": "INR600.00",
+              "@ApproximateTotalPrice": "INR600.00",
+              "@ApproximateBasePrice": "INR600.00",
+              "@Taxes": "INR0",
+              "common:ServiceData": {
+                "@Data": "1-C",
+                "@BookingTravelerRef": "AGtIcD4R2BKA62NTIAAAAA==",
+                "@AirSegmentRef": "AGtIcD4R2BKA12NTIAAAAA=="
+              },
+              "common:ServiceInfo": {
+                "common:Description": "Premium Seat Assignment - Premium Seat Assignment"
+              },
+              "air:TaxInfo": [
+                {
+                  "@Category": "DU",
+                  "@CarrierDefinedCategory": "CGST29",
+                  "@Amount": "INR0",
+                  "@Key": "AGtIcD4R2BKAF3NTIAAAAA=="
+                },
+                {
+                  "@Category": "DU",
+                  "@CarrierDefinedCategory": "SGST29",
+                  "@Amount": "INR0",
+                  "@Key": "AGtIcD4R2BKAG3NTIAAAAA=="
+                }
+              ]
+            },
+            {
+              "@Type": "Baggage",
+              "@TotalPrice": "INR1425.00",
+              "@SupplierCode": "6E",
+              "@CreateDate": "2018-01-22T12:11:22.490+00:00",
+              "@ServiceStatus": "Priced",
+              "@Key": "M2YJcD7Q2BKANQ76HAAAAA==",
+              "@AssessIndicator": "MileageOrCurrency",
+              "@Source": "ACH",
+              "@ProviderCode": "ACH",
+              "@Quantity": "1",
+              "@ProviderDefinedType": "BGXS05",
+              "@BasePrice": "INR1425.00",
+              "@ApproximateTotalPrice": "INR1425.00",
+              "@ApproximateBasePrice": "INR1425.00",
+              "common:ServiceData": {
+                "@BookingTravelerRef": "AGtIcD4R2BKA62NTIAAAAA==",
+                "@AirSegmentRef": "AGtIcD4R2BKA12NTIAAAAA=="
+              },
+              "common:ServiceInfo": {
+                "common:Description": [
+                  "Check-in baggage - up to 5kg - Check-in baggage - up to 5kg",
+                  "Excess baggage does not include Special Baggage Charges (charges levied on sporting equipment, skiing equipment, LED/LCD etc.) which shall attract charges over and above. If a passenger is carrying any special baggage, it shall warrant an additional free, which can be paid at the time of check-in. - Check-in baggage - up to 5kg"
+                ]
+              }
+            },
+            {
+              "@Type": "MealOrBeverage",
+              "@TotalPrice": "INR0.00",
+              "@SupplierCode": "6E",
+              "@CreateDate": "2018-01-22T12:11:22.490+00:00",
+              "@ServiceStatus": "Priced",
+              "@Key": "M2YJcD7Q2BKAMQ76HAAAAA==",
+              "@AssessIndicator": "MileageOrCurrency",
+              "@Source": "ACH",
+              "@ProviderCode": "ACH",
+              "@Quantity": "1",
+              "@ProviderDefinedType": "ML__FR",
+              "@BasePrice": "INR0.00",
+              "@ApproximateTotalPrice": "INR0.00",
+              "@ApproximateBasePrice": "INR0.00",
+              "common:ServiceData": {
+                "@BookingTravelerRef": "AGtIcD4R2BKA62NTIAAAAA==",
+                "@AirSegmentRef": "AGtIcD4R2BKA12NTIAAAAA=="
+              },
+              "common:ServiceInfo": {
+                "common:Description": [
+                  "Complementary Corporate Meal - Complementary Corporate Meal",
+                  "Meal is available only on the first segment in a connecting flight - Complementary Corporate Meal"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

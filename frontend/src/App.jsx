@@ -7,7 +7,10 @@ import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 
-const API_BASE = 'http://localhost:8000/api';
+// Use whatever host the page was loaded from (not a hardcoded 'localhost') so
+// this also works when someone on the same network opens this machine's LAN
+// IP instead of localhost — the backend runs on the same machine, port 8000.
+const API_BASE = `http://${window.location.hostname}:8000/api`;
 
 const fetchWithRetry = async (url, options = {}, retries = 3, delay = 1000) => {
   for (let i = 0; i < retries; i++) {
@@ -1104,6 +1107,34 @@ export default function App() {
   // will surface that as a normal error banner until Travelport enables the
   // product — no frontend changes needed when that happens.
   const [hotelDestination, setHotelDestination] = useState('');
+  // Country -> City selector for hotel destination (Travelport's Hotel API has
+  // no country-level search of its own — see propertyFilter.location on
+  // POST /12/hotel/search/searchcomplete, which only accepts cityIATACode /
+  // airportIATACode / coordinates / address). This is a client-side UX
+  // filter over our own 7900+ airport reference dataset (which already
+  // carries an ISO alpha-2 country per entry) that resolves down to the same
+  // cityIATACode hotelDestination the search call has always used.
+  const [hotelCountries, setHotelCountries] = useState([]);
+  const [hotelCountry, setHotelCountry] = useState('');
+  const [hotelCities, setHotelCities] = useState([]);
+  const [hotelCitiesLoading, setHotelCitiesLoading] = useState(false);
+
+  useEffect(() => {
+    fetchWithRetry(`${API_BASE}/reference/countries`)
+      .then(res => res.json())
+      .then(data => setHotelCountries(data.countries || []))
+      .catch(() => setHotelCountries([]));
+  }, []);
+
+  useEffect(() => {
+    if (!hotelCountry) { setHotelCities([]); return; }
+    setHotelCitiesLoading(true);
+    fetchWithRetry(`${API_BASE}/reference/airports?country=${encodeURIComponent(hotelCountry)}`)
+      .then(res => res.json())
+      .then(data => { setHotelCities(data.airports || []); setHotelCitiesLoading(false); })
+      .catch(() => { setHotelCities([]); setHotelCitiesLoading(false); });
+  }, [hotelCountry]);
+
   const [hotelCheckIn, setHotelCheckIn] = useState(getTomorrow());
   const [hotelCheckOut, setHotelCheckOut] = useState(() => {
     const d = new Date();
@@ -1322,7 +1353,7 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab === 'bookings' && adminToken) fetchBookings();
-    if (activeTab === 'home' && packages.length === 0 && !packagesLoading) loadPackages();
+    if ((activeTab === 'home' || activeTab === 'packages') && packages.length === 0 && !packagesLoading) loadPackages();
   }, [activeTab]);
 
   const showNotification = (message, type = 'success') => {
@@ -5481,12 +5512,37 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </p>
                 <form onSubmit={searchHotels}>
                   <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <AirportSearchSelect
-                      value={hotelDestination}
-                      onChange={setHotelDestination}
-                      label="Destination *"
-                      placeholder="Search city or airport..."
-                    />
+                    <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
+                      <label className="form-label">Country *</label>
+                      <select
+                        className="form-input"
+                        required
+                        value={hotelCountry}
+                        onChange={e => { setHotelCountry(e.target.value); setHotelDestination(''); }}
+                      >
+                        <option value="">Select country...</option>
+                        {hotelCountries.map(c => (
+                          <option key={c.code} value={c.code}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
+                      <label className="form-label">City *</label>
+                      <select
+                        className="form-input"
+                        required
+                        disabled={!hotelCountry || hotelCitiesLoading}
+                        value={hotelDestination}
+                        onChange={e => setHotelDestination(e.target.value)}
+                      >
+                        <option value="">
+                          {!hotelCountry ? 'Select a country first' : hotelCitiesLoading ? 'Loading cities...' : hotelCities.length === 0 ? 'No cities available' : 'Select city...'}
+                        </option>
+                        {hotelCities.map(a => (
+                          <option key={a.iata} value={a.iata}>{a.city} ({a.iata})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>

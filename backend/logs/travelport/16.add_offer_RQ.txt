@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/1acb4718-50a5-4d55-8e69-d1339e67f2b2/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NjM4MjYsImV4cCI6MTc4OTU1MDIyNiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ppsB66QKW1LPeW1XEnavSXDaODnS-42dQT9hvPYPPHtm9nYw2QZRRQhxwItVKvYvfJYWz3EH_EIfzgG2VTZRZ1tjxylOBIjYvG8tHP_vNTCUXK2qCbQ1wrFRG6uTf9lLj0lh8nkL01PkMYJD0WlJolhKVMtRm23DC-kPWvRHcVFMctbV_1AfXCOuKx9Vr7Ho_OqepvqB1jb3sCHuifKZ6wYSw6pAmoLtCrps4orE5wDsDzH7Nslo_GSn3_oZ5DtKec4a5Z4unBYkvURplcDo4md6DW6gdmOEW7haeTklbxXE6ReaOfcmeTCDf9CUu78zWOxZD3YCy3NpOfk38sohUg' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/09e4acd3-7a52-4d93-b216-328f7bf3337e/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTA2NTM3MzIsImV4cCI6MTc5MDc0MDEzMiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Q0xWljCMc4whb5h1ZLXPQcM-qOFbm3hNM_ksGhy_23p2bxtGEH5rBLrNgUd39fE-BMJp5wUKNd7rwyaudZDC9YJ_1p_dva1prhRoXXDtg8OW_UcSL2B-ug5I2X3QeNHc1cmgI5LXhoFJuFpMLeywLS32l_kveuQd6sncBnZZIZCcjPHniLPIchHA1YiwuRYA7jsg8o8IlPvXVYtJaLSm-dv3pwmANMS2tkr8ck8TOgFWFHnwUb6qdwYh2jjERnnku8E2-aaYGWjju71tv2kAzJ_4bKMqoG9qciKTWJG0meDx6NAdk4EZ4fkGo6eEJbQesxDFHN1Y3WE-P9puu7_gKg' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,65 +7,32 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_73AA55C736B3' \
+--header 'traceid: TraceID_970E9F745B6E' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "AI",
-                        "flightNumber": "2275",
-                        "from": "CMB",
-                        "to": "BOM",
-                        "departureDate": "2026-09-16",
-                        "segmentSequence": 1,
-                        "departureTime": "09:40:00",
-                        "arrivalDate": "2026-09-16",
-                        "arrivalTime": "12:25:00",
-                        "cabin": "Economy",
-                        "classOfService": "L",
-                        "ContentSource": "NDC"
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "266c3055-0871-4e4f-98fb-1a1619652744"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "QR_CPO0"
+                        }
                     },
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "AI",
-                        "flightNumber": "2217",
-                        "from": "BOM",
-                        "to": "DXB",
-                        "departureDate": "2026-09-16",
-                        "segmentSequence": 2,
-                        "departureTime": "16:05:00",
-                        "arrivalDate": "2026-09-16",
-                        "arrivalTime": "17:55:00",
-                        "cabin": "Economy",
-                        "classOfService": "L",
-                        "ContentSource": "NDC"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Value",
-                "BrandRef": "AIb1"
-            }
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "QRp0"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'

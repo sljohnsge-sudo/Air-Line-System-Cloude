@@ -1,0 +1,249 @@
+{
+  "air:AirPriceReq": {
+    "@AuthorizedBy": "user",
+    "@CheckOBFees": "All",
+    "@TargetBranch": "P7033829",
+    "@TraceId": "UGV_test1",
+    "@xsi:schemaLocation": "http://www.travelport.com/schema/air_v43_0 file:///C:/Users/mukil.kumar/Documents/Ecommerce/WSDL/Release-V17.4.0.36-V17.4/air_v43_0/AirReqRsp.xsd",
+    "common:BillingPointOfSaleInfo": {
+      "@OriginApplication": ""
+    },
+    "air:AirItinerary": {
+      "air:AirSegment": {
+        "@Key": "Seg1",
+        "@Group": "0",
+        "@Carrier": "6E",
+        "@FlightNumber": "6065",
+        "@Origin": "BLR",
+        "@Destination": "DEL",
+        "@DepartureTime": "2018-04-12T12:30:00.000+05:30",
+        "@ArrivalTime": "2018-04-12T15:25:00.000+05:30",
+        "@FlightTime": "175",
+        "@Equipment": "320",
+        "@Status": "KK",
+        "@SupplierCode": "6E",
+        "@ChangeOfPlane": "false",
+        "@OptionalServicesIndicator": "false",
+        "@APISRequirementsRef": "apis",
+        "@ClassOfService": "M",
+        "@HostTokenRef": "h0R1",
+        "@ProviderCode": "ACH"
+      },
+      "common:HostToken": {
+        "@Key": "h0R1",
+        "#text": "NNS6E{IS###}INR{CC###ET}ACHSDv01LPD1:0a41d711-8d4c-4b04-a08e-a83a3fba0acf"
+      }
+    },
+    "common:SearchPassenger": {
+      "@Code": "ADT",
+      "@BookingTravelerRef": "PAX1"
+    },
+    "air:AirPricingCommand": {
+      "air:AirSegmentPricingModifiers": {
+        "@AirSegmentRef": "Seg1",
+        "@FareBasisCode": "RM20AP"
+      }
+    },
+    "air:OptionalServices": {
+      "air:OptionalService": [
+        {
+          "@Type": "MealOrBeverage",
+          "@TotalPrice": "INR0.00",
+          "@SupplierCode": "6E",
+          "@CreateDate": "2018-01-22T12:00:20.268+00:00",
+          "@ServiceStatus": "Priced",
+          "@Key": "AGtIcD4R2BKAXz7QIAAAAA==",
+          "@AssessIndicator": "MileageOrCurrency",
+          "@IsPricingApproximate": "false",
+          "@Source": "ACH",
+          "@ProviderCode": "ACH",
+          "@Quantity": "1",
+          "@ProviderDefinedType": "ML__FR",
+          "@BasePrice": "INR0.00",
+          "@ApproximateTotalPrice": "INR0.00",
+          "@ApproximateBasePrice": "INR0.00",
+          "common:ServiceData": {
+            "@BookingTravelerRef": "PAX1",
+            "@AirSegmentRef": "Seg1"
+          },
+          "common:ServiceInfo": {
+            "common:Description": [
+              "Complementary Corporate Meal - Complementary Corporate Meal",
+              "Meal is available only on the first segment in a connecting flight - Complementary Corporate Meal"
+            ]
+          }
+        },
+        {
+          "@Type": "Baggage",
+          "@TotalPrice": "INR1425.00",
+          "@SupplierCode": "6E",
+          "@CreateDate": "2018-01-22T12:00:20.269+00:00",
+          "@ServiceStatus": "Offered",
+          "@Key": "AGtIcD4R2BKAcz7QIAAAAA==",
+          "@AssessIndicator": "MileageOrCurrency",
+          "@IsPricingApproximate": "false",
+          "@Source": "ACH",
+          "@DisplayText": "Baggage, 5kg",
+          "@ProviderCode": "ACH",
+          "@Quantity": "1",
+          "@ProviderDefinedType": "BGXS05",
+          "@BasePrice": "INR1425.00",
+          "@ApproximateTotalPrice": "INR1425.00",
+          "@ApproximateBasePrice": "INR1425.00",
+          "@Taxes": "INR0",
+          "@OptionalServicesRuleRef": "AGtIcD4R2BKAfz7QIAAAAA==",
+          "common:ServiceData": {
+            "@BookingTravelerRef": "PAX1",
+            "@AirSegmentRef": "Seg1"
+          },
+          "common:ServiceInfo": {
+            "common:Description": [
+              "Check-in baggage - up to 5kg - Check-in baggage - up to 5kg",
+              "Excess baggage does not include Special Baggage Charges (charges levied on sporting equipment, skiing equipment, LED/LCD etc.) which shall attract charges over and above. If a passenger is carrying any special baggage, it shall warrant an additional free, which can be paid at the time of check-in. - Check-in baggage - up to 5kg"
+            ]
+          },
+          "air:TaxInfo": [
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "CGST29",
+              "@Amount": "INR0",
+              "@Key": "AGtIcD4R2BKAdz7QIAAAAA=="
+            },
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "SGST29",
+              "@Amount": "INR0",
+              "@Key": "AGtIcD4R2BKAez7QIAAAAA=="
+            }
+          ],
+          "air:BrandingInfo": {
+            "@Key": "BI11",
+            "@ServiceType": "F",
+            "@CommercialName": "Check-in baggage - up to 5kg",
+            "air:Text": [
+              {
+                "@Type": "Strapline",
+                "@LanguageCode": "EN",
+                "#text": "Prepaid excess baggage"
+              },
+              {
+                "@Type": "MarketingAgent",
+                "@LanguageCode": "EN",
+                "#text": "Pack more and save more with our prepaid baggage service."
+              },
+              {
+                "@Type": "MarketingConsumer",
+                "@LanguageCode": "EN",
+                "#text": "Pack more and save more with our prepaid baggage service."
+              }
+            ],
+            "air:Title": {
+              "@Type": "External",
+              "@LanguageCode": "EN",
+              "#text": "Check-in baggage - up to 5kg"
+            },
+            "air:ImageLocation": [
+              {
+                "@Type": "Agent",
+                "@ImageWidth": "60",
+                "@ImageHeight": "60",
+                "#text": "https://merchandisingmanagement.pp.travelport.com/documents/10431/289930/Checked%20baggage.png"
+              },
+              {
+                "@Type": "Consumer",
+                "@ImageWidth": "60",
+                "@ImageHeight": "60",
+                "#text": "https://merchandisingmanagement.pp.travelport.com/documents/10431/289930/Checked%20baggage.png"
+              }
+            ],
+            "air:ServiceGroup": {
+              "@Code": "BG",
+              "air:ServiceSubGroup": {
+                "@Code": "XS"
+              }
+            },
+            "air:AirSegmentRef": {
+              "@Key": "Seg1"
+            }
+          }
+        },
+        {
+          "@Type": "PreReservedSeatAssignment",
+          "@TotalPrice": "INR600.00",
+          "@SupplierCode": "6E",
+          "@CreateDate": "2018-01-22T12:00:20.269+00:00",
+          "@ServiceStatus": "Offered",
+          "@Key": "AGtIcD4R2BKA0z7QIAAAAA==",
+          "@AssessIndicator": "MileageOrCurrency",
+          "@IsPricingApproximate": "false",
+          "@Source": "ACH",
+          "@DisplayText": "Seat, Premium",
+          "@ProviderCode": "ACH",
+          "@Quantity": "1",
+          "@ProviderDefinedType": "SA__PR",
+          "@BasePrice": "INR600.00",
+          "@ApproximateTotalPrice": "INR600.00",
+          "@ApproximateBasePrice": "INR600.00",
+          "@Taxes": "INR0",
+          "@OptionalServicesRuleRef": "AGtIcD4R2BKA3z7QIAAAAA==",
+          "common:ServiceData": {
+            "@BookingTravelerRef": "PAX1",
+            "@AirSegmentRef": "Seg1",
+            "@Data": "1-B"
+          },
+          "common:ServiceInfo": {
+            "common:Description": "Premium Seat Assignment - Premium Seat Assignment"
+          },
+          "air:TaxInfo": [
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "CGST29",
+              "@Amount": "INR0",
+              "@Key": "AGtIcD4R2BKA1z7QIAAAAA=="
+            },
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "SGST29",
+              "@Amount": "INR0",
+              "@Key": "AGtIcD4R2BKA2z7QIAAAAA=="
+            }
+          ],
+          "air:BrandingInfo": {
+            "@Key": "BI8",
+            "@CommercialName": "Premium Seat Assignment",
+            "air:Title": {
+              "@Type": "External",
+              "@LanguageCode": "EN",
+              "#text": "Premium Seat Assignment"
+            },
+            "air:AirSegmentRef": {
+              "@Key": "Seg1"
+            }
+          }
+        }
+      ]
+    },
+    "common:FormOfPayment": {
+      "@Type": "Credit",
+      "common:CreditCard": {
+        "@Type": "VI"
+      }
+    },
+    "common:SSR": [
+      {
+        "@Key": "1",
+        "@Type": "GSTN",
+        "@Status": "HK",
+        "@Carrier": "6E",
+        "@FreeText": "/IND/21AACCM1932G1Z1/MSP SPONGE IRON LTD (Keonjhar)"
+      },
+      {
+        "@Key": "2",
+        "@Type": "GSTE",
+        "@Status": "HK",
+        "@Carrier": "6E",
+        "@FreeText": "/IND/msptax//mspsponge.com"
+      }
+    ]
+  }
+}

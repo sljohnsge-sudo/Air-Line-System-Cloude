@@ -76,7 +76,7 @@ def search_hotels(
         },
     }
 
-    headers = get_hotel_headers()
+    headers = get_hotel_headers(api_version=12)
     with httpx.Client(timeout=HotelConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.post(HotelEndpoints.SEARCH_COMPLETE, json=payload, headers=headers)
 

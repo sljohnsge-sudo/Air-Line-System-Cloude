@@ -1,0 +1,332 @@
+{
+  "universal:AirCreateReservationReq": {
+    "@AuthorizedBy": "user",
+    "@RetainReservation": "None",
+    "@TargetBranch": "P7033829",
+    "@xsi:schemaLocation": "http://www.travelport.com/schema/universal_v43_0 file:///C:/Users/mukil.kumar/Documents/Ecommerce/WSDL/Release-V17.4.0.36-V17.4/universal_v43_0/UniversalRecordReqRsp.xsd",
+    "common:BillingPointOfSaleInfo": {
+      "@OriginApplication": "UAPI"
+    },
+    "common:BookingTraveler": {
+      "@DOB": "1986-07-12",
+      "@Age": "31",
+      "@Key": "PAX1",
+      "@Nationality": "IN",
+      "@TravelerType": "ADT",
+      "@Gender": "M",
+      "common:BookingTravelerName": {
+        "@First": "Mukil",
+        "@Last": "Kumar",
+        "@Prefix": "MR"
+      },
+      "common:DeliveryInfo": {
+        "common:ShippingAddress": {
+          "common:AddressName": "Home",
+          "common:Street": "Richmond Road",
+          "common:City": "Bangalore",
+          "common:PostalCode": "560025",
+          "common:Country": "IN"
+        }
+      },
+      "common:PhoneNumber": {
+        "@Number": "7795506000",
+        "@Type": "Mobile",
+        "@Text": "API Support test"
+      },
+      "common:Email": {
+        "@EmailID": "mukil.kumar@galileo.co.in",
+        "@Type": "P"
+      },
+      "common:SSR": {
+        "@Type": "DOCS",
+        "@Carrier": "6E",
+        "@Status": "HK",
+        "@FreeText": "P/IN/S12345678/IN/12JUL86/M/23OCT26/KUMAR/MUKIL"
+      },
+      "common:Address": {
+        "common:AddressName": "Home",
+        "common:Street": "Richmond Road",
+        "common:City": "Bangalore",
+        "common:PostalCode": "560025",
+        "common:Country": "IN"
+      }
+    },
+    "common:AgencyContactInfo": {
+      "common:PhoneNumber": {
+        "@Type": "Agency",
+        "@Location": "BLR",
+        "@CountryCode": "0091",
+        "@AreaCode": "80",
+        "@Number": "8050834511",
+        "@Text": "Galileo apisupport ref Mukil"
+      }
+    },
+    "common:SSR": [
+      {
+        "@Key": "1",
+        "@Type": "GSTN",
+        "@Status": "HK",
+        "@Carrier": "6E",
+        "@FreeText": "/IND/21AACCM1932G1Z1/MSP SPONGE IRON LTD (Keonjhar)"
+      },
+      {
+        "@Key": "2",
+        "@Type": "GSTE",
+        "@Status": "HK",
+        "@Carrier": "6E",
+        "@FreeText": "/IND/msptax//mspsponge.com"
+      }
+    ],
+    "common:EmailNotification": {
+      "@Recipients": "All"
+    },
+    "common:FormOfPayment": {
+      "@Type": "Credit",
+      "common:CreditCard": {
+        "@BankCountryCode": "IN",
+        "@BankName": "VISA",
+        "@CVV": "123",
+        "@ExpDate": "2018-09",
+        "@Name": "Test Travelport",
+        "@Number": "4444333322221111",
+        "@Type": "VI",
+        "common:BillingAddress": {
+          "common:AddressName": "Home",
+          "common:Street": "Richmond Road",
+          "common:City": "Bangalore",
+          "common:State": "Karnataka",
+          "common:PostalCode": "560025",
+          "common:Country": "IN"
+        }
+      }
+    },
+    "air:AirPricingSolution": {
+      "@Key": "Sol1",
+      "@TotalPrice": "INR5230.00",
+      "@BasePrice": "INR1000.00",
+      "@ApproximateTotalPrice": "INR5230.00",
+      "@ApproximateBasePrice": "INR1000.00",
+      "@Taxes": "INR2105.00",
+      "@Fees": "INR100.00",
+      "@Services": "INR2025.00",
+      "@ApproximateTaxes": "INR2105.00",
+      "@ApproximateFees": "INR100.00",
+      "air:AirSegment": {
+        "@Key": "Seg1",
+        "@Group": "0",
+        "@Carrier": "6E",
+        "@FlightNumber": "6065",
+        "@ProviderCode": "ACH",
+        "@Origin": "BLR",
+        "@Destination": "DEL",
+        "@DepartureTime": "2018-04-12T12:30:00.000+05:30",
+        "@ArrivalTime": "2018-04-12T15:25:00.000+05:30",
+        "@FlightTime": "175",
+        "@TravelTime": "175",
+        "@ClassOfService": "M",
+        "@Equipment": "320",
+        "@Status": "KK",
+        "@ChangeOfPlane": "false",
+        "@HostTokenRef": "Host1",
+        "@SupplierCode": "6E",
+        "@OptionalServicesIndicator": "true",
+        "@APISRequirementsRef": "APIS",
+        "air:CodeshareInfo": {
+          "@OperatingCarrier": "6E",
+          "@OperatingFlightNumber": "6065",
+          "#text": "IndiGo"
+        }
+      },
+      "air:AirPricingInfo": {
+        "@Key": "Price1",
+        "@TotalPrice": "INR3205.00",
+        "@BasePrice": "INR1000.00",
+        "@ApproximateTotalPrice": "INR3205.00",
+        "@ApproximateBasePrice": "INR1000.00",
+        "@ApproximateTaxes": "INR2105",
+        "@ApproximateFees": "INR100.00",
+        "@Taxes": "INR2105",
+        "@PricingMethod": "Auto",
+        "@ProviderCode": "ACH",
+        "@Fees": "INR100.00",
+        "air:FareInfo": {
+          "@Key": "Fare1",
+          "@FareBasis": "RM20AP",
+          "@PassengerTypeCode": "ADT",
+          "@Origin": "BLR",
+          "@Destination": "DEL",
+          "@EffectiveDate": "2018-01-22T17:41:22.489+05:30",
+          "@DepartureDate": "2018-04-12",
+          "@Amount": "INR1000.00",
+          "@PromotionalFare": "false",
+          "@FareFamily": "SME Fare",
+          "@SupplierCode": "6E",
+          "air:FareRuleKey": {
+            "@FareInfoRef": "Fare1",
+            "@ProviderCode": "ACH",
+            "#text": "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"
+          },
+          "air:Brand": {
+            "@Key": "Fare1",
+            "@BrandFound": "false"
+          }
+        },
+        "air:BookingInfo": {
+          "@BookingCode": "M",
+          "@CabinClass": "Economy",
+          "@FareInfoRef": "Fare1",
+          "@SegmentRef": "Seg1",
+          "@HostTokenRef": "Host1"
+        },
+        "air:PassengerType": {
+          "@Code": "ADT",
+          "@BookingTravelerRef": "PAX1"
+        },
+        "air:FeeInfo": {
+          "@Key": "M2YJcD7Q2BKAIQ76HAAAAA==",
+          "@Amount": "INR100.00",
+          "@Code": "CCFD",
+          "@ProviderCode": "ACH",
+          "@SupplierCode": "6E",
+          "@Text": "PaymentFee"
+        }
+      },
+      "air:FeeInfo": {
+        "@Key": "M2YJcD7Q2BKAJQ76HAAAAA==",
+        "@Amount": "INR100.00",
+        "@Code": "CCFD",
+        "@ProviderCode": "ACH",
+        "@SupplierCode": "6E",
+        "@Text": "PaymentFee"
+      },
+      "common:HostToken": {
+        "@Key": "Host1",
+        "#text": "NNS6E{IS###}INR{CC###ET}ACHSDv01LPD1:18910bb2-d885-49f8-bad6-47266270b3c6"
+      },
+      "air:OptionalServices": {
+        "air:OptionalServicesTotal": {
+          "@TotalPrice": "INR2025.00",
+          "@BasePrice": "INR2025.00",
+          "@ApproximateTotalPrice": "INR2025.00",
+          "@ApproximateBasePrice": "INR2025.00",
+          "@Taxes": "INR0",
+          "air:TaxInfo": [
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "CGST29",
+              "@Amount": "INR0",
+              "@Key": "M2YJcD7Q2BKAOP76HAAAAA=="
+            },
+            {
+              "@Category": "DU",
+              "@CarrierDefinedCategory": "SGST29",
+              "@Amount": "INR0",
+              "@Key": "M2YJcD7Q2BKAPP76HAAAAA=="
+            }
+          ]
+        },
+        "air:OptionalService": [
+          {
+            "@Type": "MealOrBeverage",
+            "@TotalPrice": "INR0.00",
+            "@SupplierCode": "6E",
+            "@CreateDate": "2018-01-22T12:11:22.490+00:00",
+            "@ServiceStatus": "Priced",
+            "@Key": "M2YJcD7Q2BKAMQ76HAAAAA==",
+            "@AssessIndicator": "MileageOrCurrency",
+            "@IsPricingApproximate": "false",
+            "@Source": "ACH",
+            "@ProviderCode": "ACH",
+            "@Quantity": "1",
+            "@ProviderDefinedType": "ML__FR",
+            "@BasePrice": "INR0.00",
+            "@ApproximateTotalPrice": "INR0.00",
+            "@ApproximateBasePrice": "INR0.00",
+            "common:ServiceData": {
+              "@BookingTravelerRef": "PAX1",
+              "@AirSegmentRef": "Seg1"
+            },
+            "common:ServiceInfo": {
+              "common:Description": [
+                "Complementary Corporate Meal - Complementary Corporate Meal",
+                "Meal is available only on the first segment in a connecting flight - Complementary Corporate Meal"
+              ]
+            }
+          },
+          {
+            "@Type": "Baggage",
+            "@TotalPrice": "INR1425.00",
+            "@SupplierCode": "6E",
+            "@CreateDate": "2018-01-22T12:11:22.490+00:00",
+            "@ServiceStatus": "Priced",
+            "@Key": "M2YJcD7Q2BKANQ76HAAAAA==",
+            "@AssessIndicator": "MileageOrCurrency",
+            "@IsPricingApproximate": "false",
+            "@Source": "ACH",
+            "@ProviderCode": "ACH",
+            "@Quantity": "1",
+            "@ProviderDefinedType": "BGXS05",
+            "@BasePrice": "INR1425.00",
+            "@ApproximateTotalPrice": "INR1425.00",
+            "@ApproximateBasePrice": "INR1425.00",
+            "common:ServiceData": {
+              "@BookingTravelerRef": "PAX1",
+              "@AirSegmentRef": "Seg1"
+            },
+            "common:ServiceInfo": {
+              "common:Description": [
+                "Check-in baggage - up to 5kg - Check-in baggage - up to 5kg",
+                "Excess baggage does not include Special Baggage Charges (charges levied on sporting equipment, skiing equipment, LED/LCD etc.) which shall attract charges over and above. If a passenger is carrying any special baggage, it shall warrant an additional free, which can be paid at the time of check-in. - Check-in baggage - up to 5kg"
+              ]
+            }
+          },
+          {
+            "@Type": "PreReservedSeatAssignment",
+            "@TotalPrice": "INR600.00",
+            "@SupplierCode": "6E",
+            "@CreateDate": "2018-01-22T12:11:22.490+00:00",
+            "@ServiceStatus": "Priced",
+            "@Key": "M2YJcD7Q2BKAOQ76HAAAAA==",
+            "@AssessIndicator": "MileageOrCurrency",
+            "@IsPricingApproximate": "false",
+            "@Source": "ACH",
+            "@ProviderCode": "ACH",
+            "@Quantity": "1",
+            "@ProviderDefinedType": "SA__PR",
+            "@BasePrice": "INR600.00",
+            "@ApproximateTotalPrice": "INR600.00",
+            "@ApproximateBasePrice": "INR600.00",
+            "@Taxes": "INR0",
+            "common:ServiceData": {
+              "@Data": "1-C",
+              "@BookingTravelerRef": "PAX1",
+              "@AirSegmentRef": "Seg1"
+            },
+            "common:ServiceInfo": {
+              "common:Description": "Premium Seat Assignment - Premium Seat Assignment"
+            },
+            "air:TaxInfo": [
+              {
+                "@Category": "DU",
+                "@CarrierDefinedCategory": "CGST29",
+                "@Amount": "INR0",
+                "@Key": "M2YJcD7Q2BKAPQ76HAAAAA=="
+              },
+              {
+                "@Category": "DU",
+                "@CarrierDefinedCategory": "SGST29",
+                "@Amount": "INR0",
+                "@Key": "M2YJcD7Q2BKAQQ76HAAAAA=="
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "common:ActionStatus": {
+      "@Type": "ACTIVE",
+      "@ProviderCode": "ACH",
+      "@TicketDate": "T*"
+    }
+  }
+}

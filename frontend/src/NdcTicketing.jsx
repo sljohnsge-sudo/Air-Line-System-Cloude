@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 
-const API = 'http://localhost:8000/api/ndc';
-const PAY_API = 'http://localhost:8000/api/payments';
+// Same-host convention as App.jsx's API_BASE — see that file for why.
+const API_HOST = `http://${window.location.hostname}:8000`;
+const API = `${API_HOST}/api/ndc`;
+const PAY_API = `${API_HOST}/api/payments`;
 
 const emptyTraveler = (type) => ({
   passenger_type: type, first_name: '', last_name: '', date_of_birth: '', gender: 'Male',
@@ -73,7 +75,7 @@ export default function NdcTicketing() {
           return;
         }
         if (locator) {
-          const res = await fetch(`http://localhost:8000/api/bookings/${locator}/issue-ticket`, {
+          const res = await fetch(`${API_HOST}/api/bookings/${locator}/issue-ticket`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reqid }),
           });
           const data = await res.json();
