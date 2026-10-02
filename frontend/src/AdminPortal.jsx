@@ -36,6 +36,22 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [cancellationRequestsError, setCancellationRequestsError] = useState('');
   const [cancellationRequestActionId, setCancellationRequestActionId] = useState(null);
 
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState('');
+  const [notificationActionId, setNotificationActionId] = useState(null);
+
+  const [notificationRecipients, setNotificationRecipients] = useState([]);
+  const [recipientsLoading, setRecipientsLoading] = useState(false);
+  const [recipientsError, setRecipientsError] = useState('');
+  const [recipientActionId, setRecipientActionId] = useState(null);
+  const [newRecipientEmail, setNewRecipientEmail] = useState('');
+
+  const [providerSettings, setProviderSettings] = useState(null);
+  const [providerSettingsLoading, setProviderSettingsLoading] = useState(false);
+  const [providerSettingsError, setProviderSettingsError] = useState('');
+  const [providerSettingsSaving, setProviderSettingsSaving] = useState(false);
+
   const [visaConsultations, setVisaConsultations] = useState([]);
   const [visaConsultationsLoading, setVisaConsultationsLoading] = useState(false);
   const [visaConsultationsError, setVisaConsultationsError] = useState('');
@@ -184,6 +200,66 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
+  const loadNotifications = async () => {
+    setNotificationsLoading(true);
+    setNotificationsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/notifications?status=new`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load fare notifications');
+      setNotifications(data.notifications || []);
+    } catch (err) {
+      setNotificationsError(err.message);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const loadNotificationRecipients = async () => {
+    setRecipientsLoading(true);
+    setRecipientsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/notification-recipients`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load notification recipients');
+      setNotificationRecipients(data.recipients || []);
+    } catch (err) {
+      setRecipientsError(err.message);
+    } finally {
+      setRecipientsLoading(false);
+    }
+  };
+
+  const loadProviderSettings = async () => {
+    setProviderSettingsLoading(true);
+    setProviderSettingsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/provider-settings`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load provider settings');
+      setProviderSettings(data);
+    } catch (err) {
+      setProviderSettingsError(err.message);
+    } finally {
+      setProviderSettingsLoading(false);
+    }
+  };
+
+  const updateProviderSettings = async (searchMode) => {
+    setProviderSettingsSaving(true);
+    setProviderSettingsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/provider-settings`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify({ search_mode: searchMode }),
+      });
+      const data = await adminApiResponse(res, 'Failed to update provider settings');
+      setProviderSettings(data);
+    } catch (err) {
+      setProviderSettingsError(err.message);
+    } finally {
+      setProviderSettingsSaving(false);
+    }
+  };
+
   const loadVisaConsultations = async () => {
     setVisaConsultationsLoading(true);
     setVisaConsultationsError('');
@@ -275,6 +351,9 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       loadLoyaltySettings();
       loadEmailRequests();
       loadCancellationRequests();
+      loadNotifications();
+      loadNotificationRecipients();
+      loadProviderSettings();
       loadVisaConsultations();
       loadVisaConsultantRoster();
       loadPackages();
@@ -364,6 +443,76 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setCancellationRequestsError(err.message);
     } finally {
       setCancellationRequestActionId(null);
+    }
+  };
+
+  const acknowledgeNotification = async (id) => {
+    setNotificationActionId(id);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/notifications/${id}/acknowledge`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({}),
+      });
+      await adminApiResponse(res, 'Failed to acknowledge notification');
+      setNotifications(items => items.filter(n => n.id !== id));
+    } catch (err) {
+      setNotificationsError(err.message);
+    } finally {
+      setNotificationActionId(null);
+    }
+  };
+
+  const addNotificationRecipient = async () => {
+    const email = newRecipientEmail.trim();
+    if (!email) return;
+    setRecipientActionId('new');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/notification-recipients`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ email }),
+      });
+      await adminApiResponse(res, 'Failed to add recipient');
+      setNewRecipientEmail('');
+      loadNotificationRecipients();
+    } catch (err) {
+      setRecipientsError(err.message);
+    } finally {
+      setRecipientActionId(null);
+    }
+  };
+
+  const toggleNotificationRecipient = async (r) => {
+    setRecipientActionId(r.id);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/notification-recipients/${r.id}`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify({ is_active: !r.is_active }),
+      });
+      await adminApiResponse(res, 'Failed to update recipient');
+      loadNotificationRecipients();
+    } catch (err) {
+      setRecipientsError(err.message);
+    } finally {
+      setRecipientActionId(null);
+    }
+  };
+
+  const deleteNotificationRecipient = async (id) => {
+    setRecipientActionId(id);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/notification-recipients/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
+      await adminApiResponse(res, 'Failed to remove recipient');
+      setNotificationRecipients(items => items.filter(r => r.id !== id));
+    } catch (err) {
+      setRecipientsError(err.message);
+    } finally {
+      setRecipientActionId(null);
     }
   };
 
@@ -728,6 +877,8 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     { id: 'email-requests', label: 'Email Change Requests', count: emailRequests.length },
     { id: 'visa-bookings', label: 'Visa Consultation Bookings', count: visaConsultations.length },
     { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
+    { id: 'notifications', label: 'Fare Notifications', count: notifications.length },
+    { id: 'providers', label: 'Provider Control' },
     { id: 'packages', label: 'Tour Packages' },
     { id: 'package-requests', label: 'Package Booking Requests', count: packageRequests.length },
     {
@@ -1005,6 +1156,146 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </section>
+      )}
+
+      {activeAdminSection === 'notifications' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Fare Notifications {notifications.length > 0 && `(${notifications.length} new)`}</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+          Raised automatically when the unified flight search can't get fares back from Travelport (TP) or Amadeus
+          (AD) — an email also goes out to the recipients below (at most once every 15 minutes per provider).
+        </p>
+        {notificationsError && <div className="error-banner">{notificationsError}</div>}
+        {notificationsLoading ? (
+          <div className="loading-state"><div className="spinner"></div><p>Loading notifications...</p></div>
+        ) : notifications.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No new fare notifications.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {notifications.map(n => (
+              <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                <div style={{ fontSize: '0.85rem' }}>
+                  <div>
+                    <strong style={{ color: n.provider === 'AD' ? '#4c1d95' : '#14532d' }}>
+                      {n.provider === 'AD' ? 'AD · Amadeus' : 'TP · Travelport'}
+                    </strong>
+                    {' — '}{n.route_info || 'route n/a'}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    {n.error_message}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    {new Date(n.created_at).toLocaleString()}
+                    {n.email_sent ? ' · Email sent' : ' · Email not sent (recent alert already went out, or no active recipients)'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button className="btn btn-primary btn-sm" disabled={notificationActionId === n.id} onClick={() => acknowledgeNotification(n.id)}>Acknowledge</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <h4 style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>Notification recipients</h4>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '-0.4rem', marginBottom: '0.75rem' }}>
+          Who gets emailed when a provider's fares fail to come back. Inactive addresses stay on the list but are skipped.
+        </p>
+        {recipientsError && <div className="error-banner">{recipientsError}</div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.75rem' }}>
+          {notificationRecipients.map(r => (
+            <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem 0.85rem' }}>
+              <span style={{ fontSize: '0.85rem', color: r.is_active ? 'var(--text-primary)' : 'var(--text-muted)', textDecoration: r.is_active ? 'none' : 'line-through' }}>
+                {r.email}
+              </span>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button className="btn btn-secondary btn-sm" disabled={recipientActionId === r.id} onClick={() => toggleNotificationRecipient(r)}>
+                  {r.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button className="btn btn-danger btn-sm" disabled={recipientActionId === r.id} onClick={() => deleteNotificationRecipient(r.id)}>Remove</button>
+              </div>
+            </div>
+          ))}
+          {notificationRecipients.length === 0 && !recipientsLoading && (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No recipients configured — notification emails won't be sent until one is added.</p>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <input
+            type="email"
+            placeholder="name@example.com"
+            value={newRecipientEmail}
+            onChange={e => setNewRecipientEmail(e.target.value)}
+            style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
+          />
+          <button className="btn btn-primary btn-sm" disabled={recipientActionId === 'new' || !newRecipientEmail.trim()} onClick={addNotificationRecipient}>Add</button>
+        </div>
+      </section>
+      )}
+
+      {activeAdminSection === 'providers' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Provider Control</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1.25rem' }}>
+          Controls which GDS the unified flight search (Book Flights) actually queries. Switching providers here takes
+          effect on the very next search — no restart needed. The current mode is{' '}
+          <strong>{providerSettingsLoading ? '…' : (
+            providerSettings?.search_mode === 'travelport_only' ? 'Travelport only' :
+            providerSettings?.search_mode === 'amadeus_only' ? 'Amadeus only' : 'Both (compare prices)'
+          )}</strong>.
+        </p>
+        {providerSettingsError && <div className="error-banner">{providerSettingsError}</div>}
+        {providerSettingsLoading ? (
+          <div className="loading-state"><div className="spinner"></div><p>Loading provider settings...</p></div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '520px' }}>
+            {[
+              {
+                mode: 'both',
+                title: 'Both — Travelport + Amadeus',
+                desc: 'Search shows fares from both GDS side by side (TP / AD badges), sorted by price. This is what the unified search has been doing.',
+              },
+              {
+                mode: 'travelport_only',
+                title: 'Travelport only',
+                desc: 'Amadeus is not queried at all — only Travelport (TP) fares are shown and bookable. Use this if Amadeus has an outage or you only want to sell Travelport content.',
+              },
+              {
+                mode: 'amadeus_only',
+                title: 'Amadeus only',
+                desc: 'Travelport is not queried at all — only Amadeus (AD) fares are shown. Note: Amadeus ticket issuance is still pending that account’s own ticketing authorization.',
+              },
+            ].map(opt => {
+              const active = providerSettings?.search_mode === opt.mode;
+              return (
+                <button
+                  key={opt.mode}
+                  type="button"
+                  disabled={providerSettingsSaving || active}
+                  onClick={() => updateProviderSettings(opt.mode)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '0.85rem 1rem',
+                    borderRadius: '8px',
+                    border: active ? '2px solid var(--gs-crimson)' : '1px solid var(--border-color)',
+                    background: active ? '#fff1f2' : '#f8fafc',
+                    cursor: active ? 'default' : 'pointer',
+                    opacity: providerSettingsSaving && !active ? 0.6 : 1,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: active ? 'var(--gs-crimson)' : 'var(--text-primary)' }}>
+                      {opt.title}
+                    </span>
+                    {active && <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'white', background: 'var(--gs-crimson)', borderRadius: '3px', padding: '0.1rem 0.4rem', letterSpacing: '0.03em' }}>ACTIVE</span>}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{opt.desc}</div>
+                </button>
+              );
+            })}
           </div>
         )}
       </section>

@@ -1343,6 +1343,19 @@ export default function App() {
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
 
+  // Amadeus ("AD") booking flow -- deliberately separate state from the
+  // Travelport traveler/ticket state above. Amadeus's booking API only needs
+  // first/last name + type per traveler and one shared contact email/phone
+  // (no passport/DOB/nationality the way Travelport's TravelerInfo requires),
+  // so this reuses the existing paymentMethod/card fields but keeps its own
+  // minimal traveler list and result shape rather than overloading the
+  // Travelport-shaped `travelers`/`issuedTicket` state.
+  const [amadeusTravelers, setAmadeusTravelers] = useState([]);
+  const [amadeusContactEmail, setAmadeusContactEmail] = useState('');
+  const [amadeusContactPhone, setAmadeusContactPhone] = useState('');
+  const [amadeusBookingResult, setAmadeusBookingResult] = useState(null);
+  const amadeusBookingInFlightRef = useRef(false);
+
   // My Bookings
   const [myBookings, setMyBookings] = useState([]);
   const [searchEmail, setSearchEmail] = useState('');
@@ -1385,8 +1398,46 @@ export default function App() {
     const ndcPending = params.get('ndc_pending');
     const reqid = params.get('reqid');
     const cancelled = params.get('payment') === 'cancelled';
+    const src = params.get('src');
 
-    if (locator && reqid) {
+    if (locator && reqid && src === 'AD') {
+      // Amadeus card-payment return — the page just reloaded fresh (PayCorp
+      // redirected the browser), so amadeusTravelers/selectedFlight are
+      // gone. finishAmadeusTicketing only needs the locator + pricing (the
+      // PNR already carries everything else on the Amadeus side) — it's
+      // called with a minimal stand-in rather than relying on state that
+      // didn't survive the redirect.
+      window.history.replaceState({}, '', window.location.pathname);
+      (async () => {
+        try {
+          const issueRes = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${locator}/issue-ticket`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          const issueData = await handleApiResponse(issueRes, 'Ticket issuance failed');
+          setAmadeusBookingResult({
+            locator,
+            pricing: null,
+            travelers: [],
+            segments: [],
+            ticketNumbers: issueData.ticketNumbers || [],
+            ticketStatus: issueData.status,
+            paymentMethod: 'card',
+          });
+          setBookingStep('amadeus_ticket');
+          showNotification('🎉 Payment confirmed — PNR ' + locator + ' finalized.', 'success');
+        } catch (err) {
+          setAmadeusBookingResult({
+            locator, pricing: null, travelers: [], segments: [],
+            ticketNumbers: [], ticketStatus: 'error', paymentMethod: 'card',
+          });
+          setBookingStep('amadeus_ticket');
+          showNotification('Payment confirmed, but ticketing could not be verified — your PNR ' + locator + ' is held, contact support.', 'error');
+        } finally {
+          setVerifyingPayment(false);
+        }
+      })();
+    } else if (locator && reqid) {
       window.history.replaceState({}, '', window.location.pathname);
       (async () => {
         try {
@@ -1474,7 +1525,14 @@ export default function App() {
     // follow that back to plain /book, not stay on the old results link.
     if (activeTab === 'book' && !showSearchForm && flights.length > 0) {
       const payload = {
-        step: bookingStep && bookingStep !== 'ticket' ? bookingStep : null,
+        // Amadeus booking steps are deliberately NOT round-tripped through
+        // the URL the way Travelport's wizard steps are: encoding them here
+        // feeds back through the "URL → app state" effect below and can
+        // race a fast step transition (e.g. processing -> passenger on a
+        // sell failure), clobbering the newer step back to the stale one
+        // from the in-flight navigation. The Amadeus flow doesn't need
+        // deep-linking/back-button support for its short synchronous steps.
+        step: bookingStep && bookingStep !== 'ticket' && !bookingStep.startsWith('amadeus') ? bookingStep : null,
         origin: searchOrigin, destination: searchDest, date: searchDate,
         returnDate: searchType === 'roundtrip' ? returnDate : null,
         type: searchType, adults: adultCount, children: childCount,
@@ -1530,17 +1588,24 @@ export default function App() {
         try { payload = JSON.parse(decoded); } catch { payload = null; }
       }
       const sub = payload?.step || null;
-      if (sub) {
-        if (selectedFlight) {
-          setBookingStep(sub);
-        } else {
-          setBookingStep(null);
+      // Amadeus booking steps are deliberately never encoded in the URL (see
+      // computeCanonicalPath) -- so this effect must never clear them back to
+      // null just because the current /results token has no 'step'. Without
+      // this guard, opening the Amadeus passenger form immediately
+      // self-closes: selecting a flight updates bookingStep -> the "state ->
+      // URL" effect re-encrypts the results token (step omitted) -> this
+      // effect fires on that URL change and, seeing no step, reset
+      // bookingStep to null right back.
+      setBookingStep(current => {
+        if (typeof current === 'string' && current.startsWith('amadeus')) return current;
+        if (sub) {
+          if (selectedFlight) return sub;
           const strippedToken = encryptForUrl(JSON.stringify({ ...payload, step: null }));
           navigate({ pathname: strippedToken ? `/results/${strippedToken}` : '/results', search: '' }, { replace: true });
+          return null;
         }
-      } else {
-        setBookingStep(null);
-      }
+        return null;
+      });
       if (payload?.origin && flights.length === 0 && !loadingFlights) {
         const origin = payload.origin;
         const destination = payload.destination || '';
@@ -1733,6 +1798,33 @@ export default function App() {
     if (roundTripPhase === 'return' && flight._pairedOffer) {
       flight = flight._pairedOffer;
     }
+
+    // Amadeus ("AD") offers skip the whole Travelport wizard (passport-heavy
+    // passenger form, seat map, Travelport-shaped review/payment/ticket) and
+    // go through a separate, minimal flow -- see the 'amadeus_passenger' /
+    // 'amadeus_ticket' booking steps below and handleConfirmAmadeusBooking.
+    if (flight.source === 'AD') {
+      setSelectedFlight({
+        ...flight,
+        price: fareOption.price,
+        currency: fareOption.currency,
+        raw_offering: fareOption.raw_offering,
+      });
+      const count = adultCount + childCount + infantCount || 1;
+      const types = [
+        ...Array(adultCount || (childCount || infantCount ? 0 : 1)).fill('adult'),
+        ...Array(childCount).fill('child'),
+        ...Array(infantCount).fill('infant'),
+      ];
+      setAmadeusTravelers((types.length ? types : ['adult']).map(type => ({ firstName: '', lastName: '', type })));
+      setAmadeusContactEmail('');
+      setAmadeusContactPhone('');
+      setAmadeusBookingResult(null);
+      setBookingError('');
+      setBookingStep('amadeus_passenger');
+      return;
+    }
+
     setSelectedFlight({
       ...flight,
       price: fareOption.price,
@@ -2034,6 +2126,107 @@ export default function App() {
     setCardExpiry('');
     setCardCvv('');
     setPaymentMethod('card');
+    setAmadeusTravelers([]);
+    setAmadeusContactEmail('');
+    setAmadeusContactPhone('');
+    setAmadeusBookingResult(null);
+  };
+
+  // ── Amadeus ("AD") booking: confirm (sell+PNR+price+TST) → pay → ticket ──
+  const handleConfirmAmadeusBooking = async () => {
+    if (amadeusBookingInFlightRef.current) return;
+    if (amadeusTravelers.some(t => !t.firstName.trim() || !t.lastName.trim())) {
+      setBookingError('Enter first and last name for every traveler.');
+      return;
+    }
+    if (!amadeusContactEmail.trim() || !amadeusContactPhone.trim()) {
+      setBookingError('Enter a contact email and phone number.');
+      return;
+    }
+    amadeusBookingInFlightRef.current = true;
+    setBookingStep('amadeus_processing');
+    setBookingError('');
+
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/amadeus-bookings/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          segments: selectedFlight.raw_offering.segments,
+          travelers: amadeusTravelers.map(t => ({ firstName: t.firstName.trim(), lastName: t.lastName.trim(), type: t.type })),
+          contactEmail: amadeusContactEmail.trim(),
+          contactPhone: amadeusContactPhone.trim(),
+        })
+      });
+      const data = await handleApiResponse(res, 'Amadeus booking failed');
+      const locator = data.locator;
+
+      if (paymentMethod === 'card') {
+        const baseUrl = `${window.location.origin}${window.location.pathname}`;
+        const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: Number(data.pricing?.totalAmount) || selectedFlight.price,
+            currency: data.pricing?.currency || selectedFlight.currency || 'LKR',
+            return_url: `${baseUrl}?locator=${locator}&src=AD`,
+            cancel_url: `${baseUrl}?locator=${locator}&src=AD&payment=cancelled`,
+            client_ref: locator,
+            comment: `George Steuart Travel - Amadeus ${locator}`
+          })
+        });
+        const payData = await handleApiResponse(payRes, 'Failed to start payment');
+        window.location.href = payData.payment_page_url;
+        return;
+      }
+
+      // Cash / Bank Transfer — attempt ticketing immediately.
+      await finishAmadeusTicketing(locator, data.pricing);
+    } catch (err) {
+      const errMsg = err.message || String(err);
+      setBookingError(errMsg);
+      setBookingStep('amadeus_passenger');
+      showNotification(errMsg, 'error');
+    } finally {
+      amadeusBookingInFlightRef.current = false;
+    }
+  };
+
+  // Shared by the cash path above and the PayCorp-return effect below.
+  // Amadeus ticket issuance is currently blocked by an unresolved Amadeus
+  // office-authority gate (errorCode 2011 "ENTRY NOT AUTHORISED") — this is
+  // NOT treated as a failure: the PNR is real and confirmed either way, so
+  // this always lands on the amadeus_ticket screen, which shows "Issued" or
+  // "Ticketing pending" depending on whether Amadeus actually returned
+  // ticket numbers.
+  const finishAmadeusTicketing = async (locator, pricing) => {
+    let ticketNumbers = [];
+    let ticketStatus = null;
+    try {
+      const issueRes = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${locator}/issue-ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const issueData = await handleApiResponse(issueRes, 'Ticket issuance failed');
+      ticketNumbers = issueData.ticketNumbers || [];
+      ticketStatus = issueData.status;
+    } catch (err) {
+      // Swallow — the PNR is still confirmed; show it as ticketing-pending
+      // rather than surfacing a scary error for a known, expected outcome.
+      ticketStatus = 'error';
+    }
+    setAmadeusBookingResult({
+      locator,
+      pricing,
+      travelers: amadeusTravelers,
+      contactEmail: amadeusContactEmail,
+      contactPhone: amadeusContactPhone,
+      segments: selectedFlight?.raw_offering?.segments || [],
+      ticketNumbers,
+      ticketStatus,
+      paymentMethod,
+    });
+    setBookingStep('amadeus_ticket');
   };
 
   const renderSeat = (seat, idx) => {
@@ -3900,7 +4093,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           </div>
                           <div className="rc-airline-name">{flight.airline}</div>
                           {/* IATA airline code badge — from Travelport */}
-                          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.15rem' }}>
+                          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.15rem', flexWrap: 'wrap' }}>
                             <div style={{ fontSize: '0.65rem', fontWeight: '700', color: '#64748b', background: '#f1f5f9', borderRadius: '3px', padding: '0.1rem 0.35rem', letterSpacing: '0.03em' }}>
                               {flight.airline_code}
                             </div>
@@ -3912,6 +4105,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               borderRadius: '3px', padding: '0.1rem 0.4rem', letterSpacing: '0.04em', textTransform: 'uppercase'
                             }}>
                               {flight.fare_source || 'GDS'}
+                            </div>
+                            {/* Provider badge: which system this rate came from — AD (Amadeus) or TP (Travelport) */}
+                            <div
+                              title={flight.source === 'AD' ? 'Amadeus' : 'Travelport'}
+                              style={{
+                                fontSize: '0.65rem', fontWeight: '800',
+                                background: flight.source === 'AD' ? '#ddd6fe' : '#bbf7d0',
+                                color: flight.source === 'AD' ? '#4c1d95' : '#14532d',
+                                borderRadius: '3px', padding: '0.1rem 0.4rem', letterSpacing: '0.04em'
+                              }}>
+                              {flight.source === 'AD' ? 'AD · Amadeus' : 'TP · Travelport'}
                             </div>
                           </div>
                           <div className="rc-flight-num">{flight.flight_number}</div>
@@ -4328,7 +4532,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                       onMouseEnter={e => e.target.style.opacity = 0.9}
                                       onMouseLeave={e => e.target.style.opacity = 1}
                                     >
-                                      Select {fo.brand_name}
+                                      {`Select ${fo.brand_name}`}
                                     </button>
                                   </div>
                                 </div>
@@ -5991,11 +6195,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       )}
 
       {/* ── BOOKING WIZARD MODAL ─────────────────────────────────────────── */}
-      {selectedFlight && bookingStep && bookingStep !== 'ticket' && (
+      {selectedFlight && bookingStep && bookingStep !== 'ticket' && bookingStep !== 'amadeus_ticket' && (
         <div className="modal-overlay animate-fade-only">
           <div className="modal-content glass-panel animate-fade" style={{ maxWidth: (bookingStep === 'seats' || bookingStep === 'seats_loading') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
-            {/* Progress Steps */}
-            <div style={{ display: 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
+            {/* Progress Steps — Amadeus offers use their own short 2-step flow, no Travelport seat/review stages */}
+            <div style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
   {(() => {
                 const steps = [
                   { key: 'passenger', label: 'Passenger Details' },
@@ -6025,15 +6229,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
             <div className="modal-header">
               <h3>
-                {bookingStep === 'passenger' ? 'Passenger Details' : 
+                {bookingStep === 'passenger' ? 'Passenger Details' :
                  bookingStep === 'seats_loading' ? 'Loading Seat Map...' :
                  bookingStep === 'seats' ? 'Select Passenger Seats' :
                  bookingStep === 'seats_unavailable' ? 'Seat Selection Unavailable' :
-                 bookingStep === 'review' ? 'Review Your Booking' : 
+                 bookingStep === 'review' ? 'Review Your Booking' :
                  bookingStep === 'payment' ? 'Payment Details' :
+                 bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
+                 bookingStep === 'amadeus_processing' ? 'Confirming with Amadeus...' :
                  'Issuing Ticket...'}
               </h3>
-              {bookingStep !== 'processing' && <button className="close-btn" onClick={closeBookingFlow}>×</button>}
+              {bookingStep !== 'processing' && bookingStep !== 'amadeus_processing' && <button className="close-btn" onClick={closeBookingFlow}>×</button>}
             </div>
 
             {/* Flight Summary */}
@@ -6092,6 +6298,72 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     Search Again
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* STEP: Amadeus passenger + payment (single minimal step — no seat map,
+                no passport fields: Amadeus's PNR_AddMultiElements only needs
+                name + type per traveler and one contact email/phone). */}
+            {bookingStep === 'amadeus_passenger' && (
+              <form className="booking-modal-form" onSubmit={e => { e.preventDefault(); handleConfirmAmadeusBooking(); }}>
+                {amadeusTravelers.map((t, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label>{t.type === 'adult' ? 'Adult' : t.type === 'child' ? 'Child' : 'Infant'} {idx + 1} — First name</label>
+                      <input
+                        type="text" required value={t.firstName}
+                        onChange={e => setAmadeusTravelers(ts => ts.map((x, i) => i === idx ? { ...x, firstName: e.target.value } : x))}
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label>Last name</label>
+                      <input
+                        type="text" required value={t.lastName}
+                        onChange={e => setAmadeusTravelers(ts => ts.map((x, i) => i === idx ? { ...x, lastName: e.target.value } : x))}
+                      />
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Contact email</label>
+                    <input type="email" required value={amadeusContactEmail} onChange={e => setAmadeusContactEmail(e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Contact phone</label>
+                    <input type="tel" required value={amadeusContactPhone} onChange={e => setAmadeusContactPhone(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Payment method</label>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400 }}>
+                      <input type="radio" name="amadeusPaymentMethod" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} /> Card (PayCorp)
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400 }}>
+                      <input type="radio" name="amadeusPaymentMethod" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} /> Cash / Bank Transfer
+                    </label>
+                  </div>
+                </div>
+
+                <div className="info-banner" style={{ fontSize: '0.78rem', marginBottom: '1rem' }}>
+                  This fare is sourced from Amadeus. The PNR is confirmed live with Amadeus; e-ticket issuance may be
+                  pending Amadeus's own ticketing authorization on our office — if so, you'll see "ticketing pending"
+                  on the confirmation screen and our team will follow up.
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">{paymentMethod === 'card' ? 'Continue to Payment →' : 'Confirm Booking'}</button>
+                </div>
+              </form>
+            )}
+
+            {bookingStep === 'amadeus_processing' && (
+              <div className="booking-processing" style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
+                <p>Selling the fare and creating your PNR with Amadeus…</p>
               </div>
             )}
 
@@ -6855,6 +7127,56 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>Connecting to GDS workbench → Committing reservation PNR → Issuing ticket</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── AMADEUS BOOKING CONFIRMATION ────────────────────────────────── */}
+      {bookingStep === 'amadeus_ticket' && amadeusBookingResult && (
+        <div className="modal-overlay animate-fade-only" style={{ zIndex: 9999 }}>
+          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: '560px', width: '95%' }}>
+            <div className="modal-header">
+              <h3>{amadeusBookingResult.ticketNumbers.length > 0 ? 'Ticket Issued' : 'PNR Confirmed'}</h3>
+              <button className="close-btn" onClick={closeBookingFlow}>×</button>
+            </div>
+            <div style={{ padding: '0.5rem 0 1.5rem' }}>
+              <div className="info-banner" style={{ marginBottom: '1.25rem', fontSize: '0.85rem', background: amadeusBookingResult.ticketNumbers.length > 0 ? undefined : '#fffbeb', borderColor: amadeusBookingResult.ticketNumbers.length > 0 ? undefined : '#fcd34d' }}>
+                {amadeusBookingResult.ticketNumbers.length > 0
+                  ? '🎉 Your Amadeus booking is confirmed and the e-ticket has been issued.'
+                  : '✅ Your reservation is confirmed with Amadeus — PNR secured. ⚠ E-ticket issuance is pending Amadeus\'s own ticketing authorization on our office account; our team will complete ticketing and contact you once it clears.'}
+              </div>
+
+              <div className="modal-flight-summary" style={{ marginBottom: '1.25rem' }}>
+                <div className="summary-col"><span className="label">PNR locator</span><span className="val highlight" style={{ fontFamily: 'monospace' }}>{amadeusBookingResult.locator}</span></div>
+                {amadeusBookingResult.pricing && (
+                  <div className="summary-col"><span className="label">Fare</span><span className="val">{amadeusBookingResult.pricing.currency} {Number(amadeusBookingResult.pricing.totalAmount).toLocaleString()}</span></div>
+                )}
+                {amadeusBookingResult.ticketNumbers.length > 0 && (
+                  <div className="summary-col"><span className="label">E-ticket number(s)</span><span className="val">{amadeusBookingResult.ticketNumbers.join(', ')}</span></div>
+                )}
+                <div className="summary-col"><span className="label">Source</span><span className="val">Amadeus (AD)</span></div>
+              </div>
+
+              {amadeusBookingResult.segments.length > 0 && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  {amadeusBookingResult.segments.map((s, i) => (
+                    <div key={i} style={{ fontSize: '0.82rem', padding: '0.4rem 0', borderBottom: i < amadeusBookingResult.segments.length - 1 ? '1px dashed var(--border-color)' : 'none' }}>
+                      {s.from} → {s.to} · {s.marketingCarrier}{s.flightNumber} · {s.departureDate?.slice(0,2)}/{s.departureDate?.slice(2,4)}/20{s.departureDate?.slice(4,6)} {s.departureTime?.slice(0,2)}:{s.departureTime?.slice(2,4)}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {amadeusBookingResult.travelers.length > 0 && (
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                  Passengers: {amadeusBookingResult.travelers.map(t => `${t.firstName} ${t.lastName}`).join(', ')}
+                </div>
+              )}
+
+              <div className="modal-actions">
+                <button type="button" className="btn btn-primary" onClick={closeBookingFlow}>Done</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

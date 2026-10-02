@@ -7,9 +7,14 @@ No mock data exists in this system.
 
 NOTE: There is a separate sibling GDS project, Air-Line-System-Amadeus
 (backend :8002, frontend :5175), using Amadeus Web Services instead of
-Travelport. The two are kept as fully independent codebases on purpose
-(separate .env, separate DB, no shared imports/routing) -- do not merge
-them or build a combined workbench unless the user explicitly asks.
+Travelport. The two stay fully independent codebases/databases (separate
+.env, no shared imports) -- the only connection is an outbound HTTP call
+from /api/flights/search to the Amadeus backend's own public search
+endpoint (see services/amadeus_aggregator.py), exactly like a browser would
+call it. Results from both are merged and tagged offer["source"] = "TP"
+(Travelport) or "AD" (Amadeus) so the frontend can show where each fare
+came from; AD offers are search/compare only (not bookable yet -- see
+amadeus_aggregator.py for why).
 
 Booking Workflow:
     POST  /api/flights/search          → STEP 2: Search flights
@@ -19,6 +24,7 @@ Booking Workflow:
     POST  /api/bookings/{pnr}/cancel   → Cancel reservation on Travelport + local cache
 """
 
+import asyncio
 import logging
 import os
 import uuid
@@ -269,20 +275,64 @@ def get_airport_countries():
 # ── STEP 2: Flight Search ──────────────────────────────────────────────────────
 
 
+_NOTIFICATION_DEBOUNCE_MINUTES = 15
+
+
+def _notify_provider_failure(provider: str, error_message: str, route_info: str | None) -> None:
+    """Logs a provider_notifications row and, unless the same provider already
+    emailed within the debounce window (an outage shouldn't flood the inbox
+    with one email per failed search), sends the alert to every active
+    notification_recipients address."""
+    recent = database.get_recent_provider_notification(provider, _NOTIFICATION_DEBOUNCE_MINUTES)
+    recipients = [r["email"] for r in database.get_notification_recipients(active_only=True)]
+    should_email = bool(recipients) and recent is None
+
+    email_sent = False
+    if should_email:
+        sent, err = services.send_provider_failure_email(", ".join(recipients), provider, error_message, route_info)
+        email_sent = sent
+        if not sent:
+            logger.warning(f"Provider-failure notification email not sent: {err}")
+
+    try:
+        database.create_provider_notification(provider, error_message, route_info, email_sent)
+    except Exception as db_err:
+        logger.error(f"Failed to log provider_notifications row: {db_err}")
+
+
 @app.post("/api/flights/search")
-def search_flights(request: FlightSearchRequest):
+async def search_flights(request: FlightSearchRequest):
     """
-    STEP 2 — Search available flights via Travelport catalog.
-    Returns a list of parsed flight offers for the frontend.
+    STEP 2 — Search available flights. Merges live Travelport ("TP") results
+    with the sibling Amadeus system's live results ("AD") — each offer is
+    tagged with .source so the frontend can label where the fare came from.
+    An admin can switch this to Travelport-only or Amadeus-only from the
+    Admin Portal's Provider Control tab (see database.get_provider_settings) —
+    the disabled provider simply isn't queried at all. Amadeus is only wired
+    for a plain one-way search today (no legs/round trip) — see
+    services/amadeus_aggregator.py for why. If an enabled provider fails,
+    that provider's fares are simply missing from this response (the other
+    provider's results still come back) and an admin notification is raised
+    — see _notify_provider_failure.
     """
     if request.legs:
         leg_str = " | ".join([f"{l.origin}->{l.destination} on {l.departure_date}" for l in request.legs])
         logger.info(f"Flight search (multi-leg): {leg_str}")
+        route_info = leg_str
     else:
         logger.info(f"Flight search: {request.origin} → {request.destination} on {request.departure_date}")
+        route_info = f"{request.origin} → {request.destination} on {request.departure_date}"
 
-    try:
-        legs = [l.model_dump() for l in request.legs] if request.legs else None
+    legs = [l.model_dump() for l in request.legs] if request.legs else None
+
+    # Admin on/off switch (Admin Portal -> Provider Control) -- lets staff
+    # take a GDS out of the unified search entirely (contract issue, outage,
+    # or just wanting to sell one source only) without touching code.
+    search_mode = database.get_provider_settings().get("search_mode", "both")
+    tp_enabled = search_mode in ("both", "travelport_only")
+    ad_enabled = search_mode in ("both", "amadeus_only")
+
+    def _search_travelport() -> list[dict]:
         raw = services.search_flights(
             origin=request.origin.upper() if request.origin else None,
             destination=request.destination.upper() if request.destination else None,
@@ -294,14 +344,30 @@ def search_flights(request: FlightSearchRequest):
             legs=legs,
             content_source=request.content_source
         )
-        offers = services.parse_flight_offers(raw, legs=legs)
-        return {"flights": offers, "count": len(offers)}
+        return services.parse_flight_offers(raw, legs=legs)
 
-    except Exception as e:
-        error_msg = str(e)
-        status_code = 502
+    tp_task = asyncio.to_thread(_search_travelport) if tp_enabled else None
+    # Amadeus is only wired for a plain one-way search right now.
+    ad_task = (
+        services.search_amadeus_flights(
+            origin=request.origin.upper(), destination=request.destination.upper(),
+            departure_date=request.departure_date,
+            adult_count=request.adult_count, child_count=request.child_count, infant_count=request.infant_count,
+        )
+        if (ad_enabled and not legs and request.origin and request.destination and request.departure_date)
+        else None
+    )
 
-        # Provide a helpful message for the sandbox account configuration issue
+    tp_result, ad_result = await asyncio.gather(
+        (tp_task if tp_task is not None else asyncio.sleep(0, result=None)),
+        (ad_task if ad_task is not None else asyncio.sleep(0, result=None)),
+        return_exceptions=True,
+    )
+
+    offers: list[dict] = []
+
+    if tp_task is not None and isinstance(tp_result, Exception):
+        error_msg = str(tp_result)
         if "400" in error_msg and "Client error" in error_msg:
             detail = (
                 "Travelport API returned 400 INVALID INPUT FORMAT (error 1586). "
@@ -315,9 +381,92 @@ def search_flights(request: FlightSearchRequest):
             )
         else:
             detail = f"Travelport search error: {error_msg[:400]}"
+        logger.error(f"Flight search (Travelport) failed: {error_msg}")
+        _notify_provider_failure("TP", detail, route_info)
+    elif tp_task is not None:
+        for o in tp_result:
+            o["source"] = "TP"
+            o["bookable"] = True
+        offers.extend(tp_result)
 
-        logger.error(f"Flight search failed: {error_msg}")
-        raise HTTPException(status_code=status_code, detail=detail)
+    if ad_task is not None:
+        if isinstance(ad_result, Exception):
+            logger.error(f"Flight search (Amadeus) failed: {ad_result}")
+            _notify_provider_failure("AD", str(ad_result)[:400], route_info)
+        elif ad_result:
+            offers.extend(ad_result)
+
+    if not offers and tp_task is not None and isinstance(tp_result, Exception):
+        # Both providers failed (or AD wasn't queried/enabled) with nothing to
+        # show — surface Travelport's error to the caller as before, rather
+        # than a silent empty list.
+        raise HTTPException(status_code=502, detail=f"Travelport search error: {str(tp_result)[:400]}")
+
+    offers.sort(key=lambda o: (o.get("price") if o.get("price") is not None else float("inf")))
+    return {"flights": offers, "count": len(offers)}
+
+
+# ── Amadeus booking proxy (AD-sourced offers from the unified search) ─────────
+# The browser calls these (not the Amadeus backend directly -- its CORS is
+# scoped to its own standalone frontend at :5175, not this one) and this
+# backend forwards server-to-server to the Amadeus backend's own REST API.
+# See services/amadeus_booking_proxy.py for why issue-ticket is expected to
+# fail right now (Amadeus office ticketing authority not yet granted).
+
+class AmadeusBookingSegment(BaseModel):
+    departureDate: str
+    departureTime: str
+    arrivalDate: str
+    arrivalTime: str
+    from_: str = Field(alias="from")
+    to: str
+    marketingCarrier: str
+    flightNumber: str
+    bookingClass: str
+
+    model_config = {"populate_by_name": True}
+
+
+class AmadeusBookingTraveler(BaseModel):
+    firstName: str
+    lastName: str
+    type: str = "adult"
+
+
+class AmadeusBookingConfirmRequest(BaseModel):
+    segments: List[AmadeusBookingSegment]
+    travelers: List[AmadeusBookingTraveler]
+    contactEmail: EmailStr
+    contactPhone: str
+
+
+@app.post("/api/amadeus-bookings/confirm", status_code=status.HTTP_201_CREATED)
+async def amadeus_booking_confirm(request: AmadeusBookingConfirmRequest):
+    segments = [
+        {
+            "departureDate": s.departureDate, "departureTime": s.departureTime,
+            "arrivalDate": s.arrivalDate, "arrivalTime": s.arrivalTime,
+            "from": s.from_, "to": s.to,
+            "marketingCarrier": s.marketingCarrier, "flightNumber": s.flightNumber,
+            "bookingClass": s.bookingClass,
+        }
+        for s in request.segments
+    ]
+    travelers = [t.model_dump() for t in request.travelers]
+    try:
+        return await services.confirm_amadeus_booking(segments, travelers, request.contactEmail, request.contactPhone)
+    except services.AmadeusBookingError as e:
+        logger.error(f"Amadeus booking confirm failed: {e.message}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+
+@app.post("/api/amadeus-bookings/{locator}/issue-ticket")
+async def amadeus_booking_issue_ticket(locator: str):
+    try:
+        return await services.issue_amadeus_ticket(locator)
+    except services.AmadeusBookingError as e:
+        logger.error(f"Amadeus ticket issuance failed for {locator}: {e.message}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
 
 def _segments_of_offering(raw_offering: dict) -> list:
@@ -1896,6 +2045,81 @@ def admin_reject_cancellation_request(request_id: int, body: CancellationRequest
         raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
     updated = database.resolve_cancellation_request(request_id, "rejected", admin["admin_id"], body.admin_note)
     return updated
+
+
+# ── Provider fare-fetch notifications (unified TP+AD search) ──────────────────
+# Logged + emailed by _notify_provider_failure() in /api/flights/search
+# whenever Travelport or Amadeus fails to return fares. Same manual-review
+# pattern as cancellation_requests above (status + admin_note), plus a small
+# recipients list the admin can edit without touching .env/code.
+
+class ProviderNotificationReview(BaseModel):
+    admin_note: Optional[str] = None
+
+
+class NotificationRecipientInput(BaseModel):
+    email: EmailStr
+
+
+class NotificationRecipientUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    is_active: Optional[bool] = None
+
+
+@app.get("/api/admin/notifications")
+def admin_list_notifications(status_filter: Optional[str] = Query(None, alias="status"), _admin: dict = Depends(auth.get_current_admin)):
+    return {"notifications": database.get_provider_notifications(status_filter)}
+
+
+@app.post("/api/admin/notifications/{notification_id}/acknowledge")
+def admin_acknowledge_notification(notification_id: int, body: ProviderNotificationReview, admin: dict = Depends(auth.get_current_admin)):
+    note = database.get_provider_notification_by_id(notification_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Notification not found.")
+    return database.acknowledge_provider_notification(notification_id, admin["admin_id"], body.admin_note)
+
+
+@app.get("/api/admin/notification-recipients")
+def admin_list_notification_recipients(_admin: dict = Depends(auth.get_current_admin)):
+    return {"recipients": database.get_notification_recipients()}
+
+
+@app.post("/api/admin/notification-recipients", status_code=status.HTTP_201_CREATED)
+def admin_add_notification_recipient(body: NotificationRecipientInput, _admin: dict = Depends(auth.get_current_admin)):
+    return database.add_notification_recipient(body.email)
+
+
+@app.put("/api/admin/notification-recipients/{recipient_id}")
+def admin_update_notification_recipient(recipient_id: int, body: NotificationRecipientUpdate, _admin: dict = Depends(auth.get_current_admin)):
+    updated = database.update_notification_recipient(recipient_id, body.email, body.is_active)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Recipient not found.")
+    return updated
+
+
+@app.delete("/api/admin/notification-recipients/{recipient_id}")
+def admin_delete_notification_recipient(recipient_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    database.delete_notification_recipient(recipient_id)
+    return {"deleted": True}
+
+
+# ── Provider settings (unified TP+AD search on/off switch) ────────────────────
+# Lets an admin take Travelport or Amadeus out of the unified search entirely
+# -- "travelport_only" / "amadeus_only" / "both" -- read by /api/flights/search
+# on every request (see search_flights above).
+
+class ProviderSettingsRequest(BaseModel):
+    search_mode: Literal["both", "travelport_only", "amadeus_only"]
+
+
+@app.get("/api/admin/provider-settings")
+def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
+    return database.get_provider_settings()
+
+
+@app.put("/api/admin/provider-settings")
+def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
+    return database.update_provider_settings(body.search_mode)
 
 
 # ── Tour / Travel Packages (B2C, admin-curated catalog) ───────────────────────

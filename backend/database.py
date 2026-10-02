@@ -513,6 +513,55 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # ── Provider fare-fetch notifications (unified TP+AD search) ────────────
+    # Logged whenever either provider in the unified flight search (Travelport
+    # "TP" or Amadeus "AD") fails to return fares for a search -- so a GDS
+    # outage or a config issue surfaces to staff instead of silently showing
+    # one-sided results. Mirrors the cancellation_requests review pattern
+    # (status + admin_note + reviewed_at/by) so it's manageable from the same
+    # kind of Admin Portal screen.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS provider_notifications (
+            id                    INT AUTO_INCREMENT PRIMARY KEY,
+            provider              VARCHAR(20) NOT NULL,
+            error_message         VARCHAR(1000) NOT NULL,
+            route_info            VARCHAR(200),
+            email_sent            TINYINT(1) NOT NULL DEFAULT 0,
+            status                VARCHAR(20) NOT NULL DEFAULT 'new',
+            admin_note            VARCHAR(500),
+            created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at           DATETIME NULL,
+            reviewed_by_admin_id  INT NULL,
+            INDEX idx_provider_notification_status (status),
+            INDEX idx_provider_notification_provider (provider)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── Notification recipients (who gets the provider-failure email) ───────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notification_recipients (
+            id          INT AUTO_INCREMENT PRIMARY KEY,
+            email       VARCHAR(200) NOT NULL UNIQUE,
+            is_active   TINYINT(1) NOT NULL DEFAULT 1,
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    cursor.execute("INSERT IGNORE INTO notification_recipients (email) VALUES (%s)", ("sanka@gsoptimize.lk",))
+
+    # ── Provider settings (unified TP+AD search on/off switch) ──────────────
+    # Single-row config table (same pattern as pricing_settings) — lets an
+    # admin take one GDS out of the unified search entirely (e.g. a contract
+    # lapse or an outage) without touching code. search_mode:
+    # 'both' | 'travelport_only' | 'amadeus_only'.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS provider_settings (
+            id          INT PRIMARY KEY,
+            search_mode VARCHAR(20) NOT NULL DEFAULT 'both',
+            updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    cursor.execute("INSERT IGNORE INTO provider_settings (id) VALUES (1)")
+
     conn.commit()
     cursor.close()
     populate_airports_table(conn)
@@ -961,6 +1010,190 @@ def resolve_cancellation_request(request_id: int, status: str, admin_id: int, ad
         conn.commit()
         cursor.execute("SELECT * FROM cancellation_requests WHERE id=%s", (request_id,))
         return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Provider fare-fetch notifications (unified TP+AD search) ─────────────────
+
+def create_provider_notification(provider: str, error_message: str, route_info: str | None, email_sent: bool) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO provider_notifications (provider, error_message, route_info, email_sent)
+               VALUES (%s,%s,%s,%s)""",
+            (provider, error_message[:1000], route_info, email_sent),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM provider_notifications WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_recent_provider_notification(provider: str, minutes: int) -> dict | None:
+    """Most recent notification for this provider within the last N minutes
+    that actually sent an email -- used to debounce (one email per provider
+    per window during an extended outage, not one per failed search)."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """SELECT * FROM provider_notifications
+           WHERE provider=%s AND email_sent=1 AND created_at >= NOW() - INTERVAL %s MINUTE
+           ORDER BY created_at DESC LIMIT 1""",
+        (provider, minutes),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def get_provider_notifications(status: str | None = None) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if status:
+        cursor.execute("SELECT * FROM provider_notifications WHERE status=%s ORDER BY created_at DESC", (status,))
+    else:
+        cursor.execute("SELECT * FROM provider_notifications ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_provider_notification_by_id(notification_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM provider_notifications WHERE id=%s", (notification_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def acknowledge_provider_notification(notification_id: int, admin_id: int, admin_note: str | None) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE provider_notifications SET status='acknowledged', admin_note=%s,
+               reviewed_at=CURRENT_TIMESTAMP, reviewed_by_admin_id=%s WHERE id=%s""",
+            (admin_note, admin_id, notification_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM provider_notifications WHERE id=%s", (notification_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Provider settings (unified TP+AD search on/off switch) ───────────────────
+
+def get_provider_settings() -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM provider_settings WHERE id=1")
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row or {"search_mode": "both"}
+
+
+def update_provider_settings(search_mode: str) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("UPDATE provider_settings SET search_mode=%s WHERE id=1", (search_mode,))
+        conn.commit()
+        cursor.execute("SELECT * FROM provider_settings WHERE id=1")
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Notification recipients ───────────────────────────────────────────────────
+
+def get_notification_recipients(active_only: bool = False) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if active_only:
+        cursor.execute("SELECT * FROM notification_recipients WHERE is_active=1 ORDER BY created_at")
+    else:
+        cursor.execute("SELECT * FROM notification_recipients ORDER BY created_at")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def add_notification_recipient(email: str) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "INSERT INTO notification_recipients (email) VALUES (%s) ON DUPLICATE KEY UPDATE is_active=1",
+            (email,),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM notification_recipients WHERE email=%s", (email,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_notification_recipient(recipient_id: int, email: str | None, is_active: bool | None) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        fields, values = [], []
+        if email is not None:
+            fields.append("email=%s")
+            values.append(email)
+        if is_active is not None:
+            fields.append("is_active=%s")
+            values.append(is_active)
+        if fields:
+            values.append(recipient_id)
+            cursor.execute(f"UPDATE notification_recipients SET {', '.join(fields)} WHERE id=%s", values)
+            conn.commit()
+        cursor.execute("SELECT * FROM notification_recipients WHERE id=%s", (recipient_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_notification_recipient(recipient_id: int) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM notification_recipients WHERE id=%s", (recipient_id,))
+        conn.commit()
     except Exception as e:
         conn.rollback()
         raise e

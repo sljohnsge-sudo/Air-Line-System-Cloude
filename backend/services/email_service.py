@@ -71,3 +71,22 @@ def send_visa_consultation_email(booking: dict) -> tuple[bool, str | None]:
         f"Booking reference: #{booking['id']}\n"
     )
     return _send(to_addr, subject, body)
+
+
+def send_provider_failure_email(to_addr: str, provider: str, error_message: str, route_info: str | None) -> tuple[bool, str | None]:
+    """Alerts staff that the unified flight search (Travelport "TP" + Amadeus
+    "AD") couldn't get fares back from one of the two providers -- so results
+    shown to customers are silently one-sided until someone notices. Called
+    from main.py's /api/flights/search aggregator; to_addr is the
+    comma-joined list of active notification_recipients."""
+    provider_name = {"TP": "Travelport", "AD": "Amadeus"}.get(provider, provider)
+    subject = f"Fare search failed — {provider_name} did not return results"
+    body = (
+        f"The unified flight search could not get fares from {provider_name} ({provider}).\n\n"
+        f"Route:   {route_info or 'n/a'}\n"
+        f"Error:   {error_message}\n\n"
+        f"Customers searching this route are currently only seeing "
+        f"{'Amadeus' if provider == 'TP' else 'Travelport'} fares, if any. "
+        f"Check the provider's status and the Admin Portal's Notifications tab for the full log.\n"
+    )
+    return _send(to_addr, subject, body)
