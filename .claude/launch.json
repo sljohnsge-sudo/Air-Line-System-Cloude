@@ -26,6 +26,19 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "cd /d ..\\Air-Line-System-B2B\\frontend && npm run dev"],
       "port": 5174
+    },
+    {
+      "name": "amadeus-backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d ..\\Air-Line-System-Amadeus\\backend && venv\\Scripts\\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8002 --reload"],
+      "port": 8002,
+      "autoPort": false
+    },
+    {
+      "name": "amadeus-frontend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d ..\\Air-Line-System-Amadeus\\frontend && npm run dev"],
+      "port": 5175
     }
   ]
 }

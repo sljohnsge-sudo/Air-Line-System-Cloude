@@ -5,6 +5,12 @@ FastAPI Application — Travelport TripServices API Gateway
 All flight data, bookings, and tickets are sourced live from Travelport.
 No mock data exists in this system.
 
+NOTE: There is a separate sibling GDS project, Air-Line-System-Amadeus
+(backend :8002, frontend :5175), using Amadeus Web Services instead of
+Travelport. The two are kept as fully independent codebases on purpose
+(separate .env, separate DB, no shared imports/routing) -- do not merge
+them or build a combined workbench unless the user explicitly asks.
+
 Booking Workflow:
     POST  /api/flights/search          → STEP 2: Search flights
     POST  /api/bookings/create         → STEPS 4-9: Full booking + ticket issuance
@@ -18,7 +24,7 @@ import os
 import uuid
 from datetime import datetime
 import httpx
-from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field, model_validator
@@ -1966,7 +1972,7 @@ MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
 
 
 @app.post("/api/admin/upload-image")
-async def admin_upload_image(file: UploadFile = File(...), _admin: dict = Depends(auth.get_current_admin)):
+async def admin_upload_image(request: Request, file: UploadFile = File(...), _admin: dict = Depends(auth.get_current_admin)):
     """Saves an admin-uploaded poster/cover image (e.g. for a Tour Package) to disk
     and returns its public URL. Not tied to any specific package — the returned
     url is meant to be stored in that record's image_url field by the caller."""
@@ -1982,7 +1988,11 @@ async def admin_upload_image(file: UploadFile = File(...), _admin: dict = Depend
     with open(os.path.join(UPLOAD_ROOT, "packages", filename), "wb") as f:
         f.write(contents)
 
-    return {"url": f"http://localhost:8000/uploads/packages/{filename}"}
+    # Built from the actual incoming request host, not a hardcoded localhost
+    # URL — resolves correctly whether the admin is on this machine or
+    # another one on the LAN (see App.jsx's API_BASE, which derives its host
+    # the same way).
+    return {"url": f"{str(request.base_url).rstrip('/')}/uploads/packages/{filename}"}
 
 
 @app.get("/api/admin/packages")
