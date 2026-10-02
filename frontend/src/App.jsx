@@ -2160,6 +2160,12 @@ export default function App() {
       });
       const data = await handleApiResponse(res, 'Amadeus booking failed');
       const locator = data.locator;
+      // Amadeus's own confirm response prices the PNR at ITS net fare (no
+      // markup applied there -- the admin's markup is applied only on the
+      // search-display side, in amadeus_aggregator.py). Charge the customer
+      // the marked-up price they actually saw and agreed to on the search
+      // results / passenger-details screen, not Amadeus's net amount.
+      const pricing = { ...data.pricing, totalAmount: selectedFlight.price, currency: selectedFlight.currency || data.pricing?.currency };
 
       if (paymentMethod === 'card') {
         const baseUrl = `${window.location.origin}${window.location.pathname}`;
@@ -2167,8 +2173,8 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            amount: Number(data.pricing?.totalAmount) || selectedFlight.price,
-            currency: data.pricing?.currency || selectedFlight.currency || 'LKR',
+            amount: pricing.totalAmount,
+            currency: pricing.currency || 'LKR',
             return_url: `${baseUrl}?locator=${locator}&src=AD`,
             cancel_url: `${baseUrl}?locator=${locator}&src=AD&payment=cancelled`,
             client_ref: locator,
@@ -2181,7 +2187,7 @@ export default function App() {
       }
 
       // Cash / Bank Transfer — attempt ticketing immediately.
-      await finishAmadeusTicketing(locator, data.pricing);
+      await finishAmadeusTicketing(locator, pricing);
     } catch (err) {
       const errMsg = err.message || String(err);
       setBookingError(errMsg);

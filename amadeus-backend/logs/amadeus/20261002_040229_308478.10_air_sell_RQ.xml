@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">2cde04a5-8bce-4cb4-b97a-df2edf81d1bb</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/ITAREQ_05_2_IA</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">HzZWJzkUMHocK8YFL8KxZgSpnVhW6UFnq41ABntgD1Q=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">AbpyZ0flcjxfSj50SkfCKWO71vY=</oas:Password>
+        <oas1:Created>2026-10-02T04:02:28.032Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="Start"/>
+  </soapenv:Header>
+  <soapenv:Body>
+<Air_SellFromRecommendation xmlns="http://xml.amadeus.com/ITAREQ_05_2_IA">
+      <itineraryDetails>
+        <originDestinationDetails>
+          <origin>LGW</origin>
+          <destination>CDG</destination>
+        </originDestinationDetails>
+        <segmentInformation>
+        <travelProductInformation>
+          <flightDate>
+            <departureDate>201126</departureDate>
+            <departureTime>1450</departureTime>
+            <arrivalDate>201126</arrivalDate>
+            <arrivalTime>1705</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>LGW</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>CDG</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>U2</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>8407</flightNumber>
+            <bookingClass>Y</bookingClass>
+          </flightIdentification>
+        </travelProductInformation>
+        <relatedproductInformation>
+          <quantity>1</quantity>
+          <statusCode>NN</statusCode>
+        </relatedproductInformation>
+      </segmentInformation>
+      </itineraryDetails>
+    </Air_SellFromRecommendation>
+  </soapenv:Body>
+</soapenv:Envelope>

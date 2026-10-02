@@ -26,6 +26,7 @@ from datetime import date
 import httpx
 
 from services.search_service import IATA_AIRLINE_NAMES
+from services.pricing_service import get_settings as get_pricing_settings, apply_markup
 
 AMADEUS_BACKEND_URL = os.getenv("AMADEUS_BACKEND_URL", "http://localhost:8002")
 
@@ -40,7 +41,7 @@ def _to_iso(date_ddmmyy: str | None, time_hhmm: str | None) -> str:
     return f"20{yy}-{mm}-{dd}T{t[0:2]}:{t[2:4]}"
 
 
-def _normalize_offer(raw_offer: dict, idx: int) -> dict | None:
+def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict) -> dict | None:
     segs = raw_offer.get("segments") or []
     if not segs:
         return None
@@ -60,9 +61,16 @@ def _normalize_offer(raw_offer: dict, idx: int) -> dict | None:
     first, last = norm_segs[0], norm_segs[-1]
     carrier_code = segs[0].get("marketingCarrier") or ""
     try:
-        price = float(raw_offer.get("totalPrice") or 0)
+        net_price = float(raw_offer.get("totalPrice") or 0)
     except (TypeError, ValueError):
-        price = 0.0
+        net_price = 0.0
+
+    # Admin-configurable markup (Admin Portal -> Pricing & Markup). Amadeus
+    # fares were never marked up at all before this -- 'shared' reuses
+    # Travelport's own ticket markup (category "ticket"), 'separate' uses
+    # its own amadeus_ticket_markup_* values (category "amadeus_ticket").
+    category = "amadeus_ticket" if pricing_settings.get("markup_scope") == "separate" else "ticket"
+    price, _scale = apply_markup(net_price, pricing_settings, category)
 
     return {
         "offer_id": f"AD-{idx}",
@@ -122,6 +130,7 @@ async def search_amadeus_flights(
         resp.raise_for_status()
         data = resp.json()
 
+    pricing_settings = get_pricing_settings()
     offers = data.get("offers") or []
-    normalized = [_normalize_offer(o, i) for i, o in enumerate(offers)]
+    normalized = [_normalize_offer(o, i, pricing_settings) for i, o in enumerate(offers)]
     return [o for o in normalized if o is not None]

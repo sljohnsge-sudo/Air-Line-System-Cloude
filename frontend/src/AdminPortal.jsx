@@ -985,8 +985,27 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           <div className="loading-state"><div className="spinner"></div><p>Loading settings...</p></div>
         ) : (
           <>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>Flight ticket markup scope</h4>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.6rem' }}>
+                The unified search shows fares from both Travelport and Amadeus. Choose whether they share one markup or each gets its own.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                  <input type="radio" checked={settings.markup_scope !== 'separate'}
+                    onChange={() => setSettings(s => ({ ...s, markup_scope: 'shared' }))} />
+                  Same markup for both providers
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                  <input type="radio" checked={settings.markup_scope === 'separate'}
+                    onChange={() => setSettings(s => ({ ...s, markup_scope: 'separate' }))} />
+                  Separate markup for Travelport and Amadeus
+                </label>
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-              {markupField('ticket', 'Flight Ticket Margin')}
+              {markupField('ticket', settings.markup_scope === 'separate' ? 'Flight Ticket Margin — Travelport' : 'Flight Ticket Margin')}
+              {settings.markup_scope === 'separate' && markupField('amadeus_ticket', 'Flight Ticket Margin — Amadeus')}
               {markupField('seat', 'Seat Booking Margin')}
             </div>
             <button className="btn btn-primary" onClick={handleSaveSettings} disabled={saving}>

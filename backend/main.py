@@ -5,16 +5,23 @@ FastAPI Application — Travelport TripServices API Gateway
 All flight data, bookings, and tickets are sourced live from Travelport.
 No mock data exists in this system.
 
-NOTE: There is a separate sibling GDS project, Air-Line-System-Amadeus
-(backend :8002, frontend :5175), using Amadeus Web Services instead of
-Travelport. The two stay fully independent codebases/databases (separate
-.env, no shared imports) -- the only connection is an outbound HTTP call
+NOTE: There is a separate Amadeus GDS system living at ./amadeus-backend
+(port 8002) and its own standalone frontend at the sibling project
+Air-Line-System-Amadeus/frontend (port 5175), using Amadeus Web Services
+instead of Travelport. amadeus-backend sits inside this repo purely for
+filesystem convenience (one folder tree to browse/edit) -- it is still a
+fully independent codebase/database (own .env, own DB, no shared imports
+with this backend's code). The only connection is an outbound HTTP call
 from /api/flights/search to the Amadeus backend's own public search
 endpoint (see services/amadeus_aggregator.py), exactly like a browser would
-call it. Results from both are merged and tagged offer["source"] = "TP"
-(Travelport) or "AD" (Amadeus) so the frontend can show where each fare
-came from; AD offers are search/compare only (not bookable yet -- see
-amadeus_aggregator.py for why).
+call it -- same as if it were still a sibling folder. Results from both are
+merged and tagged offer["source"] = "TP" (Travelport) or "AD" (Amadeus) so
+the frontend can show where each fare came from. AD offers ARE bookable
+(see services/amadeus_booking_proxy.py and the amadeus_* booking steps in
+frontend/src/App.jsx) -- ticket issuance is separately blocked by an
+unresolved Amadeus office-authority gate (errorCode 2011), not by code.
+An admin can also turn either provider off entirely from the Admin
+Portal's Provider Control tab (see database.get_provider_settings).
 
 Booking Workflow:
     POST  /api/flights/search          → STEP 2: Search flights
@@ -1877,12 +1884,16 @@ class AdminLoginRequest(BaseModel):
 
 
 class PricingSettingsRequest(BaseModel):
-    ticket_markup_mode: str = Field(..., description="'percent' or 'fixed'")
+    ticket_markup_mode: str = Field(..., description="'percent' or 'fixed' -- Travelport's ticket markup; also Amadeus's when markup_scope='shared'")
     ticket_markup_percent: float = Field(default=0.0, ge=0)
     ticket_markup_fixed: float = Field(default=0.0, ge=0)
     seat_markup_mode: str = Field(..., description="'percent' or 'fixed'")
     seat_markup_percent: float = Field(default=0.0, ge=0)
     seat_markup_fixed: float = Field(default=0.0, ge=0)
+    markup_scope: Literal["shared", "separate"] = Field(default="shared", description="'shared' = Amadeus reuses ticket_markup_*; 'separate' = Amadeus uses amadeus_ticket_markup_* below")
+    amadeus_ticket_markup_mode: str = Field(default="percent", description="'percent' or 'fixed' -- only used when markup_scope='separate'")
+    amadeus_ticket_markup_percent: float = Field(default=0.0, ge=0)
+    amadeus_ticket_markup_fixed: float = Field(default=0.0, ge=0)
 
 
 @app.post("/api/admin/login")
@@ -1903,11 +1914,15 @@ def get_pricing_settings(_admin: dict = Depends(auth.get_current_admin)):
 
 @app.put("/api/admin/pricing-settings")
 def put_pricing_settings(request: PricingSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
-    if request.ticket_markup_mode not in ("percent", "fixed") or request.seat_markup_mode not in ("percent", "fixed"):
+    if (request.ticket_markup_mode not in ("percent", "fixed")
+            or request.seat_markup_mode not in ("percent", "fixed")
+            or request.amadeus_ticket_markup_mode not in ("percent", "fixed")):
         raise HTTPException(status_code=422, detail="markup_mode must be 'percent' or 'fixed'")
     return database.update_pricing_settings(
         request.ticket_markup_mode, request.ticket_markup_percent, request.ticket_markup_fixed,
         request.seat_markup_mode, request.seat_markup_percent, request.seat_markup_fixed,
+        request.markup_scope,
+        request.amadeus_ticket_markup_mode, request.amadeus_ticket_markup_percent, request.amadeus_ticket_markup_fixed,
     )
 
 

@@ -133,6 +133,24 @@ def init_db():
     """)
     cursor.execute("INSERT IGNORE INTO pricing_settings (id) VALUES (1)")
 
+    # pricing_settings.markup_scope + amadeus_ticket_markup_* — added via a
+    # guarded ALTER (same reasoning as bookings.customer_id above). Amadeus
+    # ("AD") fares in the unified search were never marked up at all until
+    # now -- ticket_markup_* above is implicitly "Travelport's markup" (it's
+    # the only thing that ever read it). markup_scope picks whether Amadeus
+    # reuses that same ticket_markup_* ('shared') or gets its own
+    # amadeus_ticket_markup_* values ('separate') -- see
+    # services/amadeus_aggregator.py and services/pricing_service.py.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='pricing_settings' AND COLUMN_NAME='markup_scope'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE pricing_settings ADD COLUMN markup_scope VARCHAR(10) NOT NULL DEFAULT 'shared' AFTER seat_markup_fixed")
+        cursor.execute("ALTER TABLE pricing_settings ADD COLUMN amadeus_ticket_markup_mode VARCHAR(10) NOT NULL DEFAULT 'percent' AFTER markup_scope")
+        cursor.execute("ALTER TABLE pricing_settings ADD COLUMN amadeus_ticket_markup_percent DOUBLE NOT NULL DEFAULT 0.0 AFTER amadeus_ticket_markup_mode")
+        cursor.execute("ALTER TABLE pricing_settings ADD COLUMN amadeus_ticket_markup_fixed DOUBLE NOT NULL DEFAULT 0.0 AFTER amadeus_ticket_markup_percent")
+
     # bookings.customer_id — added via a guarded ALTER since init_db() runs on
     # every import and MySQL's ADD COLUMN IF NOT EXISTS isn't universally available.
     cursor.execute("""
@@ -1922,12 +1940,16 @@ def get_pricing_settings() -> dict:
     return {
         "ticket_markup_mode": "percent", "ticket_markup_percent": 0.0, "ticket_markup_fixed": 0.0,
         "seat_markup_mode": "percent", "seat_markup_percent": 0.0, "seat_markup_fixed": 0.0,
+        "markup_scope": "shared",
+        "amadeus_ticket_markup_mode": "percent", "amadeus_ticket_markup_percent": 0.0, "amadeus_ticket_markup_fixed": 0.0,
     }
 
 
 def update_pricing_settings(
     ticket_markup_mode: str, ticket_markup_percent: float, ticket_markup_fixed: float,
     seat_markup_mode: str, seat_markup_percent: float, seat_markup_fixed: float,
+    markup_scope: str = "shared",
+    amadeus_ticket_markup_mode: str = "percent", amadeus_ticket_markup_percent: float = 0.0, amadeus_ticket_markup_fixed: float = 0.0,
 ) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -1935,10 +1957,14 @@ def update_pricing_settings(
         cursor.execute(
             """UPDATE pricing_settings SET
                 ticket_markup_mode=%s, ticket_markup_percent=%s, ticket_markup_fixed=%s,
-                seat_markup_mode=%s, seat_markup_percent=%s, seat_markup_fixed=%s
+                seat_markup_mode=%s, seat_markup_percent=%s, seat_markup_fixed=%s,
+                markup_scope=%s,
+                amadeus_ticket_markup_mode=%s, amadeus_ticket_markup_percent=%s, amadeus_ticket_markup_fixed=%s
                WHERE id=1""",
             (ticket_markup_mode, ticket_markup_percent, ticket_markup_fixed,
-             seat_markup_mode, seat_markup_percent, seat_markup_fixed),
+             seat_markup_mode, seat_markup_percent, seat_markup_fixed,
+             markup_scope,
+             amadeus_ticket_markup_mode, amadeus_ticket_markup_percent, amadeus_ticket_markup_fixed),
         )
         conn.commit()
         cursor.execute("SELECT * FROM pricing_settings WHERE id=1")

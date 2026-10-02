@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">b761148e-a2d8-4b76-83e1-57463737bff2</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/ITAREQ_05_2_IA</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">+I55moFz5hPkp8Cv6G2s628LfQnvwMxVL5lgm3EytlQ=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">wMe2CqUL/Gl0zN4giWtepRfNTWE=</oas:Password>
+        <oas1:Created>2026-10-02T05:25:50.049Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="Start"/>
+  </soapenv:Header>
+  <soapenv:Body>
+<Air_SellFromRecommendation xmlns="http://xml.amadeus.com/ITAREQ_05_2_IA">
+      <itineraryDetails>
+        <originDestinationDetails>
+          <origin>CMB</origin>
+          <destination>CMB</destination>
+        </originDestinationDetails>
+        <segmentInformation>
+        <travelProductInformation>
+          <flightDate>
+            <departureDate>171026</departureDate>
+            <departureTime>0150</departureTime>
+            <arrivalDate>171026</arrivalDate>
+            <arrivalTime>0830</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>SIN</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>UL</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>306</flightNumber>
+            <bookingClass>O</bookingClass>
+          </flightIdentification>
+        </travelProductInformation>
+        <relatedproductInformation>
+          <quantity>2</quantity>
+          <statusCode>NN</statusCode>
+        </relatedproductInformation>
+      </segmentInformation><segmentInformation>
+        <travelProductInformation>
+          <flightDate>
+            <departureDate>101126</departureDate>
+            <departureTime>0940</departureTime>
+            <arrivalDate>101126</arrivalDate>
+            <arrivalTime>1100</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>SIN</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>CMB</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>UL</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>307</flightNumber>
+            <bookingClass>O</bookingClass>
+          </flightIdentification>
+        </travelProductInformation>
+        <relatedproductInformation>
+          <quantity>2</quantity>
+          <statusCode>NN</statusCode>
+        </relatedproductInformation>
+      </segmentInformation>
+      </itineraryDetails>
+    </Air_SellFromRecommendation>
+  </soapenv:Body>
+</soapenv:Envelope>

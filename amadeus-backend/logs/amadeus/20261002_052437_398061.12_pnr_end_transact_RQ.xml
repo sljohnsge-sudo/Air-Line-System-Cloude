@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">c74348a6-56f0-42d3-b134-ca92c8e74b2c</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/PNRADD_22_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="InSeries"><awsse:SessionId>03134D8A6A</awsse:SessionId><awsse:SequenceNumber>2</awsse:SequenceNumber><awsse:SecurityToken>1JCA1GFI9Z9GF3702NFLC5OY6J</awsse:SecurityToken></awsse:Session>
+  </soapenv:Header>
+  <soapenv:Body>
+<PNR_AddMultiElements xmlns="http://xml.amadeus.com/PNRADD_22_1_1A">
+      <reservationInfo><reservation/></reservationInfo>
+      <pnrActions><optionCode>11</optionCode></pnrActions>
+      <dataElementsMaster>
+        <marker1/>
+        <dataElementsIndiv>
+          <elementManagementData><reference><qualifier>OT</qualifier><number>3</number></reference><segmentName>RF</segmentName></elementManagementData>
+          <freetextData>
+            <freetextDetail><subjectQualifier>3</subjectQualifier><type>P23</type></freetextDetail>
+            <longFreetext>FERNANDO</longFreetext>
+          </freetextData>
+        </dataElementsIndiv>
+      </dataElementsMaster>
+    </PNR_AddMultiElements>
+  </soapenv:Body>
+</soapenv:Envelope>

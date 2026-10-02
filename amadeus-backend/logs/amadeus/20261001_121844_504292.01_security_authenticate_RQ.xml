@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="Start"/>
+    <awsl:TransactionFlowLink xmlns:awsl="http://wsdl.amadeus.com/2010/06/ws/Link_v1"/>
+    <amasec:AMA_SecurityHostedUser xmlns:amasec="http://xml.amadeus.com/2010/06/Security_v1"><amasec:UserID POS_Type="1" PseudoCityCode="CMBVS3299" AgentDutyCode="SU" RequestorType="U"/></amasec:AMA_SecurityHostedUser>
+  </soapenv:Header>
+  <soapenv:Body>
+<Security_Authenticate xmlns="http://xml.amadeus.com/VLSSLQ_06_1_1A">
+      <userIdentifier>
+        <originIdentification>
+          <sourceOffice>CMBVS3299</sourceOffice>
+        </originIdentification>
+        <originatorTypeCode>U</originatorTypeCode>
+        <originator>WSMLRGST</originator>
+      </userIdentifier>
+      <dutyCode>
+        <dutyCodeDetails>
+          <referenceQualifier>DUT</referenceQualifier>
+          <referenceIdentifier>SU</referenceIdentifier>
+        </dutyCodeDetails>
+      </dutyCode>
+      <systemDetails>
+        <organizationDetails>
+          <organizationId>CMBVS3299</organizationId>
+        </organizationDetails>
+      </systemDetails>
+      <passwordInfo>
+        <dataLength>13</dataLength>
+        <dataType>E</dataType>
+        <binaryData>Password@2027</binaryData>
+      </passwordInfo>
+    </Security_Authenticate>
+  </soapenv:Body>
+</soapenv:Envelope>
