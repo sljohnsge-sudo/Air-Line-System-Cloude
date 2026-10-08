@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">a2ba1fb5-dcb9-45fc-9e61-548d98b2e0af</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/TIPNRQ_23_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">fkldTqRIpXGVE5hXNHlpYAOteI6ZNm/TZVrm8QubIO8=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">rixh+z8bdHYDMMksoDAoMia0+QA=</oas:Password>
+        <oas1:Created>2026-10-06T05:59:56.586Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="Start"/>
+  </soapenv:Header>
+  <soapenv:Body>
+<Fare_InformativePricingWithoutPNR xmlns="http://xml.amadeus.com/TIPNRQ_23_1_1A">
+      <passengersGroup>
+        <segmentRepetitionControl/>
+        <discountPtc><valueQualifier>ADT</valueQualifier></discountPtc>
+      </passengersGroup>
+      <segmentGroup>
+        <segmentInformation>
+          <flightDate>
+            <departureDate>071026</departureDate>
+            <departureTime>1725</departureTime>
+            <arrivalDate>071026</arrivalDate>
+            <arrivalTime>2215</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>BAH</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>GF</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>145</flightNumber>
+            <bookingClass>W</bookingClass>
+          </flightIdentification>
+        </segmentInformation>
+      </segmentGroup><segmentGroup>
+        <segmentInformation>
+          <flightDate>
+            <departureDate>081026</departureDate>
+            <departureTime>0110</departureTime>
+            <arrivalDate>081026</arrivalDate>
+            <arrivalTime>0330</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>BAH</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>DXB</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>GF</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>500</flightNumber>
+            <bookingClass>W</bookingClass>
+          </flightIdentification>
+        </segmentInformation>
+      </segmentGroup>
+      <pricingOptionGroup>
+        <pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey>
+      </pricingOptionGroup>
+    </Fare_InformativePricingWithoutPNR>
+  </soapenv:Body>
+</soapenv:Envelope>

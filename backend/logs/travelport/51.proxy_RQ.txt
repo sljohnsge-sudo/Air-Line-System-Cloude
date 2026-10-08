@@ -1,15 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: c03b1169ea8938e725c002f6b97fcbca33430a85ef4ec2b3bae5a9198a5108f3' \
+--header 'hmac: ac493b5cd77d4dcc3ac7a4b8a91d0d74e41b3854e4a7648149595b4e137c338c' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "60a56c32-9b17-4c96-8a4a-5c8fac502106",
-    "operation": "PAYMENT_COMPLETE",
-    "requestDate": "2026-09-15 09:10:06",
+    "msgId": "7274d87c-abf7-4919-9f8a-16c936eb9f64",
+    "operation": "PAYMENT_INIT",
+    "requestDate": "2026-10-06 13:03:31",
     "validateOnly": false,
     "requestData": {
-        "reqid": "vNzD8d7SSkauRx1zryCw"
+        "clientId": "14008400",
+        "clientIdHash": "",
+        "transactionType": "PURCHASE",
+        "transactionAmount": {
+            "paymentAmount": 8475000,
+            "currency": "LKR"
+        },
+        "redirect": {
+            "returnUrl": "http://localhost:5173/booking/U2FsdGVkX1-f2vCzwBUiI2CC_Y6aTOUN0evapa8W6Cc?locator=9ODQDW&src=AD",
+            "returnMethod": "GET",
+            "cancelUrl": "http://localhost:5173/booking/U2FsdGVkX1-f2vCzwBUiI2CC_Y6aTOUN0evapa8W6Cc?locator=9ODQDW&src=AD&payment=cancelled"
+        },
+        "useReliability": true,
+        "clientRef": "9ODQDW",
+        "comment": "George Steuart Travel - Amadeus 9ODQDW"
     }
 }'

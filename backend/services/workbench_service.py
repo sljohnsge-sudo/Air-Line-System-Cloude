@@ -1457,6 +1457,116 @@ def get_seat_map(workbench_id: str, offer_id: str) -> dict:
     return parse_seat_map_response(result)
 
 
+# ── STEP 10b: Live Ancillary (Baggage/Meal) Catalogue Query ──────────────────
+
+def get_ancillary_offers(workbench_id: str, offer_id: str) -> list[dict]:
+    """
+    Query the Travelport Ancillary Shop API for the bookable non-seat
+    ancillaries (extra baggage, meals, etc.) available on the active
+    workbench session. Mirrors get_seat_map()'s request shape exactly —
+    same BuildFromReservationWorkbench discriminator pattern, same
+    ReservationIdentifier/OfferIdentifier — against the general ancillary
+    endpoint instead of the seat-specific one.
+    """
+    logger.info(f"Querying ancillary offers for workbench {workbench_id}, offer {offer_id}...")
+
+    url = f"{TravelportConfig.base_path()}/air/ancillaryshop/catalogofferingsancillaries"
+    payload = {
+      "CatalogOfferingsQueryAncillaries": {
+        "AncillaryOfferings": {
+          "@type": "AncillaryOfferingsBuildFromReservationWorkbench",
+          "BuildFromReservationWorkbench": {
+            "ReservationIdentifier": {
+              "Identifier": {
+                "value": workbench_id,
+                "authority": "Travelport"
+              }
+            },
+            "OfferIdentifier": {
+              "Identifier": {
+                "value": offer_id,
+                "authority": "Travelport"
+              }
+            }
+          }
+        }
+      }
+    }
+
+    # Use retry helper — same sandbox 504 behavior seen on seat map/other calls.
+    result = _api_post_with_retry(url, payload, session_id=workbench_id)
+    return parse_ancillary_response(result)
+
+
+def parse_ancillary_response(result: dict) -> list[dict]:
+    """
+    Parse the raw Travelport CatalogOfferingsAncillaryListResponse (ancillary
+    shop variant) into a flat list of purchasable ancillary items for the
+    frontend. Each item: service_type (e.g. "BG" baggage, "ML" meal), name,
+    description, price, currency, and the ids needed to add it to the
+    workbench later (catalog_offering_id, product_id).
+    """
+    resp = result.get("CatalogOfferingsAncillaryListResponse", {})
+
+    errors = resp.get("Result", {}).get("Error", [])
+    if errors and not resp.get("CatalogOfferingsID"):
+        raise ValueError(f"Travelport Ancillary Shop Error: {errors[0].get('Message')}")
+
+    pricing_settings = get_pricing_settings()
+    items: list[dict] = []
+
+    for flight_group in resp.get("CatalogOfferingsID", []) or []:
+        for offering in flight_group.get("CatalogOffering", []) or []:
+            catalog_offering_id = offering.get("id")
+            price_detail = offering.get("Price", {})
+            price = float(price_detail.get("TotalPrice", 0) or 0)
+            price, _ = apply_markup(price, pricing_settings, "ancillary")
+            currency = price_detail.get("CurrencyCode", {}).get("value", "LKR")
+
+            for prod_opt in offering.get("ProductOptions", []) or []:
+                for prod in prod_opt.get("Product", []) or []:
+                    if prod.get("@type") != "ProductAncillary":
+                        continue
+                    product_id = prod.get("id")
+                    ancillary = prod.get("Ancillary", {}) or {}
+                    # Confirmed live shape (Travelport Ancillary Shop, GDS
+                    # content): the human-readable name/category/ssr code
+                    # live in Ancillary.Description[0], not a top-level
+                    # "commercialName"/"ServiceDetails" field.
+                    desc = (ancillary.get("Description") or [{}])[0]
+                    weight = None
+                    for m in ancillary.get("Measurement", []) or []:
+                        if m.get("measurementType") == "Weight":
+                            weight = f"{m.get('value')} {m.get('unit', '')}".strip()
+                            break
+                    name = desc.get("value") or "Ancillary Service"
+                    if weight:
+                        description = f"{name} ({weight})"
+                    elif desc.get("code") == "BG":
+                        # Confirmed live: some baggage SSRs (e.g. XWBG "EXCESS
+                        # BAGGAGE WEIGHT") are a generic per-kg overweight
+                        # charge rather than a fixed package like "UPTO33LB
+                        # 15KG BAGGAGE" — Travelport gives no fixed Measurement
+                        # for these, so say so explicitly instead of silently
+                        # showing no weight at all (looked like missing data).
+                        description = f"{name} — priced per excess kg, not a fixed weight package"
+                    else:
+                        description = name
+                    items.append({
+                        "catalog_offering_id": catalog_offering_id,
+                        "product_id": product_id,
+                        "service_type": ancillary.get("@type"),
+                        "category_code": desc.get("code"),
+                        "ssr_code": desc.get("ssrCode"),
+                        "name": name,
+                        "description": description,
+                        "price": price,
+                        "currency": currency,
+                    })
+
+    return items
+
+
 def parse_seat_map_response(result: dict) -> list[dict]:
     """
     Parse the raw Travelport seat map response into a clean structure for the

@@ -1,100 +1,16 @@
 {
     "ReservationResponse": {
         "@type": "ReservationResponse",
-        "Reservation": {
-            "@type": "Reservation",
-            "Identifier": {
-                "authority": "Travelport",
-                "value": "8157eabf-e9bc-43ea-b5d4-efe2bcdf6efc"
-            },
-            "Traveler": [
+        "Result": {
+            "@type": "Result",
+            "Error": [
                 {
-                    "@type": "Traveler",
-                    "birthDate": "1926-09-30",
-                    "gender": "Male",
-                    "passengerTypeCode": "ADT",
-                    "id": "travelerRefId_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "7a16c1a6-63a9-493f-a0cc-950cff46cdac"
-                    },
-                    "PersonName": {
-                        "@type": "PersonName",
-                        "Given": "ASSSSSS MR",
-                        "Surname": "SAS"
-                    },
-                    "Telephone": [
-                        {
-                            "@type": "TelephoneDetail",
-                            "countryAccessCode": "94",
-                            "phoneNumber": "77772733",
-                            "id": "telephone_1",
-                            "cityCode": "CMB",
-                            "role": "Mobile"
-                        }
-                    ],
-                    "Email": [
-                        {
-                            "emailType": "TO",
-                            "value": "aaaa@gmail.com"
-                        }
-                    ],
-                    "TravelDocument": [
-                        {
-                            "@type": "TravelDocumentDetail",
-                            "docNumber": "N212323",
-                            "docType": "Passport",
-                            "expireDate": "2026-09-30",
-                            "issueCountry": "LK",
-                            "birthDate": "1926-09-30",
-                            "Gender": "Male",
-                            "Nationality": "LK",
-                            "PersonName": {
-                                "@type": "PersonName",
-                                "Given": "ASSSSSS",
-                                "Surname": "SAS"
-                            }
-                        }
-                    ]
-                }
-            ],
-            "FormOfPayment": [
-                {
-                    "@type": "FormOfPaymentCash",
-                    "id": "formOfPayment_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "62543348-3a49-4980-8fe8-59943dfec3ec"
-                    }
-                }
-            ],
-            "Receipt": [
-                {
-                    "@type": "ReceiptConfirmation",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "0b45841d-3c01-4d05-9e36-59e62757d9d9"
-                    },
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "Locator": {
-                            "source": "1G",
-                            "creationDate": "2026-09-28",
-                            "value": "HN7V8B"
-                        }
-                    }
-                }
-            ],
-            "ReservationComment": [
-                {
-                    "@type": "ReservationComment",
-                    "shareWith": "Agency",
-                    "id": "RSRVComment_1",
-                    "Comment": [
-                        {
-                            "value": "* PNR CONTAINS NDC AIR SEGMENTS-SERVICE VIA SMARTPOINT NDC APP *"
-                        }
-                    ]
+                    "@type": "ErrorDetail",
+                    "category": "VALIDATION",
+                    "StatusCode": 200,
+                    "Message": "RECORD LOCATOR DOES NOT EXIST",
+                    "SourceID": "1G",
+                    "SourceCode": "4247"
                 }
             ]
         }

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">98e2894a-9976-4642-bb25-5dbab2ad22f1</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/ITAREQ_05_2_IA</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">oNU6RGtMuRwpLPE+43CIueofn8ox3d4DzJPLGBvwegU=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">tsUelHaHUNO8DK+dXDJJP4C/gDo=</oas:Password>
+        <oas1:Created>2026-10-06T10:51:36.107Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="Start"/>
+  </soapenv:Header>
+  <soapenv:Body>
+<Air_SellFromRecommendation xmlns="http://xml.amadeus.com/ITAREQ_05_2_IA">
+      <itineraryDetails>
+        <originDestinationDetails>
+          <origin>CMB</origin>
+          <destination>BAH</destination>
+        </originDestinationDetails>
+        <segmentInformation>
+        <travelProductInformation>
+          <flightDate>
+            <departureDate>201026</departureDate>
+            <departureTime>1725</departureTime>
+            <arrivalDate>201026</arrivalDate>
+            <arrivalTime>2215</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>BAH</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>GF</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>145</flightNumber>
+            <bookingClass>W</bookingClass>
+          </flightIdentification>
+        </travelProductInformation>
+        <relatedproductInformation>
+          <quantity>1</quantity>
+          <statusCode>NN</statusCode>
+        </relatedproductInformation>
+      </segmentInformation>
+      </itineraryDetails>
+    </Air_SellFromRecommendation>
+  </soapenv:Body>
+</soapenv:Envelope>

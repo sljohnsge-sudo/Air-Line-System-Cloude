@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">f6ca62b6-f7c6-4972-876f-62c361010989</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/SMPREQ_17_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">8HmekXS3VP34a2ul4J1h8wdgXbljq6Y3LtCZimOlqWg=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">SYKNf6QuuwZJt18VrTNHD8E5650=</oas:Password>
+        <oas1:Created>2026-10-07T11:21:36.575Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser>
+  </soapenv:Header>
+  <soapenv:Body>
+<Air_RetrieveSeatMap xmlns="http://xml.amadeus.com/SMPREQ_17_1_1A">
+      <travelProductIdent>
+        <flightDate>
+            <departureDate>081026</departureDate>
+            <departureTime>1600</departureTime>
+            <arrivalDate>081026</arrivalDate>
+            <arrivalTime>1840</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>BOM</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>AI</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>2275</flightNumber>
+            <bookingClass>L</bookingClass>
+          </flightIdentification>
+      </travelProductIdent>
+    </Air_RetrieveSeatMap>
+  </soapenv:Body>
+</soapenv:Envelope>

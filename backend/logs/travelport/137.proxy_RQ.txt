@@ -1,0 +1,29 @@
+curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
+--header 'accept: */*' \
+--header 'hmac: 5bfdcf682132d8ff055b0a7c7daadc060030859f49cf2ded3dea8599ab1d326f' \
+--header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
+--header 'content-type: application/json' \
+--data-raw '{
+    "version": "1.04",
+    "msgId": "7f4b1216-21c9-48b6-85a8-d6b68c8b9ca8",
+    "operation": "PAYMENT_INIT",
+    "requestDate": "2026-10-07 16:53:44",
+    "validateOnly": false,
+    "requestData": {
+        "clientId": "14008400",
+        "clientIdHash": "",
+        "transactionType": "PURCHASE",
+        "transactionAmount": {
+            "paymentAmount": 8474800,
+            "currency": "LKR"
+        },
+        "redirect": {
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX1-gNDnSxznpBgkWCqq57OHhS5bbjRd95xLHzYcAWYKzKLDXqr3S3H94z1Cvt5hN0JIuatYgl3nPbtZjpElr5kOVwX-qTzScMdEBy-rTuEpTd5nqVHZbZ517lHxOjtqjANNk_GCRiqoj6yD6vSOED0X-1ppy1XIvzgYpNFWapZvfCeg_kklKwPUxN4S7rf9pm4edBUardsi94LjPETteR3000eZxV-jQYCs?locator=9UZKI5&src=AD",
+            "returnMethod": "GET",
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX1-gNDnSxznpBgkWCqq57OHhS5bbjRd95xLHzYcAWYKzKLDXqr3S3H94z1Cvt5hN0JIuatYgl3nPbtZjpElr5kOVwX-qTzScMdEBy-rTuEpTd5nqVHZbZ517lHxOjtqjANNk_GCRiqoj6yD6vSOED0X-1ppy1XIvzgYpNFWapZvfCeg_kklKwPUxN4S7rf9pm4edBUardsi94LjPETteR3000eZxV-jQYCs?locator=9UZKI5&src=AD&payment=cancelled"
+        },
+        "useReliability": true,
+        "clientRef": "9UZKI5",
+        "comment": "George Steuart Travel - Amadeus 9UZKI5"
+    }
+}'

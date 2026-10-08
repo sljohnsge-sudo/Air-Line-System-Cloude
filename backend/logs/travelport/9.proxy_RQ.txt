@@ -1,29 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: d82c887c2ffbb005c9df9396060b7512fa4012b55996313be512df1f2f22de99' \
+--header 'hmac: fa40069a285ba38fda438b109c36937737da36fc9bb8ecbba802eb4ed5b9fd00' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "da8dfb7c-5051-4400-906d-6739aa759506",
+    "msgId": "85359ede-2434-4631-8632-f2cae0af806d",
     "operation": "PAYMENT_INIT",
-    "requestDate": "2026-09-22 08:51:12",
+    "requestDate": "2026-10-05 13:37:06",
     "validateOnly": false,
     "requestData": {
         "clientId": "14008400",
         "clientIdHash": "",
         "transactionType": "PURCHASE",
         "transactionAmount": {
-            "paymentAmount": 8001600,
+            "paymentAmount": 10441400,
             "currency": "LKR"
         },
         "redirect": {
-            "returnUrl": "http://localhost:5173/?tab=ndc&ndc_locator=HN6B43",
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX19TfLvJGOlwfDzVOMc7k2O_3kpAVJm9n0BSJ8cGbDZgK7-i3lIrC6O2L_jTWaN7TSRMiEm3Rn1AqgMUvr8VTDrg_0MNC5nFXkrz-8UCG3gR91oj1aBXXLm9QOPf30KljQxmJjoJJ-DB8wuZeMP6FpvP9R-9yUTiVdanvDD8ARw-g9x4gfpOYbNlZqnWNOQw3G2-z8uoBanL-QqlY3wZFEn7dOP__rwiI6s?locator=9ITAVQ&src=AD",
             "returnMethod": "GET",
-            "cancelUrl": "http://localhost:5173/?tab=ndc&ndc_locator=HN6B43&payment=cancelled"
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX19TfLvJGOlwfDzVOMc7k2O_3kpAVJm9n0BSJ8cGbDZgK7-i3lIrC6O2L_jTWaN7TSRMiEm3Rn1AqgMUvr8VTDrg_0MNC5nFXkrz-8UCG3gR91oj1aBXXLm9QOPf30KljQxmJjoJJ-DB8wuZeMP6FpvP9R-9yUTiVdanvDD8ARw-g9x4gfpOYbNlZqnWNOQw3G2-z8uoBanL-QqlY3wZFEn7dOP__rwiI6s?locator=9ITAVQ&src=AD&payment=cancelled"
         },
         "useReliability": true,
-        "clientRef": "HN6B43",
-        "comment": "George Steuart Travel - NDC HN6B43"
+        "clientRef": "9ITAVQ",
+        "comment": "George Steuart Travel - Amadeus 9ITAVQ"
     }
 }'

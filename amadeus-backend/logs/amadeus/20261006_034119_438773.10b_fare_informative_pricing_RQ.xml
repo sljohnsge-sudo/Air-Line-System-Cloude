@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">8ab009af-d688-4187-8cb2-9f58512d8dd2</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/TIPNRQ_23_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="InSeries"><awsse:SessionId>02N7I7RLYR</awsse:SessionId><awsse:SequenceNumber>1</awsse:SequenceNumber><awsse:SecurityToken>B9S893BLK8QMQ4W00YM343Y6</awsse:SecurityToken></awsse:Session>
+  </soapenv:Header>
+  <soapenv:Body>
+<Fare_InformativePricingWithoutPNR xmlns="http://xml.amadeus.com/TIPNRQ_23_1_1A">
+      <passengersGroup>
+        <segmentRepetitionControl/>
+        <discountPtc><valueQualifier>ADT</valueQualifier></discountPtc>
+      </passengersGroup>
+      <segmentGroup>
+        <segmentInformation>
+          <flightDate>
+            <departureDate>151026</departureDate>
+            <departureTime>1830</departureTime>
+            <arrivalDate>151026</arrivalDate>
+            <arrivalTime>2140</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>DXB</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>UL</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>225</flightNumber>
+            <bookingClass>V</bookingClass>
+          </flightIdentification>
+        </segmentInformation>
+      </segmentGroup>
+      <pricingOptionGroup>
+        <pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey>
+      </pricingOptionGroup>
+    </Fare_InformativePricingWithoutPNR>
+  </soapenv:Body>
+</soapenv:Envelope>

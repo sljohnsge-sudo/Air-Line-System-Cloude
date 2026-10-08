@@ -54,6 +54,13 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict) -> dict 
             "arrival_airport": s.get("to"),
             "departure_time": _to_iso(s.get("departureDate"), s.get("departureTime")),
             "arrival_time": _to_iso(s.get("arrivalDate"), s.get("arrivalTime")),
+            # Field names match Travelport's own segment shape exactly (see
+            # ticket_service.py's _parse_reservation_product) so the SAME
+            # frontend segment table renders both sources identically --
+            # previously dropped here even though flight_search_service.py
+            # already parses them from the raw Amadeus response.
+            "departure_terminal": s.get("departureTerminal"),
+            "arrival_terminal": s.get("arrivalTerminal"),
             "carrier_name": IATA_AIRLINE_NAMES.get(carrier_code, carrier_code),
             "flight_number": f"{carrier_code}{s.get('flightNumber', '')}",
         })
@@ -84,6 +91,12 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict) -> dict 
         "arrival_airport": last["arrival_airport"],
         "departure_time": first["departure_time"],
         "arrival_time": last["arrival_time"],
+        # Promoted to top level too (not just inside segments) because
+        # non-stop offers send segments=None below -- the receipt's
+        # single-segment fallback display reads these top-level fields
+        # instead, same pattern as departure_airport/arrival_airport.
+        "departure_terminal": first["departure_terminal"],
+        "arrival_terminal": last["arrival_terminal"],
         "segments": norm_segs if len(norm_segs) > 1 else None,
         "fare_source": "GDS",
         "price": price,
@@ -94,7 +107,16 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict) -> dict 
             "currency": raw_offer.get("currency") or "LKR",
             "cabin_class": segs[0].get("bookingClass") or "Economy",
             "brand_name": None,
-            "baggage_allowance": [],
+            # Master Pricer returns baggage in one shared serviceFeesGrp
+            # block (not nested per-recommendation) -- the reference chain
+            # back to a specific offer WAS found (recommendation's own
+            # itemNumber/itemNumberId/number equals the service item's "F"
+            # reference), confirmed against a live response; see
+            # flight_search_service.py's _parse_baggage_by_fare_ref for the
+            # full reconstruction. Only the first few (cheapest)
+            # recommendations get this enrichment from the GDS -- an empty
+            # list for the rest is normal, not a parsing gap.
+            "baggage_allowance": raw_offer.get("baggageAllowance") or [],
             "change_policy": None,
             "cancel_policy": None,
             # Raw Amadeus-native segments (DDMMYY/HHMM, as returned by the

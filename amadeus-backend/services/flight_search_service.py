@@ -151,6 +151,10 @@ def _parse_flight_segment(flight_info: ET.Element) -> dict:
     locations = _find_all_local(flight_info, "location")
     company = _find_local(flight_info, "companyId")
     product_detail = _find_local(flight_info, "productDetail")
+    # Each <location> carries its own optional <terminal> sub-element right
+    # alongside locationId -- confirmed against a live response (e.g.
+    # <location><locationId>DXB</locationId><terminal>1</terminal></location>).
+    # Not every airport/flight has one, hence the None default.
     return {
         "departureDate": _text(pdt, "dateOfDeparture"),
         "departureTime": _text(pdt, "timeOfDeparture"),
@@ -158,11 +162,83 @@ def _parse_flight_segment(flight_info: ET.Element) -> dict:
         "arrivalTime": _text(pdt, "timeOfArrival"),
         "from": _text(locations[0], "locationId") if len(locations) > 0 else None,
         "to": _text(locations[1], "locationId") if len(locations) > 1 else None,
+        "departureTerminal": _text(locations[0], "terminal") if len(locations) > 0 else None,
+        "arrivalTerminal": _text(locations[1], "terminal") if len(locations) > 1 else None,
         "marketingCarrier": _text(company, "marketingCarrier") if company is not None else None,
         "operatingCarrier": _text(company, "operatingCarrier") if company is not None else None,
         "flightNumber": _text(flight_info, "flightOrtrainNumber"),
         "equipment": _text(product_detail, "equipmentType") if product_detail is not None else None,
     }
+
+
+def _parse_baggage_by_fare_ref(reply: ET.Element) -> dict[str, list[dict]]:
+    """Master Pricer returns baggage allowance in ONE shared top-level
+    <serviceFeesGrp> (a sibling of <recommendation>, not nested in it), not
+    per-offer. Confirmed live by fully reconstructing the reference chain:
+    serviceCoverageInfoGrp[item N] --refInfo(qualifier=F)--> F-ref M, and
+    freeBagAllowanceGrp[itemNumberDetails=N] carries that item's actual
+    allowance. F-ref M in turn equals the OWNING recommendation's own
+    <itemNumber><itemNumberId><number> -- confirmed by cross-checking F=1's
+    two baggage items (a weight-based "W" and a count-based "N" entry, i.e.
+    exactly one checked + one carry-on allowance) against recommendation 0's
+    own itemNumberId=1. Only the first few (cheapest) recommendations get
+    this enrichment from the GDS -- most have no entry at all, which is
+    normal, not a parsing gap. quantityCode "W"+unitQualifier "K" = checked
+    (kg); quantityCode "N" (no unit) = carry-on (pieces) -- same two
+    categories Travelport's own parse_baggage_allowance() distinguishes.
+    A fare ref can have more than one checked-bag entry (one per leg of a
+    multi-segment itinerary where legs have different allowances) -- all
+    are kept, joined with " / ", rather than silently dropping one.
+    """
+    sfg = _find_local(reply, "serviceFeesGrp")
+    if sfg is None:
+        return {}
+
+    item_to_fref: dict[str, str] = {}
+    for scg in _find_all_local(sfg, "serviceCoverageInfoGrp"):
+        item_info = _find_local(scg, "itemNumberInfo")
+        item_num = _text(_find_local(item_info, "itemNumber"), "number") if item_info is not None else None
+        # refInfo is nested one level deeper, inside serviceCovInfoGrp (note:
+        # "Cov" not "Coverage") -- NOT a direct child of serviceCoverageInfoGrp.
+        cov_info = _find_local(scg, "serviceCovInfoGrp")
+        if cov_info is None:
+            continue
+        for ref_info in _find_all_local(cov_info, "refInfo"):
+            for rd in _find_all_local(ref_info, "referencingDetail"):
+                if _text(rd, "refQualifier") == "F":
+                    f_ref = _text(rd, "refNumber")
+                    if item_num and f_ref:
+                        item_to_fref[item_num] = f_ref
+
+    checked_by_fref: dict[str, list[str]] = {}
+    carryon_by_fref: dict[str, list[str]] = {}
+    for bag in _find_all_local(sfg, "freeBagAllowanceGrp"):
+        info = _find_local(bag, "freeBagAllownceInfo")
+        details = _find_local(info, "baggageDetails") if info is not None else None
+        if details is None:
+            continue
+        free_allowance = _text(details, "freeAllowance")
+        quantity_code = _text(details, "quantityCode")
+        unit_qualifier = _text(details, "unitQualifier")
+        item_el = _find_local(bag, "itemNumberInfo")
+        item_num = _text(_find_local(item_el, "itemNumberDetails"), "number") if item_el is not None else None
+        f_ref = item_to_fref.get(item_num)
+        if not f_ref or not free_allowance:
+            continue
+        if quantity_code == "N":
+            carryon_by_fref.setdefault(f_ref, []).append(f"{free_allowance} pc" + ("s" if free_allowance != "1" else ""))
+        elif quantity_code == "W" and unit_qualifier == "K":
+            checked_by_fref.setdefault(f_ref, []).append(f"{free_allowance} kg")
+
+    result: dict[str, list[dict]] = {}
+    for f_ref in set(list(checked_by_fref) + list(carryon_by_fref)):
+        entries = []
+        if f_ref in checked_by_fref:
+            entries.append({"type": "Checked Baggage", "allowance": " / ".join(checked_by_fref[f_ref])})
+        if f_ref in carryon_by_fref:
+            entries.append({"type": "Carry-on Baggage", "allowance": " / ".join(carryon_by_fref[f_ref])})
+        result[f_ref] = entries
+    return result
 
 
 def _parse_reply(reply: ET.Element) -> dict:
@@ -172,6 +248,8 @@ def _parse_reply(reply: ET.Element) -> dict:
         detail = _find_local(conv, "conversionRateDetail")
         if detail is not None:
             currency = _text(detail, "currency")
+
+    baggage_by_fref = _parse_baggage_by_fare_ref(reply)
 
     # flightIndex[i] -> list of groupOfFlights (each a candidate set of segments for requestedSegmentRef i+1)
     flight_indexes = []
@@ -259,10 +337,14 @@ def _parse_reply(reply: ET.Element) -> dict:
         for seg, leg_number in zip(segments, seg_leg_numbers):
             seg["bookingClass"] = rbd_by_seg_ref.get(str(leg_number))
 
+        item_number_el = _find_local(rec, "itemNumber")
+        rec_item_id = _text(_find_local(item_number_el, "itemNumberId"), "number") if item_number_el is not None else None
+
         offers.append({
             "totalPrice": total_amount,
             "currency": currency,
             "segments": segments,
+            "baggageAllowance": baggage_by_fref.get(rec_item_id, []),
         })
 
     return {"offers": offers, "currency": currency}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">2e9c2a82-12fa-48f1-b1c3-3d9a5e7efc36</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/SMPREQ_17_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">icBGxVz6vkLvZzGWD4ODMLBg0osFVEqjD0TvVUuQcqY=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">I1WifNcgyYtKekTfEeoFElfmfgI=</oas:Password>
+        <oas1:Created>2026-10-06T09:20:12.400Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser>
+  </soapenv:Header>
+  <soapenv:Body>
+<Air_RetrieveSeatMap xmlns="http://xml.amadeus.com/SMPREQ_17_1_1A">
+      <travelProductIdent>
+        <flightDate>
+            <departureDate>071026</departureDate>
+            <departureTime>1855</departureTime>
+            <arrivalDate>071026</arrivalDate>
+            <arrivalTime>2215</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>DXB</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>8D</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>821</flightNumber>
+            <bookingClass>Q</bookingClass>
+          </flightIdentification>
+      </travelProductIdent>
+    </Air_RetrieveSeatMap>
+  </soapenv:Body>
+</soapenv:Envelope>

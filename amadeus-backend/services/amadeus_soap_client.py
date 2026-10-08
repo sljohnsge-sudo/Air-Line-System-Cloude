@@ -158,6 +158,7 @@ async def call(
     session: AmadeusSession | None = None,
     stateful: bool = False,
     end_session: bool = False,
+    extra_header_xml: str = "",
 ) -> ET.Element:
     """
     POST one SOAP operation using header 4.0.
@@ -179,6 +180,11 @@ async def call(
         f'<add:Action xmlns:add="{WSA_NS}">{soap_action}</add:Action>',
         f'<add:To xmlns:add="{WSA_NS}">{escape(AMADEUS_WS_ENDPOINT)}</add:To>',
     ]
+    # Some operations (e.g. the NDC_* family) declare an extra required SOAP
+    # header beyond the standard 4.0 set -- TransactionFlowLink, per that
+    # WSDL's own binding -- that none of the classic GDS operations use.
+    if extra_header_xml:
+        header_parts.append(extra_header_xml)
 
     if stateful and session is not None and session.is_open:
         status = "End" if end_session else "InSeries"

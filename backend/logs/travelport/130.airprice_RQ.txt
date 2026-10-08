@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NjQ0MTIsImV4cCI6MTc4OTU1MDgxMiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ex4p3ROdNm_Ui3Ie7CcPpJfGJ_tRox2PywYYgRWMIO-epvRnWZXS63_ks_R5zGMzuYIyT0lJ0dIW09exX-JWLgtIdtEXo1iwnQGmEi7YDPEKHgV2zOxP6y4gqdKkf6qbU12mvtVZGpJrbruRVDVltBXrJ8uWCCk8-E9Ij-D8c2TmygvRC-Qz5xnf9BEbdEvtEtsApGZN3iVf8VOKdjdvtMIVD8CFzJF5ue8Rbr-BDIpCvR-rsy73wxQCmD-B4F9umbKUe7pndMb64g33YWZcXj4BD7znh1djqxsrjrYXxpTlwtTQYGzYagByPIWIdZAzUosJT7T25KmqJktmIVviZQ' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEyODg1MDMsImV4cCI6MTc5MTM3NDkwMywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.mJfKPewyLtsTh_jJu94PZbTcJhjTGlAg-dSrv5sl1ehAObd8gP9Z19_Mjhv0xkmGdufNt21nRkSTk3r5ENEa_G8R2AtOVIVxDYvNBGaP_tgYlgaKDLNvWiNplJFsEs03dw6mkqlqEwffWRmLYGNOu_81RVaT8MAW5royP_r0R7Dxqjlq1XR029emNXMbUs0f4HMP-kbasvnNIRJ4R1bwTvTBJx0M0cQ2P54l9jedaE2isYcWLqxasmS3g_ofrgRzKxlgN4MLNU7_2NWOMjeAD6zZWSqnHpWPn-iswMezx2V1Bf4J-9I5T4Bm9juCc-kR3bK0Jm4rc2gd20QMRr5RgQ' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,32 +7,68 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/bui
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_3CB4AC651481' \
+--header 'traceid: TraceID_001A24BEC697' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "89707956-b9f0-471c-868a-8d6132143049"
-                }
-            },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "AI_CPO0"
-                        }
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "CX",
+                        "flightNumber": "610",
+                        "from": "CMB",
+                        "to": "HKG",
+                        "departureDate": "2026-10-27",
+                        "segmentSequence": 1,
+                        "departureTime": "00:45:00",
+                        "arrivalDate": "2026-10-27",
+                        "arrivalTime": "08:40:00",
+                        "cabin": "Economy",
+                        "classOfService": "S",
+                        "AvailabilitySourceCode": "S",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
                     },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "AIp0"
-                            }
-                        }
-                    ]
-                }
-            ]
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "CX",
+                        "flightNumber": "6001",
+                        "from": "HKG",
+                        "to": "KUL",
+                        "departureDate": "2026-10-27",
+                        "segmentSequence": 2,
+                        "departureTime": "14:50:00",
+                        "arrivalDate": "2026-10-27",
+                        "arrivalTime": "18:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "S",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Economy Light",
+                "BrandRef": "b82"
+            }
         }
     }
 }'

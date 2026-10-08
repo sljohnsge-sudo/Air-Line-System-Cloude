@@ -52,8 +52,23 @@ async def issue_ticket(locator: str) -> dict:
     return resp.json()
 
 
+async def lookup_booking(query: str) -> dict:
+    """"Check My Ticket Status" -- asks the Amadeus backend whether this
+    PNR/ticket number is one of ITS bookings (local-index check on that
+    side), and if so returns the live PNR_Retrieve answer. Raises
+    AmadeusBookingError(status_code=404) when it isn't an Amadeus booking --
+    the caller (main.py's /api/ticket-status) treats that as "not Amadeus
+    either" after already ruling out Travelport, not as a real failure."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(f"{AMADEUS_BACKEND_URL}/api/bookings/lookup", params={"query": query})
+    if resp.status_code >= 400:
+        raise AmadeusBookingError(_extract_error(resp), resp.status_code)
+    return resp.json()
+
+
 def _extract_error(resp: httpx.Response) -> str:
     try:
-        return resp.json().get("error") or resp.text
+        data = resp.json()
+        return data.get("error") or data.get("detail") or resp.text
     except Exception:
         return resp.text or f"Amadeus backend returned HTTP {resp.status_code}"

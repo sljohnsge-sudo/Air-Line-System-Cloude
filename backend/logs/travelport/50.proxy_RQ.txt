@@ -1,29 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: a9d2c05cf2e603e826f665455b9eda9d9b35d426685e395d58113480e1fc17ec' \
+--header 'hmac: dfd961cd72a7a9861d36b03b9b043e609c310da1f0977e42cd444195f29c7f76' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "c13df522-5032-4f9b-b781-3bba60b3ef30",
+    "msgId": "2d46edf7-db8d-489c-af06-f875221ba1f3",
     "operation": "PAYMENT_INIT",
-    "requestDate": "2026-09-15 09:09:42",
+    "requestDate": "2026-10-05 17:11:40",
     "validateOnly": false,
     "requestData": {
         "clientId": "14008400",
         "clientIdHash": "",
         "transactionType": "PURCHASE",
         "transactionAmount": {
-            "paymentAmount": 13496120,
+            "paymentAmount": 5526900,
             "currency": "LKR"
         },
         "redirect": {
-            "returnUrl": "http://localhost:5173/?locator=HN4N34",
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX18r3yh5aYU-21Mt9NLIpl1G2Ci0awssIJsas9iDS5aI7371agGumqHfLrt0CwL9uae3IsZyW9Eqg8XHi9STiD2PLlg3vLjYa5R_kQocrGcE2yMg2ScCw_tsPq8tOJ3KKpJ1wo_2sll1Ym3uzbBnPbd3s4wNMus6cdNin96-ZWuFzTnLrfzR0KvrfE5HxJAXsiM9-KLK01kHlolRE5nWhuD7Pj6d0KypjP9ZVNWmAmCy73d50JH_cD3L?locator=HN9NZW",
             "returnMethod": "GET",
-            "cancelUrl": "http://localhost:5173/?locator=HN4N34&payment=cancelled"
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX18r3yh5aYU-21Mt9NLIpl1G2Ci0awssIJsas9iDS5aI7371agGumqHfLrt0CwL9uae3IsZyW9Eqg8XHi9STiD2PLlg3vLjYa5R_kQocrGcE2yMg2ScCw_tsPq8tOJ3KKpJ1wo_2sll1Ym3uzbBnPbd3s4wNMus6cdNin96-ZWuFzTnLrfzR0KvrfE5HxJAXsiM9-KLK01kHlolRE5nWhuD7Pj6d0KypjP9ZVNWmAmCy73d50JH_cD3L?locator=HN9NZW&payment=cancelled"
         },
         "useReliability": true,
-        "clientRef": "HN4N34",
-        "comment": "George Steuart Travel - HN4N34"
+        "clientRef": "HN9NZW",
+        "comment": "George Steuart Travel - HN9NZW"
     }
 }'

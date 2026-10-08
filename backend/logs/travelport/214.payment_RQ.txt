@@ -1,0 +1,50 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/paymentoffer/reservationworkbench/f5730fb1-75d1-467e-90de-73fd5f10c789/payments' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEzNDMzNjAsImV4cCI6MTc5MTQyOTc2MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.VkHyGGOr_37g-P-2uRcbi1qkb6-EgkFbRp5CGYJA_diNskOOoJeiamGbJESQ7qjZYpCp1dVNHL1RJhgOwWWI5YMzfQ1smQS-u8tv0df_nDIdxRrZ4TBq7V2zhUyEswMAgFAhcSRNtuUSRMm7WfirmNKZuD54UbcfbPCeu1f-SJf_UH6jxnYEGSBNcSQsKTQQ9tOs44aBDjMPc988iVxwSKdnKvc4GVrcM_woOLcelJ8wX2VFBc5wqwU61edEf1haolB0SCrJpoA3lEoGnPTG4Z2HrBR14cChtma9CaOm3axHLIqvcdoYlSPP5jrXknFKpPAVjqsfx_M9nItAoymcAw' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_582A1F4A45F7' \
+--data-raw '{
+    "Payment": {
+        "id": "payment_1",
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "84931F32-1BBD-4C8B-A7E2-BD27A2C8F544"
+        },
+        "Amount": {
+            "value": 87143.0,
+            "code": "LKR",
+            "minorUnit": 2,
+            "currencySource": "Supplier",
+            "approximateInd": true
+        },
+        "FormOfPaymentIdentifier": {
+            "id": "formOfPayment_1",
+            "FormOfPaymentRef": "formOfPayment_1",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "58A8B114-B515-40F8-BF80-4207CFEC9057"
+            }
+        },
+        "OfferIdentifier": [
+            {
+                "id": "offer_1",
+                "offerRef": "offer_1",
+                "Identifier": {
+                    "authority": "SQ",
+                    "value": "RlVaSUNXfFNRNjE4RlVaSUNXMDBfQUlSLTEtMnxTUXxTUTYxOEZVWklDVzAwfHByb2R1Y3RfMV9zMS1TRUcxLHMyLVNFRzJ8QURUOlBBWDJ8U3RhdHVzOlVTRUQgTlRBQw=="
+                }
+            }
+        ],
+        "TravelerIdentifierRef": [
+            {
+                "passengerTypeCode": "ADT",
+                "id": "travelerRefId_1"
+            }
+        ]
+    }
+}'

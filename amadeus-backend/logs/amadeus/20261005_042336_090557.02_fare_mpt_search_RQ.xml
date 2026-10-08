@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">f9595a2e-c52f-4f8e-9594-6390868374fc</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/FMPTBQ_24_6_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">dW/Qlceb9tYIMCl/el26E9K/sRvIRQjfzwf2mCyzigw=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">u08Bf9Bov6EizodSj0zn12bEhWw=</oas:Password>
+        <oas1:Created>2026-10-05T04:23:31.131Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser>
+  </soapenv:Header>
+  <soapenv:Body>
+<Fare_MasterPricerTravelBoardSearch xmlns="http://xml.amadeus.com/FMPTBQ_24_6_1A">
+      <numberOfUnit>
+        <unitNumberDetail>
+          <numberOfUnits>20</numberOfUnits>
+          <typeOfUnit>RC</typeOfUnit>
+        </unitNumberDetail>
+        <unitNumberDetail>
+          <numberOfUnits>1</numberOfUnits>
+          <typeOfUnit>PX</typeOfUnit>
+        </unitNumberDetail>
+      </numberOfUnit>
+      <paxReference><ptc>ADT</ptc><traveller><ref>1</ref></traveller></paxReference>
+      <fareOptions>
+        <pricingTickInfo>
+          <pricingTicketing>
+            <priceType>ET</priceType>
+            <priceType>TAC</priceType>
+            <priceType>RP</priceType>
+            <priceType>RU</priceType>
+            <priceType>XND</priceType>
+          </pricingTicketing>
+        </pricingTickInfo>
+      </fareOptions>
+      <travelFlightInfo/>
+      <itinerary>
+        <requestedSegmentRef>
+          <segRef>1</segRef>
+        </requestedSegmentRef>
+        <departureLocalization>
+          <depMultiCity>
+            <locationId>CMB</locationId>
+          </depMultiCity>
+        </departureLocalization>
+        <arrivalLocalization>
+          <arrivalMultiCity>
+            <locationId>DXB</locationId>
+          </arrivalMultiCity>
+        </arrivalLocalization>
+        <timeDetails>
+          <firstDateTimeDetail>
+            <date>051026</date>
+          </firstDateTimeDetail>
+        </timeDetails>
+      </itinerary>
+    </Fare_MasterPricerTravelBoardSearch>
+  </soapenv:Body>
+</soapenv:Envelope>

@@ -1,27 +1,20 @@
 """
 config/hotel_config.py
 =======================
-Travelport TripServices Stays (Hotel) v11/v12 API configuration.
+Travelport Stays (Hotel) API configuration — being rebuilt step by step
+against the official docs at https://developer.travelport.com/apis/stays.
 
-Kept entirely separate from travelport_config.py (Air) — same Travelport
-account/OAuth credentials are reused (OAuth is account-wide, not
-product-scoped), but Hotel has its own base paths, since SearchComplete is
-on ODM v12 while every other Hotel endpoint is v11.
+Deliberately independent of travelport_config.py (Air): its own OAuth
+credentials (HOTEL_TP_*), its own base paths, its own PCC/access group.
+Nothing here is read by, or reads from, the Air/flight side — per instruction,
+the Air booking system is not to be touched while Hotel is reconfigured.
 
 To update credentials: edit the .env file. Never hardcode values here.
-
-NOTE: As of this integration, the sandbox account (TP_USERNAME in .env) is
-NOT yet provisioned for the Hotel/Stays product — every Hotel endpoint
-returns 403 at the Akamai edge, confirmed via live testing. This code is
-written strictly to the documented API contract
-(https://developer.travelport.com/apis/stays) and cannot be verified
-end-to-end until Travelport enables Hotel/Stays access on the account.
 """
 
 import os
 import uuid
 from dotenv import load_dotenv
-from config.travelport_config import TravelportConfig
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -29,14 +22,20 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 class HotelConfig:
     """Central configuration class for Travelport Hotel (Stays) API access."""
 
-    # ── API Base (Hotel has its own version split: v12 for SearchComplete, v11 for everything else) ──
-    API_BASE: str = TravelportConfig.API_BASE  # e.g. https://api.pp.travelport.net
-    V11_BASE: str = f"{API_BASE}/11/hotel"
-    V12_BASE: str = f"{API_BASE}/12/hotel"
+    # ── OAuth 2.0 (separate from the Air TP_* credentials) ──────────────────
+    AUTH_URL: str = os.getenv("HOTEL_TP_AUTH_URL", "https://auth.pp.travelport.net/oauth/token")
+    CLIENT_ID: str = os.getenv("HOTEL_TP_CLIENT_ID", "")
+    CLIENT_SECRET: str = os.getenv("HOTEL_TP_CLIENT_SECRET", "")
+    USERNAME: str = os.getenv("HOTEL_TP_USERNAME", "")
+    PASSWORD: str = os.getenv("HOTEL_TP_PASSWORD", "")
 
-    # ── Agency / PCC (reused from the Air account — same Travelport agency) ──
-    PCC: str = TravelportConfig.PCC
-    ACCESS_GROUP: str = TravelportConfig.ACCESS_GROUP
+    # ── API Base — every Hotel/Stays endpoint used here is v11 ──────────────
+    API_BASE: str = os.getenv("HOTEL_TP_API_BASE", "https://api.pp.travelport.net")
+    V11_BASE: str = f"{API_BASE}/11/hotel"
+
+    # ── Agency / PCC (own Hotel/Stays provisioning — not the Air agency's) ──
+    PCC: str = os.getenv("HOTEL_TP_PCC", "")
+    ACCESS_GROUP: str = os.getenv("HOTEL_TP_ACCESS_GROUP", "")
 
     DEFAULT_CURRENCY: str = os.getenv("HOTEL_DEFAULT_CURRENCY", "USD")
     REQUEST_TIMEOUT: int = 120
@@ -64,6 +63,16 @@ class HotelConfig:
     GUARANTEE_CARD_BILLING_POSTAL: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_POSTAL", "")
     GUARANTEE_CARD_BILLING_CITY: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_CITY", "")
     GUARANTEE_CARD_BILLING_ADDRESS: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_ADDRESS", "")
+    # Confirmed present in Travelport's own Create Reservation examples
+    # (https://developer.travelport.com/apis/stays/unified-check-out/createhotelreservation)
+    # but optional — only sent if configured, same as the fields above.
+    GUARANTEE_CARD_BILLING_STREET_NUMBER: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_STREET_NUMBER", "")
+    GUARANTEE_CARD_BILLING_STATE_PROV: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_STATE_PROV", "")
+    GUARANTEE_CARD_BILLING_COUNTY: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_COUNTY", "")
+    GUARANTEE_CARD_BILLING_PHONE_COUNTRY_CODE: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_COUNTRY_CODE", "")
+    GUARANTEE_CARD_BILLING_PHONE_AREA_CODE: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_AREA_CODE", "")
+    GUARANTEE_CARD_BILLING_PHONE_NUMBER: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_NUMBER", "")
+    GUARANTEE_CARD_BILLING_EMAIL: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_EMAIL", "")
 
     @classmethod
     def guarantee_card_configured(cls) -> bool:
@@ -83,11 +92,37 @@ class HotelEndpoints:
     https://developer.travelport.com/apis/stays
     """
 
-    # ── Search (v12 — combines search + details + availability in one call) ──
-    SEARCH_COMPLETE = f"{HotelConfig.V12_BASE}/search/searchcomplete"
+    # ── Search and Details — https://developer.travelport.com/apis/stays/search-and-details ──
+    # Search by Location: geo coordinates, address, IATA airport code, or IATA city code.
+    SEARCH_BY_LOCATION = f"{HotelConfig.V11_BASE}/search/properties/search"
 
-    # ── Property Details (v11, optional enrichment) ────────────────────────
+    # Search by Property ID: up to 250 known chainCode/propertyCode pairs.
+    SEARCH_BY_PROPERTY_ID = f"{HotelConfig.V11_BASE}/search/properties"
+
+    # Property Details — optional enrichment (description/images), no rates.
     PROPERTY_DETAILS = f"{HotelConfig.V11_BASE}/search/propertiesdetail"
+
+    @staticmethod
+    def search_properties_page(identifier: str) -> str:
+        """GET → next page (2-5) of a Search by Location/ID result set over 100 properties."""
+        return f"{HotelConfig.V11_BASE}/search/properties/{identifier}"
+
+    # ── Availability — https://developer.travelport.com/apis/stays/availability ──
+    # Returns the actual bookable room types/rates for one or more properties
+    # (Search by Location only returns property-level summaries). Offers
+    # returned here are cached 30 minutes.
+    AVAILABILITY = f"{HotelConfig.V11_BASE}/availability/catalogofferingshospitality"
+
+    @staticmethod
+    def availability_page(identifier: str) -> str:
+        """GET → next page (2-5) of an Availability result set over 100 rates."""
+        return f"{HotelConfig.V11_BASE}/availability/catalogofferingshospitality/{identifier}"
+
+    # ── Rules — https://developer.travelport.com/apis/stays/rules ──────────
+    # Reference payload: send the CatalogOffering.id from an Availability
+    # response. (buildfromcatalogofferings, the plural/older variant, is
+    # marked Deprecated in Travelport's own docs — use this one instead.)
+    RULES_BUILD_FROM_OFFERING = f"{HotelConfig.V11_BASE}/rules/offershospitality/buildfromcatalogoffering"
 
     # ── Create Reservation — Full Payload (v11) ─────────────────────────────
     # Sends complete PropertyKey/DateRange/bookingCode/Price rather than a
@@ -96,6 +131,13 @@ class HotelEndpoints:
     # add_offer_to_workbench_full_payload): full payload has no dependency
     # on a cached session that can expire before the user finishes checkout.
     CREATE_RESERVATION = f"{HotelConfig.V11_BASE}/book/reservations"
+
+    # ── Create Reservation — Reference Payload (v11) ────────────────────────
+    # Books against a cached CatalogOffering.id from an Availability response
+    # instead of resending full rate details — used by the Search ->
+    # Availability -> book flow. See
+    # https://developer.travelport.com/apis/stays/unified-check-out/buildhotelreservation.
+    CREATE_RESERVATION_REFERENCE = f"{HotelConfig.V11_BASE}/book/reservations/build"
 
     # ── Retrieve / Cancel ────────────────────────────────────────────────────
     @staticmethod

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">52b5578b-6af2-4ac9-adfb-dec99a1d9708</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/ITAREQ_05_2_IA</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">hSsqLmu6Mprsqmgp/0xs3Zszhm2jmcTodW2ejVpD7/Q=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">mlsdGbjx4YRKIa9VaKXynPI9C14=</oas:Password>
+        <oas1:Created>2026-10-06T10:26:10.875Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="Start"/>
+  </soapenv:Header>
+  <soapenv:Body>
+<Air_SellFromRecommendation xmlns="http://xml.amadeus.com/ITAREQ_05_2_IA">
+      <itineraryDetails>
+        <originDestinationDetails>
+          <origin>CMB</origin>
+          <destination>XNB</destination>
+        </originDestinationDetails>
+        <segmentInformation>
+        <travelProductInformation>
+          <flightDate>
+            <departureDate>091026</departureDate>
+            <departureTime>0410</departureTime>
+            <arrivalDate>091026</arrivalDate>
+            <arrivalTime>0710</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>AUH</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>EY</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>395</flightNumber>
+            <bookingClass>M</bookingClass>
+          </flightIdentification>
+        </travelProductInformation>
+        <relatedproductInformation>
+          <quantity>1</quantity>
+          <statusCode>NN</statusCode>
+        </relatedproductInformation>
+      </segmentInformation><segmentInformation>
+        <travelProductInformation>
+          <flightDate>
+            <departureDate>091026</departureDate>
+            <departureTime>0825</departureTime>
+            <arrivalDate>091026</arrivalDate>
+            <arrivalTime>1025</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>AUH</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>XNB</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>EY</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>5416</flightNumber>
+            <bookingClass>M</bookingClass>
+          </flightIdentification>
+        </travelProductInformation>
+        <relatedproductInformation>
+          <quantity>1</quantity>
+          <statusCode>NN</statusCode>
+        </relatedproductInformation>
+      </segmentInformation>
+      </itineraryDetails>
+    </Air_SellFromRecommendation>
+  </soapenv:Body>
+</soapenv:Envelope>

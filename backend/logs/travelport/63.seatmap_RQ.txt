@@ -1,0 +1,31 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTExOTg1ODUsImV4cCI6MTc5MTI4NDk4NSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.oAjrQkBAXGkeNSIfBteqRsxz6SLAdqagYpLcq6vDh0j4IjniHhKuUEU4_EUxMnhJBRsiXUM6Wi_B1xbx889lpWci-Yco0-dQXl1BO9ZzMZEGyHEoLvimrgbwg7q9kNdCkGZHI1bq9Fu5zkzxEHhYBsgbwUSStY8EbZhzhnbef-DA6zBsYsjuX45K50zFrXinAtNJbwca8NMA3ziOOeb7D49YSlDkPt-glgyOyLAZFt2UTESVEvGuTpNlUQtfcgO15KRispXVM_M0xeHQN0Zz297hyOj7Lu6Pqd0TwZRV85PGJqAgc3v4CicwQphUgLXr7qyxXGbINfVlppqyfxCT2A' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_A3FF698F46FC' \
+--data-raw '{
+    "CatalogOfferingsQuerySeatAvailability": {
+        "SeatAvailabilityOfferings": {
+            "@type": "SeatAvailabilityOfferingsBuildFromReservationWorkbench",
+            "BuildFromReservationWorkbench": {
+                "ReservationIdentifier": {
+                    "Identifier": {
+                        "value": "95017ed3-8521-48d5-87c8-b9b383622576",
+                        "authority": "Travelport"
+                    }
+                },
+                "OfferIdentifier": {
+                    "Identifier": {
+                        "value": "507ae571-219c-45dc-97c0-eb40d45eb2f8",
+                        "authority": "Travelport"
+                    }
+                }
+            }
+        }
+    }
+}'

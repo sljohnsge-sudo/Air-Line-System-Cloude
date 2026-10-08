@@ -2,70 +2,56 @@
     "ReservationResponse": {
         "@type": "ReservationResponse",
         "Reservation": {
-            "@type": "ReservationDetail",
+            "@type": "Reservation",
             "Identifier": {
                 "authority": "Travelport",
-                "value": "d30e8d1f-672e-4a3b-a2d2-cd82c72112ad"
+                "value": "6e4a95fe-ecb8-416d-8e95-0315107f5d61"
             },
             "Offer": [
                 {
                     "@type": "Offer",
                     "id": "offer_1",
                     "Identifier": {
-                        "authority": "EK",
-                        "value": "RUsxNzZSRTJQOFhBNHxQNzBDOTM5MS04RkUwLTQ0NDMtQUEyNnU1NDV4ZDgxbDJjM3QtMS0xfFN0YXR1czpVU0VEIE5UQUN8T3JkZXJpdGVtSWQ6UDcwQzkzOTEtOEZFMC00NDQzLUFBMjZ1NTQ1eGQ4MWwyYzN0LTEtMTtQVEM6QURU"
+                        "authority": "Travelport",
+                        "value": "b0660ea4-934b-4c91-97ec-c5c7208aa9e4"
                     },
-                    "ContentSource": "NDC",
+                    "ContentSource": "GDS",
                     "Product": [
                         {
                             "@type": "ProductAir",
-                            "totalDuration": "PT6H50M",
                             "id": "product_1",
                             "Identifier": {
-                                "authority": "EK",
-                                "value": "2937ae64-15cb-40f9-8803-f8a0f62bfc85"
+                                "authority": "Travelport",
+                                "value": "36856a10-43f7-4eee-a85c-e207a8a59da0"
                             },
                             "FlightSegment": [
                                 {
                                     "@type": "FlightSegment",
-                                    "id": "s1",
+                                    "id": "FlightSegment_01",
                                     "sequence": 1,
                                     "Flight": {
                                         "@type": "Flight",
-                                        "distance": 2042,
-                                        "stops": 1,
-                                        "duration": "PT6H50M",
-                                        "carrier": "EK",
-                                        "number": "653",
-                                        "equipment": "77W",
+                                        "duration": "PT3H45M",
+                                        "carrier": "MH",
+                                        "number": "178",
+                                        "equipment": "73H",
                                         "id": "Flight_01",
                                         "Identifier": {
-                                            "authority": "EK",
-                                            "value": "29dc3f24-340b-4465-8170-1de3ef410e5f"
+                                            "authority": "Travelport",
+                                            "value": "d18d89eb-3d7d-4120-8db3-582c9c0d643f"
                                         },
                                         "Departure": {
-                                            "@type": "DepartureDetail",
+                                            "@type": "Departure",
                                             "location": "CMB",
-                                            "date": "2026-10-07",
-                                            "time": "20:35:00"
+                                            "date": "2026-11-03",
+                                            "time": "00:40:00"
                                         },
                                         "Arrival": {
-                                            "@type": "ArrivalDetail",
-                                            "terminal": "3",
-                                            "location": "DXB",
-                                            "date": "2026-10-08",
-                                            "time": "01:55:00"
-                                        },
-                                        "IntermediateStop": [
-                                            {
-                                                "duration": "PT1H25M",
-                                                "arrivalDate": "2026-10-07",
-                                                "departureDate": "2026-10-07",
-                                                "arrivalTime": "21:35:00",
-                                                "departurelTime": "23:00:00",
-                                                "value": "MLE"
-                                            }
-                                        ]
+                                            "@type": "Arrival",
+                                            "location": "KUL",
+                                            "date": "2026-11-03",
+                                            "time": "06:55:00"
+                                        }
                                     }
                                 }
                             ],
@@ -80,81 +66,10 @@
                                             "segmentSequence": [
                                                 1
                                             ],
-                                            "classOfService": "K",
+                                            "classOfService": "N",
                                             "cabin": "Economy",
-                                            "fareBasisCode": "KXEESLK1",
-                                            "fareType": "AirlinePrivateFare",
-                                            "Brand": {
-                                                "@type": "Brand",
-                                                "name": "Economy Flex"
-                                            }
-                                        }
-                                    ]
-                                }
-                            ]
-                        },
-                        {
-                            "@type": "ProductAir",
-                            "totalDuration": "PT4H40M",
-                            "id": "product_2",
-                            "Identifier": {
-                                "authority": "EK",
-                                "value": "b9decb97-628c-4703-bc70-610e20f55092"
-                            },
-                            "FlightSegment": [
-                                {
-                                    "@type": "FlightSegment",
-                                    "id": "s2",
-                                    "sequence": 2,
-                                    "Flight": {
-                                        "@type": "Flight",
-                                        "distance": 2042,
-                                        "duration": "PT4H40M",
-                                        "carrier": "EK",
-                                        "number": "2040",
-                                        "operatingCarrier": "FZ",
-                                        "operatingCarrierName": "Flydubai",
-                                        "equipment": "7M8",
-                                        "id": "Flight_02",
-                                        "Identifier": {
-                                            "authority": "EK",
-                                            "value": "cd19a6ea-1aa6-4c3a-bb98-8e963a96d265"
-                                        },
-                                        "Departure": {
-                                            "@type": "DepartureDetail",
-                                            "terminal": "2",
-                                            "location": "DXB",
-                                            "date": "2026-10-10",
-                                            "time": "18:55:00"
-                                        },
-                                        "Arrival": {
-                                            "@type": "ArrivalDetail",
-                                            "location": "CMB",
-                                            "date": "2026-10-11",
-                                            "time": "01:05:00"
-                                        }
-                                    }
-                                }
-                            ],
-                            "PassengerFlight": [
-                                {
-                                    "@type": "PassengerFlight",
-                                    "passengerQuantity": 1,
-                                    "passengerTypeCode": "ADT",
-                                    "FlightProduct": [
-                                        {
-                                            "@type": "FlightProduct",
-                                            "segmentSequence": [
-                                                2
-                                            ],
-                                            "classOfService": "T",
-                                            "cabin": "Economy",
-                                            "fareBasisCode": "TWAAPLK1",
-                                            "fareType": "AirlinePrivateFare",
-                                            "Brand": {
-                                                "@type": "Brand",
-                                                "name": "Economy Saver"
-                                            }
+                                            "fareBasisCode": "NBXOWLK",
+                                            "fareType": "PublicFare"
                                         }
                                     ]
                                 }
@@ -163,13 +78,14 @@
                     ],
                     "Price": {
                         "@type": "PriceDetail",
+                        "id": "PriceDetail_1",
                         "CurrencyCode": {
-                            "decimalPlace": 0,
                             "value": "LKR"
                         },
-                        "Base": 109500,
-                        "TotalTaxes": 33063,
-                        "TotalPrice": 142563,
+                        "Base": 60300,
+                        "TotalTaxes": 32357,
+                        "TotalFees": 0,
+                        "TotalPrice": 92657,
                         "PriceBreakdown": [
                             {
                                 "@type": "PriceBreakdownAir",
@@ -178,463 +94,116 @@
                                 "Amount": {
                                     "@type": "Amount",
                                     "CurrencyCode": {
+                                        "decimalPlace": 2,
+                                        "value": "USD"
+                                    },
+                                    "Base": 177.0
+                                },
+                                "TravelerRefs": [
+                                    "travelerRefId_1"
+                                ]
+                            },
+                            {
+                                "@type": "PriceBreakdownAir",
+                                "quantity": 1,
+                                "requestedPassengerType": "ADT",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "currencySource": "Charged",
+                                    "approximateInd": true,
+                                    "CurrencyCode": {
                                         "decimalPlace": 0,
                                         "value": "LKR"
                                     },
-                                    "Base": 109500,
+                                    "Base": 60300,
                                     "Taxes": {
                                         "@type": "TaxesDetail",
-                                        "TotalTaxes": 33063,
+                                        "TotalTaxes": 32357,
                                         "Tax": [
                                             {
-                                                "taxCode": "AE",
-                                                "description": "UAE Passenger Service Charge",
-                                                "value": 6882
-                                            },
-                                            {
-                                                "taxCode": "F6",
-                                                "description": "Passenger Facilities Charge",
-                                                "value": 4588
-                                            },
-                                            {
+                                                "currencyCode": "LKR",
                                                 "taxCode": "LK",
-                                                "description": "Embarkation Tax (CMB)",
-                                                "value": 20216
+                                                "value": 20436
                                             },
                                             {
-                                                "taxCode": "TP",
-                                                "description": "Psgr Security and Safety Fee",
-                                                "value": 459
-                                            },
-                                            {
-                                                "taxCode": "ZR",
-                                                "description": "Intl Advanced Psgr Information Fee",
-                                                "value": 918
+                                                "currencyCode": "LKR",
+                                                "taxCode": "YQ",
+                                                "value": 11921
                                             }
                                         ]
                                     },
-                                    "Total": 142563
-                                }
+                                    "Total": 92657
+                                },
+                                "FiledAmount": {
+                                    "currencyCode": "USD",
+                                    "decimalPlace": 2,
+                                    "value": 177.0
+                                },
+                                "TravelerRefs": [
+                                    "travelerRefId_1"
+                                ],
+                                "FareCalculation": "CMB MH KUL 177.00NBXOWLK NUC177.00END ROE1.0"
                             }
                         ]
                     },
                     "TermsAndConditionsFull": [
                         {
                             "@type": "TermsAndConditionsFullAir",
-                            "ExpiryDate": "2026-10-07T15:05:00Z",
-                            "TextBlock": [
-                                {
-                                    "@type": "TextBlockDetail",
-                                    "title": "GDPR",
-                                    "TextFormatted": [
-                                        {
-                                            "value": "Data Protection Notice: Your personal data will be processed in accordance with the applicable carriers privacy policy and, if your booking is made via a reservation system provider (\"GDS\" ), with its privacy policy. These are available at https://www.iatatravelcentre.com/privacy.htm or from the carrier, GDS or TSP directly. You should read this documentation, which applies to your booking and specifies, for example, how your personal data is collected, stored, used, disclosed and transferred."
-                                        }
-                                    ],
-                                    "URL": "https://www.iatatravelcentre.com/privacy.htm"
-                                },
-                                {
-                                    "@type": "TextBlockDetail",
-                                    "title": "GDPR",
-                                    "TextFormatted": [
-                                        {
-                                            "value": "Data Protection Notice: Your personal data will be processed in accordance with the applicable carriers privacy policy and, if your booking is made via a reservation system provider (\"GDS\" ), with its privacy policy. These are available at https://www.iatatravelcentre.com/privacy.htm or from the carrier, GDS or TSP directly. You should read this documentation, which applies to your booking and specifies, for example, how your personal data is collected, stored, used, disclosed and transferred."
-                                        }
-                                    ],
-                                    "URL": "https://www.iatatravelcentre.com/privacy.htm"
-                                }
-                            ],
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "db377ccd-755a-4c49-ac27-87ee935cef9c"
+                            },
+                            "ExpiryDate": "2026-10-07T18:29:00Z",
                             "BaggageAllowance": [
                                 {
                                     "@type": "BaggageAllowanceDetail",
                                     "passengerTypeCodes": [
                                         "ADT"
                                     ],
-                                    "baggageType": "FirstCheckedBag",
-                                    "ProductRef": [
-                                        "product_1"
-                                    ],
-                                    "BaggageItem": [
-                                        {
-                                            "@type": "BaggageItem",
-                                            "includedInOfferPrice": "Yes",
-                                            "soldByWeightInd": true,
-                                            "Measurement": [
-                                                {
-                                                    "measurementType": "Weight",
-                                                    "unit": "Kilograms",
-                                                    "value": 40
-                                                }
-                                            ],
-                                            "Text": "40K"
-                                        }
-                                    ],
                                     "SegmentSequenceList": [
                                         1
-                                    ],
-                                    "Text": [
-                                        "40K"
-                                    ]
-                                },
-                                {
-                                    "@type": "BaggageAllowanceDetail",
-                                    "passengerTypeCodes": [
-                                        "ADT"
-                                    ],
-                                    "baggageType": "CarryOn",
-                                    "ProductRef": [
-                                        "product_1"
-                                    ],
-                                    "BaggageItem": [
-                                        {
-                                            "@type": "BaggageItem",
-                                            "quantity": 1,
-                                            "includedInOfferPrice": "Yes",
-                                            "soldByPieceInd": true,
-                                            "Measurement": [
-                                                {
-                                                    "measurementType": "Weight",
-                                                    "unit": "Kilograms",
-                                                    "value": 7
-                                                },
-                                                {
-                                                    "measurementType": "Weight",
-                                                    "unit": "Pounds",
-                                                    "value": 15
-                                                },
-                                                {
-                                                    "measurementType": "Height",
-                                                    "unit": "Centimeters",
-                                                    "value": 115
-                                                },
-                                                {
-                                                    "measurementType": "Height",
-                                                    "unit": "Inches",
-                                                    "value": 45
-                                                }
-                                            ],
-                                            "Text": "CARRY7KG 15LB UPTO45LI 115LCM"
-                                        }
-                                    ],
-                                    "SegmentSequenceList": [
-                                        1
-                                    ],
-                                    "Text": [
-                                        "1PC"
-                                    ]
-                                },
-                                {
-                                    "@type": "BaggageAllowanceDetail",
-                                    "passengerTypeCodes": [
-                                        "ADT"
-                                    ],
-                                    "baggageType": "FirstCheckedBag",
-                                    "ProductRef": [
-                                        "product_2"
-                                    ],
-                                    "BaggageItem": [
-                                        {
-                                            "@type": "BaggageItem",
-                                            "includedInOfferPrice": "Yes",
-                                            "soldByWeightInd": true,
-                                            "Measurement": [
-                                                {
-                                                    "measurementType": "Weight",
-                                                    "unit": "Kilograms",
-                                                    "value": 25
-                                                }
-                                            ],
-                                            "Text": "25K"
-                                        }
-                                    ],
-                                    "SegmentSequenceList": [
-                                        2
                                     ],
                                     "Text": [
                                         "25K"
-                                    ]
-                                },
-                                {
-                                    "@type": "BaggageAllowanceDetail",
-                                    "passengerTypeCodes": [
-                                        "ADT"
-                                    ],
-                                    "baggageType": "CarryOn",
-                                    "ProductRef": [
-                                        "product_2"
-                                    ],
-                                    "BaggageItem": [
-                                        {
-                                            "@type": "BaggageItem",
-                                            "quantity": 1,
-                                            "includedInOfferPrice": "Yes",
-                                            "soldByPieceInd": true,
-                                            "Measurement": [
-                                                {
-                                                    "measurementType": "Weight",
-                                                    "unit": "Kilograms",
-                                                    "value": 7
-                                                },
-                                                {
-                                                    "measurementType": "Weight",
-                                                    "unit": "Pounds",
-                                                    "value": 15
-                                                },
-                                                {
-                                                    "measurementType": "Height",
-                                                    "unit": "Centimeters",
-                                                    "value": 115
-                                                },
-                                                {
-                                                    "measurementType": "Height",
-                                                    "unit": "Inches",
-                                                    "value": 45
-                                                }
-                                            ],
-                                            "Text": "CARRY7KG 15LB UPTO45LI 115LCM"
-                                        }
-                                    ],
-                                    "SegmentSequenceList": [
-                                        2
-                                    ],
-                                    "Text": [
-                                        "1PC"
-                                    ]
-                                }
-                            ],
-                            "FareRuleInfo": [
-                                {
-                                    "@type": "FareRuleInfoText",
-                                    "flightsRefs": [
-                                        "s1"
-                                    ],
-                                    "TextFareRule": [
-                                        {
-                                            "name": "Ticketing",
-                                            "value": "NON-END/FLEX"
-                                        },
-                                        {
-                                            "name": "Ticketing",
-                                            "value": "NON-END/SAVER"
-                                        },
-                                        {
-                                            "name": "Ticketing",
-                                            "value": "REWARD UPGDS  ALLOWED"
-                                        },
-                                        {
-                                            "name": "Change",
-                                            "value": "NoShow:Allowed LKR 16846"
-                                        },
-                                        {
-                                            "name": "Cancel",
-                                            "value": "BeforeDeparture:Allowed LKR 8423"
-                                        },
-                                        {
-                                            "name": "Cancel",
-                                            "value": "AfterDeparture:Allowed LKR 8423"
-                                        },
-                                        {
-                                            "name": "Cancel",
-                                            "value": "NoShow:Allowed LKR 33693"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "@type": "FareRuleInfoText",
-                                    "flightsRefs": [
-                                        "s2"
-                                    ],
-                                    "TextFareRule": [
-                                        {
-                                            "name": "Ticketing",
-                                            "value": "NON-END/FLEX"
-                                        },
-                                        {
-                                            "name": "Ticketing",
-                                            "value": "NON-END/SAVER"
-                                        },
-                                        {
-                                            "name": "Ticketing",
-                                            "value": "REWARD UPGDS  ALLOWED"
-                                        },
-                                        {
-                                            "name": "Change",
-                                            "value": "NoShow:Allowed LKR 33693"
-                                        },
-                                        {
-                                            "name": "Cancel",
-                                            "value": "BeforeDeparture:Allowed LKR 16846"
-                                        },
-                                        {
-                                            "name": "Cancel",
-                                            "value": "NoShow:Allowed LKR 50539"
-                                        }
                                     ]
                                 }
                             ],
                             "ValidatingAirline": [
                                 {
                                     "@type": "ValidatingAirline",
-                                    "ValidatingAirline": "EK"
+                                    "ValidatingAirline": "MH"
                                 }
                             ],
-                            "Penalties": [
+                            "TicketingAgency": [
                                 {
-                                    "@type": "Penalties",
-                                    "Change": [
-                                        {
-                                            "@type": "ChangePermitted",
-                                            "penaltyTypes": [
-                                                "NoShow"
-                                            ],
-                                            "higherPenatltyAppliesInd": true,
-                                            "ProductRefs": [
-                                                "product_1"
-                                            ],
-                                            "SegmentSequence": [],
-                                            "Penalty": [
-                                                {
-                                                    "@type": "PenaltyAmount",
-                                                    "Amount": {
-                                                        "code": "LKR",
-                                                        "minorUnit": 0,
-                                                        "value": 16846
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            "@type": "ChangePermitted",
-                                            "penaltyTypes": [
-                                                "NoShow"
-                                            ],
-                                            "higherPenatltyAppliesInd": true,
-                                            "ProductRefs": [
-                                                "product_2"
-                                            ],
-                                            "SegmentSequence": [],
-                                            "Penalty": [
-                                                {
-                                                    "@type": "PenaltyAmount",
-                                                    "Amount": {
-                                                        "code": "LKR",
-                                                        "minorUnit": 0,
-                                                        "value": 33693
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                    ],
-                                    "Cancel": [
-                                        {
-                                            "@type": "CancelPermitted",
-                                            "penaltyTypes": [
-                                                "NoShow"
-                                            ],
-                                            "higherPenatltyAppliesInd": true,
-                                            "ProductRefs": [
-                                                "product_1"
-                                            ],
-                                            "SegmentSequence": [],
-                                            "Penalty": [
-                                                {
-                                                    "@type": "PenaltyAmount",
-                                                    "Amount": {
-                                                        "code": "LKR",
-                                                        "minorUnit": 0,
-                                                        "value": 33693
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            "@type": "CancelPermitted",
-                                            "penaltyTypes": [
-                                                "BeforeDeparture"
-                                            ],
-                                            "higherPenatltyAppliesInd": true,
-                                            "ProductRefs": [
-                                                "product_1"
-                                            ],
-                                            "SegmentSequence": [],
-                                            "Penalty": [
-                                                {
-                                                    "@type": "PenaltyAmount",
-                                                    "Amount": {
-                                                        "code": "LKR",
-                                                        "minorUnit": 0,
-                                                        "value": 8423
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            "@type": "CancelPermitted",
-                                            "penaltyTypes": [
-                                                "AfterDeparture"
-                                            ],
-                                            "higherPenatltyAppliesInd": true,
-                                            "ProductRefs": [
-                                                "product_1"
-                                            ],
-                                            "SegmentSequence": [],
-                                            "Penalty": [
-                                                {
-                                                    "@type": "PenaltyAmount",
-                                                    "Amount": {
-                                                        "code": "LKR",
-                                                        "minorUnit": 0,
-                                                        "value": 8423
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            "@type": "CancelPermitted",
-                                            "penaltyTypes": [
-                                                "NoShow"
-                                            ],
-                                            "higherPenatltyAppliesInd": true,
-                                            "ProductRefs": [
-                                                "product_2"
-                                            ],
-                                            "SegmentSequence": [],
-                                            "Penalty": [
-                                                {
-                                                    "@type": "PenaltyAmount",
-                                                    "Amount": {
-                                                        "code": "LKR",
-                                                        "minorUnit": 0,
-                                                        "value": 50539
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            "@type": "CancelPermitted",
-                                            "penaltyTypes": [
-                                                "BeforeDeparture"
-                                            ],
-                                            "higherPenatltyAppliesInd": true,
-                                            "ProductRefs": [
-                                                "product_2"
-                                            ],
-                                            "SegmentSequence": [],
-                                            "Penalty": [
-                                                {
-                                                    "@type": "PenaltyAmount",
-                                                    "Amount": {
-                                                        "code": "LKR",
-                                                        "minorUnit": 0,
-                                                        "value": 16846
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                    ],
-                                    "PassengerTypeCodes": [
+                                    "@type": "TicketingAgency",
+                                    "Code": "7F3C"
+                                }
+                            ],
+                            "PaymentTimeLimit": "2026-11-03T18:29:00Z",
+                            "PricingAgency": [
+                                {
+                                    "@type": "PricingAgency",
+                                    "Code": "7F3C"
+                                }
+                            ],
+                            "FareGuaranteePolicy": [
+                                {
+                                    "@type": "FareGuaranteePolicy",
+                                    "passengerTypeCodes": [
                                         "ADT"
-                                    ]
+                                    ],
+                                    "Code": {
+                                        "value": "G"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "@type": "TermsAndConditionsFullAir",
+                            "Restriction": [
+                                {
+                                    "value": "NONEND-SUBJ TO PENALTY"
                                 }
                             ]
                         }
@@ -644,63 +213,83 @@
             "Traveler": [
                 {
                     "@type": "Traveler",
-                    "birthDate": "1981-09-10",
+                    "birthDate": "1990-01-01",
                     "gender": "Male",
                     "passengerTypeCode": "ADT",
                     "id": "travelerRefId_1",
-                    "TravelerRef": "travelerRefId_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "QURUfFQxfFByZWZpeDpNUjtHaXZlbjpBU0Q7U3VybmFtZTpEU0FE"
+                        "value": "0544ae58-a38e-4b4c-9255-94fdfb2e0d1a"
                     },
                     "PersonName": {
                         "@type": "PersonName",
-                        "Prefix": "MR",
-                        "Given": "ASD",
-                        "Surname": "DSAD"
+                        "Given": "AMADEUS MR",
+                        "Surname": "AUDITTPGDC"
                     },
                     "Telephone": [
                         {
-                            "@type": "Telephone",
-                            "phoneNumber": "942432343",
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "771234567",
                             "id": "telephone_1",
+                            "cityCode": "CMB",
+                            "role": "Mobile"
+                        },
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "areaCityCode": "11",
+                            "phoneNumber": "7792400",
+                            "id": "telephone_2",
+                            "cityCode": "CMB",
                             "role": "Other"
                         }
                     ],
                     "Email": [
                         {
-                            "id": "email_1",
+                            "emailType": "FROM",
+                            "value": "ticketing@gstravels.lk"
+                        },
+                        {
                             "emailType": "TO",
-                            "validInd": true,
-                            "value": "AAA@GMAIL.COM"
+                            "value": "audit@example.com"
                         }
                     ],
                     "TravelDocument": [
                         {
                             "@type": "TravelDocumentDetail",
-                            "docNumber": "N2123321",
+                            "docNumber": "N1234567",
                             "docType": "Passport",
-                            "expireDate": "2026-09-26",
+                            "expireDate": "2030-01-01",
                             "issueCountry": "LK",
-                            "birthDate": "1981-09-10",
-                            "birthCountry": "LK",
+                            "birthDate": "1990-01-01",
                             "Gender": "Male",
+                            "Nationality": "LK",
                             "PersonName": {
                                 "@type": "PersonName",
-                                "Given": "ASD",
-                                "Surname": "DSAD"
+                                "Given": "AMADEUS",
+                                "Surname": "AUDITTPGDC"
                             }
                         }
                     ]
+                }
+            ],
+            "TravelerProduct": [
+                {
+                    "@type": "TravelerProduct",
+                    "id": "travelerProduct_1",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "offer_1"
                 }
             ],
             "FormOfPayment": [
                 {
                     "@type": "FormOfPaymentCash",
                     "id": "formOfPayment_1",
+                    "FormOfPaymentRef": "formOfPayment_1",
                     "Identifier": {
-                        "authority": "EK",
-                        "value": "6c4490ea-b60a-4907-8abe-d0d415c4a2a4"
+                        "authority": "Travelport",
+                        "value": "5f792c4f-b7f4-4d38-8de6-1f26a8c20df1"
                     }
                 }
             ],
@@ -708,113 +297,26 @@
                 {
                     "@type": "Payment",
                     "id": "payment_1",
+                    "PaymentRef": "payment_1",
                     "Identifier": {
-                        "authority": "EK",
-                        "value": "ZGNiMjJiMDktNmQ2OS00NzAwLWE0MTItNWJkYmVmYjMyZjU0fFN0YXR1czpVU0VEIE5UQUM="
+                        "authority": "Travelport",
+                        "value": "c12e8916-376f-47e8-8688-61c6ab683787"
                     },
                     "Amount": {
-                        "code": "LKR",
                         "minorUnit": 0,
-                        "value": 142563
+                        "value": 92657
                     },
                     "FormOfPaymentIdentifier": {
-                        "FormOfPaymentRef": "formOfPayment_1",
-                        "Identifier": {
-                            "authority": "EK",
-                            "value": "6c4490ea-b60a-4907-8abe-d0d415c4a2a4"
-                        }
-                    },
-                    "OfferIdentifier": [
-                        {
-                            "offerRef": "offer_1",
-                            "Identifier": {
-                                "authority": "EK",
-                                "value": "RUsxNzZSRTJQOFhBNHxQNzBDOTM5MS04RkUwLTQ0NDMtQUEyNnU1NDV4ZDgxbDJjM3QtMS0xfFN0YXR1czpVU0VEIE5UQUN8T3JkZXJpdGVtSWQ6UDcwQzkzOTEtOEZFMC00NDQzLUFBMjZ1NTQ1eGQ4MWwyYzN0LTEtMTtQVEM6QURU"
-                            }
-                        }
-                    ]
+                        "FormOfPaymentRef": "formOfPayment_1"
+                    }
                 }
             ],
             "Receipt": [
                 {
                     "@type": "ReceiptConfirmation",
-                    "OfferRef": [
-                        "offer_1"
-                    ],
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "OfferStatus": {
-                            "@type": "OfferStatusAir",
-                            "StatusAir": [
-                                {
-                                    "flightRefs": [
-                                        "Flight_01",
-                                        "Flight_02"
-                                    ],
-                                    "code": "HK",
-                                    "value": "Confirmed"
-                                }
-                            ]
-                        },
-                        "Locator": {
-                            "source": "EK",
-                            "sourceContext": "VendorLocator",
-                            "value": "B43KX3"
-                        }
-                    }
-                },
-                {
-                    "@type": "ReceiptConfirmation",
-                    "OfferRef": [
-                        "offer_1"
-                    ],
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "Locator": {
-                            "source": "EK",
-                            "sourceContext": "OrderId",
-                            "value": "EK176RE2P8XA4"
-                        }
-                    }
-                },
-                {
-                    "@type": "ReceiptPayment",
-                    "dateTime": "2026-09-23T12:15:00Z",
-                    "Identifier": {
-                        "authority": "EK",
-                        "value": "ZDkzYjMwYzMtMzMwOS00ZTNjLTk5MTUtY2M2NTI4YzI0NGRhfFN0YXR1czpVU0VEIE5UQUN8RG9jdW1lbnRMaXN0OjE3NjU3NTczMTE1MzEs"
-                    },
-                    "OfferRef": [
-                        "offer_1"
-                    ],
-                    "Document": [
-                        {
-                            "@type": "DocumentTicket",
-                            "contentSource": "NDC",
-                            "Number": "1765757311531",
-                            "TravelerIdentifierRef": {
-                                "id": "travelerRefId_1",
-                                "value": "travelerRefId_1"
-                            },
-                            "Amount": {
-                                "@type": "Amount",
-                                "CurrencyCode": {
-                                    "decimalPlace": 0,
-                                    "value": "LKR"
-                                },
-                                "Total": 142563
-                            }
-                        }
-                    ],
-                    "PaymentIdentifier": {
-                        "PaymentRef": "payment_1"
-                    }
-                },
-                {
-                    "@type": "ReceiptConfirmation",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "fccffb7e-2f1c-43cf-b939-1738985e1774"
+                        "value": "40151441-582e-42ba-a498-a1d39c03f7c8"
                     },
                     "Confirmation": {
                         "@type": "ConfirmationHold",
@@ -823,8 +325,7 @@
                             "StatusAir": [
                                 {
                                     "flightRefs": [
-                                        "Flight_01",
-                                        "Flight_02"
+                                        "Flight_01"
                                     ],
                                     "code": "HK",
                                     "value": "Confirmed"
@@ -833,8 +334,87 @@
                         },
                         "Locator": {
                             "source": "1G",
-                            "creationDate": "2026-09-23",
-                            "value": "HN6RTG"
+                            "creationDate": "2026-10-07",
+                            "value": "HNB2Z5"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "de658df8-7e03-4a94-b21e-6d8f21ff1fc3"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "Locator": {
+                            "source": "1A",
+                            "value": "FAEFA2"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptPayment",
+                    "dateTime": "2026-10-07T03:25:00Z",
+                    "id": "receipt_1",
+                    "ReceiptRef": "receipt_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "bffd4c29-264a-4b9c-91f9-250878f6bef2"
+                    },
+                    "OfferRef": [
+                        "offer_1"
+                    ],
+                    "Document": [
+                        {
+                            "@type": "DocumentTicket",
+                            "Number": "2322903683700",
+                            "TravelerIdentifierRef": {
+                                "passengerTypeCode": "ADT",
+                                "id": "travelerRefId_1",
+                                "value": "1e6c8d9a-9063-4235-8ad9-7db758bbf0c7"
+                            },
+                            "Amount": {
+                                "@type": "Amount",
+                                "CurrencyCode": {
+                                    "decimalPlace": 0,
+                                    "value": "LKR"
+                                },
+                                "Base": 60300,
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "TotalTaxes": 32357,
+                                    "Tax": [
+                                        {
+                                            "taxCode": "LK",
+                                            "value": 20436
+                                        },
+                                        {
+                                            "taxCode": "YQ",
+                                            "value": 11921
+                                        }
+                                    ]
+                                },
+                                "Total": 92657
+                            },
+                            "Commission": {
+                                "@type": "CommissionPercent",
+                                "Percent": 3.0
+                            },
+                            "IssuingPCC": "7F3C",
+                            "FiledAmount": {
+                                "currencyCode": "USD",
+                                "decimalPlace": 0,
+                                "value": 17700
+                            }
+                        }
+                    ],
+                    "PaymentIdentifier": {
+                        "id": "payment_1",
+                        "PaymentRef": "payment_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "c12e8916-376f-47e8-8688-61c6ab683787"
                         }
                     }
                 }
@@ -842,13 +422,114 @@
             "ReservationComment": [
                 {
                     "@type": "ReservationComment",
+                    "commentSource": "Supplier",
                     "shareWith": "Agency",
+                    "shareWithSupplier": [
+                        "1A"
+                    ],
                     "id": "RSRVComment_1",
                     "Comment": [
                         {
-                            "value": "* PNR CONTAINS NDC AIR SEGMENTS-SERVICE VIA SMARTPOINT NDC APP *"
+                            "id": "VeiComment_2",
+                            "name": "Vendor Remarks",
+                            "value": "270799072759 - SHORT TTL DUE TO MISSING CTCE/CTCM"
+                        },
+                        {
+                            "id": "VeiComment_3",
+                            "name": "Vendor Remarks",
+                            "value": "ADTK1GTOMH BY 07OCT 0327 ZZZ TIME ZONE OTHERWISE WILL BE XLD"
                         }
                     ]
+                },
+                {
+                    "@type": "ReservationComment",
+                    "commentSource": "Supplier",
+                    "shareWith": "Agency",
+                    "shareWithSupplier": [
+                        "MH"
+                    ],
+                    "id": "RSRVComment_2",
+                    "Comment": [
+                        {
+                            "id": "VeiComment_1",
+                            "name": "Vendor Remarks",
+                            "value": "MISSING SSR CTCM MOBILE OR SSR CTCE EMAIL OR SSR CTCR NON-CONSENT FOR MH"
+                        }
+                    ]
+                }
+            ],
+            "TravelAgency": {
+                "@type": "TravelAgencyDetail",
+                "id": "travelAgency_1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "28a8eb47-d1dc-4b7d-9463-36578b06db0d"
+                },
+                "Telephone": [
+                    {
+                        "@type": "TelephoneDetail",
+                        "countryAccessCode": "94",
+                        "areaCityCode": "11",
+                        "phoneNumber": "7792400",
+                        "id": "telephone_1",
+                        "cityCode": "CMB"
+                    }
+                ],
+                "Address": [
+                    {
+                        "@type": "Address",
+                        "id": "address_1",
+                        "role": "Business",
+                        "AddressLine": [
+                            "Ground Floor, 439 Galle Rd"
+                        ],
+                        "City": "Colombo",
+                        "Country": {
+                            "name": "LK"
+                        },
+                        "PostalCode": "00300"
+                    }
+                ],
+                "Email": [
+                    {
+                        "id": "email_1",
+                        "value": "ticketing@gstravels.lk"
+                    }
+                ]
+            },
+            "SpecialService": [
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "829c5096-5e21-4b98-91d4-110abce3f260"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_1"
+                        },
+                        "SegmentSequenceList": [
+                            1
+                        ]
+                    },
+                    "Status": {
+                        "value": "Confirmed"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "0544ae58-a38e-4b4c-9255-94fdfb2e0d1a"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "2322903683700C1",
+                    "SSRCode": "TKNE"
                 }
             ],
             "ReservationDisplaySequence": {
@@ -860,89 +541,6 @@
                         "OfferRef": "offer_1",
                         "ProductRef": "product_1",
                         "Sequence": 1
-                    },
-                    {
-                        "@type": "DisplaySequence",
-                        "displaySequence": 2,
-                        "OfferRef": "offer_1",
-                        "ProductRef": "product_2",
-                        "Sequence": 2
-                    }
-                ]
-            },
-            "Accounting": {
-                "@type": "Accounting",
-                "dataType": "DOCI",
-                "id": "Accounting_1",
-                "Identifier": {
-                    "authority": "Travelport",
-                    "value": "565941a2-1782-4b05-8aae-9d36cb61fa51"
-                },
-                "NameValuePair": [
-                    {
-                        "id": "ActComment_1",
-                        "name": "FT",
-                        "value": "#TAS01#REFEK/B43KX3/LKR/NDC"
-                    },
-                    {
-                        "id": "ActComment_2",
-                        "name": "FT",
-                        "value": "#TAS01#OIDEK/EK176RE2P8XA4/LKR/NDC"
-                    },
-                    {
-                        "id": "ActComment_3",
-                        "name": "FT",
-                        "value": "#TAS01#P01ADT/109500.00/33063.00/142563.00"
-                    },
-                    {
-                        "id": "ActComment_4",
-                        "name": "FT",
-                        "value": "#TAS01#P01ADT/AE6882.00/F64588.00/LK20216.00/TP459.00/ZR918.00"
-                    },
-                    {
-                        "id": "ActComment_5",
-                        "name": "FT",
-                        "value": "#TAS01#P01ADT/FARETYPE/AIRLINEPRIVATEFARE"
-                    },
-                    {
-                        "id": "ActComment_6",
-                        "name": "FT",
-                        "value": "#TAS01#S01FLTEK653/K/07OCT2026/CMBDXB/20350155"
-                    },
-                    {
-                        "id": "ActComment_7",
-                        "name": "FT",
-                        "value": "#TAS01#S02FLTEK2040/T/10OCT2026/DXBCMB/18400105"
-                    },
-                    {
-                        "id": "ActComment_8",
-                        "name": "FT",
-                        "value": "#TAS01#TOT142563.00"
-                    },
-                    {
-                        "id": "ActComment_9",
-                        "name": "FT",
-                        "value": "#TAS01#FAREBASIS/KXEESLK1/S01/ADT"
-                    },
-                    {
-                        "id": "ActComment_10",
-                        "name": "FT",
-                        "value": "#TAS01#FAREBASIS/TWAAPLK1/S02/ADT"
-                    },
-                    {
-                        "id": "ActComment_11",
-                        "name": "FT",
-                        "value": "#TAS01#RESERVATION CONFIRMED 23SEP26 1215Z"
-                    },
-                    {
-                        "id": "ActComment_12",
-                        "name": "FT",
-                        "value": "#TAS01#TKT/P01/S01-02/1765757311531"
-                    },
-                    {
-                        "id": "ActComment_13",
-                        "name": "FT",
-                        "value": "#TAS01#FOPCA/142563.00/23SEP26 1215Z"
                     }
                 ]
             }

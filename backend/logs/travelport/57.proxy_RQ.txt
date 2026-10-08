@@ -1,29 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: 2943444eb20c11bfa30a688ccbdaada003d1fb46215f5d15bf7cc35d184d5bc1' \
+--header 'hmac: e7dbf44b2bb59e161bcef128a5197b58d4e0795442d9100abc8350a8b1e7ef4b' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "e63d5986-a370-4fad-873a-e5cee7d7ef2a",
+    "msgId": "e1a07a93-7b88-4475-9826-86493852991f",
     "operation": "PAYMENT_INIT",
-    "requestDate": "2026-09-16 10:23:07",
+    "requestDate": "2026-10-07 15:48:41",
     "validateOnly": false,
     "requestData": {
         "clientId": "14008400",
         "clientIdHash": "",
         "transactionType": "PURCHASE",
         "transactionAmount": {
-            "paymentAmount": 64223720,
+            "paymentAmount": 10510000,
             "currency": "LKR"
         },
         "redirect": {
-            "returnUrl": "http://localhost:5173/?locator=HN4ZW9",
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX18MoViWGsVBCaE1SQrh_La4I1MtsNeoA8HKtPV62Y6OtbCg4-ixMZVXkhl2OGViUgpQ2Z1xBheIcV6sKpAgjEbfLkJ9nZbGRf_iwUc1KmTHI7OJKWKomZQeRJlXeIa2EgPd5MiLcYO0kt0tD9rIJ6M0gljZ67hQqTqmemfJINcYUrdSu5d4v58bUcIH_uo0pWMY4x7opgcDQpMUfv_61-E30wj3pk9kS-60tPfjM6PO1R0PZmvjD8Sz?locator=HNB6S7",
             "returnMethod": "GET",
-            "cancelUrl": "http://localhost:5173/?locator=HN4ZW9&payment=cancelled"
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX18MoViWGsVBCaE1SQrh_La4I1MtsNeoA8HKtPV62Y6OtbCg4-ixMZVXkhl2OGViUgpQ2Z1xBheIcV6sKpAgjEbfLkJ9nZbGRf_iwUc1KmTHI7OJKWKomZQeRJlXeIa2EgPd5MiLcYO0kt0tD9rIJ6M0gljZ67hQqTqmemfJINcYUrdSu5d4v58bUcIH_uo0pWMY4x7opgcDQpMUfv_61-E30wj3pk9kS-60tPfjM6PO1R0PZmvjD8Sz?locator=HNB6S7&payment=cancelled"
         },
         "useReliability": true,
-        "clientRef": "HN4ZW9",
-        "comment": "George Steuart Travel - HN4ZW9"
+        "clientRef": "HNB6S7",
+        "comment": "George Steuart Travel - HNB6S7"
     }
 }'

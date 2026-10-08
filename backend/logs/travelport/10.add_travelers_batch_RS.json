@@ -1,60 +1,18 @@
 {
     "TravelerListResponse": {
         "@type": "TravelerListResponse",
-        "ReferenceList": [
-            {
-                "@type": "ReferenceListTraveler",
-                "Traveler": [
-                    {
-                        "@type": "Traveler",
-                        "birthDate": "1992-03-20",
-                        "gender": "Female",
-                        "passengerTypeCode": "ADT",
-                        "age": 34,
-                        "id": "travelerRefId_1",
-                        "Identifier": {
-                            "value": "1bc73684-89f7-4126-a006-7fc4737697a6"
-                        },
-                        "PersonName": {
-                            "@type": "PersonNameDetail",
-                            "Prefix": "MRS",
-                            "Given": "JANE",
-                            "Surname": "TESTER"
-                        },
-                        "Telephone": [
-                            {
-                                "@type": "Telephone",
-                                "countryAccessCode": "94",
-                                "phoneNumber": "771234568",
-                                "id": "1",
-                                "role": "Mobile"
-                            }
-                        ],
-                        "Email": [
-                            {
-                                "value": "test2@example.com"
-                            }
-                        ],
-                        "TravelDocument": [
-                            {
-                                "@type": "TravelDocumentDetail",
-                                "docNumber": "N9876543",
-                                "docType": "Passport",
-                                "expireDate": "2031-01-01",
-                                "issueCountry": "LK",
-                                "birthDate": "1992-03-20",
-                                "Gender": "Female",
-                                "Nationality": "LK",
-                                "PersonName": {
-                                    "@type": "PersonNameDetail",
-                                    "Given": "JANE",
-                                    "Surname": "TESTER"
-                                }
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
+        "Result": {
+            "@type": "Result",
+            "Error": [
+                {
+                    "@type": "ErrorDetail",
+                    "category": "VALIDATION",
+                    "StatusCode": 200,
+                    "Message": "NAME CONTAINS INVALID CHARACTER",
+                    "SourceID": "1G",
+                    "SourceCode": "4173"
+                }
+            ]
+        }
     }
 }

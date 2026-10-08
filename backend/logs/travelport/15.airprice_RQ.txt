@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAyMzY3MjQsImV4cCI6MTc5MDMyMzEyNCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.szenH7-U596ama2duy6Tnr7LRetyhOa9-uGV06rOwImlxjU7PIsYhR5PZstq7bYsJCGLnGaZ4J8JwTkn7OxwEXJ3j_fNklC-g_9CimUGS2hdWLLI6NxLZ0qhHHKNAAXwvMsCujyAVBcAUNr23wMRUqRLE2qxH_OaTYRO9GTMGUSal4NZUcAA9n43aoyxWcw3ysPTv8QM5cu_KdIM6Vb_D19b2fDOYuD_OGpOSZO2Vjs_DrdtVT5lMomO4cnZpY5FS3kCHXIuC12awQNM_jyo-MEmSF7JKr3OlFsRgfj0YGi1N9Da4geGtJIllYco6qNXOFtUxm-YUnpnPGJ117Sh3w' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEyODg4MjcsImV4cCI6MTc5MTM3NTIyNywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.wmVJj-T9tjo4g-8zePyoynA5_XF8Xp-QxALZpqwd2dcE779o3oBdSx-m98Cj4uDKSEUGc_FsC62PLYRMxvkjZXd7cVHVg1kmFk_WYrlFbzmHHAQ6mAtQCerch_EFnSLNd-kOXBMdG_VhfPliyxTqyo0Y8EVxqvWGTtgeOpu9GNN32DaGc8ppStKUo9Y2VyBQUUAL5gUUofl_rkyzu8EsTV8ecGZ5DWwUEd2r7Cklq3WLXihLfKMLmm_EJ6xwHv9ZOgA29BypDDDh9s-ixm6teYfiYA1RDXoygeLdhYpQdsgWzYqWXFZquY-gaLAo5Jc2MLpiwUFNz7YXI8t-EUGPbw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,32 +7,50 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/bui
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_A2B27EF719CC' \
+--header 'traceid: TraceID_0303F3598C27' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "c2beb21a-f30e-46a2-91f7-93980e72b65e"
-                }
-            },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "QR_CPO0"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "QRp0"
-                            }
-                        }
-                    ]
-                }
-            ]
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "FZ",
+                        "flightNumber": "1026",
+                        "from": "CMB",
+                        "to": "DXB",
+                        "departureDate": "2026-10-30",
+                        "segmentSequence": 1,
+                        "departureTime": "11:15:00",
+                        "arrivalDate": "2026-10-30",
+                        "arrivalTime": "16:45:00",
+                        "cabin": "Economy",
+                        "classOfService": "T",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Standard"
+            }
         }
     }
 }'

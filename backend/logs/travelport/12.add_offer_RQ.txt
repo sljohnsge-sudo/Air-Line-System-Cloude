@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/03515978-1e11-48e8-9ded-ce2ad2db01d9/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk2Mzc5MTcsImV4cCI6MTc4OTcyNDMxNywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.BI0o3i0Uki_8EhsudjuzqzSy96Hdu47ZepzHNA5vPMS_lC5LgmhMLgsEueZTvkdakDGfV7xh46VykYGzObrFTU609E-ZH0mCKvoRhjy6CrwUkatG5806U2CgkmByVDqXJDhxWXMmy5inp91drxnTzrFBPaFKPJenwSm_hamFFRQjA-shJ-CF8Z8aGiZ47Sd1-O5R-eqbMTHkBkhBCGdeICZoWtpS_XHbKQ5jsGRPIQQEGLeDHzO3ETKmq72A9FWFA1cKtn_mV9rcj-NDGwHeuzTsZnsMbZF5LB6BGcrfwUaUnjLnmyAtJXQ-Hh_hm8uzqqQEh8wc5iX1vBzqPjO4ew' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/22f704cb-0786-4729-8743-633e7e0d6fab/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEzNTk0ODYsImV4cCI6MTc5MTQ0NTg4NiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.AXpGQkLsm22FHjgDulpmPds8-h6_de8iZGGJga-59yvklRAb6IGd7mPcCZ1DRv5yXNHH5DNO_aFJXJ8SYFaZrGOLr6eironzFkWPY4Y6N9ZGgmf_IWmGQHgiiPVGY3JD3B7Y99CUI8sK68iif4Soe4l_9_yhz5fJ-sDa1pZaBVaKEDlXSHzZL8OmM6SF-zQTNcaGNv_QC0CiHE_H6ayHhEkWnWISfh-HJh6JZFov00ZJw6P73U5yehvXDljASavcL_Z_ghm2tBQYFig3ZGJHkqQb4s9rKPv-BcimfzTesyRtAJbp4mMAKE3dXYxUHUkWJ-JnM69FEFeoigHq8PlCKw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,7 +7,7 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_3806C2E3E9F4' \
+--header 'traceid: TraceID_E32D7309CC2E' \
 --data-raw '{
     "@type": "OfferQueryBuildFromProducts",
     "validateInventoryInd": true,
@@ -20,18 +20,35 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
                 "SpecificFlightCriteria": [
                     {
                         "@type": "SpecificFlightCriteria",
-                        "carrier": "FZ",
-                        "flightNumber": "570",
+                        "carrier": "AI",
+                        "flightNumber": "2275",
                         "from": "CMB",
-                        "to": "DXB",
-                        "departureDate": "2026-09-18",
+                        "to": "BOM",
+                        "departureDate": "2026-11-10",
                         "segmentSequence": 1,
-                        "departureTime": "02:05:00",
-                        "arrivalDate": "2026-09-18",
-                        "arrivalTime": "05:10:00",
+                        "departureTime": "16:05:00",
+                        "arrivalDate": "2026-11-10",
+                        "arrivalTime": "18:55:00",
                         "cabin": "Economy",
-                        "classOfService": "T",
-                        "AvailabilitySourceCode": "S",
+                        "classOfService": "L",
+                        "AvailabilitySourceCode": "Q",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "AI",
+                        "flightNumber": "983",
+                        "from": "BOM",
+                        "to": "DXB",
+                        "departureDate": "2026-11-10",
+                        "segmentSequence": 2,
+                        "departureTime": "19:55:00",
+                        "arrivalDate": "2026-11-10",
+                        "arrivalTime": "21:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "L",
+                        "AvailabilitySourceCode": "Q",
                         "ContentSource": "GDS"
                     }
                 ]
@@ -49,7 +66,8 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
             "@type": "PricingModifiersAir",
             "Brand": {
                 "@type": "Brand",
-                "name": "Standard"
+                "name": "Eco Value",
+                "BrandRef": "b0"
             }
         }
     }

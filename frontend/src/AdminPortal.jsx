@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, API_BASE, fetchWithRetry, handleApiResponse, onNavigate, onOpenInvoice }) {
+export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, API_BASE, AMADEUS_API_BASE, fetchWithRetry, handleApiResponse, onNavigate, onOpenInvoice }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -1007,6 +1007,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
               {markupField('ticket', settings.markup_scope === 'separate' ? 'Flight Ticket Margin — Travelport' : 'Flight Ticket Margin')}
               {settings.markup_scope === 'separate' && markupField('amadeus_ticket', 'Flight Ticket Margin — Amadeus')}
               {markupField('seat', 'Seat Booking Margin')}
+              {markupField('ancillary', 'Extra Baggage / Ancillary Margin')}
             </div>
             <button className="btn btn-primary" onClick={handleSaveSettings} disabled={saving}>
               {saving ? 'Saving…' : 'Save Pricing Settings'}

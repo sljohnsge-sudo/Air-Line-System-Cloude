@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">5db547ed-b7bc-4409-b107-e8b8f51927b9</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/PNRADD_22_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="InSeries"><awsse:SessionId>05NDFB3I5X</awsse:SessionId><awsse:SequenceNumber>2</awsse:SequenceNumber><awsse:SecurityToken>390TJA8JBH0UG3SYTPB4YS90DB</awsse:SecurityToken></awsse:Session>
+  </soapenv:Header>
+  <soapenv:Body>
+<PNR_AddMultiElements xmlns="http://xml.amadeus.com/PNRADD_22_1_1A">
+      <reservationInfo><reservation/></reservationInfo>
+      <pnrActions><optionCode>0</optionCode></pnrActions>
+      <dataElementsMaster>
+        <marker1/>
+        <dataElementsIndiv>
+          <elementManagementData><reference><qualifier>OT</qualifier><number>1</number></reference><segmentName>FM</segmentName></elementManagementData>
+          <commission><indicator>P</indicator><commissionInfo><percentage>0</percentage></commissionInfo></commission>
+        </dataElementsIndiv>
+      </dataElementsMaster>
+    </PNR_AddMultiElements>
+  </soapenv:Body>
+</soapenv:Envelope>

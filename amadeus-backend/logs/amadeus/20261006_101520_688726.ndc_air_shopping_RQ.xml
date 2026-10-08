@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">db972872-d682-4768-8a81-ed59e20e008d</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/NDC_AirShopping_18.1</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><awsl:TransactionFlowLink xmlns:awsl="http://wsdl.amadeus.com/2010/06/ws/Link_v1"/><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">IB+dGEhD3dZ0DV8pGzYvxF/+6IZ8qRlt6KOTL/AxATU=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">mz+avjjIkj9HiHzJaWUgWMt+GJY=</oas:Password>
+        <oas1:Created>2026-10-06T10:15:19.149Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser>
+  </soapenv:Header>
+  <soapenv:Body>
+<AirShoppingRQ xmlns="http://www.iata.org/IATA/2015/00/2018.1/AirShoppingRQ">
+      <Party>
+        <Sender>
+          <TravelAgency>
+            <AgencyID>CMBVS3299</AgencyID>
+            <PseudoCityID>CMBVS3299</PseudoCityID>
+          </TravelAgency>
+        </Sender>
+      </Party>
+      <Request>
+        <FlightRequest>
+          <OriginDestRequest>
+            <DestArrivalRequest>
+              <IATA_LocationCode>DXB</IATA_LocationCode>
+            </DestArrivalRequest>
+            <OriginDepRequest>
+              <IATA_LocationCode>CMB</IATA_LocationCode>
+              <Date>2026-10-15</Date>
+            </OriginDepRequest>
+          </OriginDestRequest>
+        </FlightRequest>
+        <Paxs>
+          <Pax>
+            <PaxID>PAX1</PaxID>
+            <PTC>ADT</PTC>
+          </Pax>
+        </Paxs>
+      </Request>
+    </AirShoppingRQ>
+  </soapenv:Body>
+</soapenv:Envelope>

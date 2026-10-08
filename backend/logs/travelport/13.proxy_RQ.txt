@@ -1,0 +1,29 @@
+curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
+--header 'accept: */*' \
+--header 'hmac: 30b32d7f6692c1c6050212df3889ffd26992f85e98657ea2177c4af463c38799' \
+--header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
+--header 'content-type: application/json' \
+--data-raw '{
+    "version": "1.04",
+    "msgId": "c76e018d-e918-450d-8c82-544f29a46c7b",
+    "operation": "PAYMENT_INIT",
+    "requestDate": "2026-10-06 15:00:01",
+    "validateOnly": false,
+    "requestData": {
+        "clientId": "14008400",
+        "clientIdHash": "",
+        "transactionType": "PURCHASE",
+        "transactionAmount": {
+            "paymentAmount": 8671900,
+            "currency": "LKR"
+        },
+        "redirect": {
+            "returnUrl": "http://localhost:5173/booking/U2FsdGVkX19X02btRSwhHPBrTFJImqmB_uqCsBfXK6Y?locator=9OV45B&src=AD",
+            "returnMethod": "GET",
+            "cancelUrl": "http://localhost:5173/booking/U2FsdGVkX19X02btRSwhHPBrTFJImqmB_uqCsBfXK6Y?locator=9OV45B&src=AD&payment=cancelled"
+        },
+        "useReliability": true,
+        "clientRef": "9OV45B",
+        "comment": "George Steuart Travel - Amadeus 9OV45B"
+    }
+}'

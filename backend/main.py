@@ -46,7 +46,7 @@ import database
 import services
 import auth
 import hotel_database
-from services import hotel_search_service, hotel_booking_service
+from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
 from services.indigo_uapi_client import IndigoApiError
@@ -196,6 +196,15 @@ class SelectedSeat(BaseModel):
     type: str = "Standard"
 
 
+class SelectedAncillary(BaseModel):
+    """Traveler ancillary (baggage/meal) selection choice."""
+    passenger_idx: int
+    name: str
+    price: float
+    currency: str = "LKR"
+    service_type: Optional[str] = None
+
+
 class BookingConfirmRequest(BaseModel):
     """
     Confirms booking: creates a fresh GDS workbench at commit time to avoid
@@ -205,6 +214,7 @@ class BookingConfirmRequest(BaseModel):
     raw_offering: dict = Field(..., description="Full raw offer object from search response")
     travelers: List[TravelerInfo]
     selected_seats: List[SelectedSeat]
+    selected_ancillaries: List[SelectedAncillary] = []
     payment_method: Optional[str] = "card"
     cabin_class: Optional[str] = None
     fare_family: Optional[str] = None
@@ -711,6 +721,7 @@ def initiate_booking(request: BookingInitiateRequest):
     """
     logger.info("Initiating booking and fetching live seat map...")
     raw_offering = request.raw_offering
+    travelers = [t.model_dump() for t in request.travelers]
     workbench_id = None
     # One TraceId for every Travelport call in this initiate flow (create
     # workbench -> add offer -> seat map -> discard) — see auth_service.py.
@@ -742,6 +753,21 @@ def initiate_booking(request: BookingInitiateRequest):
         except Exception as e:
             logger.warning(f"Live seat map retrieval failed: {e}")
 
+        # STEP 10b: Fetch bookable ancillaries (extra baggage, meals, etc.)
+        # on the same temporary workbench, same best-effort pattern as the
+        # seat map above — not every carrier/fare publishes ancillaries, so
+        # a failure here must not block booking initiation. Confirmed live:
+        # unlike the seat map call, Ancillary Shop rejects with "TRAVELER
+        # DETAILS MUST BE INCLUDED" unless travelers are on the workbench.
+        ancillaries = []
+        ancillaries_available = False
+        try:
+            services.add_travelers_to_workbench(workbench_id, travelers)
+            ancillaries = services.get_ancillary_offers(workbench_id, offer_id)
+            ancillaries_available = bool(ancillaries)
+        except Exception as e:
+            logger.warning(f"Live ancillary offers retrieval failed: {e}")
+
         return {
             "workbench_id": workbench_id,
             "offer_id": offer_id,
@@ -750,7 +776,9 @@ def initiate_booking(request: BookingInitiateRequest):
             # new field round-trip-aware code should use instead.
             "seat_map": seat_maps[0] if seat_maps else None,
             "seat_maps": seat_maps or [],
-            "seat_map_available": seat_map_available
+            "seat_map_available": seat_map_available,
+            "ancillaries": ancillaries,
+            "ancillaries_available": ancillaries_available
         }
     except Exception as e:
         logger.error(f"Booking initiation failed: {e}")
@@ -877,6 +905,19 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         if seat_numbers:
             ticket["seat_number"] = ", ".join(seat_numbers)
 
+        # Apply local ancillary (baggage/meal) selections and pricing —
+        # same display-only pattern as seats: Travelport is not sent a
+        # separate ancillary-add call, the charge is folded into total_fare
+        # and listed on the receipt.
+        selected_ancillaries = request.selected_ancillaries
+        ancillary_names = [a.name for a in selected_ancillaries]
+        ancillary_charges = sum([a.price for a in selected_ancillaries])
+
+        if ancillary_names:
+            ticket["ancillaries"] = [a.model_dump() for a in selected_ancillaries]
+
+        seat_charges += ancillary_charges
+
         if request.custom_price:
             ticket["total_fare"] = request.custom_price + seat_charges
             # NDC content: Travelport's Offer has no Price at all (confirmed
@@ -899,6 +940,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
             ticket["total_fare"] += seat_charges
 
         ticket["seat_charge"] = seat_charges
+        ticket["ancillary_charge"] = ancillary_charges
 
         if request.cabin_class:
             ticket["cabin_class"] = request.cabin_class
@@ -1476,6 +1518,43 @@ def retrieve_booking(locator_code: str):
         raise HTTPException(status_code=404, detail=f"Reservation not found: {str(e)}")
 
 
+# ── Check My Ticket Status (unified TP+AD lookup) ──────────────────────────────
+# One input box, no GDS picker -- the customer doesn't know (and shouldn't need
+# to know) which GDS their booking is on. Our own local DB is used ONLY to
+# figure out which GDS owns this PNR/ticket number (every booking made through
+# this system is saved with its source); the data actually shown always comes
+# from a live GDS call -- Travelport's retrieve_reservation() or Amadeus's
+# PNR_Retrieve via services.lookup_amadeus_booking -- never served from the DB.
+
+@app.get("/api/ticket-status")
+async def ticket_status(query: str = Query(..., min_length=3, max_length=20)):
+    q = query.strip().upper()
+
+    # Is this one of ours on Travelport? (locator OR issued ticket number)
+    tp_cached = database.get_booking_by_locator(q) or database.get_booking_by_ticket_number(q)
+    if tp_cached:
+        locator = tp_cached["locator_code"]
+        try:
+            ticket = services.retrieve_reservation(locator)
+        except Exception as e:
+            logger.error(f"Ticket-status: found {locator} locally but Travelport live retrieve failed: {e}")
+            raise HTTPException(status_code=502, detail=f"Found this booking but Travelport's live lookup failed: {str(e)[:300]}")
+        ticket["source"] = "TP"
+        return ticket
+
+    # Not ours on Travelport -- ask the Amadeus backend if it's one of theirs.
+    try:
+        amadeus_result = await services.lookup_amadeus_booking(q)
+    except services.AmadeusBookingError as e:
+        if e.status_code == 404:
+            raise HTTPException(status_code=404, detail="No booking found for that PNR or ticket number.")
+        logger.error(f"Ticket-status: Amadeus lookup for {q} failed: {e.message}")
+        raise HTTPException(status_code=502, detail=f"Found this booking but Amadeus's live lookup failed: {e.message}")
+
+    amadeus_result["source"] = "AD"
+    return amadeus_result
+
+
 # ── Booking History ────────────────────────────────────────────────────────────
 
 @app.get("/api/bookings/history")
@@ -1894,6 +1973,9 @@ class PricingSettingsRequest(BaseModel):
     amadeus_ticket_markup_mode: str = Field(default="percent", description="'percent' or 'fixed' -- only used when markup_scope='separate'")
     amadeus_ticket_markup_percent: float = Field(default=0.0, ge=0)
     amadeus_ticket_markup_fixed: float = Field(default=0.0, ge=0)
+    ancillary_markup_mode: str = Field(default="percent", description="'percent' or 'fixed' -- Travelport ancillary (extra baggage/services) markup")
+    ancillary_markup_percent: float = Field(default=0.0, ge=0)
+    ancillary_markup_fixed: float = Field(default=0.0, ge=0)
 
 
 @app.post("/api/admin/login")
@@ -1916,13 +1998,15 @@ def get_pricing_settings(_admin: dict = Depends(auth.get_current_admin)):
 def put_pricing_settings(request: PricingSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
     if (request.ticket_markup_mode not in ("percent", "fixed")
             or request.seat_markup_mode not in ("percent", "fixed")
-            or request.amadeus_ticket_markup_mode not in ("percent", "fixed")):
+            or request.amadeus_ticket_markup_mode not in ("percent", "fixed")
+            or request.ancillary_markup_mode not in ("percent", "fixed")):
         raise HTTPException(status_code=422, detail="markup_mode must be 'percent' or 'fixed'")
     return database.update_pricing_settings(
         request.ticket_markup_mode, request.ticket_markup_percent, request.ticket_markup_fixed,
         request.seat_markup_mode, request.seat_markup_percent, request.seat_markup_fixed,
         request.markup_scope,
         request.amadeus_ticket_markup_mode, request.amadeus_ticket_markup_percent, request.amadeus_ticket_markup_fixed,
+        request.ancillary_markup_mode, request.ancillary_markup_percent, request.ancillary_markup_fixed,
     )
 
 
@@ -2630,16 +2714,21 @@ def submit_cancellation_request(request: CancellationRequestCreate, customer_id:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# HOTEL (STAYS) API — Travelport TripServices Stays v11/v12
+# HOTEL (STAYS) API — Travelport TripServices Stays v11
 #
 # Fully independent of the flight booking endpoints above: separate service
-# modules (services/hotel_search_service.py, services/hotel_booking_service.py),
-# separate storage (hotel_database.py / hotel_bookings table), no shared code
-# with the Air integration beyond OAuth token reuse.
+# modules (services/hotel_*.py), separate OAuth (services/hotel_auth_service.py),
+# separate storage (hotel_database.py / hotel_bookings table) — no shared
+# code or credentials with the Air/flight integration at all.
+#
+# Flow: search (property list) -> availability (bookable rooms/rates for a
+# chosen property) -> optionally rules (cancellation policy) -> book-offer
+# (reference-payload Create Reservation against the chosen offer).
 #
 # NOTE: The sandbox Travelport account is not yet provisioned for Hotel/Stays
 # — every Hotel endpoint currently returns 403 at the Akamai edge (confirmed
-# live). These endpoints are wired up per the documented API contract
+# live, repeatedly, across search/availability/rules/property-details). These
+# endpoints are wired up per the documented API contract
 # (https://developer.travelport.com/apis/stays) and will start working as
 # soon as Travelport enables the product on the account, with no further
 # code changes needed here.
@@ -2682,11 +2771,41 @@ class HotelBookingRequest(BaseModel):
     total_price: float
     room_description: Optional[str] = None
     travelers: List[HotelGuestInfo]
+    offer_id: Optional[str] = Field(default=None, description="CatalogOffering.id from a prior Availability call, if any")
+
+
+class HotelAvailabilityRequest(BaseModel):
+    chain_code: str
+    property_code: str
+    check_in_date: str = Field(..., description="YYYY-MM-DD")
+    check_out_date: str = Field(..., description="YYYY-MM-DD")
+    adults: int = Field(default=1, ge=1, le=9)
+    children_ages: Optional[List[int]] = Field(default=None)
+    rooms: int = Field(default=1, ge=1, le=9)
+    currency: Optional[str] = None
+
+
+class HotelOfferBookingRequest(BaseModel):
+    offer_id: str = Field(..., description="CatalogOffering.id from /api/hotels/availability")
+    property_name: Optional[str] = None
+    chain_code: Optional[str] = None
+    property_code: Optional[str] = None
+    city: Optional[str] = None
+    country_code: Optional[str] = None
+    check_in_date: str
+    check_out_date: str
+    rooms: int = Field(default=1, ge=1, le=9)
+    currency: str
+    total_price: float
+    room_description: Optional[str] = None
+    travelers: List[HotelGuestInfo]
 
 
 @app.post("/api/hotels/search")
 def hotel_search(request: HotelSearchRequest):
-    """STEP 1 — Search hotels (property + room + rate) via SearchComplete."""
+    """Search hotels by location — property-level results (see
+    hotel_search_service module docstring for why rooms are always empty
+    until the Availability endpoint is wired up)."""
     try:
         raw = hotel_search_service.search_hotels(
             location_type=request.location_type,
@@ -2699,7 +2818,7 @@ def hotel_search(request: HotelSearchRequest):
             radius_km=request.radius_km,
             currency=request.currency,
         )
-        properties = hotel_search_service.parse_hotel_offers(raw)
+        properties = hotel_search_service.parse_hotel_offers(raw, request.check_in_date, request.check_out_date)
         return {"properties": properties, "count": len(properties)}
     except HotelApiError as e:
         logger.error(f"Hotel search failed: {e}")
@@ -2718,9 +2837,45 @@ def hotel_property_details(chain_code: str, property_code: str, image_size: Opti
         raise HTTPException(status_code=e.status_code or 502, detail=str(e))
 
 
+@app.post("/api/hotels/availability")
+def hotel_availability(request: HotelAvailabilityRequest):
+    """Fetch bookable room types/rates for a property chosen from
+    /api/hotels/search results — the step Search by Location can't provide.
+    https://developer.travelport.com/apis/stays/availability/createhotelavailability"""
+    try:
+        raw = hotel_availability_service.get_availability(
+            chain_code=request.chain_code,
+            property_code=request.property_code,
+            check_in_date=request.check_in_date,
+            check_out_date=request.check_out_date,
+            adults=request.adults,
+            children_ages=request.children_ages,
+            rooms=request.rooms,
+            currency=request.currency,
+        )
+        offers = hotel_availability_service.parse_availability_offers(raw)
+        return {"offers": offers, "count": len(offers)}
+    except HotelApiError as e:
+        logger.error(f"Hotel availability failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.get("/api/hotels/rules/{offer_id}")
+def hotel_rules(offer_id: str):
+    """Cancellation policy / terms for an Availability offer — informational
+    only, not required before booking.
+    https://developer.travelport.com/apis/stays/rules/buildhotelrulesfromcatalogoffering"""
+    try:
+        raw = hotel_rules_service.get_rules_for_offer(offer_id)
+        return raw
+    except HotelApiError as e:
+        logger.error(f"Hotel rules failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
 @app.post("/api/hotels/book", status_code=status.HTTP_201_CREATED)
 def hotel_book(request: HotelBookingRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
-    """STEP 2 — Book a hotel room (full payload Create Reservation)."""
+    """Book a hotel room — Full Payload Create Reservation."""
     try:
         raw = hotel_booking_service.create_hotel_reservation(
             chain_code=request.chain_code,
@@ -2737,6 +2892,7 @@ def hotel_book(request: HotelBookingRequest, customer_id: Optional[int] = Depend
                 "total_price": request.total_price,
             },
             travelers=[t.model_dump() for t in request.travelers],
+            offer_id=request.offer_id,
         )
         parsed = hotel_booking_service.parse_hotel_reservation(raw)
 
@@ -2764,6 +2920,47 @@ def hotel_book(request: HotelBookingRequest, customer_id: Optional[int] = Depend
         return {"success": True, "booking": booking_record, "cached_id": saved.get("id")}
     except HotelApiError as e:
         logger.error(f"Hotel booking failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.post("/api/hotels/book-offer", status_code=status.HTTP_201_CREATED)
+def hotel_book_offer(request: HotelOfferBookingRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+    """Book a hotel room — Reference Payload Create Reservation, against an
+    offer_id from /api/hotels/availability (the Search -> Availability ->
+    book flow). https://developer.travelport.com/apis/stays/unified-check-out/buildhotelreservation"""
+    try:
+        raw = hotel_booking_service.create_hotel_reservation_from_offer(
+            offer_id=request.offer_id,
+            total_price=request.total_price,
+            currency=request.currency,
+            travelers=[t.model_dump() for t in request.travelers],
+        )
+        parsed = hotel_booking_service.parse_hotel_reservation(raw)
+
+        lead = request.travelers[0]
+        booking_record = {
+            **parsed,
+            "customer_id": customer_id,
+            "guest_name": f"{lead.first_name} {lead.last_name}",
+            "guest_email": lead.email,
+            "guest_phone": lead.phone,
+            "property_name": parsed.get("property_name") or request.property_name or "",
+            "chain_code": parsed.get("chain_code") or request.chain_code or "",
+            "property_code": parsed.get("property_code") or request.property_code or "",
+            "city": request.city or "",
+            "country_code": request.country_code or "",
+            "check_in_date": parsed.get("check_in_date") or request.check_in_date,
+            "check_out_date": parsed.get("check_out_date") or request.check_out_date,
+            "rooms": request.rooms,
+            "room_description": parsed.get("room_description") or request.room_description or "",
+            "total_price": parsed.get("total_price") or request.total_price,
+            "currency": parsed.get("currency") or request.currency,
+            "payment_method": "Credit Card",
+        }
+        saved = hotel_database.save_hotel_booking(booking_record)
+        return {"success": True, "booking": booking_record, "cached_id": saved.get("id")}
+    except HotelApiError as e:
+        logger.error(f"Hotel booking (offer) failed: {e}")
         raise HTTPException(status_code=e.status_code or 502, detail=str(e))
 
 

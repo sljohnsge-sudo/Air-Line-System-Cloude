@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">5ce6dc66-6452-43e9-8cec-282d98f0f46c</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/TIPNRQ_23_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">PcD5jqB3XmvOUbW3LDrgHuq61UNCNvI28lCmVMmHb+g=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">Lvlkhfmz6cm6Sr1vWA3A23YZ76w=</oas:Password>
+        <oas1:Created>2026-10-06T11:20:03.543Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="Start"/>
+  </soapenv:Header>
+  <soapenv:Body>
+<Fare_InformativePricingWithoutPNR xmlns="http://xml.amadeus.com/TIPNRQ_23_1_1A">
+      <passengersGroup>
+        <segmentRepetitionControl/>
+        <discountPtc><valueQualifier>ADT</valueQualifier></discountPtc>
+      </passengersGroup>
+      <segmentGroup>
+        <segmentInformation>
+          <flightDate>
+            <departureDate>251026</departureDate>
+            <departureTime>2225</departureTime>
+            <arrivalDate>261026</arrivalDate>
+            <arrivalTime>0555</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>TFU</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>CA</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>426</flightNumber>
+            <bookingClass>L</bookingClass>
+          </flightIdentification>
+        </segmentInformation>
+      </segmentGroup>
+      <pricingOptionGroup>
+        <pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey>
+      </pricingOptionGroup>
+    </Fare_InformativePricingWithoutPNR>
+  </soapenv:Body>
+</soapenv:Envelope>

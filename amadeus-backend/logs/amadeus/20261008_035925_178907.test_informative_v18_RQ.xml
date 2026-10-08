@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">72c95496-40ef-4208-8397-60e6167bebfb</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/TIPNRQ_18_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">YNcOxPYLxk6KO8oFt2MzPDZ7DEo3Og+mdGsrDDvp1yU=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">/2oVQS3xx3NgHRT4zHSTeAj+9KM=</oas:Password>
+        <oas1:Created>2026-10-08T03:59:24.047Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="Start"/>
+  </soapenv:Header>
+  <soapenv:Body>
+<Fare_InformativePricingWithoutPNR xmlns="http://xml.amadeus.com/TIPNRQ_18_1_1A">
+      <passengersGroup>
+        <segmentRepetitionControl/>
+        <travellersID><travellerDetails><measurementValue>1</measurementValue></travellerDetails></travellersID>
+        <discountPtc><valueQualifier>ADT</valueQualifier></discountPtc>
+      </passengersGroup>
+      <segmentGroup>
+        <segmentInformation>
+          <flightDate>
+            <departureDate>251126</departureDate>
+            <departureTime>1700</departureTime>
+            <arrivalDate>251126</arrivalDate>
+            <arrivalTime>2210</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>BAH</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>GF</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>145</flightNumber>
+            <bookingClass>N</bookingClass>
+          </flightIdentification>
+          <flightTypeDetails><flightIndicator>1</flightIndicator></flightTypeDetails>
+          <itemNumber>1</itemNumber>
+        </segmentInformation>
+      </segmentGroup><segmentGroup>
+        <segmentInformation>
+          <flightDate>
+            <departureDate>261126</departureDate>
+            <departureTime>0120</departureTime>
+            <arrivalDate>261126</arrivalDate>
+            <arrivalTime>0335</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>BAH</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>DXB</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>GF</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>500</flightNumber>
+            <bookingClass>N</bookingClass>
+          </flightIdentification>
+          <flightTypeDetails><flightIndicator>1</flightIndicator></flightTypeDetails>
+          <itemNumber>2</itemNumber>
+        </segmentInformation>
+      </segmentGroup>
+      <pricingOptionGroup>
+        <pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey>
+      </pricingOptionGroup>
+      <pricingOptionGroup>
+        <pricingOptionKey><pricingOptionKey>RU</pricingOptionKey></pricingOptionKey>
+      </pricingOptionGroup>
+    </Fare_InformativePricingWithoutPNR>
+  </soapenv:Body>
+</soapenv:Envelope>

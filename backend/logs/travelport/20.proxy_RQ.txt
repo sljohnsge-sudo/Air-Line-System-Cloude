@@ -1,29 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: 99ab4ab726a50c8a895188aa7e173e9b09d901e1f814899da58dc4f261a606e8' \
+--header 'hmac: e80233ceafdaf07ebb5e906f0fd9e0c4b0612789783bc8b0d3dcd5f1d6055d7d' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "45e609e3-82b5-47c9-9484-6411982ff7f1",
+    "msgId": "ddc1a981-849b-4391-8e4a-7bd128542429",
     "operation": "PAYMENT_INIT",
-    "requestDate": "2026-09-29 09:42:03",
+    "requestDate": "2026-10-06 12:56:30",
     "validateOnly": false,
     "requestData": {
         "clientId": "14008400",
         "clientIdHash": "",
         "transactionType": "PURCHASE",
         "transactionAmount": {
-            "paymentAmount": 10508300,
+            "paymentAmount": 8475000,
             "currency": "LKR"
         },
         "redirect": {
-            "returnUrl": "http://localhost:5173/results/U2FsdGVkX19Aa3S4DU2AlgI1GNqTvYySfRtnvQA-zTI-5uwhHHrnv1V9m9Qkh3L3lw1YvNq8TiSO6TazQio5bdin8pAGpHsBYOCAvlK5mpXVD6yB10g62a_wI0OvJhHemWpahCYEAftkQYYk5fpvZYHz_vSegpKY4xP2dDMoY3fpcHMmNwcp2pbJ6hu5mUGQ4yJt7yQTBTDlFMZ0y-4degDse6DX57AAZu_s3A59SNojIYV1EWG0xLbjjghdXksx?locator=HN80QY",
+            "returnUrl": "http://localhost:5173/booking/U2FsdGVkX18btMqqjGwP-Q4322Gn6c6zMdb5DdHRczk?locator=9ODO7T&src=AD",
             "returnMethod": "GET",
-            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX19Aa3S4DU2AlgI1GNqTvYySfRtnvQA-zTI-5uwhHHrnv1V9m9Qkh3L3lw1YvNq8TiSO6TazQio5bdin8pAGpHsBYOCAvlK5mpXVD6yB10g62a_wI0OvJhHemWpahCYEAftkQYYk5fpvZYHz_vSegpKY4xP2dDMoY3fpcHMmNwcp2pbJ6hu5mUGQ4yJt7yQTBTDlFMZ0y-4degDse6DX57AAZu_s3A59SNojIYV1EWG0xLbjjghdXksx?locator=HN80QY&payment=cancelled"
+            "cancelUrl": "http://localhost:5173/booking/U2FsdGVkX18btMqqjGwP-Q4322Gn6c6zMdb5DdHRczk?locator=9ODO7T&src=AD&payment=cancelled"
         },
         "useReliability": true,
-        "clientRef": "HN80QY",
-        "comment": "George Steuart Travel - HN80QY"
+        "clientRef": "9ODO7T",
+        "comment": "George Steuart Travel - Amadeus 9ODO7T"
     }
 }'

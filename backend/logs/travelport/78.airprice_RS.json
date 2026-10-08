@@ -1,8 +1,8 @@
 {
     "OfferListResponse": {
         "@type": "OfferListResponse",
-        "transactionId": "9ad0dd782f6ded99fa4a2a9698b64b77",
-        "traceId": "TraceID_42FEAB639CBC",
+        "transactionId": "d0ee5da4bad465d153f176fe57e498e6",
+        "traceId": "TraceID_63941CFCD678",
         "OfferID": [
             {
                 "@type": "Offer",
@@ -11,33 +11,68 @@
                 "Product": [
                     {
                         "@type": "ProductAir",
-                        "totalDuration": "PT4H35M",
+                        "totalDuration": "PT14H20M",
                         "id": "p0",
                         "FlightSegment": [
                             {
                                 "@type": "FlightSegment",
                                 "id": "s1",
                                 "sequence": 1,
+                                "connectionDuration": "PT5H5M",
+                                "boundFlightsInd": true,
                                 "Flight": {
                                     "@type": "FlightDetail",
-                                    "distance": 2043,
-                                    "duration": "PT4H35M",
-                                    "carrier": "FZ",
-                                    "number": "570",
-                                    "equipment": "7M8",
+                                    "distance": 1489,
+                                    "duration": "PT3H35M",
+                                    "carrier": "AI",
+                                    "number": "282",
+                                    "operatingCarrier": "AI",
+                                    "operatingCarrierName": "Air India",
+                                    "equipment": "321",
                                     "id": "f1",
                                     "Departure": {
                                         "@type": "DepartureDetail",
                                         "location": "CMB",
-                                        "date": "2026-09-16",
-                                        "time": "02:05:00"
+                                        "date": "2026-11-03",
+                                        "time": "05:10:00"
                                     },
                                     "Arrival": {
                                         "@type": "ArrivalDetail",
-                                        "terminal": "2",
-                                        "location": "DXB",
-                                        "date": "2026-09-16",
-                                        "time": "05:10:00"
+                                        "terminal": "3",
+                                        "location": "DEL",
+                                        "date": "2026-11-03",
+                                        "time": "08:45:00"
+                                    },
+                                    "AvailabilitySourceCode": "S"
+                                }
+                            },
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s2",
+                                "sequence": 2,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 2408,
+                                    "duration": "PT5H40M",
+                                    "carrier": "AI",
+                                    "number": "2384",
+                                    "operatingCarrier": "AI",
+                                    "operatingCarrierName": "Air India",
+                                    "equipment": "32N",
+                                    "id": "f2",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "terminal": "3",
+                                        "location": "DEL",
+                                        "date": "2026-11-03",
+                                        "time": "13:50:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "1",
+                                        "location": "KUL",
+                                        "date": "2026-11-03",
+                                        "time": "22:00:00"
                                     },
                                     "AvailabilitySourceCode": "S"
                                 }
@@ -52,11 +87,12 @@
                                     {
                                         "@type": "FlightProduct",
                                         "segmentSequence": [
-                                            1
+                                            1,
+                                            2
                                         ],
-                                        "classOfService": "T",
+                                        "classOfService": "U",
                                         "cabin": "Economy",
-                                        "fareBasisCode": "TOLP7LK1",
+                                        "fareBasisCode": "UU3YXSCM",
                                         "fareType": "PublicFare",
                                         "fareTypeCode": "XOX"
                                     }
@@ -72,10 +108,10 @@
                         "decimalPlace": 0,
                         "value": "LKR"
                     },
-                    "Base": 44300,
-                    "TotalTaxes": 23900,
+                    "Base": 15700,
+                    "TotalTaxes": 38610,
                     "TotalFees": 0,
-                    "TotalPrice": 68200,
+                    "TotalPrice": 54310,
                     "PriceBreakdown": [
                         {
                             "@type": "PriceBreakdownAir",
@@ -87,10 +123,10 @@
                                     "decimalPlace": 0,
                                     "value": "LKR"
                                 },
-                                "Base": 44300,
+                                "Base": 15700,
                                 "Taxes": {
                                     "@type": "TaxesDetail",
-                                    "TotalTaxes": 23900,
+                                    "TotalTaxes": 38610,
                                     "Tax": [
                                         {
                                             "taxCode": "LK",
@@ -98,13 +134,12 @@
                                             "value": 20436
                                         },
                                         {
-                                            "taxCode": "ZR",
-                                            "description": "INTERNATIONAL ADVANCED PASSENGER INFORMATION FEE ARRIVALS",
-                                            "value": 464
+                                            "taxCode": "YQ",
+                                            "value": 17030
                                         },
                                         {
                                             "taxCode": "YR",
-                                            "value": 3000
+                                            "value": 1144
                                         }
                                     ]
                                 },
@@ -112,25 +147,25 @@
                                     "@type": "FeesDetail",
                                     "TotalFees": 0
                                 },
-                                "Total": 68200
+                                "Total": 54310
                             },
                             "FiledAmount": {
                                 "currencyCode": "USD",
                                 "decimalPlace": 2,
-                                "value": 130
+                                "value": 46
                             },
-                            "FareCalculation": "CMB FZ DXB Q4.08 126.00TOLP7LK1 NUC130.08END ROE1.0"
+                            "FareCalculation": "CMB AI X/DEL AI KUL 46.00UU3YXSCM NUC46.00END ROE1.0"
                         }
                     ]
                 },
                 "TermsAndConditionsFull": [
                     {
                         "@type": "TermsAndConditionsFullAir",
-                        "ExpiryDate": "2026-09-16T00:05:00Z",
+                        "ExpiryDate": "2026-11-03T03:10:00Z",
                         "BaggageAllowance": [
                             {
                                 "@type": "BaggageAllowanceDetail",
-                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/FZ",
+                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/AI",
                                 "passengerTypeCodes": [
                                     "ADT"
                                 ],
@@ -154,7 +189,8 @@
                                     }
                                 ],
                                 "SegmentSequenceList": [
-                                    1
+                                    1,
+                                    2
                                 ],
                                 "Text": [
                                     "30K"
@@ -172,40 +208,45 @@
                                 "BaggageItem": [
                                     {
                                         "@type": "BaggageItem",
-                                        "quantity": 1,
                                         "includedInOfferPrice": "Yes",
-                                        "soldByPieceInd": true,
-                                        "BaggageFee": {
-                                            "code": "LKR",
-                                            "approximateInd": true,
-                                            "value": 0
-                                        },
-                                        "Text": "UPTO15LB/7KG AND UPTO45LI/115LCM"
+                                        "soldByWeightInd": true,
+                                        "Measurement": [
+                                            {
+                                                "measurementType": "Weight",
+                                                "unit": "Kilograms",
+                                                "value": 7
+                                            }
+                                        ],
+                                        "Text": "CHGS MAY APPLY IF BAGS EXCEED TTL WT ALLOWANCE"
                                     }
                                 ],
                                 "SegmentSequenceList": [
-                                    1
+                                    1,
+                                    2
                                 ],
                                 "Text": [
-                                    "1P"
+                                    "7K"
                                 ]
                             }
                         ],
                         "Restriction": [
                             {
-                                "value": "NON-END"
+                                "value": "NON-END/CHANGE"
                             },
                             {
-                                "value": "NO RFND WITHIN 24HRS"
+                                "value": "CANCELLATION/NO-SHOW"
                             },
                             {
-                                "value": "CTC TA FOR CHNGS"
+                                "value": "PENALTY MAY APPLY"
+                            },
+                            {
+                                "value": "AS PER FARE RULES"
                             }
                         ],
                         "ValidatingAirline": [
                             {
                                 "@type": "ValidatingAirline",
-                                "ValidatingAirline": "FZ"
+                                "ValidatingAirline": "AI"
                             }
                         ],
                         "TicketingAgency": [
@@ -214,7 +255,7 @@
                                 "Code": "7F3C"
                             }
                         ],
-                        "PaymentTimeLimit": "2026-09-16T00:05:00Z",
+                        "PaymentTimeLimit": "2026-11-03T03:10:00Z",
                         "Penalties": [
                             {
                                 "@type": "Penalties",
@@ -229,7 +270,9 @@
                                             {
                                                 "@type": "PenaltyAmount",
                                                 "Amount": {
-                                                    "value": 0
+                                                    "code": "LKR",
+                                                    "minorUnit": 0,
+                                                    "value": 15000
                                                 }
                                             }
                                         ]
@@ -248,7 +291,7 @@
                                                 "Amount": {
                                                     "code": "LKR",
                                                     "minorUnit": 0,
-                                                    "value": 18800
+                                                    "value": 30000
                                                 }
                                             }
                                         ]
@@ -271,18 +314,8 @@
                 ]
             }
         ],
-        "Result": {
-            "@type": "Result",
-            "status": "Complete",
-            "Warning": [
-                {
-                    "@type": "Warning",
-                    "Message": "No brand details returned."
-                }
-            ]
-        },
         "Identifier": {
-            "value": "8c3e0ab4-3c14-44ba-b738-8b5510d07bd5_PC"
+            "value": "01427ee1-7757-499b-8422-009cb189c8a1_PC"
         }
     }
 }

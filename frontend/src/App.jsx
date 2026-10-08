@@ -11,6 +11,10 @@ import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 // this also works when someone on the same network opens this machine's LAN
 // IP instead of localhost — the backend runs on the same machine, port 8000.
 const API_BASE = `http://${window.location.hostname}:8000/api`;
+// Amadeus-only features (seat maps, fare rules, cancellation requests) call
+// amadeus-backend directly instead of going through the Travelport backend's
+// proxy -- its CORS allows this origin specifically for that purpose.
+const AMADEUS_API_BASE = `http://${window.location.hostname}:8002/api`;
 
 const fetchWithRetry = async (url, options = {}, retries = 3, delay = 1000) => {
   for (let i = 0; i < retries; i++) {
@@ -542,6 +546,93 @@ const cleanPassengerName = (name) => {
   return cleanParts.join(' ');
 };
 
+// ── Map an Amadeus issue-ticket response onto the SAME issuedTicket shape ───
+// Travelport's final e-ticket receipt (see "bookingStep === 'ticket'") uses
+// -- so both GDSs render through that one component instead of a separate,
+// thinner Amadeus-only confirmation screen. issueData now carries locator/
+// travelers/segments/totalFare/currency straight from a live PNR_Retrieve
+// (see amadeus-backend's issue_ticket()), so this is a near-direct field
+// mapping, not a reconstruction from client-side search-time state.
+const buildAmadeusIssuedTicket = (issueData, { paymentMethod, fallbackTravelers, fallbackFlight, contactEmail, contactPhone, selectedAncillaries } = {}) => {
+  const ticketNumbers = issueData.ticketNumbers || [];
+  // issueData.travelers now carries passport/document data too (parsed back
+  // out of the PNR's own SSR DOCS element -- see flight_booking_service's
+  // _parse_pnr_reply) whenever Amadeus's live retrieve has it, which is the
+  // case even after a PayCorp redirect-and-reload wipes client state. Client
+  // state (fallbackTravelers/amadeusTravelers) is still the fallback for the
+  // rare case the retrieve came back thin.
+  const byIdxFallback = fallbackTravelers || [];
+  const rawTravelers = (issueData.travelers && issueData.travelers.length > 0)
+    ? issueData.travelers.map((t, idx) => {
+        const fb = byIdxFallback[idx] || {};
+        return {
+          first_name: t.firstName || fb.firstName || '',
+          last_name: t.lastName || fb.lastName || '',
+          passenger_type: t.type || (fb.type === 'child' ? 'CNN' : fb.type === 'infant' ? 'INF' : 'ADT'),
+          passport_number: t.passport_number || fb.passportNumber || '',
+          passport_expiry: t.passport_expiry || fb.passportExpiry || '',
+          nationality: t.nationality || fb.nationality || fb.passportIssueCountry || '',
+          gender: t.gender || fb.gender || '',
+          date_of_birth: t.date_of_birth || fb.dateOfBirth || '',
+          email: idx === 0 ? (issueData.email || contactEmail) : undefined,
+          phone: idx === 0 ? (issueData.phone || contactPhone) : undefined,
+        };
+      })
+    : byIdxFallback.map(t => ({
+        first_name: t.firstName || '', last_name: t.lastName || '',
+        passenger_type: t.type === 'child' ? 'CNN' : t.type === 'infant' ? 'INF' : 'ADT',
+        passport_number: t.passportNumber || '', passport_expiry: t.passportExpiry || '',
+        nationality: t.nationality || t.passportIssueCountry || '', gender: t.gender || '',
+        date_of_birth: t.dateOfBirth || '',
+      }));
+  const segments = (issueData.segments && issueData.segments.length > 0)
+    ? issueData.segments.map(s => ({
+        carrier_name: s.carrier_name,
+        flight_number: s.flight_number,
+        departure_airport: s.departure_airport,
+        arrival_airport: s.arrival_airport,
+        departure_time: s.departure_time ? s.departure_time.replace('T', ' ') : '',
+        arrival_time: s.arrival_time ? s.arrival_time.replace('T', ' ') : '',
+      }))
+    : [];
+  const primary = rawTravelers[0] || {};
+
+  return {
+    locator_code: issueData.locator,
+    pnr: issueData.locator,
+    airline_pnr: (issueData.segments && issueData.segments[0]?.airlineConfirmationNumber) || issueData.locator,
+    airline_pnr_source: fallbackFlight?.airline_code,
+    ticket_number: ticketNumbers[0] || null,
+    ticket_issuance_diagnostic: ticketNumbers.length === 0
+      ? 'Amadeus has confirmed the sale; the e-ticket number is still finalizing on their side.'
+      : undefined,
+    payment_method: paymentMethod,
+    status: ticketNumbers.length > 0 ? 'Ticketed' : 'Confirmed',
+    passenger_name: `${primary.first_name} ${primary.last_name}`.trim(),
+    email: issueData.email || contactEmail,
+    phone: issueData.phone || contactPhone,
+    nationality: primary.nationality,
+    gender: primary.gender,
+    date_of_birth: primary.date_of_birth,
+    passport_number: primary.passport_number,
+    passport_expiry: primary.passport_expiry,
+    travelers: rawTravelers,
+    segments,
+    flight_number: segments[0]?.flight_number || fallbackFlight?.flight_number,
+    departure_airport: segments[0]?.departure_airport || fallbackFlight?.departure_airport,
+    arrival_airport: segments[segments.length - 1]?.arrival_airport || fallbackFlight?.arrival_airport,
+    departure_time: segments[0]?.departure_time || fallbackFlight?.departure_time,
+    arrival_time: segments[segments.length - 1]?.arrival_time || fallbackFlight?.arrival_time,
+    cabin_class: fallbackFlight?.fare_options?.[0]?.cabin_class || 'Economy',
+    total_fare: issueData.totalFare != null ? Number(issueData.totalFare) : fallbackFlight?.price,
+    currency: issueData.currency || fallbackFlight?.currency || 'LKR',
+    booking_date: new Date().toISOString().split('T')[0],
+    source: 'AD',
+    ancillaries: selectedAncillaries && selectedAncillaries.length > 0 ? selectedAncillaries : undefined,
+    ancillary_charge: selectedAncillaries ? selectedAncillaries.reduce((acc, a) => acc + a.price, 0) : 0,
+  };
+};
+
 // ── Parse API Error Helper ──────────────────────────────────────────────────
 const parseApiError = (data, fallback) => {
   if (!data) return fallback;
@@ -733,6 +824,7 @@ export default function App() {
   const TAB_TO_PATH = {
     home: '/', book: '/book', hotels: '/hotels',
     packages: '/packages', visa: '/visa', cancelRequest: '/cancel-booking',
+    ticketStatus: '/check-ticket',
     admin: '/admin', account: '/account', invoice: '/invoice',
   };
 
@@ -756,6 +848,7 @@ export default function App() {
     if (pathname === '/packages') return 'packages';
     if (pathname === '/visa') return 'visa';
     if (pathname === '/cancel-booking') return 'cancelRequest';
+    if (pathname === '/check-ticket') return 'ticketStatus';
     if (pathname === '/admin/bookings') return 'bookings';
     if (pathname.startsWith('/admin')) return 'admin';
     if (pathname === '/account') return 'account';
@@ -1149,6 +1242,9 @@ export default function App() {
   const [hotelSearched, setHotelSearched] = useState(false);
   const [selectedHotelProperty, setSelectedHotelProperty] = useState(null);
   const [selectedHotelRoom, setSelectedHotelRoom] = useState(null);
+  const [hotelRoomOffers, setHotelRoomOffers] = useState([]);
+  const [hotelRoomsLoading, setHotelRoomsLoading] = useState(false);
+  const [hotelRoomsError, setHotelRoomsError] = useState('');
 
   const emptyHotelGuestForm = { first_name: '', last_name: '', email: '', phone: '' };
   const [hotelGuestForm, setHotelGuestForm] = useState(emptyHotelGuestForm);
@@ -1185,10 +1281,28 @@ export default function App() {
     setSelectedHotelRoom(null);
     setHotelBookingConfirmation(null);
     setHotelBookingError('');
+    setHotelRoomOffers([]);
+    setHotelRoomsError('');
+    setHotelRoomsLoading(true);
+    fetch(`${API_BASE}/hotels/availability`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chain_code: property.chain_code,
+        property_code: property.property_code,
+        check_in_date: property.check_in_date,
+        check_out_date: property.check_out_date,
+        adults: parseInt(hotelAdults, 10) || 1,
+        rooms: parseInt(hotelRooms, 10) || 1,
+      }),
+    })
+      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
+      .then(d => { setHotelRoomOffers(d.offers || []); setHotelRoomsLoading(false); })
+      .catch(err => { setHotelRoomsError(err.message); setHotelRoomsLoading(false); });
   };
 
-  const selectHotelRoom = (room) => {
-    setSelectedHotelRoom(room);
+  const selectHotelRoom = (offer) => {
+    setSelectedHotelRoom(offer);
     setHotelBookingError('');
     setHotelGuestForm({
       ...emptyHotelGuestForm,
@@ -1203,25 +1317,23 @@ export default function App() {
     if (!selectedHotelProperty || !selectedHotelRoom) return;
     setHotelBookingSubmitting(true);
     setHotelBookingError('');
-    fetch(`${API_BASE}/hotels/book`, {
+    fetch(`${API_BASE}/hotels/book-offer`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
       },
       body: JSON.stringify({
+        offer_id: selectedHotelRoom.offer_id,
+        property_name: selectedHotelProperty.property_name,
         chain_code: selectedHotelProperty.chain_code,
         property_code: selectedHotelProperty.property_code,
-        property_name: selectedHotelProperty.property_name,
         city: selectedHotelProperty.address?.city,
         country_code: selectedHotelProperty.address?.country_code,
-        booking_code: selectedHotelRoom.booking_code,
         check_in_date: selectedHotelProperty.check_in_date,
         check_out_date: selectedHotelProperty.check_out_date,
         rooms: parseInt(hotelRooms, 10) || 1,
         currency: selectedHotelRoom.currency,
-        base_price: selectedHotelRoom.base_price,
-        total_taxes: selectedHotelRoom.total_taxes,
         total_price: selectedHotelRoom.total_price,
         room_description: selectedHotelRoom.room_description,
         travelers: [hotelGuestForm],
@@ -1275,6 +1387,12 @@ export default function App() {
   // Flight results
   const [flights, setFlights] = useState([]);
   const [loadingFlights, setLoadingFlights] = useState(false);
+  // Amadeus offers never carry real change_policy/cancel_policy from the
+  // unified search response (Amadeus's own fare rules need a separate,
+  // on-demand call -- see fetchAmadeusFareRules) -- fetched lazily the first
+  // time an AD offer's "Other fares & cabins" panel is expanded, cached here
+  // by offer_id so re-expanding doesn't re-fetch.
+  const [amadeusFareRulesLoading, setAmadeusFareRulesLoading] = useState({});
   // Whether the full search form (with the One Way / Round Trip / Multi City
   // toggle, traveler counts, etc.) is showing, vs. the results list. Results
   // render in place on this same 'book' tab, so this — not just "are there
@@ -1335,6 +1453,8 @@ export default function App() {
   const [offerId, setOfferId] = useState(null);
   const [seatMap, setSeatMap] = useState(null);
   const [selectedSeats, setSelectedSeats] = useState([]);
+  const [ancillaries, setAncillaries] = useState([]);
+  const [selectedAncillaries, setSelectedAncillaries] = useState([]);
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -1353,8 +1473,15 @@ export default function App() {
   const [amadeusTravelers, setAmadeusTravelers] = useState([]);
   const [amadeusContactEmail, setAmadeusContactEmail] = useState('');
   const [amadeusContactPhone, setAmadeusContactPhone] = useState('');
-  const [amadeusBookingResult, setAmadeusBookingResult] = useState(null);
   const amadeusBookingInFlightRef = useRef(false);
+
+  // Check My Ticket Status — one field, PNR or ticket number, no GDS picker.
+  // The backend figures out which GDS it belongs to (see /api/ticket-status)
+  // and always answers from a live GDS call, never from the local cache.
+  const [ticketStatusQuery, setTicketStatusQuery] = useState('');
+  const [ticketStatusLoading, setTicketStatusLoading] = useState(false);
+  const [ticketStatusError, setTicketStatusError] = useState('');
+  const [ticketStatusResult, setTicketStatusResult] = useState(null);
 
   // My Bookings
   const [myBookings, setMyBookings] = useState([]);
@@ -1403,11 +1530,16 @@ export default function App() {
     if (locator && reqid && src === 'AD') {
       // Amadeus card-payment return — the page just reloaded fresh (PayCorp
       // redirected the browser), so amadeusTravelers/selectedFlight are
-      // gone. finishAmadeusTicketing only needs the locator + pricing (the
-      // PNR already carries everything else on the Amadeus side) — it's
-      // called with a minimal stand-in rather than relying on state that
-      // didn't survive the redirect.
+      // gone. buildAmadeusIssuedTicket doesn't need them either: the
+      // issue-ticket response now carries travelers/segments/fare straight
+      // from a live PNR_Retrieve, so the receipt is self-sufficient even
+      // after a fresh reload.
       window.history.replaceState({}, '', window.location.pathname);
+      let restoredAncillaries = [];
+      try {
+        restoredAncillaries = JSON.parse(sessionStorage.getItem(`ad_ancillaries_${locator}`) || '[]');
+        sessionStorage.removeItem(`ad_ancillaries_${locator}`);
+      } catch (e) { /* best-effort */ }
       (async () => {
         try {
           const issueRes = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${locator}/issue-ticket`, {
@@ -1415,23 +1547,15 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
           });
           const issueData = await handleApiResponse(issueRes, 'Ticket issuance failed');
-          setAmadeusBookingResult({
-            locator,
-            pricing: null,
-            travelers: [],
-            segments: [],
-            ticketNumbers: issueData.ticketNumbers || [],
-            ticketStatus: issueData.status,
-            paymentMethod: 'card',
-          });
-          setBookingStep('amadeus_ticket');
+          const ticket = buildAmadeusIssuedTicket(issueData, { paymentMethod: 'card', selectedAncillaries: restoredAncillaries });
+          const ancillaryChargeRestored = restoredAncillaries.reduce((acc, a) => acc + a.price, 0);
+          if (ancillaryChargeRestored > 0) ticket.total_fare = (ticket.total_fare || 0) + ancillaryChargeRestored;
+          setIssuedTicket(ticket);
+          setBookingStep('ticket');
           showNotification('🎉 Payment confirmed — PNR ' + locator + ' finalized.', 'success');
         } catch (err) {
-          setAmadeusBookingResult({
-            locator, pricing: null, travelers: [], segments: [],
-            ticketNumbers: [], ticketStatus: 'error', paymentMethod: 'card',
-          });
-          setBookingStep('amadeus_ticket');
+          setIssuedTicket(buildAmadeusIssuedTicket({ locator, ticketNumbers: [], travelers: [], segments: [] }, { paymentMethod: 'card', selectedAncillaries: restoredAncillaries }));
+          setBookingStep('ticket');
           showNotification('Payment confirmed, but ticketing could not be verified — your PNR ' + locator + ' is held, contact support.', 'error');
         } finally {
           setVerifyingPayment(false);
@@ -1567,7 +1691,7 @@ export default function App() {
   // ticket by locator from the existing retrieve-by-PNR endpoint.
   const KNOWN_PATH_PREFIXES = [
     '/', '/book', '/results', '/booking/', '/ndc', '/hotels', '/packages',
-    '/visa', '/cancel-booking', '/admin', '/account', '/invoice',
+    '/visa', '/cancel-booking', '/check-ticket', '/admin', '/account', '/invoice',
   ];
 
   useEffect(() => {
@@ -1809,6 +1933,11 @@ export default function App() {
         price: fareOption.price,
         currency: fareOption.currency,
         raw_offering: fareOption.raw_offering,
+        cabin_class: fareOption.cabin_class,
+        fare_family: fareOption.brand_name,
+        baggage_allowance: fareOption.baggage_allowance,
+        change_policy: fareOption.change_policy,
+        cancel_policy: fareOption.cancel_policy,
       });
       const count = adultCount + childCount + infantCount || 1;
       const types = [
@@ -1816,10 +1945,13 @@ export default function App() {
         ...Array(childCount).fill('child'),
         ...Array(infantCount).fill('infant'),
       ];
-      setAmadeusTravelers((types.length ? types : ['adult']).map(type => ({ firstName: '', lastName: '', type })));
+      setAmadeusTravelers((types.length ? types : ['adult']).map(type => ({
+        firstName: '', lastName: '', type,
+        dateOfBirth: '', gender: 'Male',
+        passportNumber: '', passportExpiry: '', passportIssueCountry: '', nationality: '',
+      })));
       setAmadeusContactEmail('');
       setAmadeusContactPhone('');
-      setAmadeusBookingResult(null);
       setBookingError('');
       setBookingStep('amadeus_passenger');
       return;
@@ -1949,12 +2081,16 @@ export default function App() {
       setOfferId(data.offer_id);
       setSelectedSeats([]);
       setActivePassengerIdx(0);
+      setAncillaries(data.ancillaries || []);
+      setSelectedAncillaries([]);
+      const hasAncillaries = data.ancillaries_available && data.ancillaries?.length > 0;
 
       if (data.seat_map_available === false || !data.seat_map) {
         setSeatMap(null);
-        // Travelport confirmed no seat map for this airline/flight — skip seat step, go to review
-        showNotification('ℹ️ Seat selection is not supported by this airline via GDS. Proceeding directly to payment.', 'info');
-        setBookingStep('review');
+        // Travelport confirmed no seat map for this airline/flight — skip
+        // seat step, go straight to ancillaries (if any) or review.
+        showNotification('ℹ️ Seat selection is not supported by this airline via GDS. Proceeding to the next step.', 'info');
+        setBookingStep(hasAncillaries ? 'ancillaries' : 'review');
       } else {
         setSeatMap(data.seat_map);
         setBookingStep('seats');
@@ -2058,6 +2194,7 @@ export default function App() {
           raw_offering: selectedFlight.raw_offering,
           travelers,
           selected_seats: selectedSeats,
+          selected_ancillaries: selectedAncillaries,
           payment_method: paymentMethod,
           cabin_class: selectedFlight.cabin_class,
           fare_family: selectedFlight.fare_family,
@@ -2121,6 +2258,8 @@ export default function App() {
     setOfferId(null);
     setSeatMap(null);
     setSelectedSeats([]);
+    setAncillaries([]);
+    setSelectedAncillaries([]);
     setCardholderName('');
     setCardNumber('');
     setCardExpiry('');
@@ -2129,7 +2268,142 @@ export default function App() {
     setAmadeusTravelers([]);
     setAmadeusContactEmail('');
     setAmadeusContactPhone('');
-    setAmadeusBookingResult(null);
+  };
+
+  // Lazily fetches real change/cancel policy text for one Amadeus offer
+  // (fare_options[0].raw_offering.segments carries the Amadeus-native
+  // DDMMYY/HHMM segments already used to sell this exact offer) and merges
+  // it into that offer's fare_options in `flights` state, so the existing
+  // "Changes:"/"Cancellations:" display (shared with Travelport) picks it
+  // up with no further changes.
+  const fetchAmadeusFareRules = async (flight) => {
+    const fo = flight.fare_options && flight.fare_options[0];
+    const segments = fo && fo.raw_offering && fo.raw_offering.segments;
+    if (!segments || !segments.length) return;
+    if (fo.change_policy || amadeusFareRulesLoading[flight.offer_id]) return;
+
+    setAmadeusFareRulesLoading(prev => ({ ...prev, [flight.offer_id]: true }));
+    try {
+      const resp = await fetch(`${AMADEUS_API_BASE}/flights/fare-rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          segments: segments.map(s => ({
+            departureDate: s.departureDate,
+            departureTime: s.departureTime,
+            arrivalDate: s.arrivalDate,
+            arrivalTime: s.arrivalTime,
+            from: s.from,
+            to: s.to,
+            marketingCarrier: s.marketingCarrier,
+            flightNumber: s.flightNumber,
+            bookingClass: s.bookingClass,
+          })),
+          paxCount: 1,
+        }),
+      });
+      if (!resp.ok) return;
+      const rules = await resp.json();
+      setFlights(prev => prev.map(f => {
+        if (f.offer_id !== flight.offer_id) return f;
+        return {
+          ...f,
+          fare_options: f.fare_options.map((o, i) => i === 0 ? { ...o, ...rules } : o),
+        };
+      }));
+    } catch (err) {
+      // Non-critical enrichment -- leave the policy fields blank on failure
+      // rather than surfacing an error for a secondary detail.
+    } finally {
+      setAmadeusFareRulesLoading(prev => ({ ...prev, [flight.offer_id]: false }));
+    }
+  };
+
+  // Passenger details are valid -- fetch the real Amadeus seat map for the
+  // first segment and show the existing seat-grid step (same seatMap/
+  // selectedSeats/activePassengerIdx state and renderSeat() Travelport
+  // already uses) before actually confirming the booking. `travelers` here
+  // (first_name/last_name, what the seats-step sidebar reads) is populated
+  // from amadeusTravelers (firstName/lastName) just for this display --
+  // amadeusTravelers stays the source of truth sent to confirm_booking.
+  const handleAmadeusContinueToSeats = async () => {
+    if (amadeusTravelers.some(t => !t.firstName.trim() || !t.lastName.trim())) {
+      setBookingError('Enter first and last name for every traveler.');
+      return;
+    }
+    if (amadeusTravelers.some(t => !t.dateOfBirth || !t.passportNumber.trim() || !t.passportExpiry || !t.passportIssueCountry)) {
+      setBookingError('Enter date of birth and passport details for every traveler.');
+      return;
+    }
+    if (!amadeusContactEmail.trim() || !amadeusContactPhone.trim()) {
+      setBookingError('Enter a contact email and phone number.');
+      return;
+    }
+    setBookingError('');
+    setTravelers(amadeusTravelers.map(t => ({ first_name: t.firstName.trim(), last_name: t.lastName.trim(), type: t.type })));
+    setSelectedSeats([]);
+    setActivePassengerIdx(0);
+    setAncillaries([]);
+    setSelectedAncillaries([]);
+
+    const segs = selectedFlight?.raw_offering?.segments;
+    const seg = segs?.[0];
+    if (!seg) {
+      handleConfirmAmadeusBooking();
+      return;
+    }
+
+    // Fetch ancillaries (extra baggage, meal preferences) alongside the seat
+    // map — same Service_StandaloneCatalogue data source either way, so one
+    // best-effort call covers the whole itinerary regardless of how many
+    // legs it has. A failure here must not block booking, same as the seat
+    // map fetch below.
+    let fetchedAncillaries = [];
+    try {
+      const ancResp = await fetch(`${AMADEUS_API_BASE}/flights/ancillaries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ segments: segs }),
+      });
+      const ancResult = ancResp.ok ? await ancResp.json() : null;
+      fetchedAncillaries = ancResult?.ancillaries || [];
+      setAncillaries(fetchedAncillaries);
+    } catch (err) {
+      // best-effort — proceed without ancillaries
+    }
+
+    try {
+      const resp = await fetch(`${AMADEUS_API_BASE}/flights/seat-map`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          departureDate: seg.departureDate, departureTime: seg.departureTime,
+          arrivalDate: seg.arrivalDate, arrivalTime: seg.arrivalTime,
+          from: seg.from, to: seg.to,
+          marketingCarrier: seg.marketingCarrier, flightNumber: seg.flightNumber,
+          bookingClass: seg.bookingClass,
+        }),
+      });
+      const result = resp.ok ? await resp.json() : null;
+      if (!result || !result.available) {
+        // No seat map for this flight — go straight to Extras (if any),
+        // same as Travelport's own "no seat map available" fallback.
+        if (fetchedAncillaries.length > 0) {
+          setBookingStep('ancillaries');
+        } else {
+          handleConfirmAmadeusBooking();
+        }
+        return;
+      }
+      setSeatMap(result);
+      setBookingStep('seats');
+    } catch (err) {
+      if (fetchedAncillaries.length > 0) {
+        setBookingStep('ancillaries');
+      } else {
+        handleConfirmAmadeusBooking();
+      }
+    }
   };
 
   // ── Amadeus ("AD") booking: confirm (sell+PNR+price+TST) → pay → ticket ──
@@ -2137,6 +2411,10 @@ export default function App() {
     if (amadeusBookingInFlightRef.current) return;
     if (amadeusTravelers.some(t => !t.firstName.trim() || !t.lastName.trim())) {
       setBookingError('Enter first and last name for every traveler.');
+      return;
+    }
+    if (amadeusTravelers.some(t => !t.dateOfBirth || !t.passportNumber.trim() || !t.passportExpiry || !t.passportIssueCountry)) {
+      setBookingError('Enter date of birth and passport details for every traveler.');
       return;
     }
     if (!amadeusContactEmail.trim() || !amadeusContactPhone.trim()) {
@@ -2148,12 +2426,22 @@ export default function App() {
     setBookingError('');
 
     try {
-      const res = await fetchWithRetry(`${API_BASE}/amadeus-bookings/confirm`, {
+      // Calls amadeus-backend DIRECTLY (not the ${API_BASE}/amadeus-bookings/confirm
+      // proxy on the Travelport backend) -- that proxy validates the request body
+      // against its own AmadeusBookingTraveler Pydantic model, which would silently
+      // strip the passport/document fields below since they aren't declared there,
+      // and that file isn't something this change touches.
+      const res = await fetchWithRetry(`${AMADEUS_API_BASE}/bookings/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           segments: selectedFlight.raw_offering.segments,
-          travelers: amadeusTravelers.map(t => ({ firstName: t.firstName.trim(), lastName: t.lastName.trim(), type: t.type })),
+          travelers: amadeusTravelers.map(t => ({
+            firstName: t.firstName.trim(), lastName: t.lastName.trim(), type: t.type,
+            dateOfBirth: t.dateOfBirth, gender: t.gender,
+            passportNumber: t.passportNumber.trim(), passportExpiry: t.passportExpiry,
+            passportIssueCountry: t.passportIssueCountry, nationality: t.nationality || t.passportIssueCountry,
+          })),
           contactEmail: amadeusContactEmail.trim(),
           contactPhone: amadeusContactPhone.trim(),
         })
@@ -2165,9 +2453,23 @@ export default function App() {
       // search-display side, in amadeus_aggregator.py). Charge the customer
       // the marked-up price they actually saw and agreed to on the search
       // results / passenger-details screen, not Amadeus's net amount.
-      const pricing = { ...data.pricing, totalAmount: selectedFlight.price, currency: selectedFlight.currency || data.pricing?.currency };
+      // Ancillary extras (baggage/meals) are display-only on top of that —
+      // same fidelity as Travelport: not yet actually booked with Amadeus
+      // (no confirmed EMD-issuance operation for our account yet), just
+      // charged and shown on the receipt.
+      const ancillaryChargesAD = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
+      const pricing = { ...data.pricing, totalAmount: selectedFlight.price + ancillaryChargesAD, currency: selectedFlight.currency || data.pricing?.currency };
 
       if (paymentMethod === 'card') {
+        // PayCorp redirects the browser away and back — selectedAncillaries
+        // (in-memory React state) won't survive that reload, so stash it
+        // here and read it back in the PayCorp-return effect below. Without
+        // this, a card-paying customer who bought extras would be charged
+        // the right total (pricing.totalAmount already includes it) but see
+        // a receipt missing the itemized ancillary charge after returning.
+        try {
+          sessionStorage.setItem(`ad_ancillaries_${locator}`, JSON.stringify(selectedAncillaries));
+        } catch (e) { /* best-effort */ }
         const baseUrl = `${window.location.origin}${window.location.pathname}`;
         const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
           method: 'POST',
@@ -2206,33 +2508,50 @@ export default function App() {
   // "Ticketing pending" depending on whether Amadeus actually returned
   // ticket numbers.
   const finishAmadeusTicketing = async (locator, pricing) => {
-    let ticketNumbers = [];
-    let ticketStatus = null;
+    const fallbackFlight = { ...selectedFlight, price: pricing?.totalAmount, currency: pricing?.currency };
     try {
       const issueRes = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${locator}/issue-ticket`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
       const issueData = await handleApiResponse(issueRes, 'Ticket issuance failed');
-      ticketNumbers = issueData.ticketNumbers || [];
-      ticketStatus = issueData.status;
+      setIssuedTicket(buildAmadeusIssuedTicket(issueData, {
+        paymentMethod, fallbackTravelers: amadeusTravelers, fallbackFlight,
+        contactEmail: amadeusContactEmail, contactPhone: amadeusContactPhone,
+        selectedAncillaries,
+      }));
     } catch (err) {
       // Swallow — the PNR is still confirmed; show it as ticketing-pending
       // rather than surfacing a scary error for a known, expected outcome.
-      ticketStatus = 'error';
+      setIssuedTicket(buildAmadeusIssuedTicket({ locator, ticketNumbers: [], travelers: [], segments: [] }, {
+        paymentMethod, fallbackTravelers: amadeusTravelers, fallbackFlight,
+        contactEmail: amadeusContactEmail, contactPhone: amadeusContactPhone,
+        selectedAncillaries,
+      }));
     }
-    setAmadeusBookingResult({
-      locator,
-      pricing,
-      travelers: amadeusTravelers,
-      contactEmail: amadeusContactEmail,
-      contactPhone: amadeusContactPhone,
-      segments: selectedFlight?.raw_offering?.segments || [],
-      ticketNumbers,
-      ticketStatus,
-      paymentMethod,
-    });
-    setBookingStep('amadeus_ticket');
+    setBookingStep('ticket');
+  };
+
+  // ── Check My Ticket Status ───────────────────────────────────────────────
+  const handleCheckTicketStatus = async (e) => {
+    if (e) e.preventDefault();
+    const query = ticketStatusQuery.trim().toUpperCase();
+    if (!query) {
+      setTicketStatusError('Enter your PNR locator or e-ticket number.');
+      return;
+    }
+    setTicketStatusLoading(true);
+    setTicketStatusError('');
+    setTicketStatusResult(null);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/ticket-status?query=${encodeURIComponent(query)}`);
+      const data = await handleApiResponse(res, 'No booking found for that PNR or ticket number.');
+      setTicketStatusResult(data);
+    } catch (err) {
+      setTicketStatusError(err.message || 'No booking found for that PNR or ticket number.');
+    } finally {
+      setTicketStatusLoading(false);
+    }
   };
 
   const renderSeat = (seat, idx) => {
@@ -2490,6 +2809,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           <button className={`nav-tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={openPackages}>Tour Packages</button>
           <button className={`nav-tab ${activeTab === 'visa' ? 'active' : ''}`} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>Visa</button>
           <button className={`nav-tab ${activeTab === 'cancelRequest' ? 'active' : ''}`} onClick={() => openCancellationRequest(null)}>Cancel Booking</button>
+          <button className={`nav-tab ${activeTab === 'ticketStatus' ? 'active' : ''}`} onClick={() => { setTicketStatusResult(null); setTicketStatusError(''); setActiveTab('ticketStatus'); }}>Check My Ticket Status</button>
           <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
           <button className={`nav-tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
@@ -4245,6 +4565,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               onClick={() => {
                                 const fId = flight.offer_id || idx;
                                 setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
+                                if (flight.source === 'AD') fetchAmadeusFareRules(flight);
                               }}
                               style={{
                                 display: 'flex',
@@ -5688,25 +6009,27 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>
                 {[selectedHotelProperty.address?.street, selectedHotelProperty.address?.city, selectedHotelProperty.address?.country_code].filter(Boolean).join(', ')}
               </p>
-              {(selectedHotelProperty.rooms || []).length === 0 ? (
+              {hotelRoomsLoading ? (
+                <div className="loading-state"><div className="spinner"></div><p>Loading room rates...</p></div>
+              ) : hotelRoomsError ? (
+                <div className="error-banner">{hotelRoomsError}</div>
+              ) : hotelRoomOffers.length === 0 ? (
                 <div className="empty-state glass-panel animate-fade">
                   <p>No rooms available for this property on your selected dates.</p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {selectedHotelProperty.rooms.map((room, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem' }}>
+                  {hotelRoomOffers.map((offer, idx) => (
+                    <div key={offer.offer_id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem' }}>
                       <div>
-                        <p style={{ margin: '0 0 0.2rem', fontWeight: 700, color: 'var(--gs-dark)' }}>{room.room_description || 'Room'}</p>
+                        <p style={{ margin: '0 0 0.2rem', fontWeight: 700, color: 'var(--gs-dark)' }}>{offer.room_description || 'Room'}</p>
                         <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {room.refundable ? 'Refundable' : 'Non-refundable'}
-                          {room.breakfast_included ? ' · Breakfast included' : ''}
-                          {room.wifi_included ? ' · WiFi included' : ''}
+                          Base {offer.currency} {Number(offer.base_price).toLocaleString()} + taxes/fees {offer.currency} {Number((offer.total_taxes || 0) + (offer.total_fees || 0)).toLocaleString()}
                         </p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gs-crimson)' }}>{room.currency} {Number(room.total_price).toLocaleString()}</div>
-                        <button className="btn btn-primary btn-sm" style={{ marginTop: '0.35rem' }} onClick={() => selectHotelRoom(room)}>Select Room</button>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gs-crimson)' }}>{offer.currency} {Number(offer.total_price).toLocaleString()}</div>
+                        <button className="btn btn-primary btn-sm" style={{ marginTop: '0.35rem' }} onClick={() => selectHotelRoom(offer)}>Select Room</button>
                       </div>
                     </div>
                   ))}
@@ -6119,6 +6442,91 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
         </div>
       )}
 
+      {activeTab === 'ticketStatus' && (
+        <div className="tab-content animate-fade" style={{ maxWidth: '640px', margin: '0 auto' }}>
+          <section className="search-section glass-panel">
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Check My Ticket Status</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0, marginBottom: '1.25rem' }}>
+              Enter your PNR (booking reference) or e-ticket number — we'll find it automatically, no need to say which airline system it's on.
+            </p>
+
+            <form onSubmit={handleCheckTicketStatus} style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                className="form-input"
+                style={{ flex: 1, minWidth: '220px' }}
+                placeholder="e.g. HN8HWX or 1761234567890"
+                value={ticketStatusQuery}
+                onChange={e => setTicketStatusQuery(e.target.value)}
+                autoFocus
+              />
+              <button type="submit" className="btn btn-primary" disabled={ticketStatusLoading}>
+                {ticketStatusLoading ? 'Searching…' : 'Check Status'}
+              </button>
+            </form>
+
+            {ticketStatusError && <div className="error-banner">{ticketStatusError}</div>}
+
+            {ticketStatusLoading && (
+              <div className="loading-state"><div className="spinner"></div><p>Looking up your booking live…</p></div>
+            )}
+
+            {ticketStatusResult && !ticketStatusLoading && (() => {
+              const r = ticketStatusResult;
+              const isAD = r.source === 'AD';
+              const locator = r.locator_code || r.locator || r.pnr;
+              const travelers = isAD
+                ? (r.travelers || []).map(t => `${t.firstName || ''} ${t.lastName || ''}`.trim() + (t.type ? ` (${t.type})` : ''))
+                : (r.travelers || []).map(t => t.confirmed_name || `${t.first_name || ''} ${t.last_name || ''}`.trim()).filter(Boolean);
+              const segments = isAD ? (r.segments || []) : (r.segments || r.legs || []);
+              const ticketNumbers = isAD ? (r.ticketNumbers || []) : (r.ticket_number ? [r.ticket_number] : []);
+              const ticketed = ticketNumbers.length > 0;
+              return (
+                <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>PNR / Booking Reference</div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--gs-crimson)', fontFamily: 'monospace' }}>{locator}</div>
+                    </div>
+                    <div style={{
+                      fontSize: '0.72rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '4px',
+                      background: ticketed ? '#f0fdf4' : '#fffbeb',
+                      color: ticketed ? '#166534' : '#92400e',
+                      border: `1px solid ${ticketed ? '#bbf7d0' : '#fde68a'}`,
+                    }}>
+                      {ticketed ? '✓ Ticket Issued' : 'PNR Confirmed · Ticketing Pending'}
+                    </div>
+                  </div>
+
+                  {travelers.length > 0 && (
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                      <strong>Passenger{travelers.length > 1 ? 's' : ''}:</strong> {travelers.join(', ')}
+                    </div>
+                  )}
+
+                  {ticketNumbers.length > 0 && (
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                      <strong>E-ticket number{ticketNumbers.length > 1 ? 's' : ''}:</strong> {ticketNumbers.join(', ')}
+                    </div>
+                  )}
+
+                  {segments.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em', marginBottom: '0.5rem' }}>Flight Segments</div>
+                      <SegmentList segments={segments} />
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '1rem', textAlign: 'right' }}>
+                    Source: {isAD ? 'Amadeus' : 'Travelport'} · live data
+                  </div>
+                </div>
+              );
+            })()}
+          </section>
+        </div>
+      )}
+
       {activeTab === 'bookings' && (
         adminToken ? (
           <div className="tab-content animate-fade">
@@ -6178,6 +6586,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           onAdminLogin={handleAdminLogin}
           onAdminLogout={handleAdminLogout}
           API_BASE={API_BASE}
+          AMADEUS_API_BASE={AMADEUS_API_BASE}
           fetchWithRetry={fetchWithRetry}
           handleApiResponse={handleApiResponse}
           onNavigate={setActiveTab}
@@ -6203,23 +6612,27 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       {/* ── BOOKING WIZARD MODAL ─────────────────────────────────────────── */}
       {selectedFlight && bookingStep && bookingStep !== 'ticket' && bookingStep !== 'amadeus_ticket' && (
         <div className="modal-overlay animate-fade-only">
-          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: (bookingStep === 'seats' || bookingStep === 'seats_loading') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
-            {/* Progress Steps — Amadeus offers use their own short 2-step flow, no Travelport seat/review stages */}
+          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: (bookingStep === 'seats' || bookingStep === 'seats_loading' || bookingStep === 'ancillaries') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
+            {/* Progress Steps — this stepper is shaped for Travelport's own step sequence; Amadeus
+                offers use a shorter flow (passenger details → seats → processing → ticket) and
+                are kept on their own step titles below instead of this (mismatched) step dial. */}
             <div style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
   {(() => {
                 const steps = [
                   { key: 'passenger', label: 'Passenger Details' },
                   { key: 'seats', label: 'Seat Selection' },
+                  { key: 'ancillaries', label: 'Extras' },
                   { key: 'review', label: 'Review Booking' },
                   { key: 'payment', label: 'Payment' }
                 ];
                 // When seat map is unavailable (skipped), mark the seats step as completed/skipped
-                const seatStepSkipped = !seatMap && (bookingStep === 'review' || bookingStep === 'payment' || bookingStep === 'processing');
+                const seatStepSkipped = !seatMap && (bookingStep === 'ancillaries' || bookingStep === 'review' || bookingStep === 'payment' || bookingStep === 'processing');
+                const extrasStepSkipped = ancillaries.length === 0 && (bookingStep === 'review' || bookingStep === 'payment' || bookingStep === 'processing');
                 return steps.map((step, idx) => {
                   const isActive = bookingStep === step.key ||
                                   (step.key === 'seats' && (bookingStep === 'seats_loading')) ||
                                   (step.key === 'payment' && bookingStep === 'processing');
-                  const isSkipped = step.key === 'seats' && seatStepSkipped;
+                  const isSkipped = (step.key === 'seats' && seatStepSkipped) || (step.key === 'ancillaries' && extrasStepSkipped);
                   return (
                     <div key={step.key} style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', color: isSkipped ? '#94a3b8' : isActive ? 'var(--gs-crimson)' : 'var(--text-muted)', fontWeight: isActive ? '700' : '400', position: 'relative' }}>
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: isSkipped ? '#e2e8f0' : isActive ? 'var(--gs-crimson)' : 'var(--border-color)', color: isSkipped ? '#94a3b8' : 'white', margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '700' }}>
@@ -6239,6 +6652,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                  bookingStep === 'seats_loading' ? 'Loading Seat Map...' :
                  bookingStep === 'seats' ? 'Select Passenger Seats' :
                  bookingStep === 'seats_unavailable' ? 'Seat Selection Unavailable' :
+                 bookingStep === 'ancillaries' ? 'Optional Extras' :
                  bookingStep === 'review' ? 'Review Your Booking' :
                  bookingStep === 'payment' ? 'Payment Details' :
                  bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
@@ -6307,29 +6721,90 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
             )}
 
-            {/* STEP: Amadeus passenger + payment (single minimal step — no seat map,
-                no passport fields: Amadeus's PNR_AddMultiElements only needs
-                name + type per traveler and one contact email/phone). */}
+            {/* STEP: Amadeus passenger + payment -- same passport/document fields
+                as Travelport's own passenger form (first/last name, DOB, gender,
+                passport number/expiry/issue country, nationality). Some Amadeus
+                routes/carriers inhibit ticketing without this data (confirmed
+                live: errorCode 27791 "TICKETING INHIBITED-SSR DOCS MISSING FOR
+                P1" on a Doha-connecting Qatar Airways itinerary, PNR 9OV45B) --
+                sent as an SSR DOCS element per traveler, see
+                amadeus-backend/services/flight_booking_service.py's
+                add_document_elements. */}
             {bookingStep === 'amadeus_passenger' && (
-              <form className="booking-modal-form" onSubmit={e => { e.preventDefault(); handleConfirmAmadeusBooking(); }}>
-                {amadeusTravelers.map((t, idx) => (
-                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label>{t.type === 'adult' ? 'Adult' : t.type === 'child' ? 'Child' : 'Infant'} {idx + 1} — First name</label>
-                      <input
-                        type="text" required value={t.firstName}
-                        onChange={e => setAmadeusTravelers(ts => ts.map((x, i) => i === idx ? { ...x, firstName: e.target.value } : x))}
-                      />
+              <form className="booking-modal-form" onSubmit={e => { e.preventDefault(); handleAmadeusContinueToSeats(); }}>
+                {amadeusTravelers.map((t, idx) => {
+                  const setField = (field, value) => setAmadeusTravelers(ts => ts.map((x, i) => i === idx ? { ...x, [field]: value } : x));
+                  return (
+                  <div key={idx} style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '1rem', marginBottom: '1rem' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.5rem' }}>
+                      {t.type === 'adult' ? 'Adult' : t.type === 'child' ? 'Child' : 'Infant'} {idx + 1}
                     </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label>Last name</label>
-                      <input
-                        type="text" required value={t.lastName}
-                        onChange={e => setAmadeusTravelers(ts => ts.map((x, i) => i === idx ? { ...x, lastName: e.target.value } : x))}
-                      />
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">First Name *</label>
+                        <input type="text" className="form-input" required placeholder="John" value={t.firstName} onChange={e => setField('firstName', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Last Name *</label>
+                        <input type="text" className="form-input" required placeholder="Doe" value={t.lastName} onChange={e => setField('lastName', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                      </div>
+                    </div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">Date of Birth *</label>
+                        <input type="date" className="form-input" required value={t.dateOfBirth} onChange={e => setField('dateOfBirth', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Gender *</label>
+                        <select className="form-select" value={t.gender || 'Male'} onChange={e => setField('gender', e.target.value)}>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">Passport Number *</label>
+                        <input type="text" className="form-input" required placeholder="N1234567" value={t.passportNumber} onChange={e => setField('passportNumber', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Passport Expiry *</label>
+                        <input type="date" className="form-input" required value={t.passportExpiry} onChange={e => setField('passportExpiry', e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="form-label">Nationality</label>
+                        <select
+                          className="form-select" value={t.nationality}
+                          onChange={e => {
+                            const code = e.target.value;
+                            setAmadeusTravelers(ts => ts.map((x, i) => {
+                              if (i !== idx) return x;
+                              const shouldFillIssueCountry = !x.passportIssueCountry || x.passportIssueCountry === x.nationality;
+                              return { ...x, nationality: code, passportIssueCountry: shouldFillIssueCountry ? code : x.passportIssueCountry };
+                            }));
+                          }}
+                        >
+                          <option value="">-- Select nationality --</option>
+                          {NATIONALITIES.map(n => (
+                            <option key={n.code} value={n.code}>{n.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Passport Issue Country *</label>
+                        <select className="form-select" required value={t.passportIssueCountry} onChange={e => setField('passportIssueCountry', e.target.value)}>
+                          <option value="">-- Select issue country --</option>
+                          {NATIONALITIES.map(n => (
+                            <option key={n.code} value={n.code}>{n.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
                   <div className="form-group" style={{ flex: 1 }}>
                     <label>Contact email</label>
@@ -6354,14 +6829,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </div>
 
                 <div className="info-banner" style={{ fontSize: '0.78rem', marginBottom: '1rem' }}>
-                  This fare is sourced from Amadeus. The PNR is confirmed live with Amadeus; e-ticket issuance may be
-                  pending Amadeus's own ticketing authorization on our office — if so, you'll see "ticketing pending"
-                  on the confirmation screen and our team will follow up.
+                  This fare is sourced from Amadeus. The PNR is confirmed and ticketed live with Amadeus — your
+                  e-ticket number will appear on the confirmation screen once issued.
                 </div>
 
                 <div className="modal-actions">
                   <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">{paymentMethod === 'card' ? 'Continue to Payment →' : 'Confirm Booking'}</button>
+                  <button type="submit" className="btn btn-primary">Continue to Seat Selection →</button>
                 </div>
               </form>
             )}
@@ -6584,6 +7058,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             {/* STEP: Seats Selector (Bird's Eye Airplane View) */}
             {bookingStep === 'seats' && seatMap && (
               <div style={{ display: 'flex', flexDirection: 'column', height: 'auto' }}>
+                {selectedFlight?.source === 'AD' && (
+                  <div className="info-banner" style={{ fontSize: '0.78rem', marginBottom: '0.75rem' }}>
+                    Showing live seat availability from Amadeus. Your selection is noted as a preference with
+                    this booking — the airline confirms the final seat assignment.
+                  </div>
+                )}
                 <div className="seat-selector-container" style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', maxHeight: '55vh', overflow: 'hidden' }}>
                   
                   {/* Left Sidebar */}
@@ -6957,21 +7437,184 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </div>
 
                 <div className="modal-actions" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep('passenger')}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep(selectedFlight.source === 'AD' ? 'amadeus_passenger' : 'passenger')}>
                     ← Back to Passenger
                   </button>
                   <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }}>
                     <button type="button" className="btn btn-secondary" onClick={() => {
                       setSelectedSeats([]);
-                      setBookingStep('review');
+                      if (ancillaries.length > 0) {
+                        setBookingStep('ancillaries');
+                      } else if (selectedFlight.source === 'AD') {
+                        handleConfirmAmadeusBooking();
+                      } else {
+                        setBookingStep('review');
+                      }
                     }}>
                       Skip Seat Selection
                     </button>
                     <button type="button" className="btn btn-primary" onClick={() => {
                       setBookingError('');
-                      setBookingStep('review');
+                      if (ancillaries.length > 0) {
+                        setBookingStep('ancillaries');
+                      } else if (selectedFlight.source === 'AD') {
+                        handleConfirmAmadeusBooking();
+                      } else {
+                        setBookingStep('review');
+                      }
                     }}>
-                      Continue to Review →
+                      Continue →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP: Ancillaries (Extra Baggage / Services) */}
+            {bookingStep === 'ancillaries' && (
+              <div style={{ display: 'flex', flexDirection: 'column', height: 'auto' }}>
+                <div className="info-banner" style={{ fontSize: '0.78rem', marginBottom: '0.75rem' }}>
+                  Optional extras available directly from the airline for this flight. Prices are added to your total fare.
+                </div>
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Passengers</h4>
+                    {travelers.map((t, idx) => {
+                      const count = selectedAncillaries.filter(a => a.passenger_idx === idx).length;
+                      const isActive = activePassengerIdx === idx;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => setActivePassengerIdx(idx)}
+                          style={{
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '6px',
+                            border: '1px solid ' + (isActive ? 'var(--gs-crimson)' : 'var(--border-color)'),
+                            background: isActive ? 'var(--gs-crimson)' : '#f8fafc',
+                            color: isActive ? 'white' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: '700'
+                          }}
+                        >
+                          {t.first_name} {t.last_name}
+                          <div style={{ fontSize: '0.72rem', fontWeight: '500', opacity: isActive ? 0.9 : 0.7, marginTop: '0.2rem' }}>
+                            {count > 0 ? `${count} extra${count > 1 ? 's' : ''} selected` : 'None selected'}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ flex: 1, maxHeight: '48vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {(() => {
+                      // Group items by type so baggage and meal preferences are
+                      // shown as separate, clearly-labeled sections rather than
+                      // one mixed list. Classification is a best guess from
+                      // what Travelport's Ancillary Shop actually returns
+                      // (category_code/ssr_code/name) since there's no explicit
+                      // "is this a meal" flag in the response.
+                      const classify = (item) => {
+                        const code = (item.category_code || '').toUpperCase();
+                        const ssr = (item.ssr_code || '').toUpperCase();
+                        const text = `${item.name || ''} ${item.description || ''}`.toUpperCase();
+                        if (code === 'ML' || ssr.endsWith('ML') || /MEAL|CATERING|SNACK|BEVERAGE/.test(text)) return 'Meal Preferences';
+                        if (code === 'BG' || /BAG/.test(text)) return 'Extra Baggage';
+                        return 'Other Services';
+                      };
+                      const sections = { 'Extra Baggage': [], 'Meal Preferences': [], 'Other Services': [] };
+                      ancillaries.forEach(item => sections[classify(item)].push(item));
+
+                      const renderItem = (item, i) => {
+                        const isSelected = selectedAncillaries.some(
+                          a => a.passenger_idx === activePassengerIdx && a.catalog_offering_id === item.catalog_offering_id
+                        );
+                        return (
+                          <div
+                            key={i}
+                            onClick={() => {
+                              setSelectedAncillaries(prev => isSelected
+                                ? prev.filter(a => !(a.passenger_idx === activePassengerIdx && a.catalog_offering_id === item.catalog_offering_id))
+                                : [...prev, {
+                                    passenger_idx: activePassengerIdx,
+                                    name: item.name,
+                                    price: item.price,
+                                    currency: item.currency,
+                                    service_type: item.service_type,
+                                    catalog_offering_id: item.catalog_offering_id,
+                                  }]
+                              );
+                            }}
+                            style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              padding: '0.75rem 1rem', borderRadius: '6px', cursor: 'pointer',
+                              border: '1px solid ' + (isSelected ? 'var(--gs-crimson)' : 'var(--border-color)'),
+                              background: isSelected ? '#fff8f8' : 'white'
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--gs-dark)' }}>{item.name}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{item.description}</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--gs-crimson)' }}>
+                                {item.currency} {item.price.toLocaleString()}
+                              </div>
+                              <div style={{
+                                width: '20px', height: '20px', borderRadius: '4px',
+                                border: '1px solid ' + (isSelected ? 'var(--gs-crimson)' : '#cbd5e1'),
+                                background: isSelected ? 'var(--gs-crimson)' : 'white',
+                                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem'
+                              }}>
+                                {isSelected ? '✓' : ''}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      };
+
+                      return Object.entries(sections).map(([label, items]) => items.length === 0 ? null : (
+                        <div key={label}>
+                          <h5 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {label}
+                          </h5>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {items.map(renderItem)}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                    {ancillaries.length === 0 && (
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 0' }}>
+                        No optional extras available for this flight.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="modal-actions" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep(seatMap ? 'seats' : (selectedFlight.source === 'AD' ? 'amadeus_passenger' : 'passenger'))}>
+                    ← Back
+                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => {
+                      setSelectedAncillaries([]);
+                      if (selectedFlight.source === 'AD') {
+                        handleConfirmAmadeusBooking();
+                      } else {
+                        setBookingStep('review');
+                      }
+                    }}>
+                      Skip Extras
+                    </button>
+                    <button type="button" className="btn btn-primary" onClick={() => {
+                      if (selectedFlight.source === 'AD') {
+                        handleConfirmAmadeusBooking();
+                      } else {
+                        setBookingStep('review');
+                      }
+                    }}>
+                      Continue {selectedFlight.source === 'AD' ? '→' : 'to Review →'}
                     </button>
                   </div>
                 </div>
@@ -7046,6 +7689,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     ? bdkReview.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0)
                     : (selectedFlight.price || 0);
                   const seatChargesReview = selectedSeats.reduce((acc, s) => acc + s.price, 0);
+                  const ancillaryChargesReview = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
                   return (
                     <div style={{ background: '#fff8f8', border: '1px solid var(--gs-crimson)', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -7059,10 +7703,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             <strong>{selectedFlight.currency} {seatChargesReview.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
                           </div>
                         )}
+                        {selectedAncillaries.length > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            <span>Optional Extras ({selectedAncillaries.length}):</span>
+                            <strong>{selectedFlight.currency} {ancillaryChargesReview.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                          </div>
+                        )}
                         <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '0.5rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ color: 'var(--gs-dark)', fontSize: '0.9rem', fontWeight: '700' }}>Grand Total</span>
                           <strong style={{ color: 'var(--gs-crimson)', fontSize: '1.4rem' }}>
-                            {selectedFlight.currency} {(flightGrandTotalReview + seatChargesReview).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                            {selectedFlight.currency} {(flightGrandTotalReview + seatChargesReview + ancillaryChargesReview).toLocaleString(undefined, {minimumFractionDigits: 2})}
                           </strong>
                         </div>
                       </div>
@@ -7104,12 +7754,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     ? bdkPay.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0)
                     : (selectedFlight.price || 0);
                   const seatChargesPay = selectedSeats.reduce((acc, s) => acc + s.price, 0);
+                  const ancillaryChargesPay = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
                   return (
                     <div style={{ background: '#fff8f8', border: '1px solid var(--gs-crimson)', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '700', color: 'var(--gs-crimson)' }}>
                         <span style={{ fontSize: '0.88rem' }}>Amount to Charge:</span>
                         <span style={{ fontSize: '1.3rem' }}>
-                          {selectedFlight.currency} {(flightGrandTotalPay + seatChargesPay).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                          {selectedFlight.currency} {(flightGrandTotalPay + seatChargesPay + ancillaryChargesPay).toLocaleString(undefined, {minimumFractionDigits: 2})}
                         </span>
                       </div>
                     </div>
@@ -7133,56 +7784,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>Connecting to GDS workbench → Committing reservation PNR → Issuing ticket</p>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ── AMADEUS BOOKING CONFIRMATION ────────────────────────────────── */}
-      {bookingStep === 'amadeus_ticket' && amadeusBookingResult && (
-        <div className="modal-overlay animate-fade-only" style={{ zIndex: 9999 }}>
-          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: '560px', width: '95%' }}>
-            <div className="modal-header">
-              <h3>{amadeusBookingResult.ticketNumbers.length > 0 ? 'Ticket Issued' : 'PNR Confirmed'}</h3>
-              <button className="close-btn" onClick={closeBookingFlow}>×</button>
-            </div>
-            <div style={{ padding: '0.5rem 0 1.5rem' }}>
-              <div className="info-banner" style={{ marginBottom: '1.25rem', fontSize: '0.85rem', background: amadeusBookingResult.ticketNumbers.length > 0 ? undefined : '#fffbeb', borderColor: amadeusBookingResult.ticketNumbers.length > 0 ? undefined : '#fcd34d' }}>
-                {amadeusBookingResult.ticketNumbers.length > 0
-                  ? '🎉 Your Amadeus booking is confirmed and the e-ticket has been issued.'
-                  : '✅ Your reservation is confirmed with Amadeus — PNR secured. ⚠ E-ticket issuance is pending Amadeus\'s own ticketing authorization on our office account; our team will complete ticketing and contact you once it clears.'}
-              </div>
-
-              <div className="modal-flight-summary" style={{ marginBottom: '1.25rem' }}>
-                <div className="summary-col"><span className="label">PNR locator</span><span className="val highlight" style={{ fontFamily: 'monospace' }}>{amadeusBookingResult.locator}</span></div>
-                {amadeusBookingResult.pricing && (
-                  <div className="summary-col"><span className="label">Fare</span><span className="val">{amadeusBookingResult.pricing.currency} {Number(amadeusBookingResult.pricing.totalAmount).toLocaleString()}</span></div>
-                )}
-                {amadeusBookingResult.ticketNumbers.length > 0 && (
-                  <div className="summary-col"><span className="label">E-ticket number(s)</span><span className="val">{amadeusBookingResult.ticketNumbers.join(', ')}</span></div>
-                )}
-                <div className="summary-col"><span className="label">Source</span><span className="val">Amadeus (AD)</span></div>
-              </div>
-
-              {amadeusBookingResult.segments.length > 0 && (
-                <div style={{ marginBottom: '1.25rem' }}>
-                  {amadeusBookingResult.segments.map((s, i) => (
-                    <div key={i} style={{ fontSize: '0.82rem', padding: '0.4rem 0', borderBottom: i < amadeusBookingResult.segments.length - 1 ? '1px dashed var(--border-color)' : 'none' }}>
-                      {s.from} → {s.to} · {s.marketingCarrier}{s.flightNumber} · {s.departureDate?.slice(0,2)}/{s.departureDate?.slice(2,4)}/20{s.departureDate?.slice(4,6)} {s.departureTime?.slice(0,2)}:{s.departureTime?.slice(2,4)}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {amadeusBookingResult.travelers.length > 0 && (
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-                  Passengers: {amadeusBookingResult.travelers.map(t => `${t.firstName} ${t.lastName}`).join(', ')}
-                </div>
-              )}
-
-              <div className="modal-actions">
-                <button type="button" className="btn btn-primary" onClick={closeBookingFlow}>Done</button>
-              </div>
-            </div>
           </div>
         </div>
       )}

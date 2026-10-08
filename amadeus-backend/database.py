@@ -101,3 +101,25 @@ def list_bookings():
     cur.close()
     conn.close()
     return rows
+
+
+def find_booking_by_pnr_or_ticket(query: str) -> dict | None:
+    """Used by the "Check My Ticket Status" lookup (GET /api/bookings/lookup)
+    to answer "does this PNR/ticket number belong to Amadeus?" -- purely a
+    local-DB index lookup, never the source of the displayed data (the
+    caller still re-fetches live via PNR_Retrieve once this resolves a
+    locator). Ticket numbers aren't a dedicated column -- they only ever
+    exist inside raw_order's ticketNumbers array (see
+    flight_booking_service.issue_ticket), so JSON_SEARCH is the only way to
+    find a row by one."""
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        "SELECT * FROM bookings WHERE order_id=%s OR JSON_SEARCH(raw_order, 'one', %s) IS NOT NULL "
+        "ORDER BY created_at DESC LIMIT 1",
+        (query, query),
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return row

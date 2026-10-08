@@ -22,6 +22,12 @@ Amadeus's own session-based SOAP requirements):
                                               Amadeus session, confirmed live)
     POST /api/bookings/{locator}/issue-ticket -> DocIssuance_IssueTicket
     GET  /api/bookings/history             -> local cache of confirmed bookings
+    GET  /api/bookings/lookup?query=...    -> "Check My Ticket Status": resolves a
+                                              PNR/ticket number against our own
+                                              bookings, then PNR_Retrieve for the
+                                              live answer (called by the Travelport
+                                              backend's unified /api/ticket-status,
+                                              not directly by the browser)
 
 Hotel booking is blocked until Hotel_* operations are activated on the
 WSAP (see project notes) -- not implemented here, no mock data.
@@ -31,14 +37,14 @@ import logging
 from datetime import date
 from typing import Optional, List
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
 import database
 from services.amadeus_soap_client import AmadeusSoapError
-from services import flight_search_service, flight_booking_service
+from services import flight_search_service, flight_booking_service, fare_rules_service, seat_map_service, ancillary_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -51,7 +57,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5175"],
+    # :5175 is this backend's own standalone dev frontend. :5173 is the main
+    # unified app (Travelport + Amadeus) -- added so its browser can call the
+    # customer-facing Amadeus-only features (seat maps, fare rules, cancel)
+    # directly, without a proxy through the Travelport backend.
+    allow_origins=["http://localhost:5175", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -117,6 +127,18 @@ class Traveler(BaseModel):
     firstName: str
     lastName: str
     type: str = "adult"  # adult | child | infant
+    dateOfBirth: Optional[str] = None  # ISO YYYY-MM-DD
+    gender: Optional[str] = None  # "Male" | "Female"
+    # Passport/document fields -- all optional, all-or-nothing in practice
+    # (see flight_booking_service.add_document_elements): a traveler missing
+    # any one of these simply gets no SSR DOCS element, same as today. Needed
+    # for routes/carriers that inhibit ticketing without it (confirmed live:
+    # errorCode 27791 "TICKETING INHIBITED-SSR DOCS MISSING FOR P1" on a
+    # Doha-connecting Qatar Airways itinerary, PNR 9OV45B).
+    passportNumber: Optional[str] = None
+    passportExpiry: Optional[str] = None  # ISO YYYY-MM-DD
+    passportIssueCountry: Optional[str] = None  # ISO 2-letter country code
+    nationality: Optional[str] = None  # ISO 2-letter country code
 
 
 class BookingConfirmRequest(BaseModel):
@@ -166,6 +188,76 @@ async def confirm_booking(request: BookingConfirmRequest):
     return result
 
 
+# ── Fare rules (change/cancellation policy text) ───────────────────────────
+
+class FareRulesRequest(BaseModel):
+    segments: List[Segment]
+    paxCount: int = 1
+
+
+@app.post("/api/flights/fare-rules")
+async def fare_rules(request: FareRulesRequest):
+    segments = [
+        {
+            "departureDate": s.departureDate,
+            "departureTime": s.departureTime,
+            "arrivalDate": s.arrivalDate,
+            "arrivalTime": s.arrivalTime,
+            "from": s.from_,
+            "to": s.to,
+            "marketingCarrier": s.marketingCarrier,
+            "flightNumber": s.flightNumber,
+            "bookingClass": s.bookingClass,
+        }
+        for s in request.segments
+    ]
+    return await fare_rules_service.get_fare_rules(segments, total_pax=request.paxCount)
+
+
+# ── Seat map ────────────────────────────────────────────────────────────────
+
+@app.post("/api/flights/seat-map")
+async def seat_map(request: Segment):
+    segment = {
+        "departureDate": request.departureDate,
+        "departureTime": request.departureTime,
+        "arrivalDate": request.arrivalDate,
+        "arrivalTime": request.arrivalTime,
+        "from": request.from_,
+        "to": request.to,
+        "marketingCarrier": request.marketingCarrier,
+        "flightNumber": request.flightNumber,
+        "bookingClass": request.bookingClass,
+    }
+    return await seat_map_service.get_seat_map(segment)
+
+
+# ── Ancillaries (extra baggage, meal preferences) ──────────────────────────
+
+class AncillaryRequest(BaseModel):
+    segments: List[Segment]
+
+
+@app.post("/api/flights/ancillaries")
+async def ancillaries(request: AncillaryRequest):
+    segments = [
+        {
+            "departureDate": s.departureDate,
+            "departureTime": s.departureTime,
+            "arrivalDate": s.arrivalDate,
+            "arrivalTime": s.arrivalTime,
+            "from": s.from_,
+            "to": s.to,
+            "marketingCarrier": s.marketingCarrier,
+            "flightNumber": s.flightNumber,
+            "bookingClass": s.bookingClass,
+        }
+        for s in request.segments
+    ]
+    items = await ancillary_service.get_ancillary_offers(segments)
+    return {"ancillaries": items, "ancillaries_available": bool(items)}
+
+
 @app.post("/api/bookings/{locator}/issue-ticket")
 async def issue_ticket(locator: str):
     return await flight_booking_service.issue_ticket(locator.upper().strip())
@@ -174,3 +266,18 @@ async def issue_ticket(locator: str):
 @app.get("/api/bookings/history")
 def booking_history():
     return database.list_bookings()
+
+
+@app.get("/api/bookings/lookup")
+async def lookup_booking(query: str):
+    """"Check My Ticket Status" support -- called by the Travelport
+    backend's unified /api/ticket-status endpoint (never directly by the
+    browser; CORS here is scoped to :5175 only). Resolves the PNR/ticket
+    number against OUR OWN bookings as a local index only, then re-fetches
+    the actual data live from Amadeus via PNR_Retrieve -- the response body
+    is never served from the DB. 404 if this isn't one of our bookings."""
+    query = query.strip().upper()
+    match = database.find_booking_by_pnr_or_ticket(query)
+    if not match:
+        raise HTTPException(status_code=404, detail="No Amadeus booking found for that PNR or ticket number.")
+    return await flight_booking_service.get_booking_status(match["order_id"])

@@ -344,6 +344,23 @@ def search_flights(
                 response.raise_for_status()
                 result = response.json()
 
+                # A TEMPORARY/9000 error can be scoped to just ONE supplier
+                # (e.g. SourceID "QR") while CatalogProductOffering already
+                # has real offers from other suppliers alongside it -- the
+                # retry logic below used to discard the whole response and
+                # retry/fail whenever ANY embedded error was present, even
+                # with offers sitting right there (confirmed live: a QR-only
+                # "COMMUNICATION ERROR. RETRY" came back on 3 straight
+                # identical attempts, each one carrying the SAME 19 real
+                # CatalogProductOffering entries that just got thrown away).
+                # Only treat the error as fatal when there are actually no
+                # offers to fall back on.
+                offerings = (
+                    result.get("CatalogProductOfferingsResponse", {})
+                          .get("CatalogProductOfferings", {})
+                          .get("CatalogProductOffering", [])
+                )
+
                 embedded_errors = (
                     result.get("CatalogProductOfferingsResponse", {})
                           .get("Result", {})
@@ -353,7 +370,7 @@ def search_flights(
                     e for e in embedded_errors
                     if e.get("category") == "TEMPORARY" or e.get("SourceCode") in RETRYABLE_SOURCE_CODES
                 ]
-                if retryable_errors:
+                if retryable_errors and not offerings:
                     last_retryable_errors = retryable_errors
                     for err in retryable_errors:
                         logger.warning(
@@ -368,6 +385,12 @@ def search_flights(
                         f"({retryable_errors[0].get('Message', 'COMMUNICATION ERROR')}) "
                         f"after {max_retries} attempts. Please try again."
                     )
+                elif retryable_errors:
+                    for err in retryable_errors:
+                        logger.warning(
+                            f"Travelport retryable error [{err.get('SourceCode')}] from {err.get('SourceID', '?')}: "
+                            f"{err.get('Message')} -- ignoring, {len(offerings)} offer(s) still returned."
+                        )
 
                 logger.info("Flight search completed successfully.")
                 return result

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">3945222c-612c-466e-b164-db566961d9e6</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/FMPTBQ_24_6_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">RX8MoJCLyBDSHu194pJPvBPPjj45JVdOWBqM71o8M08=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">D5SlhaIK1wXGRpjDz2M2xkvJyJo=</oas:Password>
+        <oas1:Created>2026-10-06T08:02:30.587Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser>
+  </soapenv:Header>
+  <soapenv:Body>
+<Fare_MasterPricerTravelBoardSearch xmlns="http://xml.amadeus.com/FMPTBQ_24_6_1A">
+      <numberOfUnit>
+        <unitNumberDetail><numberOfUnits>5</numberOfUnits><typeOfUnit>RC</typeOfUnit></unitNumberDetail>
+        <unitNumberDetail><numberOfUnits>1</numberOfUnits><typeOfUnit>PX</typeOfUnit></unitNumberDetail>
+      </numberOfUnit>
+      <paxReference><ptc>ADT</ptc><traveller><ref>1</ref></traveller></paxReference>
+      <travelFlightInfo/>
+      <itinerary>
+        <requestedSegmentRef><segRef>1</segRef></requestedSegmentRef>
+        <departureLocalization><depMultiCity><locationId>LON</locationId></depMultiCity></departureLocalization>
+        <arrivalLocalization><arrivalMultiCity><locationId>PAR</locationId></arrivalMultiCity></arrivalLocalization>
+        <timeDetails><firstDateTimeDetail><date>151026</date></firstDateTimeDetail></timeDetails>
+      </itinerary>
+    </Fare_MasterPricerTravelBoardSearch>
+  </soapenv:Body>
+</soapenv:Envelope>

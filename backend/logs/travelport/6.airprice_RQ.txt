@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAwNjk5ODEsImV4cCI6MTc5MDE1NjM4MSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Sa6mW5QmvgBIN80AtGw_Y_2RTuVnSyL2JFqq_5lXZrbLT2KiD9TfJng-VykA75mtY8AsCXeaCIXfVceVRKFCe2G-_drzJ9GJyTs4IVj6ITi3QsivL1RjXxVgZkP37Ivt1_FhQ1hslQ7yV4wGEByDuXMsnWTYrKlLwgelJEQIxuONp4aPQRQo6ODJGUrVUNX6kLAUwEKJtu2iMS2qmOD9fmc6LtEtJTnZY--6YzHcML9zirhEp0hl2QRzzPlkdOCKx4AgAQpN0Oju_r7TOXK5xqbO8TVreER-l7ubz1O_LKBhCg2iOt_E6dMU25rSI7_tH1FM0K505kM2wqNn91MeEg' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEyODg4MjcsImV4cCI6MTc5MTM3NTIyNywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.wmVJj-T9tjo4g-8zePyoynA5_XF8Xp-QxALZpqwd2dcE779o3oBdSx-m98Cj4uDKSEUGc_FsC62PLYRMxvkjZXd7cVHVg1kmFk_WYrlFbzmHHAQ6mAtQCerch_EFnSLNd-kOXBMdG_VhfPliyxTqyo0Y8EVxqvWGTtgeOpu9GNN32DaGc8ppStKUo9Y2VyBQUUAL5gUUofl_rkyzu8EsTV8ecGZ5DWwUEd2r7Cklq3WLXihLfKMLmm_EJ6xwHv9ZOgA29BypDDDh9s-ixm6teYfiYA1RDXoygeLdhYpQdsgWzYqWXFZquY-gaLAo5Jc2MLpiwUFNz7YXI8t-EUGPbw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,46 +7,68 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/bui
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_431C3465B19D' \
+--header 'traceid: TraceID_9B47AA089173' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "61726983-6328-4225-a8d7-b471616f71d6"
-                }
-            },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "QR_CPO0"
-                        }
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "AI",
+                        "flightNumber": "282",
+                        "from": "CMB",
+                        "to": "DEL",
+                        "departureDate": "2026-10-30",
+                        "segmentSequence": 1,
+                        "departureTime": "05:10:00",
+                        "arrivalDate": "2026-10-30",
+                        "arrivalTime": "08:45:00",
+                        "cabin": "Economy",
+                        "classOfService": "U",
+                        "AvailabilitySourceCode": "S",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
                     },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "QRp3"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "QR_CPO1"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "QRp1"
-                            }
-                        }
-                    ]
-                }
-            ]
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "AI",
+                        "flightNumber": "2384",
+                        "from": "DEL",
+                        "to": "KUL",
+                        "departureDate": "2026-10-30",
+                        "segmentSequence": 2,
+                        "departureTime": "13:50:00",
+                        "arrivalDate": "2026-10-30",
+                        "arrivalTime": "22:00:00",
+                        "cabin": "Economy",
+                        "classOfService": "U",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Eco Value",
+                "BrandRef": "b5"
+            }
         }
     }
 }'

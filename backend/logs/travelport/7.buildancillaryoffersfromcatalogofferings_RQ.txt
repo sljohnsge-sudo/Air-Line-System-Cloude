@@ -1,0 +1,35 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/49ed4663-a1cf-41a8-9ef1-36bf0b57bdf3/offers/buildancillaryoffersfromcatalogofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE0MzQ1ODEsImV4cCI6MTc5MTUyMDk4MSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.pSTEp6dralsG6Pci8cKk90zFEVoDcwqGlwjRXPTqXD8dsdwXWUnZ7sLbXvEscfki6rkZRpoR60X_SJwf3bp0WPCbiPJXShCOX3pAoTKQmm8lUpN1bMjBwPsop51KjDFpX5PiFnw4QayN09HljbkFSrgXYXhhI5Qt8EmoZTZMWQ17fUTlbDSz7uqwQ66qWiIjJi-uB6ecaEOsOGiNWdSx3y5UUzX_msFoLci3yOskeDM4uZet_C6LkKgEU68-N3ZTBKtYywrOGkDNjlbUD5UKUHcFElGpgxyAOHImqy7p0h32dEW3aySuZKsit5ExIT1nSVHiR_jttKrt7BDohQ6Fzw' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_DD99110D67EE' \
+--data-raw '{
+    "@type": "OfferQueryBuildAncillaryOffersFromCatalogOfferings",
+    "BuildAncillaryOffersFromCatalogOfferings": [
+        {
+            "@type": "BuildAncillaryOffersFromCatalogOfferings",
+            "CatalogOfferingsIdentifier": {
+                "id": "49ed4663-a1cf-41a8-9ef1-36bf0b57bdf3",
+                "Identifier": {
+                    "value": "49ed4663-a1cf-41a8-9ef1-36bf0b57bdf3",
+                    "authority": "Travelport"
+                }
+            },
+            "CatalogOfferingIdentifier": {
+                "id": "anc_off1"
+            },
+            "ProductIdentifier": {
+                "id": "an1"
+            },
+            "TravelerIdentifierRef": {
+                "id": "CT1"
+            },
+            "Quantity": 1
+        }
+    ]
+}'
