@@ -242,14 +242,25 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
-  const updateProviderSettings = async (searchMode) => {
+  const updateProviderSettings = async (partialUpdate) => {
     setProviderSettingsSaving(true);
     setProviderSettingsError('');
     try {
+      // Always send the full current state merged with the change -- the
+      // backend model has defaults for hotels_enabled/visa_enabled/
+      // packages_enabled, so sending only the changed field (e.g. just
+      // search_mode) would silently reset the others back to enabled.
+      const merged = {
+        search_mode: providerSettings?.search_mode ?? 'both',
+        hotels_enabled: providerSettings?.hotels_enabled ?? true,
+        visa_enabled: providerSettings?.visa_enabled ?? true,
+        packages_enabled: providerSettings?.packages_enabled ?? true,
+        ...partialUpdate,
+      };
       const res = await fetchWithRetry(`${API_BASE}/admin/provider-settings`, {
         method: 'PUT',
         headers: authHeaders,
-        body: JSON.stringify({ search_mode: searchMode }),
+        body: JSON.stringify(merged),
       });
       const data = await adminApiResponse(res, 'Failed to update provider settings');
       setProviderSettings(data);
@@ -1295,7 +1306,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                   key={opt.mode}
                   type="button"
                   disabled={providerSettingsSaving || active}
-                  onClick={() => updateProviderSettings(opt.mode)}
+                  onClick={() => updateProviderSettings({ search_mode: opt.mode })}
                   style={{
                     textAlign: 'left',
                     padding: '0.85rem 1rem',
@@ -1316,6 +1327,41 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                 </button>
               );
             })}
+          </div>
+        )}
+
+        <h3 className="results-heading" style={{ marginTop: '2rem' }}>Go-Live Module Switches</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1.25rem' }}>
+          Hides a module's nav tab from customers entirely and blocks its API routes server-side (403/503), while admin
+          management of that module's content stays available so staff can keep preparing it. Flip back on the moment
+          it's ready to launch — no deploy needed.
+        </p>
+        {!providerSettingsLoading && providerSettings && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxWidth: '520px' }}>
+            {[
+              { key: 'hotels_enabled', label: 'Hotel Booking', desc: 'Travelport Stays search/booking — "Hotels" nav tab.' },
+              { key: 'visa_enabled', label: 'Visa Services', desc: 'Visa requirement check + consultant booking — "Visa" nav tab.' },
+              { key: 'packages_enabled', label: 'Tour & Hotel Packages', desc: 'Admin-curated packages catalog — "Tour Packages" nav tab.' },
+            ].map(mod => (
+              <label key={mod.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#f8fafc', cursor: providerSettingsSaving ? 'default' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={!!providerSettings[mod.key]}
+                  disabled={providerSettingsSaving}
+                  onChange={e => updateProviderSettings({ [mod.key]: e.target.checked })}
+                  style={{ marginTop: '0.2rem' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>
+                    {mod.label}{' '}
+                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'white', borderRadius: '3px', padding: '0.1rem 0.4rem', letterSpacing: '0.03em', background: providerSettings[mod.key] ? '#16a34a' : '#64748b' }}>
+                      {providerSettings[mod.key] ? 'LIVE' : 'HIDDEN'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{mod.desc}</div>
+                </div>
+              </label>
+            ))}
           </div>
         )}
       </section>

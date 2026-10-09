@@ -858,6 +858,30 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState(() => tabFromPath(window.location.pathname));
 
+  // Go-live module switches (Admin Portal -> Provider Control -> Go-Live
+  // Module Switches). Starts all-enabled so nothing flashes hidden before
+  // the fetch resolves; the backend's /api/feature-flags itself defaults
+  // to all-enabled too if settings haven't been saved yet. A disabled
+  // module's nav tab is hidden below, and its API routes are blocked
+  // server-side regardless of this flag (see main.py's module-gate
+  // middleware) -- this state only decides what the UI offers.
+  const [featureFlags, setFeatureFlags] = useState({
+    flights_amadeus_enabled: true, hotels_enabled: true, visa_enabled: true, packages_enabled: true,
+  });
+  useEffect(() => {
+    fetchWithRetry(`${API_BASE}/feature-flags`)
+      .then(res => res.json())
+      .then(setFeatureFlags)
+      .catch(() => {}); // keep the all-enabled default on failure, don't hide features over a transient error
+  }, []);
+  // A disabled module's deep link (bookmark, old link) should land somewhere
+  // real rather than show the (gated, now-broken) page.
+  useEffect(() => {
+    if (activeTab === 'hotels' && !featureFlags.hotels_enabled) setActiveTab('home');
+    if (activeTab === 'visa' && !featureFlags.visa_enabled) setActiveTab('home');
+    if (activeTab === 'packages' && !featureFlags.packages_enabled) setActiveTab('home');
+  }, [featureFlags, activeTab]);
+
   // Seeds the search-form state from the encrypted /results/:token when the
   // page is first loaded directly there (a shared/bookmarked link) —
   // without this, these fields start at their plain defaults (CMB/DXB/
@@ -1493,8 +1517,8 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab === 'bookings' && adminToken) fetchBookings();
-    if ((activeTab === 'home' || activeTab === 'packages') && packages.length === 0 && !packagesLoading) loadPackages();
-  }, [activeTab]);
+    if ((activeTab === 'home' || activeTab === 'packages') && packages.length === 0 && !packagesLoading && featureFlags.packages_enabled) loadPackages();
+  }, [activeTab, featureFlags.packages_enabled]);
 
   const showNotification = (message, type = 'success') => {
     let displayMessage = '';
@@ -2805,9 +2829,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
         <nav className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
           <button className={`nav-tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => { setActiveTab('book'); setShowSearchForm(true); }}>Book Flights</button>
-          <button className={`nav-tab ${activeTab === 'hotels' ? 'active' : ''}`} onClick={() => setActiveTab('hotels')}>Hotels</button>
-          <button className={`nav-tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={openPackages}>Tour Packages</button>
-          <button className={`nav-tab ${activeTab === 'visa' ? 'active' : ''}`} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>Visa</button>
+          {featureFlags.hotels_enabled && (
+            <button className={`nav-tab ${activeTab === 'hotels' ? 'active' : ''}`} onClick={() => setActiveTab('hotels')}>Hotels</button>
+          )}
+          {featureFlags.packages_enabled && (
+            <button className={`nav-tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={openPackages}>Tour Packages</button>
+          )}
+          {featureFlags.visa_enabled && (
+            <button className={`nav-tab ${activeTab === 'visa' ? 'active' : ''}`} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>Visa</button>
+          )}
           <button className={`nav-tab ${activeTab === 'cancelRequest' ? 'active' : ''}`} onClick={() => openCancellationRequest(null)}>Cancel Booking</button>
           <button className={`nav-tab ${activeTab === 'ticketStatus' ? 'active' : ''}`} onClick={() => { setTicketStatusResult(null); setTicketStatusError(''); setActiveTab('ticketStatus'); }}>Check My Ticket Status</button>
           <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
@@ -2858,7 +2888,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               type there), so the homepage doesn't have to load/show every
               package staff have created. Shown above the quick-action boxes
               so they're the first thing visitors see under the hero. */}
-          {(() => {
+          {featureFlags.packages_enabled && (() => {
             const tourTeasers = packages.filter(p => (p.package_type || 'tour') === 'tour').slice(0, 4);
             const hotelTeasers = packages.filter(p => p.package_type === 'hotel').slice(0, 4);
             const openPackageFromHome = (pkg, type) => {

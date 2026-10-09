@@ -1516,6 +1516,21 @@ def parse_ancillary_response(result: dict) -> list[dict]:
     items: list[dict] = []
 
     for flight_group in resp.get("CatalogOfferingsID", []) or []:
+        # Needed later to actually purchase the ancillary (Ancillary Book,
+        # BuildAncillaryOffersFromCatalogOfferings) — per Travelport's own
+        # API reference (support.travelport.com APIRef_AncillaryBook):
+        #   CatalogOfferingsIdentifier.id <- CatalogOfferingsID/id
+        #   TravelerIdentifierRef.id      <- CatalogOfferingsID/TravelerIdentifierRef/id
+        # Confirmed live that TravelerIdentifierRef is NOT the same value as
+        # CatalogOfferingsID/id (e.g. "CT1") — an earlier version of this
+        # code conflated the two, which is why Ancillary Book consistently
+        # failed with "OFFER IDENTIFIER IS NOT VALID"/"RESERVATION OR OFFER
+        # ID ARE NOT VALID". TravelerIdentifierRef is its own list field,
+        # one entry per traveler (e.g. [{"id": "travelerRefId_1", ...}]).
+        catalog_offerings_id = flight_group.get("id")
+        tir_list = flight_group.get("TravelerIdentifierRef") or []
+        traveler_identifier_ref = (tir_list[0] or {}).get("id") if tir_list else None
+
         for offering in flight_group.get("CatalogOffering", []) or []:
             catalog_offering_id = offering.get("id")
             price_detail = offering.get("Price", {})
@@ -1553,6 +1568,8 @@ def parse_ancillary_response(result: dict) -> list[dict]:
                     else:
                         description = name
                     items.append({
+                        "catalog_offerings_id": catalog_offerings_id,
+                        "traveler_identifier_ref": traveler_identifier_ref,
                         "catalog_offering_id": catalog_offering_id,
                         "product_id": product_id,
                         "service_type": ancillary.get("@type"),
@@ -1565,6 +1582,67 @@ def parse_ancillary_response(result: dict) -> list[dict]:
                     })
 
     return items
+
+
+def book_ancillary_offer(workbench_id: str, ancillary: dict, quantity: int = 1) -> dict:
+    """
+    Purchase one ancillary item (extra baggage, meal, etc.) that was returned
+    by get_ancillary_offers()/parse_ancillary_response() — i.e. `ancillary`
+    must be one of the dicts from that list, carrying catalog_offerings_id,
+    traveler_identifier_ref, catalog_offering_id and product_id.
+
+    Calls Travelport's Ancillary Book API (BuildAncillaryOffersFromCatalog
+    Offerings). Confirmed correct against Travelport's own API reference
+    (support.travelport.com APIRef_AncillaryBook) after live testing showed
+    the identifiers below are the ones that get an actual GDS-side response
+    (SourceID "1G") instead of a client-request-shape rejection:
+
+      CatalogOfferingsIdentifier.id         <- catalog_offerings_id (CatalogOfferingsID/id, e.g. "CT1")
+      CatalogOfferingsIdentifier.Identifier <- {value: workbench_id, authority: "Travelport"} —
+          this account's Ancillary Shop response has no nested
+          CatalogOffering/Identifier object to copy (unlike Travelport's own
+          docs example), and omitting this sub-object entirely gets the
+          request rejected at the API gateway before it reaches the GDS
+          (SourceID "API", not "1G") — so the workbench id is sent here as
+          the one genuinely valid Travelport-scoped identifier available.
+      CatalogOfferingIdentifier.id  <- catalog_offering_id (CatalogOfferingsID/CatalogOffering/id, e.g. "anc_off1")
+      ProductIdentifier.id          <- product_id (.../ProductOptions/Product/id, e.g. "an1")
+      TravelerIdentifierRef.id      <- traveler_identifier_ref (CatalogOfferingsID/TravelerIdentifierRef/id,
+          e.g. "travelerRefId_1" — NOT the same value as catalog_offerings_id;
+          conflating the two was the original bug).
+
+    NOTE: even with these corrected identifiers, Travelport still returns a
+    business-logic error ("NO MATCHING SSR SEGMENT") for every GDS carrier/
+    route tested — confirmed NOT caused by request shape (ruled out: airline,
+    departure date, seat-map ordering, AirPrice/unpriced-segment conversion —
+    the latter also uncovered a reproducible Travelport-side 500 on their own
+    buildfromunpricedsegments + Ancillary Shop combination). This needs
+    Travelport support to resolve; do not re-guess at identifier combinations
+    without new evidence from them — see the dated findings in
+    TRAVELPORT_ANCILLARY_BOOK_SUPPORT_NOTES (support request draft).
+    """
+    logger.info(f"Booking ancillary (catalog_offering_id={ancillary.get('catalog_offering_id')}) on workbench {workbench_id}...")
+
+    url = f"{TravelportConfig.base_path()}/air/book/airoffer/reservationworkbench/{workbench_id}/offers/buildancillaryoffersfromcatalogofferings"
+    payload = {
+        "@type": "OfferQueryBuildAncillaryOffersFromCatalogOfferings",
+        "BuildAncillaryOffersFromCatalogOfferings": [
+            {
+                "@type": "BuildAncillaryOffersFromCatalogOfferings",
+                "CatalogOfferingsIdentifier": {
+                    "id": ancillary.get("catalog_offerings_id"),
+                    "Identifier": {"value": workbench_id, "authority": "Travelport"},
+                },
+                "CatalogOfferingIdentifier": {"id": ancillary.get("catalog_offering_id")},
+                "ProductIdentifier": {"id": ancillary.get("product_id")},
+                "TravelerIdentifierRef": {"id": ancillary.get("traveler_identifier_ref")},
+                "Quantity": quantity,
+            }
+        ],
+    }
+    result = _api_post_with_retry(url, payload, session_id=workbench_id)
+    _raise_if_error(result, "Ancillary Book")
+    return result
 
 
 def parse_seat_map_response(result: dict) -> list[dict]:

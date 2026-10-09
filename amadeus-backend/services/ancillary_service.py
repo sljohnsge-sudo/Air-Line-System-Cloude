@@ -70,7 +70,28 @@ async def get_ancillary_offers(segments: list[dict]) -> list[dict]:
     """segments: the same per-leg dicts already used for the seat map call
     (departureDate/departureTime/arrivalDate/arrivalTime/from/to/
     marketingCarrier/flightNumber/bookingClass, native Amadeus string
-    formats) -- one or two entries (outbound, and return/next-leg if any)."""
+    formats) -- one or two entries (outbound, and return/next-leg if any).
+
+    Confirmed live: asking for BG and ML together in one GRP pricingOption's
+    optionDetail (a single <criteriaDetails> list) does NOT return both --
+    Amadeus appears to cap the number of serviceGroup items per call (~19-20
+    seen live) and the two categories compete for that shared cap, so one
+    starves the other (order-dependent: whichever criteriaDetails is listed
+    first gets most/all of the budget). Two separate <pricingOption><GRP>...
+    blocks in the SAME request fares even worse -- confirmed live to return
+    ZERO items, not the union. The only combination confirmed to reliably
+    return BOTH categories complete is two separate Service_StandaloneCatalogue
+    calls (one GRP/BG-only, one GRP/ML-only), merged here in Python.
+    """
+    bg_items = await _fetch_ancillary_category(segments, "BG")
+    ml_items = await _fetch_ancillary_category(segments, "ML")
+    return bg_items + ml_items
+
+
+async def _fetch_ancillary_category(segments: list[dict], category: str) -> list[dict]:
+    """One Service_StandaloneCatalogue call for a single GRP category (BG or
+    ML) -- see get_ancillary_offers()'s docstring for why this can't be a
+    single combined call."""
     flight_info_xml = ""
     pricing_fba_xml = ""
     for i, seg in enumerate(segments, start=1):
@@ -96,8 +117,7 @@ async def get_ancillary_offers(segments: list[dict]) -> list[dict]:
       <pricingOption>
         <pricingOptionKey><pricingOptionKey>GRP</pricingOptionKey></pricingOptionKey>
         <optionDetail>
-          <criteriaDetails><attributeType>BG</attributeType></criteriaDetails>
-          <criteriaDetails><attributeType>ML</attributeType></criteriaDetails>
+          <criteriaDetails><attributeType>{category}</attributeType></criteriaDetails>
         </optionDetail>
       </pricingOption>
       <pricingOption><pricingOptionKey><pricingOptionKey>SCD</pricingOptionKey></pricingOptionKey></pricingOption>
@@ -109,7 +129,7 @@ async def get_ancillary_offers(segments: list[dict]) -> list[dict]:
         operation="Service_StandaloneCatalogue",
         soap_action="http://webservices.amadeus.com/TPSCGQ_16_1_1A",
         body_xml=body,
-        log_prefix="ancillary",
+        log_prefix=f"ancillary_{category.lower()}",
     )
 
     reply = _find_local(body_root, "Service_StandaloneCatalogueReply")

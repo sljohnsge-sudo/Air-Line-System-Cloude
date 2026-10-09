@@ -79,6 +79,13 @@ def search_hotels(
             "RoomStayCandidate": build_room_stay_candidates(adults, children_ages, rooms),
             "SearchBy": search_by,
             "returnOnlyAvailablePropertiesInd": True,
+            # Requested by Travelport support (2026-10-08): restrict/confirm
+            # content sources explicitly — TVPT (Travelport's own GDS hotel
+            # content) and BKNG (Booking.com). Without this, results may be
+            # limited to a default source. Per the documented
+            # HotelAggregatorCodeEnum: TVPT, BKNG, ETGR are valid; EXPE/BNTL
+            # are listed but "not supported".
+            "AggregatorList": ["TVPT", "BKNG"],
         }
     }
 

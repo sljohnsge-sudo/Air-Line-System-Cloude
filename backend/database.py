@@ -592,6 +592,24 @@ def init_db():
     """)
     cursor.execute("INSERT IGNORE INTO provider_settings (id) VALUES (1)")
 
+    # provider_settings.hotels_enabled / visa_enabled / packages_enabled —
+    # added via a guarded ALTER (same reasoning as pricing_settings.markup_scope
+    # above). Go-live module switches: the Nov 1 launch ships Travelport
+    # flights only, with Hotels/Visa/Packages (and Amadeus flights, already
+    # covered by search_mode) built but hidden until each is ready — flip
+    # these back to 1 per module, no code change needed. Read by the public
+    # /api/feature-flags endpoint (customer frontend nav) and enforced
+    # server-side by the module-gate middleware in main.py, not just hidden
+    # in the UI.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='provider_settings' AND COLUMN_NAME='hotels_enabled'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN hotels_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER search_mode")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN visa_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER hotels_enabled")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN packages_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER visa_enabled")
+
     conn.commit()
     cursor.close()
     populate_airports_table(conn)
@@ -1140,17 +1158,29 @@ def get_provider_settings() -> dict:
     row = cursor.fetchone()
     cursor.close()
     conn.close()
-    return row or {"search_mode": "both"}
+    if not row:
+        return {"search_mode": "both", "hotels_enabled": True, "visa_enabled": True, "packages_enabled": True}
+    row["hotels_enabled"] = bool(row.get("hotels_enabled", 1))
+    row["visa_enabled"] = bool(row.get("visa_enabled", 1))
+    row["packages_enabled"] = bool(row.get("packages_enabled", 1))
+    return row
 
 
-def update_provider_settings(search_mode: str) -> dict:
+def update_provider_settings(
+    search_mode: str,
+    hotels_enabled: bool = True,
+    visa_enabled: bool = True,
+    packages_enabled: bool = True,
+) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("UPDATE provider_settings SET search_mode=%s WHERE id=1", (search_mode,))
+        cursor.execute(
+            "UPDATE provider_settings SET search_mode=%s, hotels_enabled=%s, visa_enabled=%s, packages_enabled=%s WHERE id=1",
+            (search_mode, int(hotels_enabled), int(visa_enabled), int(packages_enabled)),
+        )
         conn.commit()
-        cursor.execute("SELECT * FROM provider_settings WHERE id=1")
-        return cursor.fetchone()
+        return get_provider_settings()
     except Exception as e:
         conn.rollback()
         raise e

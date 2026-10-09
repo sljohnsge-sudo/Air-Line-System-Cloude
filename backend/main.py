@@ -40,6 +40,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import Optional, List, Literal
 import database
@@ -72,6 +73,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Go-live module gate (server-side enforcement of the feature flags) ────────
+# Nov 1 launch ships Travelport flights only. Hotels/Visa/Packages are built
+# but hidden from customers until each is ready (see ProviderSettingsRequest/
+# public_feature_flags above) -- hiding the nav tab isn't enough on its own,
+# since the underlying route would otherwise still work for anyone who calls
+# it directly. This blocks the customer-facing routes for a disabled module
+# with a clear 503 instead; /api/admin/* management endpoints for the same
+# modules are deliberately NOT in this list, so staff can keep preparing
+# hotel/visa/package content behind the scenes while it's hidden from
+# customers. Checked by exact path prefix, each only ever matching the
+# customer-facing routes (confirmed against every /api/hotels*, /api/visa-*,
+# /api/packages* route in this file -- none of their admin equivalents share
+# these prefixes, they all live under /api/admin/...).
+FEATURE_GATED_PREFIXES = {
+    "hotels_enabled": ("/api/hotels",),
+    "visa_enabled": ("/api/visa-",),
+    "packages_enabled": ("/api/packages",),
+}
+
+
+@app.middleware("http")
+async def _enforce_module_flags(request: Request, call_next):
+    path = request.url.path
+    for flag_name, prefixes in FEATURE_GATED_PREFIXES.items():
+        if any(path.startswith(p) for p in prefixes):
+            settings = database.get_provider_settings()
+            if not settings.get(flag_name, True):
+                return JSONResponse(
+                    status_code=503,
+                    content={"detail": "This feature is temporarily unavailable."},
+                )
+            break
+    return await call_next(request)
+
 
 # ── Stale-offer error classification ─────────────────────────────────────────
 # The booking flow prices/validates a real-time GDS offer twice more after
@@ -2202,13 +2238,25 @@ def admin_delete_notification_recipient(recipient_id: int, _admin: dict = Depend
     return {"deleted": True}
 
 
-# ── Provider settings (unified TP+AD search on/off switch) ────────────────────
-# Lets an admin take Travelport or Amadeus out of the unified search entirely
-# -- "travelport_only" / "amadeus_only" / "both" -- read by /api/flights/search
-# on every request (see search_flights above).
+# ── Provider / module settings (go-live switches) ──────────────────────────
+# search_mode lets an admin take Travelport or Amadeus out of the unified
+# flight search entirely -- "travelport_only" / "amadeus_only" / "both" --
+# read by /api/flights/search on every request (see search_flights above).
+#
+# hotels_enabled / visa_enabled / packages_enabled are the Nov 1 go-live
+# switches: the launch ships Travelport flights only, with Hotels/Visa/
+# Packages built but hidden from customers until each is ready. Hiding alone
+# isn't enough -- the FEATURE_GATED_PREFIXES middleware below also blocks
+# the underlying API routes server-side, so a disabled module can't be used
+# via a direct request even while its nav tab is hidden. Flip the relevant
+# flag back to true from the Admin Portal's Provider Control tab the moment
+# that module is ready -- no deploy needed.
 
 class ProviderSettingsRequest(BaseModel):
     search_mode: Literal["both", "travelport_only", "amadeus_only"]
+    hotels_enabled: bool = True
+    visa_enabled: bool = True
+    packages_enabled: bool = True
 
 
 @app.get("/api/admin/provider-settings")
@@ -2218,7 +2266,25 @@ def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
 
 @app.put("/api/admin/provider-settings")
 def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
-    return database.update_provider_settings(body.search_mode)
+    return database.update_provider_settings(
+        body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled
+    )
+
+
+@app.get("/api/feature-flags")
+def public_feature_flags():
+    """Public (no-auth) read of the go-live module switches, for the
+    customer frontend to decide which nav tabs to show. Server-side
+    enforcement of the same flags lives in FEATURE_GATED_PREFIXES below --
+    this endpoint only drives what the UI offers, not what the API accepts."""
+    settings = database.get_provider_settings()
+    search_mode = settings.get("search_mode", "both")
+    return {
+        "flights_amadeus_enabled": search_mode in ("both", "amadeus_only"),
+        "hotels_enabled": settings.get("hotels_enabled", True),
+        "visa_enabled": settings.get("visa_enabled", True),
+        "packages_enabled": settings.get("packages_enabled", True),
+    }
 
 
 # ── Tour / Travel Packages (B2C, admin-curated catalog) ───────────────────────
