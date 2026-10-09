@@ -1,0 +1,117 @@
+{
+    "ReservationResponse": {
+        "@type": "ReservationResponse",
+        "Reservation": {
+            "@type": "Reservation",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "50529268-9ca2-4056-a7dd-e7d9900779b7"
+            },
+            "Receipt": [
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "08e2d293-ea30-458f-8960-763f475ef0b6"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "UnpricedSegmentsStatus": [
+                            {
+                                "@type": "UnpricedSegmentsStatus",
+                                "StatusAir": [
+                                    {
+                                        "flightRefs": [
+                                            "Flight_01",
+                                            "Flight_02"
+                                        ],
+                                        "code": "HS",
+                                        "value": "Pending"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ],
+            "UnpricedSegments": {
+                "@type": "UnpricedSegments",
+                "UnpricedFlightSegment": [
+                    {
+                        "@type": "UnpricedFlightSegment",
+                        "id": "unPricedFlightSegment_1",
+                        "sequence": 1,
+                        "Flight": {
+                            "@type": "Flight",
+                            "duration": "PT2H50M",
+                            "carrier": "AI",
+                            "number": "2275",
+                            "equipment": "32N",
+                            "id": "Flight_01",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "0a3a05be-7075-4c6f-8288-fc472d47c3ee"
+                            },
+                            "Departure": {
+                                "@type": "Departure",
+                                "location": "CMB",
+                                "date": "2026-11-10",
+                                "time": "16:00:00"
+                            },
+                            "Arrival": {
+                                "@type": "Arrival",
+                                "location": "BOM",
+                                "date": "2026-11-10",
+                                "time": "18:40:00"
+                            }
+                        }
+                    },
+                    {
+                        "@type": "UnpricedFlightSegment",
+                        "id": "unPricedFlightSegment_2",
+                        "sequence": 2,
+                        "Flight": {
+                            "@type": "Flight",
+                            "duration": "PT3H30M",
+                            "carrier": "AI",
+                            "number": "983",
+                            "equipment": "789",
+                            "id": "Flight_02",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "a8bcdec1-87e4-466b-9cdd-f8dae3c2db7b"
+                            },
+                            "Departure": {
+                                "@type": "Departure",
+                                "location": "BOM",
+                                "date": "2026-11-10",
+                                "time": "20:25:00"
+                            },
+                            "Arrival": {
+                                "@type": "Arrival",
+                                "location": "DXB",
+                                "date": "2026-11-10",
+                                "time": "21:55:00"
+                            }
+                        }
+                    }
+                ]
+            },
+            "ReservationDisplaySequence": {
+                "@type": "ReservationDisplaySequence",
+                "UnpricedSegmentDisplaySequence": [
+                    {
+                        "@type": "UnpricedSegmentDisplaySequence",
+                        "displaySequence": 1,
+                        "UnpricedFlightSegmentRef": "unPricedFlightSegment_1"
+                    },
+                    {
+                        "@type": "UnpricedSegmentDisplaySequence",
+                        "displaySequence": 2,
+                        "UnpricedFlightSegmentRef": "unPricedFlightSegment_2"
+                    }
+                ]
+            }
+        }
+    }
+}

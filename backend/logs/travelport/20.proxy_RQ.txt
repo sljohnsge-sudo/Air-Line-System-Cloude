@@ -1,29 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: e80233ceafdaf07ebb5e906f0fd9e0c4b0612789783bc8b0d3dcd5f1d6055d7d' \
+--header 'hmac: 86c7586b7222b9a998eb4f2daaf03a44e6b379d26c41293c30bf22f1ef727914' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "ddc1a981-849b-4391-8e4a-7bd128542429",
+    "msgId": "e0f25abb-1d6a-441d-9e1c-f2875d7bfefe",
     "operation": "PAYMENT_INIT",
-    "requestDate": "2026-10-06 12:56:30",
+    "requestDate": "2026-10-09 10:20:31",
     "validateOnly": false,
     "requestData": {
         "clientId": "14008400",
         "clientIdHash": "",
         "transactionType": "PURCHASE",
         "transactionAmount": {
-            "paymentAmount": 8475000,
+            "paymentAmount": 6820000,
             "currency": "LKR"
         },
         "redirect": {
-            "returnUrl": "http://localhost:5173/booking/U2FsdGVkX18btMqqjGwP-Q4322Gn6c6zMdb5DdHRczk?locator=9ODO7T&src=AD",
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX1_lG5fdcRO02kKeFnFUCf56V7rHAqcWdlR8BOaLTrGbBFT2j5L6dDJSo2MCs2BBpSvV8RXgHMS6e0yS5LuuEO4fRJGp58ZVLDtOD1oNBQSXhSWmjkz0_js9sTnq6J9DlX6aPFoUu-GqAMcrKTy0U-2T5CosTtgiSIwLJK7vr-87Q6jObu8wii2c3yRS0PuD0vQPSpnk0qJBINipBK0A_7SPAvhHieGP9yVhWHBhsAYohbjQDp5pZvsL?locator=HNBPCJ",
             "returnMethod": "GET",
-            "cancelUrl": "http://localhost:5173/booking/U2FsdGVkX18btMqqjGwP-Q4322Gn6c6zMdb5DdHRczk?locator=9ODO7T&src=AD&payment=cancelled"
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX1_lG5fdcRO02kKeFnFUCf56V7rHAqcWdlR8BOaLTrGbBFT2j5L6dDJSo2MCs2BBpSvV8RXgHMS6e0yS5LuuEO4fRJGp58ZVLDtOD1oNBQSXhSWmjkz0_js9sTnq6J9DlX6aPFoUu-GqAMcrKTy0U-2T5CosTtgiSIwLJK7vr-87Q6jObu8wii2c3yRS0PuD0vQPSpnk0qJBINipBK0A_7SPAvhHieGP9yVhWHBhsAYohbjQDp5pZvsL?locator=HNBPCJ&payment=cancelled"
         },
         "useReliability": true,
-        "clientRef": "9ODO7T",
-        "comment": "George Steuart Travel - Amadeus 9ODO7T"
+        "clientRef": "HNBPCJ",
+        "comment": "George Steuart Travel - HNBPCJ"
     }
 }'

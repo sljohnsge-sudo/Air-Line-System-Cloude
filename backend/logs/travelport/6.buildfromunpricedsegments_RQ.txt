@@ -1,0 +1,30 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/50529268-9ca2-4056-a7dd-e7d9900779b7/offers/buildfromunpricedsegments' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE0NTg0NzAsImV4cCI6MTc5MTU0NDg3MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.k3GFIMioLnYQ50CHJBlaQiKpYz3XRRc08FLFgHVg8saRPtjSfIKeWb6EzjOiAGah-3rXBQS4fn40fvhQSbIQBolYalKVGgQxB0b_Z9Oxy5f-j6bECdHkn0VBDsdbIhpHKeGXmKDWmRSCR42Kbeht3UW3ys0ovGV5fodNrefM_JrTw3BeuWd9liDAFrn3sA6rUmnsS7HEIkVCr5S6QHqDiMJp-6j67f0LzwR4A7tHSNlGzx2kACkgk08iXM7mQvhqN6GDVIL56Dwa5FA3t_mBOBTjdPIcvEi1RWJ_ZliGPdaXiKYzTr4qZ_Z088x7mLK89KtNHD9wDl9DO5IA4j-saA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_1F6DEFBD13CC' \
+--data-raw '{
+    "OfferQueryBuildFromUnpricedSegments": {
+        "@type": "OfferQueryBuildFromUnpricedSegments",
+        "BuildFromUnpricedSegments": [
+            {
+                "@type": "BuildFromUnpricedSegmentsAutoPrice",
+                "UnpricedFlightSegmentCriteria": [
+                    {
+                        "@type": "UnpricedFlightSegmentCriteria",
+                        "UnpricedFlightSegmentRefs": [
+                            "unPricedFlightSegment_1",
+                            "unPricedFlightSegment_2"
+                        ],
+                        "Sequence": 1
+                    }
+                ]
+            }
+        ]
+    }
+}'

@@ -1,0 +1,20 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/hotel/rules/offershospitality/buildfromcatalogoffering' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE0NTExMzcsImV4cCI6MTc5MTUzNzUzNywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.sjA0x7Y5OXfywXkF8a1TjW2tHYfKIOfMvmB4S2OQsAI3Mq9WnFCWzda_l21O4Ccnao9iAstZfhB3AuFWX448G2jnPpDpXGHlG2QrRohaRAnskgpBpxDtKYxmOciffAeGHwzpG2S0Hcgs7a_XHwFzTULB7pcBvgKZZmO8Enw7SFdJwZr1w3zZr-L2o4aPbGfABV53tDQMUQG5Q-_U2lKSNOREnMOJ3v3Dg7Z2jpRfMGYRVfaNeK23zi_cxm1jijaSYi2JMC1Twy2MCZIpi429fsIqOCAGxs9El5w-nq_9dPTiVialgWIeqKy2UgJFvROqKPjBoZ3lBmapBZKWpfyryA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'tvp-pcc-core: 7F3C_1G' \
+--header 'traceid: TraceID_ACB161F65452' \
+--header 'tvp-correlation-id: 93cb4dcb-4912-48b2-bea1-50373edd3a60' \
+--data-raw '{
+    "OfferQueryBuildFromCatalogOffering": {
+        "@type": "OfferQueryBuildFromCatalogOffering",
+        "BuildFromCatalogOfferingHospitality": {
+            "@type": "BuildFromCatalogOfferingHospitality",
+            "CatalogOfferingIdentifier": {
+                "value": "e55675ca-2fe2-4fb5-b32a-c33b09f35da5:1ed9543c6a8d648609ea61c990596847"
+            }
+        }
+    }
+}'

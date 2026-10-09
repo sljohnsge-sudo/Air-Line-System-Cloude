@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/e5238cdc-9e26-434d-b4a2-2603b57e0f8a/travelers/list' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk1NTg2NTAsImV4cCI6MTc4OTY0NTA1MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.h52vppc5rDuMmH_VCkc5MlcPJ1w87bVqVpTZXHlMp-fLXuj2KgCWoaLqiT8EMDCfRAf5O5esKtlOuZLKBJ6AHuBAu6Qk5dLVZ_3ptt2JAINLmm7mrskvGTkNIuwLJeUi0XY3uNlUZAeLs2_sD5bOQoCIihBvTsTitPFffLzD4nmlwMgLJlfbXIEGOq87HVTiKN4S2et_Fij0Tf2_icYMQinuUjHiR3fMBC5LL7LQZKTieG1fYc3wxBUBhTmUiHSM1AE1s_0WCPgNZw1f1nh0KUm4xaVLhY1s5aCDP3a7aZc3wFLSoeyOFTf0hJT0xSsVLZ0hmIwGz05mFP5jSB9PLw' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/a728c589-4122-40db-acdf-9052dca76419/travelers/list' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE0NTQxMTcsImV4cCI6MTc5MTU0MDUxNywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.aqTtMwNT9wZiL84OTOuG_dQ9ETuAWYiRTUe40wggvmCqdoBEouucABUYQsNYv7Of1ArxtdRzCM-HRNDkhmuFkVBZDRDbG5aAuKsNxV7XkGipWzCBwBNTppC0JDtZVusnhY9QLnduatdcVJDjjuBhJj9rULJ-sjzUT4kPhUGbQYFqCBZImTOG3CsOeFYcNY9pQcympaBd3J1kmVOK5w6_mmO9RbmkgjMCG5YBlk_LJ4uhlAfmYQBkYYpJv-TmWTizqSoE5LUMrJokakiFnghTaPxcn0SGI4xMynfPnfnYz0b9GEY8kWn0_SfCt9vqAmRoggFrelsKf9NlzKxH_Itviw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,7 +7,7 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/traveler/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_270A102A2051' \
+--header 'traceid: TraceID_F6E6B410F179' \
 --data-raw '{
     "TravelerListRequest": {
         "@type": "TravelerListRequest",
@@ -15,137 +15,47 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/traveler/re
             {
                 "@type": "Traveler",
                 "gender": "Male",
-                "birthDate": "1988-05-15",
+                "birthDate": "1990-01-01",
                 "passengerTypeCode": "ADT",
                 "PersonName": {
                     "@type": "PersonNameDetail",
                     "Prefix": "MR",
-                    "Given": "KASUN",
-                    "Surname": "WICKRAMASOORIYA"
+                    "Given": "AMADEUS",
+                    "Surname": "NDCANCTEST"
                 },
                 "Telephone": [
                     {
                         "@type": "Telephone",
                         "countryAccessCode": "94",
-                        "phoneNumber": "772233445",
+                        "phoneNumber": "771234567",
                         "id": "1",
                         "role": "Mobile"
                     }
                 ],
                 "Email": [
                     {
-                        "value": "kasun.w@example.com"
+                        "value": "audit@example.com"
                     }
                 ],
                 "TravelDocument": [
                     {
                         "@type": "TravelDocumentDetail",
-                        "docNumber": "N7712233",
+                        "docNumber": "N1234567",
                         "docType": "Passport",
-                        "expireDate": "2031-07-01",
+                        "expireDate": "2030-01-01",
                         "issueCountry": "LK",
                         "Nationality": "LK",
-                        "birthDate": "1988-05-15",
+                        "birthDate": "1990-01-01",
                         "Gender": "Male",
                         "PersonName": {
                             "@type": "PersonNameDetail",
-                            "Given": "KASUN",
-                            "Surname": "WICKRAMASOORIYA"
+                            "Given": "AMADEUS",
+                            "Surname": "NDCANCTEST"
                         }
                     }
                 ],
-                "age": 38,
+                "age": 36,
                 "id": "trav_1"
-            },
-            {
-                "@type": "Traveler",
-                "gender": "Male",
-                "birthDate": "2025-07-10",
-                "passengerTypeCode": "INF",
-                "PersonName": {
-                    "@type": "PersonNameDetail",
-                    "Prefix": "MSTR",
-                    "Given": "DINUKA",
-                    "Surname": "WICKRAMASOORIYA"
-                },
-                "Telephone": [
-                    {
-                        "@type": "Telephone",
-                        "countryAccessCode": "94",
-                        "phoneNumber": "772233445",
-                        "id": "2",
-                        "role": "Mobile"
-                    }
-                ],
-                "Email": [
-                    {
-                        "value": "kasun.w@example.com"
-                    }
-                ],
-                "TravelDocument": [
-                    {
-                        "@type": "TravelDocumentDetail",
-                        "docNumber": "N9934455",
-                        "docType": "Passport",
-                        "expireDate": "2031-07-01",
-                        "issueCountry": "LK",
-                        "Nationality": "LK",
-                        "birthDate": "2025-07-10",
-                        "Gender": "Male",
-                        "PersonName": {
-                            "@type": "PersonNameDetail",
-                            "Given": "DINUKA",
-                            "Surname": "WICKRAMASOORIYA"
-                        }
-                    }
-                ],
-                "age": 1,
-                "id": "trav_2"
-            },
-            {
-                "@type": "Traveler",
-                "gender": "Female",
-                "birthDate": "2014-08-22",
-                "passengerTypeCode": "CNN",
-                "PersonName": {
-                    "@type": "PersonNameDetail",
-                    "Prefix": "MISS",
-                    "Given": "ANUKI",
-                    "Surname": "WICKRAMASOORIYA"
-                },
-                "Telephone": [
-                    {
-                        "@type": "Telephone",
-                        "countryAccessCode": "94",
-                        "phoneNumber": "772233445",
-                        "id": "3",
-                        "role": "Mobile"
-                    }
-                ],
-                "Email": [
-                    {
-                        "value": "kasun.w@example.com"
-                    }
-                ],
-                "TravelDocument": [
-                    {
-                        "@type": "TravelDocumentDetail",
-                        "docNumber": "N8823344",
-                        "docType": "Passport",
-                        "expireDate": "2031-07-01",
-                        "issueCountry": "LK",
-                        "Nationality": "LK",
-                        "birthDate": "2014-08-22",
-                        "Gender": "Female",
-                        "PersonName": {
-                            "@type": "PersonNameDetail",
-                            "Given": "ANUKI",
-                            "Surname": "WICKRAMASOORIYA"
-                        }
-                    }
-                ],
-                "age": 12,
-                "id": "trav_3"
             }
         ]
     }

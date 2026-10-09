@@ -1,0 +1,183 @@
+{
+    "ReservationResponse": {
+        "@type": "ReservationResponse",
+        "Reservation": {
+            "@type": "Reservation",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "8cb89b81-4320-4d71-a095-f147ea92872c"
+            },
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "birthDate": "1990-01-01",
+                    "gender": "Male",
+                    "passengerTypeCode": "ADT",
+                    "age": 36,
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "value": "3a1eac86-ec47-4e31-bbbe-0455a584b4ec"
+                    },
+                    "PersonName": {
+                        "@type": "PersonNameDetail",
+                        "Prefix": "MR",
+                        "Given": "AMADEUS",
+                        "Surname": "BOOKANCTEST"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "Telephone",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "771234567",
+                            "id": "1",
+                            "role": "Mobile"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "value": "audit@example.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N1234567",
+                            "docType": "Passport",
+                            "expireDate": "2030-01-01",
+                            "issueCountry": "LK",
+                            "birthDate": "1990-01-01",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonNameDetail",
+                                "Given": "AMADEUS",
+                                "Surname": "BOOKANCTEST"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "TravelerProduct": [
+                {
+                    "@type": "TravelerProduct",
+                    "TravelerRef": "travelerRefId_1",
+                    "UnpricedFlightSegmentRefs": [
+                        "unPricedFlightSegment_1",
+                        "unPricedFlightSegment_2"
+                    ]
+                }
+            ],
+            "Receipt": [
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "6fd9fdb7-b498-4450-b221-8e84d9acb771"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "UnpricedSegmentsStatus": [
+                            {
+                                "@type": "UnpricedSegmentsStatus",
+                                "StatusAir": [
+                                    {
+                                        "flightRefs": [
+                                            "Flight_01",
+                                            "Flight_02"
+                                        ],
+                                        "code": "HS",
+                                        "value": "Pending"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ],
+            "UnpricedSegments": {
+                "@type": "UnpricedSegments",
+                "UnpricedFlightSegment": [
+                    {
+                        "@type": "UnpricedFlightSegment",
+                        "id": "unPricedFlightSegment_1",
+                        "sequence": 1,
+                        "passengerQuantity": 1,
+                        "cabin": "Economy",
+                        "classOfService": "L",
+                        "Flight": {
+                            "@type": "Flight",
+                            "duration": "PT2H50M",
+                            "carrier": "AI",
+                            "number": "2275",
+                            "equipment": "32N",
+                            "id": "Flight_01",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "c294232a-83d8-4489-92d4-cd8d5de9c8dc"
+                            },
+                            "Departure": {
+                                "@type": "Departure",
+                                "location": "CMB",
+                                "date": "2026-11-10",
+                                "time": "16:00:00"
+                            },
+                            "Arrival": {
+                                "@type": "Arrival",
+                                "location": "BOM",
+                                "date": "2026-11-10",
+                                "time": "18:40:00"
+                            }
+                        }
+                    },
+                    {
+                        "@type": "UnpricedFlightSegment",
+                        "id": "unPricedFlightSegment_2",
+                        "sequence": 2,
+                        "passengerQuantity": 1,
+                        "cabin": "Economy",
+                        "classOfService": "L",
+                        "Flight": {
+                            "@type": "Flight",
+                            "duration": "PT3H30M",
+                            "carrier": "AI",
+                            "number": "983",
+                            "equipment": "789",
+                            "id": "Flight_02",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "3a5ce82d-3d91-492a-994d-a947a0cbe75f"
+                            },
+                            "Departure": {
+                                "@type": "Departure",
+                                "location": "BOM",
+                                "date": "2026-11-10",
+                                "time": "20:25:00"
+                            },
+                            "Arrival": {
+                                "@type": "Arrival",
+                                "location": "DXB",
+                                "date": "2026-11-10",
+                                "time": "21:55:00"
+                            }
+                        }
+                    }
+                ]
+            },
+            "ReservationDisplaySequence": {
+                "@type": "ReservationDisplaySequence",
+                "UnpricedSegmentDisplaySequence": [
+                    {
+                        "@type": "UnpricedSegmentDisplaySequence",
+                        "displaySequence": 1,
+                        "UnpricedFlightSegmentRef": "unPricedFlightSegment_1"
+                    },
+                    {
+                        "@type": "UnpricedSegmentDisplaySequence",
+                        "displaySequence": 2,
+                        "UnpricedFlightSegmentRef": "unPricedFlightSegment_2"
+                    }
+                ]
+            }
+        }
+    }
+}

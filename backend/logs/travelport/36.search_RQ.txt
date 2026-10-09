@@ -1,43 +1,45 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEzNjA0NTAsImV4cCI6MTc5MTQ0Njg1MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.StGBY5_VUwVdGrSqCz9qmoGasEe84sQ_47FQS_-cKV8ebL8QzypGFafvmxpzwhBL1_yQAxPROWu99Lfmpgz1NpGb_8RYwaV3qqhzAN-iu0K20f6YSCiIBUHIu_ArDMxoCgzlhcs4dIqvDY9AauxKLq8SLMkOpumNqMLXF2j3mrPXO_oyGSw6T3XGhAYrMBQ4jusP7dicdoC0rF1-LjEulfoz8CrjmkMZ3UjqDOvn15wq6DYTQTTNzYzC92pxQt9boLHq21qxNTaKivRe_4XR4Ur0BRODV6U1r8mr9byqkTuDnF8P7dDOA3GEo0ALX3wHBThfTh7iUAwy3rIui8-YpQ' \
+curl --location --globoff 'https://api.pp.travelport.net/11/hotel/search/properties/search' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE1MjQ4OTIsImV4cCI6MTc5MTYxMTI5MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.LTIndB255S1QOURaQ7GmCXm4PrmPzm7iwpftS3X3HkrVDrdZBe6kLDvmzbV9UNKYhtikxWRA6J7sEu4g9TqYnejzhpmypdE7oGqtuwl4uJON0aGVxSh7V_Oz1pmSM1ybKcuTy396c2LbhktFuVYzU2hwi72TAzq2pVVJaxP24pt0Mmr2Z5STjoNua3Ra6RkdBZykTn0uu81csWhlq9ii_1TwRB-Ym-3i-DiZq_LAh9mTWAnSlb2Y_iORULMyPnYlwaW2iS1202KrN8pE8yCwKqhyz6Ifc5R83IRIcy65h78ewiZLnLsySw3c9Rbm6dlXefhTbpiKbNpj_ocwzJLKMA' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
 --header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
---header 'taxbreakdown: true' \
---header 'accept-version: 11' \
---header 'content-version: 11' \
---header 'traceid: TraceID_9F63BC801298' \
---header 'fareindicator: true' \
+--header 'tvp-pcc-core: 7F3C_1G' \
+--header 'traceid: TraceID_27BF94DAF5AA' \
+--header 'tvp-correlation-id: fabbd5fe-269e-4ad3-9f5d-b88e15ff05e6' \
 --data-raw '{
-    "@type": "CatalogProductOfferingsQueryRequest",
-    "CatalogProductOfferingsRequest": {
-        "@type": "CatalogProductOfferingsRequestAir",
-        "maxNumberOfUpsellsToReturn": 4,
-        "offersPerPage": 999,
-        "contentSourceList": [
-            "GDS",
-            "NDC"
-        ],
-        "PassengerCriteria": [
+    "PropertiesQuerySearch": {
+        "@type": "PropertiesQuerySearch",
+        "CheckInDate": "2026-10-10",
+        "CheckOutDate": "2026-10-11",
+        "RequestedCurrency": "USD",
+        "RoomStayCandidate": [
             {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            }
-        ],
-        "SearchCriteriaFlight": [
-            {
-                "@type": "SearchCriteriaFlight",
-                "departureDate": "2026-10-08",
-                "From": {
-                    "value": "CMB"
-                },
-                "To": {
-                    "value": "DXB"
+                "@type": "RoomStayCandidate",
+                "GuestCounts": {
+                    "@type": "GuestCounts",
+                    "GuestCount": [
+                        {
+                            "@type": "GuestCount",
+                            "count": 2,
+                            "ageQualifyingCode": "10"
+                        }
+                    ]
                 }
             }
+        ],
+        "SearchBy": {
+            "@type": "SearchByCity",
+            "SearchCity": "AUH",
+            "SearchRadius": {
+                "value": 30,
+                "unitOfDistance": "Kilometers"
+            }
+        },
+        "returnOnlyAvailablePropertiesInd": true,
+        "AggregatorList": [
+            "TVPT",
+            "BKNG"
         ]
     }
 }'

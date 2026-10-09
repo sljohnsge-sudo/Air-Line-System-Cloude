@@ -1,0 +1,31 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE0NTg1ODEsImV4cCI6MTc5MTU0NDk4MSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.cZ0nEsg2jA-VugvCwg74cLkr8TzSmYm9_YG4HnxAk03FNIukgEzFOGsxot7lofyASmtwSc1V3pd5TWwN0W3khmqbzm2_Qi7eFDEAFjxvjKaEgNSEM4YeuiQL3Gf142fnAVbgB_19zsn-_nufL6qpBeKvphyd77dLuyv_23DUTC-M7zoSqntt1txevVrYri5TJ_mJLNoMrhEYRSW6EQihVHHZYxokfIxeDBAew5yYMJKcmVomu6yDwUKrJJpE6MA0H-eblp7anQa_rZlZ1FGPDAd64qntuQqOgAl9-wtepi74Ztj2poTSiM0t8PLj0AWPWB9MieWNrmXmT5zoFdy2ag' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_95A15D8D073A' \
+--data-raw '{
+    "CatalogOfferingsQueryAncillaries": {
+        "AncillaryOfferings": {
+            "@type": "AncillaryOfferingsBuildFromReservationWorkbench",
+            "BuildFromReservationWorkbench": {
+                "ReservationIdentifier": {
+                    "Identifier": {
+                        "value": "b0a705ba-6395-4a94-b86b-c7e1a0a3ce42",
+                        "authority": "Travelport"
+                    }
+                },
+                "OfferIdentifier": {
+                    "Identifier": {
+                        "value": "c01f39c5-81ce-40c3-80c7-9e041d67b704",
+                        "authority": "Travelport"
+                    }
+                }
+            }
+        }
+    }
+}'

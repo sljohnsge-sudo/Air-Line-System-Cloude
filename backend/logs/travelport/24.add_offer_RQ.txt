@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/8ac70301-8d0d-4c40-9646-c19b673c6053/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEzNzAzODcsImV4cCI6MTc5MTQ1Njc4NywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.mA5iBT-JPOj79xeWFJ7uT8648-nzaDHh7AFtrTHN7-DuZW10WietB_qPyKjSZpUYnq9cPLPgx3SySoIP8pAxVzEY8OH5IKhb7kMb53o9LwsZ6grcpGaEISjO6fgL-Mqr0xNE7jodeS1Uv_jj-DP0ZXcG8vmz3TjDqVtogUtFYV7RBkcazEAiQ1tF1PghM9b9UB6t3FWjkyZeISowrYPRUzjHqNQ01OSnSgKbTp95Ob2bie9SbTQ-Yz4SBg98SJRb-7yOKZBRXlfAlHzzoO5-aD_emyNt16GZX_hXqUqqRT_-c5ZKcFC50NxpMwmIu2y6H38IVvF110QcFMWovelmlw' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/ac01326b-5924-44d1-bf2b-dc447a01cced/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE0NTQxMTcsImV4cCI6MTc5MTU0MDUxNywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.aqTtMwNT9wZiL84OTOuG_dQ9ETuAWYiRTUe40wggvmCqdoBEouucABUYQsNYv7Of1ArxtdRzCM-HRNDkhmuFkVBZDRDbG5aAuKsNxV7XkGipWzCBwBNTppC0JDtZVusnhY9QLnduatdcVJDjjuBhJj9rULJ-sjzUT4kPhUGbQYFqCBZImTOG3CsOeFYcNY9pQcympaBd3J1kmVOK5w6_mmO9RbmkgjMCG5YBlk_LJ4uhlAfmYQBkYYpJv-TmWTizqSoE5LUMrJokakiFnghTaPxcn0SGI4xMynfPnfnYz0b9GEY8kWn0_SfCt9vqAmRoggFrelsKf9NlzKxH_Itviw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,51 +7,32 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_726A2BED20BF' \
+--header 'traceid: TraceID_6590015794BD' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "UL",
-                        "flightNumber": "231",
-                        "from": "CMB",
-                        "to": "DXB",
-                        "departureDate": "2026-11-25",
-                        "segmentSequence": 1,
-                        "departureTime": "13:50:00",
-                        "arrivalDate": "2026-11-25",
-                        "arrivalTime": "17:00:00",
-                        "cabin": "Economy",
-                        "classOfService": "S",
-                        "AvailabilitySourceCode": "S",
-                        "ContentSource": "GDS"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Econ Value",
-                "BrandRef": "b14"
-            }
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "0d0f7cc5-1e74-4e61-b43f-3b455e42dc32"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "SQ_CPO0"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "SQp0"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'

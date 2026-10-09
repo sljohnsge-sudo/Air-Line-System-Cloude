@@ -1,0 +1,41 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/hotel/search/properties/search' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE0MzgxMjAsImV4cCI6MTc5MTUyNDUyMCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ExDVl5Yy4UQ9JmDctCJ2NChUbX5MWLUb5btCoLMd6nvsv2gbxp9O8-ntheWKpkIOwUzs1ry4gN3jbEjJlKCnDlR0CXjoXDJoWzUKGzc1zyuheoyeO1Sdvkn2tszand7PoCVRkwhFbKGrTgsrQX4-B1r5L6jOEwz0FXNWGGmCWygWIaLFpd9kNJL_5qa_Vvz_P4WOrJgCIG929MCAN56oiy_mtvP-KWe4N3MG5KGvxZxQ5j6yX5V3xia_r_bum65e4CVgROuLghZCR3WDrk8fynji3Jlfeml52JLSd0RpGfIN9UsN-5UBe9FvovopzBPY_qzenDK1B9YEPFdTF9-BYA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'tvp-pcc-core: 7F3C_1G' \
+--header 'traceid: TraceID_4F7D9302AF71' \
+--header 'tvp-correlation-id: b7d6d3fc-967d-48b2-b3e4-37bd90bbcd99' \
+--data-raw '{
+    "PropertiesQuerySearch": {
+        "@type": "PropertiesQuerySearch",
+        "CheckInDate": "2026-10-09",
+        "CheckOutDate": "2026-10-10",
+        "RequestedCurrency": "USD",
+        "RoomStayCandidate": [
+            {
+                "@type": "RoomStayCandidate",
+                "GuestCounts": {
+                    "@type": "GuestCounts",
+                    "GuestCount": [
+                        {
+                            "@type": "GuestCount",
+                            "count": 2,
+                            "ageQualifyingCode": "10"
+                        }
+                    ]
+                }
+            }
+        ],
+        "SearchBy": {
+            "@type": "SearchByCity",
+            "SearchCity": "AUH",
+            "SearchRadius": {
+                "value": 30,
+                "unitOfDistance": "Kilometers"
+            }
+        },
+        "returnOnlyAvailablePropertiesInd": true
+    }
+}'

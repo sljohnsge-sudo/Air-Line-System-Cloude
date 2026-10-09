@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">87e4f322-ce4e-43d5-8b4b-e2b6273e66fc</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/TPSCGQ_16_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">ZJyaUIqWj0NU6qTPXTdkKeZpOWqR4khDx5AJ996vl6A=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">wQ2X64XwlJZbDGqlPLK5mIXnaVw=</oas:Password>
+        <oas1:Created>2026-10-09T03:56:01.390Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser>
+  </soapenv:Header>
+  <soapenv:Body>
+<Service_StandaloneCatalogue xmlns="http://xml.amadeus.com/TPSCGQ_16_1_1A">
+      <passengerInfoGroup>
+        <specificTravellerDetails><travellerDetails><referenceNumber>1</referenceNumber></travellerDetails></specificTravellerDetails>
+        <fareInfo><valueQualifier>ADT</valueQualifier></fareInfo>
+      </passengerInfoGroup>
+      <flightInfo>
+        <flightDetails>
+          <flightDate>
+            <departureDate>101126</departureDate>
+            <departureTime>1400</departureTime>
+            <arrivalDate>101126</arrivalDate>
+            <arrivalTime>1710</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>DXB</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>UL</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>231</flightNumber>
+            <bookingClass>S</bookingClass>
+          </flightIdentification>
+          <itemNumber>1</itemNumber>
+        </flightDetails>
+      </flightInfo>
+      <pricingOption>
+        <pricingOptionKey><pricingOptionKey>FBA</pricingOptionKey></pricingOptionKey>
+        <optionDetail><criteriaDetails><attributeType>R1CFOIA</attributeType></criteriaDetails></optionDetail>
+        <paxSegTstReference><referenceDetails><type>S</type><value>1</value></referenceDetails></paxSegTstReference>
+      </pricingOption>
+      <pricingOption>
+        <pricingOptionKey><pricingOptionKey>GRP</pricingOptionKey></pricingOptionKey>
+        <optionDetail>
+          <criteriaDetails><attributeType>BG</attributeType></criteriaDetails>
+        </optionDetail>
+      </pricingOption>
+      <pricingOption>
+        <pricingOptionKey><pricingOptionKey>GRP</pricingOptionKey></pricingOptionKey>
+        <optionDetail>
+          <criteriaDetails><attributeType>ML</attributeType></criteriaDetails>
+        </optionDetail>
+      </pricingOption>
+    </Service_StandaloneCatalogue>
+  </soapenv:Body>
+</soapenv:Envelope>

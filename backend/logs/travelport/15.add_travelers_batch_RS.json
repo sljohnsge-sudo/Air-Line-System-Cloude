@@ -1,18 +1,60 @@
 {
     "TravelerListResponse": {
         "@type": "TravelerListResponse",
-        "Result": {
-            "@type": "Result",
-            "Error": [
-                {
-                    "@type": "ErrorDetail",
-                    "category": "VALIDATION",
-                    "StatusCode": 200,
-                    "Message": "NAME CONTAINS INVALID CHARACTER",
-                    "SourceID": "1G",
-                    "SourceCode": "4173"
-                }
-            ]
-        }
+        "ReferenceList": [
+            {
+                "@type": "ReferenceListTraveler",
+                "Traveler": [
+                    {
+                        "@type": "Traveler",
+                        "birthDate": "2026-03-01",
+                        "gender": "Male",
+                        "passengerTypeCode": "ADT",
+                        "age": 0,
+                        "id": "travelerRefId_1",
+                        "Identifier": {
+                            "value": "8fede4c7-2e26-4213-8a31-a40163a0d4c2"
+                        },
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Prefix": "MR",
+                            "Given": "DASD",
+                            "Surname": "DASD"
+                        },
+                        "Telephone": [
+                            {
+                                "@type": "Telephone",
+                                "countryAccessCode": "94",
+                                "phoneNumber": "7777777",
+                                "id": "1",
+                                "role": "Mobile"
+                            }
+                        ],
+                        "Email": [
+                            {
+                                "value": "aaaa@gmail.com"
+                            }
+                        ],
+                        "TravelDocument": [
+                            {
+                                "@type": "TravelDocumentDetail",
+                                "docNumber": "N3123123",
+                                "docType": "Passport",
+                                "expireDate": "2026-10-30",
+                                "issueCountry": "LK",
+                                "birthDate": "2026-03-01",
+                                "Gender": "Male",
+                                "Nationality": "LK",
+                                "PersonName": {
+                                    "@type": "PersonNameDetail",
+                                    "Given": "DASD",
+                                    "Surname": "DASD"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     }
 }

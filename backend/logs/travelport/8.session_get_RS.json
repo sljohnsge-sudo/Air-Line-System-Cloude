@@ -1,0 +1,322 @@
+{
+    "ReservationResponse": {
+        "@type": "ReservationResponse",
+        "Reservation": {
+            "@type": "Reservation",
+            "Identifier": {
+                "authority": "Travelport",
+                "value": "8cb89b81-4320-4d71-a095-f147ea92872c"
+            },
+            "Offer": [
+                {
+                    "@type": "Offer",
+                    "id": "offer_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "ee9a2b77-587c-439a-84d2-080e1fb6b87b"
+                    },
+                    "Product": [
+                        {
+                            "@type": "ProductAir",
+                            "id": "product_1",
+                            "FlightSegment": [
+                                {
+                                    "@type": "FlightSegment",
+                                    "sequence": 1,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "carrier": "AI",
+                                        "number": "2275",
+                                        "id": "Flight_01",
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "CMB",
+                                            "date": "2026-11-10",
+                                            "time": "16:00:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "BOM",
+                                            "date": "2026-11-10",
+                                            "time": "18:40:00"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "@type": "ProductAir",
+                            "id": "product_2",
+                            "FlightSegment": [
+                                {
+                                    "@type": "FlightSegment",
+                                    "sequence": 2,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "carrier": "AI",
+                                        "number": "0983",
+                                        "id": "Flight_02",
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "BOM",
+                                            "date": "2026-11-10",
+                                            "time": "20:25:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "DXB",
+                                            "date": "2026-11-10",
+                                            "time": "21:55:00"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "id": "PriceDetail_1",
+                        "CurrencyCode": {
+                            "value": "LKR"
+                        },
+                        "Base": 47100,
+                        "TotalTaxes": 39074,
+                        "TotalFees": 0,
+                        "TotalPrice": 86174,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAir",
+                                "quantity": 1,
+                                "requestedPassengerType": "ADT",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "currencySource": "Charged",
+                                    "approximateInd": true,
+                                    "CurrencyCode": {
+                                        "decimalPlace": 0,
+                                        "value": "LKR"
+                                    },
+                                    "Base": 47100,
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "TotalTaxes": 39074,
+                                        "Tax": [
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "LK",
+                                                "value": 20436
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "ZR",
+                                                "value": 464
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "YQ",
+                                                "value": 17030
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "YR",
+                                                "value": 1144
+                                            }
+                                        ]
+                                    },
+                                    "Total": 86174
+                                },
+                                "FiledAmount": {
+                                    "currencyCode": "USD",
+                                    "decimalPlace": 2,
+                                    "value": 138
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "birthDate": "1990-01-01",
+                    "gender": "Male",
+                    "passengerTypeCode": "ADT",
+                    "age": 36,
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "value": "3a1eac86-ec47-4e31-bbbe-0455a584b4ec"
+                    },
+                    "PersonName": {
+                        "@type": "PersonNameDetail",
+                        "Prefix": "MR",
+                        "Given": "AMADEUS",
+                        "Surname": "BOOKANCTEST"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "Telephone",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "771234567",
+                            "id": "1",
+                            "role": "Mobile"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "value": "audit@example.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N1234567",
+                            "docType": "Passport",
+                            "expireDate": "2030-01-01",
+                            "issueCountry": "LK",
+                            "birthDate": "1990-01-01",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonNameDetail",
+                                "Given": "AMADEUS",
+                                "Surname": "BOOKANCTEST"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "Receipt": [
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "6fd9fdb7-b498-4450-b221-8e84d9acb771"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAir",
+                            "StatusAir": [
+                                {
+                                    "flightRefs": [
+                                        "Flight_01",
+                                        "Flight_02"
+                                    ],
+                                    "code": "HS",
+                                    "value": "Pending"
+                                }
+                            ]
+                        },
+                        "UnpricedSegmentsStatus": [
+                            {
+                                "@type": "UnpricedSegmentsStatus",
+                                "StatusAir": [
+                                    {
+                                        "flightRefs": [
+                                            "Flight_01",
+                                            "Flight_02"
+                                        ],
+                                        "code": "HS",
+                                        "value": "Pending"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ],
+            "UnpricedSegments": {
+                "@type": "UnpricedSegments",
+                "UnpricedFlightSegment": [
+                    {
+                        "@type": "UnpricedFlightSegment",
+                        "id": "unPricedFlightSegment_1",
+                        "sequence": 1,
+                        "passengerQuantity": -1,
+                        "classOfService": "L",
+                        "Flight": {
+                            "@type": "Flight",
+                            "carrier": "AI",
+                            "number": "2275",
+                            "id": "Flight_01",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "c294232a-83d8-4489-92d4-cd8d5de9c8dc"
+                            },
+                            "Departure": {
+                                "@type": "DepartureDetail",
+                                "location": "CMB",
+                                "date": "2026-11-10",
+                                "time": "16:00:00"
+                            },
+                            "Arrival": {
+                                "@type": "ArrivalDetail",
+                                "location": "BOM",
+                                "date": "2026-11-10",
+                                "time": "18:40:00"
+                            }
+                        }
+                    },
+                    {
+                        "@type": "UnpricedFlightSegment",
+                        "id": "unPricedFlightSegment_2",
+                        "sequence": 2,
+                        "passengerQuantity": -1,
+                        "classOfService": "L",
+                        "Flight": {
+                            "@type": "Flight",
+                            "carrier": "AI",
+                            "number": "0983",
+                            "id": "Flight_02",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "3a5ce82d-3d91-492a-994d-a947a0cbe75f"
+                            },
+                            "Departure": {
+                                "@type": "DepartureDetail",
+                                "location": "BOM",
+                                "date": "2026-11-10",
+                                "time": "20:25:00"
+                            },
+                            "Arrival": {
+                                "@type": "ArrivalDetail",
+                                "location": "DXB",
+                                "date": "2026-11-10",
+                                "time": "21:55:00"
+                            }
+                        }
+                    }
+                ]
+            },
+            "ReservationDisplaySequence": {
+                "@type": "ReservationDisplaySequence",
+                "DisplaySequence": [
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 1,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_1"
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 2,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2"
+                    }
+                ],
+                "UnpricedSegmentDisplaySequence": [
+                    {
+                        "@type": "UnpricedSegmentDisplaySequence",
+                        "displaySequence": 1,
+                        "UnpricedFlightSegmentRef": "unPricedFlightSegment_1"
+                    },
+                    {
+                        "@type": "UnpricedSegmentDisplaySequence",
+                        "displaySequence": 2,
+                        "UnpricedFlightSegmentRef": "unPricedFlightSegment_2"
+                    }
+                ]
+            }
+        }
+    }
+}
