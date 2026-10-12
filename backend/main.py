@@ -1558,9 +1558,19 @@ def retrieve_booking(locator_code: str):
         return ticket
     except Exception as e:
         logger.warning(f"Live retrieval failed for PNR {locator_code}: {e}")
-        # Fallback to local cache if offline or error occurs
+        # Fallback to local cache if offline or error occurs -- but only when
+        # the cache actually has something useful. A PNR that Travelport now
+        # says doesn't exist (purged/expired on their side, or never fully
+        # committed) can still have a DB row whose own flight/passenger
+        # fields are just as empty, saved back when this failure mode wasn't
+        # detected yet (ticket_service._parse_reservation used to silently
+        # treat "RECORD LOCATOR DOES NOT EXIST" as an empty-but-valid
+        # booking). Returning that row as if it were real data produced a
+        # 200 OK "receipt" with every field blank and status still
+        # "Confirmed" — confirmed live for PNR 7NSGYD. An empty cache row is
+        # worse than no data at all, so it's treated the same as no cache.
         cached = database.get_booking_by_locator(locator_code)
-        if cached:
+        if cached and (cached.get("flight_number") or cached.get("passenger_name")):
             return cached
         raise HTTPException(status_code=404, detail=f"Reservation not found: {str(e)}")
 

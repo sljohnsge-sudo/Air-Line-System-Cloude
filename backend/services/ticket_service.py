@@ -274,7 +274,25 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
     - Agency/GDS PNR: Receipt where Locator.source == '1G' (or the one created first)
     - Airline PNR:    Receipt where Locator.source == airline IATA code (e.g. 'FZ', 'UL')
     Real ticket number only comes from Ticket[] after issuance — never generated here.
+
+    Raises ValueError if Travelport answers with an Error[] (e.g. "RECORD
+    LOCATOR DOES NOT EXIST") instead of a Reservation — confirmed live: a
+    purged/expired or nonexistent PNR still returns HTTP 200 with no
+    Reservation key at all, which this used to silently treat as an empty-
+    but-valid booking (every field blank, status left at the "Confirmed"
+    default) instead of surfacing the real problem. The caller
+    (main.py's retrieve_booking) already has a try/except that falls back to
+    the local cache or a clean 404 — this was the missing check that let a
+    nonexistent PNR through as if it were a real, empty reservation.
     """
+    reservation_response = raw.get("ReservationResponse", {}) or {}
+    top_level_errors = (reservation_response.get("Result") or {}).get("Error") or []
+    has_reservation = "Reservation" in raw or "Reservation" in reservation_response
+    if top_level_errors and not has_reservation:
+        raise ValueError(
+            "; ".join(f"{e.get('Message')} ({e.get('SourceCode')})" for e in top_level_errors)
+        )
+
     ticket = {
         "locator_code": locator_code,      # Agency/GDS PNR (always available from STEP 7)
         "pnr": locator_code,               # Same as locator_code for clarity
