@@ -44,10 +44,41 @@ def _text(parent, name, default=None):
 
 
 async def get_seat_map(segment: dict) -> dict:
+    # Per Amadeus support (2026-10, our ticket on "Seat Map Charges" — no
+    # price anywhere in the response): processingIndicator FT plus a
+    # traveler block carrying the booking class as rateClass is what makes
+    # Amadeus actually return pricing. Confirmed live: without these two
+    # blocks the response has zero price/amount/currency fields anywhere;
+    # with them, a customerCentricData/seatPrice section appears. The
+    # traveler name is NOT validated against a real passenger at this
+    # pre-booking/stateless stage (confirmed live with a placeholder name
+    # still returning real pricing) — same pattern as the ancillary/seat
+    # browse calls elsewhere in this file's family, which also use
+    # placeholder data before a PNR exists.
+    rate_class = segment.get("bookingClass") or "Y"
     body = f"""<Air_RetrieveSeatMap xmlns="{NS}">
       <travelProductIdent>
         {_segment_product_xml(segment)}
       </travelProductIdent>
+      <seatRequestParameters>
+        <processingIndicator>FT</processingIndicator>
+      </seatRequestParameters>
+      <traveler>
+        <travelerInformation>
+          <paxDetails>
+            <surname>TRAVELER</surname>
+          </paxDetails>
+          <otherPaxDetails>
+            <givenName>SEATQUOTE</givenName>
+            <type>ADT</type>
+          </otherPaxDetails>
+        </travelerInformation>
+        <fareQualifierDetails>
+          <additionalFareDetails>
+            <rateClass>{rate_class}</rateClass>
+          </additionalFareDetails>
+        </fareQualifierDetails>
+      </traveler>
     </Air_RetrieveSeatMap>"""
 
     body_root = await call(
@@ -69,6 +100,37 @@ async def get_seat_map(segment: dict) -> dict:
     if seatmap_info is None:
         return {"available": False, "columns": [], "rows": []}
 
+    # Pricing lives in a SEPARATE top-level customerCentricData/seatPrice
+    # section, not nested under each seat's own row/seatOccupationDetails --
+    # each seatPrice group carries its own amount + the exact list of
+    # (row, column) seats it applies to (its own rowDetails/
+    # seatOccupationDetails, confirmed live to directly enumerate seats
+    # rather than needing a seatCharacteristic cross-reference). Build a
+    # flat (row, column) -> (amount, currency) lookup from every seatPrice
+    # group once, then apply it per seat below. typeQualifier "T" (total,
+    # incl. tax) is preferred; "B" (base) is the fallback for a group that
+    # for some reason only has one monetaryDetails entry.
+    price_by_seat: dict[tuple[str, str], tuple[float, str]] = {}
+    for ccd in _find_all_local(seatmap_info, "customerCentricData"):
+        for seat_price_group in _find_all_local(ccd, "seatPrice"):
+            price_detail = _find_local(seat_price_group, "seatPrice")
+            amount, currency = None, None
+            for mon in _find_all_local(price_detail, "monetaryDetails") if price_detail is not None else []:
+                qualifier = _text(mon, "typeQualifier")
+                if qualifier == "T" or (qualifier == "B" and amount is None):
+                    amount = _text(mon, "amount")
+                    currency = _text(mon, "currency")
+            if amount is None:
+                continue
+            for row_details in _find_all_local(seat_price_group, "rowDetails"):
+                row_num = _text(row_details, "seatRowNumber")
+                if not row_num:
+                    continue
+                for occ in _find_all_local(row_details, "seatOccupationDetails"):
+                    col = _text(occ, "seatColumn")
+                    if col:
+                        price_by_seat[(row_num, col)] = (float(amount), currency)
+
     columns_seen: list[str] = []
     rows_out = []
     for row in _find_all_local(seatmap_info, "row"):
@@ -85,12 +147,13 @@ async def get_seat_map(segment: dict) -> dict:
             if col not in columns_seen:
                 columns_seen.append(col)
             occupied = bool(_text(occ, "seatOccupation"))
+            price, currency = price_by_seat.get((row_number, col), (0, None))
             seats.append({
                 "seat_number": f"{row_number}{col}",
                 "status": "occupied" if occupied else "available",
                 "type": "Standard",
-                "price": 0,
-                "currency": None,
+                "price": price,
+                "currency": currency,
             })
 
         seats.sort(key=lambda s: s["seat_number"][len(row_number):])

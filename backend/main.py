@@ -66,14 +66,6 @@ app = FastAPI(
     version="2.0.0"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],   # Restrict to frontend URL in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # ── Go-live module gate (server-side enforcement of the feature flags) ────────
 # Nov 1 launch ships Travelport flights only. Hotels/Visa/Packages are built
 # but hidden from customers until each is ready (see ProviderSettingsRequest/
@@ -87,6 +79,16 @@ app.add_middleware(
 # customer-facing routes (confirmed against every /api/hotels*, /api/visa-*,
 # /api/packages* route in this file -- none of their admin equivalents share
 # these prefixes, they all live under /api/admin/...).
+#
+# Registered BEFORE add_middleware(CORSMiddleware) below on purpose: Starlette
+# builds its middleware stack so the LAST one added ends up OUTERMOST. CORS
+# must be outermost so it still adds Access-Control-Allow-Origin to this
+# middleware's own short-circuit 503 responses -- registering this gate after
+# CORS instead put CORS innermost, so a disabled-module 503 (returned here
+# without ever reaching CORS) came back with no CORS headers at all and the
+# browser reported it as an opaque network failure instead of a readable 503
+# (confirmed live: a disabled Packages toggle looked like a CORS/connectivity
+# bug on the frontend until this was reordered).
 FEATURE_GATED_PREFIXES = {
     "hotels_enabled": ("/api/hotels",),
     "visa_enabled": ("/api/visa-",),
@@ -107,6 +109,15 @@ async def _enforce_module_flags(request: Request, call_next):
                 )
             break
     return await call_next(request)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],   # Restrict to frontend URL in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ── Stale-offer error classification ─────────────────────────────────────────

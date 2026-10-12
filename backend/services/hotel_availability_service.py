@@ -75,6 +75,11 @@ def get_availability(
                             "@type": "RoomStayCandidates",
                             "RoomStayCandidate": build_room_stay_candidates(adults, children_ages, rooms),
                         },
+                        # Requested by Travelport support (2026-10-08) — same as
+                        # Search by Location: include both TVPT and BKNG. Note
+                        # this field lives nested under HotelSearchCriterion
+                        # here, not at the top level like in searchbylocation.
+                        "AggregatorList": ["TVPT", "BKNG"],
                     },
                 }
             ]

@@ -7603,16 +7603,38 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         );
                       };
 
-                      return Object.entries(sections).map(([label, items]) => items.length === 0 ? null : (
-                        <div key={label}>
-                          <h5 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            {label}
-                          </h5>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {items.map(renderItem)}
+                      // Meal Preferences always gets its own section header,
+                      // even when this airline publishes no meal ancillaries
+                      // via the GDS (confirmed live: airline-specific —
+                      // e.g. Air India never offers any via Amadeus on any
+                      // route tested, while SriLankan reliably does) — a
+                      // clear "not offered" note instead of the section
+                      // just silently vanishing, so it reads as "checked,
+                      // nothing available" rather than looking broken.
+                      // Baggage/Other Services still only render when they
+                      // have items, matching prior behavior.
+                      const sectionNotes = {
+                        'Meal Preferences': 'Meal preferences are not offered as a selectable extra by this airline for this flight. Any dietary requirement can still be noted with our support team after booking.',
+                      };
+                      return Object.entries(sections).map(([label, items]) => {
+                        if (items.length === 0 && !sectionNotes[label]) return null;
+                        return (
+                          <div key={label}>
+                            <h5 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {label}
+                            </h5>
+                            {items.length === 0 ? (
+                              <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', padding: '0.6rem 0.75rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                                {sectionNotes[label]}
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                {items.map(renderItem)}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ));
+                        );
+                      });
                     })()}
                     {ancillaries.length === 0 && (
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 0' }}>
