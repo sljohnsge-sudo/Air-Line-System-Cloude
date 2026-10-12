@@ -1341,25 +1341,29 @@ export default function App() {
     if (!selectedHotelProperty || !selectedHotelRoom) return;
     setHotelBookingSubmitting(true);
     setHotelBookingError('');
-    fetch(`${API_BASE}/hotels/book-offer`, {
+    fetch(`${API_BASE}/hotels/book`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
       },
       body: JSON.stringify({
-        offer_id: selectedHotelRoom.offer_id,
+        chain_code: selectedHotelRoom.chain_code || selectedHotelProperty.chain_code,
+        property_code: selectedHotelRoom.property_code || selectedHotelProperty.property_code,
         property_name: selectedHotelProperty.property_name,
-        chain_code: selectedHotelProperty.chain_code,
-        property_code: selectedHotelProperty.property_code,
         city: selectedHotelProperty.address?.city,
         country_code: selectedHotelProperty.address?.country_code,
+        booking_code: selectedHotelRoom.booking_code,
         check_in_date: selectedHotelProperty.check_in_date,
         check_out_date: selectedHotelProperty.check_out_date,
         rooms: parseInt(hotelRooms, 10) || 1,
         currency: selectedHotelRoom.currency,
+        base_price: selectedHotelRoom.base_price,
+        total_taxes: (selectedHotelRoom.total_taxes || 0) + (selectedHotelRoom.total_fees || 0),
         total_price: selectedHotelRoom.total_price,
         room_description: selectedHotelRoom.room_description,
+        offer_id: selectedHotelRoom.offer_id,
+        authority: selectedHotelRoom.authority,
         travelers: [hotelGuestForm],
       }),
     })
@@ -1369,7 +1373,7 @@ export default function App() {
   };
 
   // Search state
-  const [searchType, setSearchType] = useState(() => initialResultsPayload?.type || 'oneway'); // 'oneway' | 'roundtrip' | 'multicity'
+  const [searchType, setSearchType] = useState(() => initialResultsPayload?.type || 'roundtrip'); // 'oneway' | 'roundtrip' | 'multicity' -- Round Trip is the default per boss's requirements doc
   const [searchOrigin, setSearchOrigin] = useState(() => initialResultsPayload?.origin || 'CMB');
   const [searchDest, setSearchDest] = useState(() => initialResultsPayload?.destination || 'DXB');
   const [searchDate, setSearchDate] = useState(() => initialResultsPayload?.date || getTomorrow());
@@ -2039,6 +2043,32 @@ export default function App() {
     });
   };
 
+  // Phone country-code dropdown (boss's requirements doc: "add the customer
+  // details form select the country code instead of manual typing") — splits
+  // the stored "+<dial><local number>" string into a dial-code dropdown and a
+  // local-number input. Dial codes aren't unique length, so this matches the
+  // LONGEST registered dial code that prefixes the stored number (e.g. "+94"
+  // before trying "+9"), falling back to Sri Lanka (+94) when the field is
+  // empty or doesn't start with a recognized code.
+  const DIAL_CODES = [...new Map(NATIONALITIES.map(n => [n.dial, n])).values()].sort((a, b) => b.dial.length - a.dial.length);
+  const splitPhone = (phone) => {
+    const digits = (phone || '').replace(/[^\d+]/g, '');
+    const withoutPlus = digits.startsWith('+') ? digits.slice(1) : digits;
+    const match = DIAL_CODES.find(c => withoutPlus.startsWith(c.dial));
+    if (match) {
+      return { dial: match.dial, local: withoutPlus.slice(match.dial.length) };
+    }
+    return { dial: '94', local: withoutPlus };
+  };
+  const handleTravelerPhoneDialChange = (dial) => {
+    const { local } = splitPhone(travelers[activePassengerIdx]?.phone);
+    handleTravelerChange('phone', `+${dial}${local}`);
+  };
+  const handleTravelerPhoneLocalChange = (local) => {
+    const { dial } = splitPhone(travelers[activePassengerIdx]?.phone);
+    handleTravelerChange('phone', `+${dial}${local.replace(/\D/g, '')}`);
+  };
+
   // Nationality drives the phone country code — selecting a country auto-fills
   // the Phone field with its dialing code, but only when Phone is still empty
   // so it never overwrites a number the traveler already typed. It also
@@ -2596,11 +2626,19 @@ export default function App() {
     let seatColor = 'var(--text-secondary)';
     let cursor = 'pointer';
 
+    // Diagonal-stripe pattern on top of the grey fill for occupied seats --
+    // boss's requirements doc: "lighter grey or with a pattern" -- grey alone
+    // was already there, this adds the pattern so it reads as unavailable
+    // even for colorblind users who can't distinguish the grey shade alone.
+    let seatPatternStyle = {};
     if (isOccupied) {
       seatBg = '#cbd5e1';
       seatBorder = '1px solid #94a3b8';
       seatColor = '#94a3b8';
       cursor = 'not-allowed';
+      seatPatternStyle = {
+        backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(100,116,139,0.35) 3px, rgba(100,116,139,0.35) 5px)',
+      };
     } else if (isSelectedByActive) {
       seatBg = 'var(--gs-crimson)';
       seatBorder = '1px solid var(--gs-crimson)';
@@ -2681,7 +2719,8 @@ export default function App() {
           cursor: cursor,
           outline: 'none',
           boxShadow: isSelectedByActive ? '0 0 8px rgba(195, 18, 46, 0.4)' : 'none',
-          transition: 'all 0.15s'
+          transition: 'all 0.15s',
+          ...seatPatternStyle
         }}
       >
         {isOccupied ? '×' : seat.seat_number?.slice(-1)}
@@ -6973,7 +7012,27 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">Phone *</label>
-                    <input type="tel" className="form-input" required placeholder="+94771234567" value={travelers[activePassengerIdx]?.phone || ''} onChange={e => handleTravelerChange('phone', e.target.value)} />
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <select
+                        className="form-input"
+                        style={{ flex: '0 0 110px' }}
+                        value={splitPhone(travelers[activePassengerIdx]?.phone).dial}
+                        onChange={e => handleTravelerPhoneDialChange(e.target.value)}
+                      >
+                        {DIAL_CODES.map(c => (
+                          <option key={c.code} value={c.dial}>+{c.dial} {c.code}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="tel"
+                        className="form-input"
+                        required
+                        placeholder="771234567"
+                        style={{ flex: 1 }}
+                        value={splitPhone(travelers[activePassengerIdx]?.phone).local}
+                        onChange={e => handleTravelerPhoneLocalChange(e.target.value)}
+                      />
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Email Address *</label>
@@ -8136,10 +8195,33 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       Fare & Payment Details
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
-                        <span>Flight Fare (from Travelport GDS):</span>
-                        <span>{issuedTicket.currency} {((issuedTicket.total_fare || 0) - (issuedTicket.seat_charge || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                      </div>
+                      {issuedTicket.fare_breakdown ? (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                            <span>Base Airline Fare:</span>
+                            <span>{issuedTicket.currency} {issuedTicket.fare_breakdown.base_fare.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                            <span>Fuel Surcharge:</span>
+                            <span>{issuedTicket.currency} {issuedTicket.fare_breakdown.fuel_surcharge.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                            <span>Airline & Government Taxes:</span>
+                            <span>{issuedTicket.currency} {issuedTicket.fare_breakdown.other_taxes.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          {issuedTicket.fare_breakdown.total_fees > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                              <span>Other Airline Fees:</span>
+                              <span>{issuedTicket.currency} {issuedTicket.fare_breakdown.total_fees.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                          <span>Flight Fare (from Travelport GDS):</span>
+                          <span>{issuedTicket.currency} {((issuedTicket.total_fare || 0) - (issuedTicket.seat_charge || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                        </div>
+                      )}
                       {issuedTicket.seat_charge > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                           <span>Seat Selection Fee:</span>

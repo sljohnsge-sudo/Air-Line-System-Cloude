@@ -2859,6 +2859,7 @@ class HotelBookingRequest(BaseModel):
     room_description: Optional[str] = None
     travelers: List[HotelGuestInfo]
     offer_id: Optional[str] = Field(default=None, description="CatalogOffering.id from a prior Availability call, if any")
+    authority: Optional[str] = Field(default=None, description="CatalogOffering.Identifier.authority from Availability (e.g. 'TVPT') — required by Travelport's Full Payload contract")
 
 
 class HotelAvailabilityRequest(BaseModel):
@@ -2979,7 +2980,7 @@ def hotel_book(request: HotelBookingRequest, customer_id: Optional[int] = Depend
                 "total_price": request.total_price,
             },
             travelers=[t.model_dump() for t in request.travelers],
-            offer_id=request.offer_id,
+            authority=request.authority,
         )
         parsed = hotel_booking_service.parse_hotel_reservation(raw)
 

@@ -105,16 +105,24 @@ def parse_availability_offers(raw_response: dict) -> list[dict]:
     """
     Simplify a CatalogOfferingsHospitalityResponse into a flat list of
     bookable offers. Field paths per the fully-expanded response schema on
-    https://developer.travelport.com/apis/stays/availability/createhotelavailability
-    — CatalogOfferings.CatalogOffering[], each with a confirmed `id`
-    (the offer key, cached 30 min — what booking uses) and a fully-confirmed
-    Price breakdown (CurrencyCode/Base/TotalTaxes/TotalFees/TotalPrice).
+    https://developer.travelport.com/apis/stays/availability/createhotelavailability,
+    cross-checked against real live response data.
 
-    NOTE: ProductOptions[].Product[] (type "ProductID") is where Travelport's
-    own docs say the room name/description lives, but the docs site's nested
-    schema explorer could not be fully expanded for that one sub-object at
-    verification time. room_description extraction below is best-effort,
-    for display only — booking does NOT depend on it, it books by offer_id.
+    CONFIRMED against a real captured response (2026-10-13):
+      CatalogOffering.Identifier.authority -> e.g. "TVPT"
+      CatalogOffering.ProductOptions[].Product[].bookingCode -> e.g. "A00REGA"
+      CatalogOffering.ProductOptions[].Product[].PropertyKey.{chainCode,propertyCode}
+      CatalogOffering.ProductOptions[].Product[].RoomType.Description.value -> room name
+
+    `authority` and `booking_code` are exactly the fields Travelport's Create
+    Reservation Full Payload reference
+    (https://support.travelport.com/webhelp/JSONAPIs/Hotelv11/Content/Hotel11/APIReferences/APIRef_CreateReservationFullPayload.htm)
+    requires on Offer.Identifier.authority and Product.bookingCode — see
+    hotel_booking_service.create_hotel_reservation(). Reference Payload
+    booking (by offer_id alone) was rejected by Travelport's sandbox with
+    "REQUESTED PROPERTY IS UNAVAILABLE"; Travelport support directed us to
+    the Full Payload contract instead, which is why these fields are now
+    extracted here rather than treated as best-effort/display-only.
     """
     offers = []
     response = raw_response.get("CatalogOfferingsHospitalityResponse", raw_response)
@@ -123,26 +131,38 @@ def parse_availability_offers(raw_response: dict) -> list[dict]:
     for offering in catalog_offerings.get("CatalogOffering", []) or []:
         price = offering.get("Price", {}) or {}
         currency_code = (price.get("CurrencyCode", {}) or {}).get("value", HotelConfig.DEFAULT_CURRENCY)
+        authority = (offering.get("Identifier", {}) or {}).get("authority", "")
 
         room_description = ""
+        booking_code = ""
+        chain_code = ""
+        property_code = ""
         for option in offering.get("ProductOptions", []) or []:
             for product in option.get("Product", []) or []:
                 if not isinstance(product, dict):
                     continue
+                booking_code = product.get("bookingCode", "")
+                property_key = product.get("PropertyKey", {}) or {}
+                chain_code = property_key.get("chainCode", "")
+                property_code = property_key.get("propertyCode", "")
                 room_description = (
-                    product.get("roomDescription")
-                    or ((product.get("RoomType", {}) or {}).get("Description", {}) or {}).get("value", "")
+                    ((product.get("RoomType", {}) or {}).get("Description", {}) or {}).get("value", "")
+                    or product.get("roomDescription", "")
                     or product.get("description", "")
                 )
-                if room_description:
+                if booking_code:
                     break
-            if room_description:
+            if booking_code:
                 break
 
         terms = offering.get("TermsAndConditions", {}) or {}
 
         offers.append({
             "offer_id": offering.get("id", ""),
+            "authority": authority,
+            "booking_code": booking_code,
+            "chain_code": chain_code,
+            "property_code": property_code,
             "room_description": room_description or "Room",
             "currency": currency_code,
             "base_price": price.get("Base", 0),

@@ -315,6 +315,7 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
         "fare_basis": "",
         "total_fare": 0.0,
         "currency": "USD",
+        "fare_breakdown": None,
         "booking_date": "",
         "seat_number": "",
         "baggage_allowance": "",
@@ -396,6 +397,40 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
             if price:
                 ticket["total_fare"] = float(price.get("TotalPrice", 0))
                 ticket["currency"] = price.get("CurrencyCode", {}).get("value", "USD")
+
+                # Fare breakdown for the final ticket (boss's requirements doc:
+                # "airline tax and fuel charges and air line other charges
+                # should show") -- Base = the airline's own fare; fuel
+                # surcharge (YQ/YR -- the two IATA-standard fuel/carrier-
+                # imposed surcharge codes) separated out from every other
+                # government/airport tax, which is summed into one "other
+                # taxes" figure since those are dozens of per-country codes
+                # (airport tax, security fee, etc.) not meaningful to list
+                # individually on a customer receipt. Confirmed live against
+                # a real commit response (PriceBreakdown[].Amount.Taxes.Tax[]).
+                base_fare = float(price.get("Base", 0) or 0)
+                fuel_surcharge = 0.0
+                other_taxes = 0.0
+                seen_tax_ids = set()
+                for pb in price.get("PriceBreakdown", []) or []:
+                    taxes = (pb.get("Amount", {}) or {}).get("Taxes", {}) or {}
+                    for tax in taxes.get("Tax", []) or []:
+                        code = tax.get("taxCode", "")
+                        value = float(tax.get("value", 0) or 0)
+                        # Each PriceBreakdown entry is per-passenger -- sum all
+                        # of them (matches TotalTaxes = sum across passengers),
+                        # not just the first one.
+                        if code in ("YQ", "YR"):
+                            fuel_surcharge += value
+                        else:
+                            other_taxes += value
+                ticket["fare_breakdown"] = {
+                    "base_fare": base_fare,
+                    "fuel_surcharge": fuel_surcharge,
+                    "other_taxes": other_taxes,
+                    "total_fees": float(price.get("TotalFees", 0) or 0),
+                    "total": float(price.get("TotalPrice", 0) or 0),
+                }
 
             # Baggage allowance from TermsAndConditionsFull
             terms = offer.get("TermsAndConditionsFull", [])

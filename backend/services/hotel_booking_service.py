@@ -132,25 +132,38 @@ def create_hotel_reservation(
     guests: int,
     price: dict,
     travelers: list[dict],
-    offer_id: Optional[str] = None,
+    authority: Optional[str] = None,
 ) -> dict:
     """
-    Book a hotel room — Full Payload
-    (https://developer.travelport.com/apis/stays/unified-check-out/createhotelreservation).
+    Book a hotel room — Full Payload. Confirmed field-for-field against
+    Travelport's own Create Reservation Full Payload API Reference
+    (https://support.travelport.com/webhelp/JSONAPIs/Hotelv11/Content/Hotel11/APIReferences/APIRef_CreateReservationFullPayload.htm),
+    which Travelport support pointed us to directly after our bookings
+    failed with "REQUESTED PROPERTY IS UNAVAILABLE" via the Reference
+    Payload path — their diagnosis: our request couldn't "identify that the
+    property details are going", i.e. it was missing Offer.Identifier.authority,
+    marked required* in that reference and never sent by this function
+    before now. Deliberately does NOT send an Offer.id — that doc doesn't
+    document one, and live-testing confirmed including vs. omitting it makes
+    no difference, so this now matches their contract with zero extra fields.
 
     Args:
-        chain_code / property_code: from a Search by Location property.
-        booking_code: from the selected room rate.
+        chain_code / property_code: from a Search by Location property, or
+            offer["chain_code"] / offer["property_code"] from
+            hotel_availability_service.parse_availability_offers().
+        booking_code: from the selected room rate — offer["booking_code"]
+            from parse_availability_offers() (the doc's "ProductOptions/ProductBooking").
         check_in_date / check_out_date: "YYYY-MM-DD".
         rooms: number of rooms requested.
         guests: total guest count for this booking.
         price: {"currency": str, "base": float, "total_taxes": float, "total_price": float}
         travelers: list of {"first_name", "last_name", "email", "phone",
                              "country_access_code"?, "area_city_code"?}
-        offer_id: optional CatalogOffering.id from a prior Availability call
-            — Travelport's own examples include this on the Offer even in
-            Full Payload requests (used for its price/guarantee-change
-            validation). Omit if booking without a prior Availability call.
+        authority: CatalogOffering.Identifier.authority from the Availability
+            response for this offer — offer["authority"] from
+            parse_availability_offers() (e.g. "TVPT"). Required per the doc
+            ("Identifier* ... authority*: ... Send the value from the
+            Availability response in CatalogOffering/Identifier/authority").
 
     Returns:
         dict: raw ReservationResponse from Travelport.
@@ -192,8 +205,14 @@ def create_hotel_reservation(
             "TotalPrice": price.get("total_price", 0),
         },
     }
-    if offer_id:
-        offer["id"] = offer_id
+    if authority:
+        offer["Identifier"] = {"authority": authority}
+    # NOTE: deliberately NOT sending offer_id as Offer.id — Travelport's own
+    # Full Payload API Reference (the doc they pointed us to directly) does
+    # not document an "id" field on Offer at all, only Identifier.authority.
+    # Live-tested both ways (2026-10-13): including it vs. omitting it made
+    # no difference to the "REQUESTED PROPERTY IS UNAVAILABLE" error, so this
+    # now matches their documented contract exactly, with no extra fields.
 
     reservation_detail = {
         "ReservationDetail": {
