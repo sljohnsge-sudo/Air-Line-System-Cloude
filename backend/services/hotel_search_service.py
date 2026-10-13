@@ -223,6 +223,10 @@ def parse_hotel_offers(raw_response: dict, check_in_date: str = "", check_out_da
             "property_code": property_key.get("propertyCode", ""),
             "availability": info.get("availability", ""),
             "featured": info.get("featuredPropertyInd", False),
+            # Content source — HotelAggregatorCodeEnum value (e.g. "TVPT",
+            # "BKNG") from the PropertyInfo.Identifier.authority field. Lets
+            # the frontend show which aggregator each result came from.
+            "source": (info.get("Identifier", {}) or {}).get("authority", ""),
             "check_in_date": check_in_date,
             "check_out_date": check_out_date,
             "address": {},  # not part of this endpoint's response — see Property Details

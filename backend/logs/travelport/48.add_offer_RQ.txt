@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/e2e9a5dd-d9de-4a9f-b65a-30cd1ce42ddf/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAxNTc5MzAsImV4cCI6MTc5MDI0NDMzMCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.hoW3qHU_YjJDg2WyTXfaP0ZLwqb2hvcDLyiYRfcD74J527dwxG6KE57i_2UfNX14sbIKFn0TEgPbHkKnESDcdrJbIHuov4IIbPMoO3uom-GNhzWWkUEzkFtsHErcsIuQ7Gn48XgjLKKdvOJDhQob_R3Qk9KrDQ3dtg9ARDDsBuTkLGZU21xzAeqQnNOa6JPRCmQtpXnWGBnh3J1ekW67HZWGILz2_5KaBSMClQqvCvF8tSPAq0t4sXx9_xH6Fzy6lZKKkKffmfN7uvmiuoiRgq_t7bG0t-okwms_NVZ4Qn0n49HiAG5dYPMJFr9Zg2i3rcBasHeLaUF1Rcor0xgFkQ' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/97cb32f5-b8c4-451f-bc7e-1f822095e60d/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE4ODQ5MTQsImV4cCI6MTc5MTk3MTMxNCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.pGqaTY4AbGOXlFHq0bFQ8eiXGL2c6hGZDTEiPe0Th-fnhgbOLif0uUPdgNvNJJ-FRTgfUcsJ-UxahJkgpfMg0duCld_2YdfXgM9kcaS7ANMj1tHNdFseDsg_ZJen3xDi2ilHF-QJosWZyLW1qSw0EUOLHF-l6FuvGQNkb5B3LE6_4Rv2cYH6xRO65onLJii7HSmfH-VOw2Sm_rfbIf_kMiyNd95Lbx6hJmBumBCii1YvYd7c4C6fB0E9P9ShJcO90UUFmIc25txy0KQogs-ear5FRHY4lNM4nDZly2pnSaDjWD2IHlkhI1Zk2uHewMoSBHfMbznHggUmdvVWfFjpcQ' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,68 +7,46 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_CFACF4641C95' \
+--header 'traceid: TraceID_22FFAF581E32' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "AI",
-                        "flightNumber": "6221",
-                        "from": "CMB",
-                        "to": "BOM",
-                        "departureDate": "2026-09-24",
-                        "segmentSequence": 1,
-                        "departureTime": "23:40:00",
-                        "arrivalDate": "2026-09-25",
-                        "arrivalTime": "02:10:00",
-                        "cabin": "Economy",
-                        "classOfService": "U",
-                        "AvailabilitySourceCode": "S",
-                        "boundFlightsInd": true,
-                        "ContentSource": "GDS"
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "0fef58ab-615f-4601-af8c-a75b5962464e"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "EK_CPO0"
+                        }
                     },
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "AI",
-                        "flightNumber": "129",
-                        "from": "BOM",
-                        "to": "LHR",
-                        "departureDate": "2026-09-25",
-                        "segmentSequence": 2,
-                        "departureTime": "04:45:00",
-                        "arrivalDate": "2026-09-25",
-                        "arrivalTime": "10:15:00",
-                        "cabin": "Economy",
-                        "classOfService": "U",
-                        "AvailabilitySourceCode": "S",
-                        "ContentSource": "GDS"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Eco Value",
-                "BrandRef": "b0"
-            }
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "EKp7"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "EK_CPO1"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "EKp56"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'

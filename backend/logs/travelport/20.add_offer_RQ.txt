@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6c4a731f-9258-4304-8ce3-730ae0fc34e2/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NjkzNjIsImV4cCI6MTc4OTU1NTc2MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.IoaoLLErfEjl4tOFI3bhboWCvByNCXgPFInmC9ctc_Qv59qneVFOAVZ14e55yQZp55Y32jdIobu1gx5NM1zDSjcAbXF9DbO-I1VUo1e0QIj-KMus5W8PiRhrLf9x_p8saGV4T-W_pAsQsbAjjUKjW7WUNqI8FnIjhz7CMaVNRyPx-YaeqGoCd40_Q35cVe5QcGK8bs1Lgir0SM4DXMd5vrCr36wpEa3zUbBnWXSZXyQ_obj7dpXbc_tZXm7VDUztw02uoYYuUA0Oynyx1hDGpunabZ-4k6m6E_Qhda2Gw8g6JlRpCRc7yfQfE6k8x94GhoCREACeBqCnBHiLVS_K0Q' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/36ca90c1-a29b-4e26-8713-bc0a1257d738/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE4ODQ5MTQsImV4cCI6MTc5MTk3MTMxNCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.pGqaTY4AbGOXlFHq0bFQ8eiXGL2c6hGZDTEiPe0Th-fnhgbOLif0uUPdgNvNJJ-FRTgfUcsJ-UxahJkgpfMg0duCld_2YdfXgM9kcaS7ANMj1tHNdFseDsg_ZJen3xDi2ilHF-QJosWZyLW1qSw0EUOLHF-l6FuvGQNkb5B3LE6_4Rv2cYH6xRO65onLJii7HSmfH-VOw2Sm_rfbIf_kMiyNd95Lbx6hJmBumBCii1YvYd7c4C6fB0E9P9ShJcO90UUFmIc25txy0KQogs-ear5FRHY4lNM4nDZly2pnSaDjWD2IHlkhI1Zk2uHewMoSBHfMbznHggUmdvVWfFjpcQ' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,84 +7,46 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_13BB5902AC64' \
+--header 'traceid: TraceID_937DCC634475' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "FZ",
-                        "flightNumber": "570",
-                        "from": "CMB",
-                        "to": "DXB",
-                        "departureDate": "2026-09-25",
-                        "segmentSequence": 1,
-                        "departureTime": "02:05:00",
-                        "arrivalDate": "2026-09-25",
-                        "arrivalTime": "05:10:00",
-                        "cabin": "Economy",
-                        "classOfService": "Q",
-                        "AvailabilitySourceCode": "Q",
-                        "ContentSource": "GDS"
-                    }
-                ]
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "4adca362-2472-414a-8b15-6f40ab3a44a3"
+                }
             },
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 2,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "FZ",
-                        "flightNumber": "579",
-                        "from": "DXB",
-                        "to": "CMB",
-                        "departureDate": "2026-10-02",
-                        "segmentSequence": 1,
-                        "departureTime": "01:45:00",
-                        "arrivalDate": "2026-10-02",
-                        "arrivalTime": "08:10:00",
-                        "cabin": "Economy",
-                        "classOfService": "Q",
-                        "AvailabilitySourceCode": "S",
-                        "ContentSource": "GDS"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 1,
-                "passengerTypeCode": "INF"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 10,
-                "passengerTypeCode": "CNN"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Standard"
-            }
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "EK_CPO0"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "EKp17"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "EK_CPO1"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "EKp45"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'
