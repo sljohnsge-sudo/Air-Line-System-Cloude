@@ -2035,6 +2035,9 @@ class PricingSettingsRequest(BaseModel):
     ancillary_markup_mode: str = Field(default="percent", description="'percent' or 'fixed' -- Travelport ancillary (extra baggage/services) markup")
     ancillary_markup_percent: float = Field(default=0.0, ge=0)
     ancillary_markup_fixed: float = Field(default=0.0, ge=0)
+    refund_charge_mode: str = Field(default="percent", description="'percent' or 'fixed' -- service charge deducted from a refund, on top of the airline's own fare-rule penalty")
+    refund_charge_percent: float = Field(default=0.0, ge=0)
+    refund_charge_fixed: float = Field(default=0.0, ge=0)
 
 
 @app.post("/api/admin/login")
@@ -2058,7 +2061,8 @@ def put_pricing_settings(request: PricingSettingsRequest, _admin: dict = Depends
     if (request.ticket_markup_mode not in ("percent", "fixed")
             or request.seat_markup_mode not in ("percent", "fixed")
             or request.amadeus_ticket_markup_mode not in ("percent", "fixed")
-            or request.ancillary_markup_mode not in ("percent", "fixed")):
+            or request.ancillary_markup_mode not in ("percent", "fixed")
+            or request.refund_charge_mode not in ("percent", "fixed")):
         raise HTTPException(status_code=422, detail="markup_mode must be 'percent' or 'fixed'")
     return database.update_pricing_settings(
         request.ticket_markup_mode, request.ticket_markup_percent, request.ticket_markup_fixed,
@@ -2066,6 +2070,7 @@ def put_pricing_settings(request: PricingSettingsRequest, _admin: dict = Depends
         request.markup_scope,
         request.amadeus_ticket_markup_mode, request.amadeus_ticket_markup_percent, request.amadeus_ticket_markup_fixed,
         request.ancillary_markup_mode, request.ancillary_markup_percent, request.ancillary_markup_fixed,
+        request.refund_charge_mode, request.refund_charge_percent, request.refund_charge_fixed,
     )
 
 

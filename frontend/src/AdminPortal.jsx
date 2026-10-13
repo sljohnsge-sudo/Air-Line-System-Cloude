@@ -1089,6 +1089,36 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
               {settings.markup_scope === 'separate' && markupField('amadeus_ticket', 'Flight Ticket Margin — Amadeus')}
               {markupField('seat', 'Seat Booking Margin')}
               {markupField('ancillary', 'Extra Baggage / Ancillary Margin')}
+              {settings && (
+                <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', flex: 1, minWidth: '260px' }}>
+                  <h4 style={{ margin: '0 0 0.4rem', fontSize: '0.95rem', color: 'var(--gs-dark)' }}>Refund Service Charge</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>
+                    Reference only — not auto-deducted. Shown to staff reviewing a Cancellation Request, on top of whatever the airline's own fare rules withhold.
+                  </p>
+                  <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                      <input type="radio" checked={settings.refund_charge_mode === 'percent'}
+                        onChange={() => setSettings(s => ({ ...s, refund_charge_mode: 'percent' }))} />
+                      Percentage
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                      <input type="radio" checked={settings.refund_charge_mode === 'fixed'}
+                        onChange={() => setSettings(s => ({ ...s, refund_charge_mode: 'fixed' }))} />
+                      Fixed Amount
+                    </label>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                    <label className="form-label">Percentage (%)</label>
+                    <input type="number" min="0" step="0.01" className="form-input" value={settings.refund_charge_percent}
+                      onChange={e => setSettings(s => ({ ...s, refund_charge_percent: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Fixed Amount</label>
+                    <input type="number" min="0" step="0.01" className="form-input" value={settings.refund_charge_fixed}
+                      onChange={e => setSettings(s => ({ ...s, refund_charge_fixed: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                </div>
+              )}
             </div>
             <button className="btn btn-primary" onClick={handleSaveSettings} disabled={saving}>
               {saving ? 'Saving…' : 'Save Pricing Settings'}
@@ -1280,6 +1310,11 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           Submitted via the B2C "Cancel Booking" form. Verify the booking and requester, then cancel it manually
           via Travelport (All Bookings tab) before marking Resolved.
         </p>
+        {settings && (settings.refund_charge_percent > 0 || settings.refund_charge_fixed > 0) && (
+          <p style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.8rem', color: '#78350f', marginTop: 0, marginBottom: '1rem' }}>
+            💰 Refund service charge to apply: {settings.refund_charge_mode === 'percent' ? `${settings.refund_charge_percent}%` : `${settings.refund_charge_fixed} (fixed)`} — set in Pricing &amp; Markup → Refund Service Charge.
+          </p>
+        )}
         {cancellationRequestsError && <div className="error-banner">{cancellationRequestsError}</div>}
         {cancellationRequestsLoading ? (
           <div className="loading-state"><div className="spinner"></div><p>Loading requests...</p></div>
