@@ -8103,15 +8103,43 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   const flightGrandTotalReview = bdkReview.length > 0
                     ? bdkReview.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0)
                     : (selectedFlight.price || 0);
+                  const sumPbFieldReview = (field) => bdkReview.reduce((s, k) => {
+                    const pb = selectedFlight.price_breakdown[k];
+                    return s + (pb[field] || 0) * (pb.quantity || 1);
+                  }, 0);
+                  const hasTaxBreakdownReview = bdkReview.length > 0 && bdkReview.every(k => selectedFlight.price_breakdown[k].fuel_surcharge !== undefined);
                   const seatChargesReview = selectedSeats.reduce((acc, s) => acc + s.price, 0);
                   const ancillaryChargesReview = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
                   return (
                     <div style={{ background: '#fff8f8', border: '1px solid var(--gs-crimson)', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          <span>Flight Fare ({travelers.length} Pax):</span>
-                          <strong>{selectedFlight.currency} {flightGrandTotalReview.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
-                        </div>
+                        {hasTaxBreakdownReview ? (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                              <span>Base Airline Fare ({travelers.length} Pax):</span>
+                              <strong>{selectedFlight.currency} {sumPbFieldReview('base_price').toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                              <span>Fuel Surcharge:</span>
+                              <strong>{selectedFlight.currency} {sumPbFieldReview('fuel_surcharge').toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                              <span>Airline &amp; Government Taxes:</span>
+                              <strong>{selectedFlight.currency} {sumPbFieldReview('other_taxes').toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                            </div>
+                            {sumPbFieldReview('fees') > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                <span>Other Airline Fees:</span>
+                                <strong>{selectedFlight.currency} {sumPbFieldReview('fees').toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            <span>Flight Fare ({travelers.length} Pax):</span>
+                            <strong>{selectedFlight.currency} {flightGrandTotalReview.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                          </div>
+                        )}
                         {selectedSeats.length > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                             <span>Seat Selection Charges:</span>
@@ -8168,10 +8196,43 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   const flightGrandTotalPay = bdkPay.length > 0
                     ? bdkPay.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0)
                     : (selectedFlight.price || 0);
+                  const sumPbFieldPay = (field) => bdkPay.reduce((s, k) => {
+                    const pb = selectedFlight.price_breakdown[k];
+                    return s + (pb[field] || 0) * (pb.quantity || 1);
+                  }, 0);
+                  const hasTaxBreakdownPay = bdkPay.length > 0 && bdkPay.every(k => selectedFlight.price_breakdown[k].fuel_surcharge !== undefined);
                   const seatChargesPay = selectedSeats.reduce((acc, s) => acc + s.price, 0);
                   const ancillaryChargesPay = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
                   return (
                     <div style={{ background: '#fff8f8', border: '1px solid var(--gs-crimson)', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
+                      {hasTaxBreakdownPay && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px dashed #cbd5e1' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>Base Airline Fare:</span>
+                            <span>{selectedFlight.currency} {sumPbFieldPay('base_price').toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>Fuel Surcharge:</span>
+                            <span>{selectedFlight.currency} {sumPbFieldPay('fuel_surcharge').toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>Airline &amp; Government Taxes:</span>
+                            <span>{selectedFlight.currency} {sumPbFieldPay('other_taxes').toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          {sumPbFieldPay('fees') > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              <span>Other Airline Fees:</span>
+                              <span>{selectedFlight.currency} {sumPbFieldPay('fees').toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            </div>
+                          )}
+                          {(seatChargesPay > 0 || ancillaryChargesPay > 0) && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              <span>Seats &amp; Extras:</span>
+                              <span>{selectedFlight.currency} {(seatChargesPay + ancillaryChargesPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '700', color: 'var(--gs-crimson)' }}>
                         <span style={{ fontSize: '0.88rem' }}>Amount to Charge:</span>
                         <span style={{ fontSize: '1.3rem' }}>
@@ -8588,9 +8649,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             }}>
               <button className="btn btn-secondary" onClick={() => handleRefreshTicket(issuedTicket.locator_code || issuedTicket.pnr)} disabled={refreshingTicket} style={{ background: '#7c3aed', color: 'white', border: '1px solid #7c3aed' }}>🔄 {refreshingTicket ? 'Syncing...' : 'Sync PNR'}</button>
               <button className="btn btn-secondary" onClick={() => window.print()}>🖨 Print Ticket</button>
-              <button className="btn btn-secondary" onClick={handleDownloadPDF} style={{ background: '#0284c7', color: 'white', border: '1px solid #0284c7' }}>📥 Download PDF</button>
-              <button className="btn btn-secondary" onClick={handleShareWhatsApp} style={{ background: '#22c55e', color: 'white', border: '1px solid #22c55e' }}>💬 Share WhatsApp</button>
-              <button className="btn btn-secondary" onClick={handleShareEmail} style={{ background: '#64748b', color: 'white', border: '1px solid #64748b' }}>✉️ Share Email</button>
+              <button className="btn btn-secondary" onClick={handleDownloadPDF} title="Download PDF" aria-label="Download PDF" style={{ background: '#0284c7', color: 'white', border: '1px solid #0284c7', width: '44px', padding: 0, fontSize: '1.1rem' }}>📥</button>
+              <button className="btn btn-secondary" onClick={handleShareWhatsApp} title="Share via WhatsApp" aria-label="Share via WhatsApp" style={{ background: '#22c55e', color: 'white', border: '1px solid #22c55e', width: '44px', padding: 0, fontSize: '1.1rem' }}>💬</button>
+              <button className="btn btn-secondary" onClick={handleShareEmail} title="Share via Email" aria-label="Share via Email" style={{ background: '#64748b', color: 'white', border: '1px solid #64748b', width: '44px', padding: 0, fontSize: '1.1rem' }}>✉️</button>
               <button className="btn btn-primary" onClick={() => { closeBookingFlow(); setActiveTab('account'); }}>My Account</button>
               <button className="btn btn-secondary" onClick={closeBookingFlow}>Close</button>
             </div>

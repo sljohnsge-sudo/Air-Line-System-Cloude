@@ -903,9 +903,26 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
                             fees_val = float(amount_dict.get("Fees", {}).get("TotalFees", 0)) * markup_scale
                             single_total = float(amount_dict.get("Total", base_val + tax_val + fees_val)) * markup_scale
                             qty = int(pb.get("quantity", 1))
+                            # Same fuel-surcharge-vs-other-taxes split as the
+                            # final ticket's fare_breakdown (ticket_service.py)
+                            # — confirmed live that search-time Price.
+                            # PriceBreakdown[].Amount.Taxes.Tax[] carries the
+                            # same itemized taxCode array, so this can be
+                            # shown to the customer on Review/Payment, before
+                            # booking, not just after issuance.
+                            fuel_surcharge_val = 0.0
+                            other_taxes_val = 0.0
+                            for tax in (amount_dict.get("Taxes", {}).get("Tax", []) or []):
+                                tax_value = float(tax.get("value", 0) or 0) * markup_scale
+                                if tax.get("taxCode", "") in ("YQ", "YR"):
+                                    fuel_surcharge_val += tax_value
+                                else:
+                                    other_taxes_val += tax_value
                             price_breakdown[ptc] = {
                                 "base_price": round(base_val, 2),
                                 "taxes": round(tax_val, 2),
+                                "fuel_surcharge": round(fuel_surcharge_val, 2),
+                                "other_taxes": round(other_taxes_val, 2),
                                 "fees": round(fees_val, 2),
                                 "single_price": round(single_total, 2),
                                 "quantity": qty,
