@@ -911,6 +911,24 @@ def get_pending_email_change_request(customer_id: int) -> dict | None:
     return row
 
 
+def count_recent_email_change_requests(customer_id: int, days: int = 365) -> int:
+    """Non-rejected (pending/approved) requests in the trailing window — used
+    to enforce the 2-per-year limit. A rejected request (e.g. a typo'd new
+    address) doesn't burn the customer's quota."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """SELECT COUNT(*) AS cnt FROM email_change_requests
+           WHERE customer_id=%s AND status IN ('pending','approved')
+           AND requested_at >= DATE_SUB(NOW(), INTERVAL %s DAY)""",
+        (customer_id, days),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row["cnt"]
+
+
 def get_email_change_requests(status: str | None = None) -> list[dict]:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -1029,6 +1047,19 @@ def get_cancellation_requests(status: str | None = None) -> list[dict]:
         cursor.execute("SELECT * FROM cancellation_requests WHERE status=%s ORDER BY requested_at DESC", (status,))
     else:
         cursor.execute("SELECT * FROM cancellation_requests ORDER BY requested_at DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_cancellation_requests_for_customer(customer_id: int) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM cancellation_requests WHERE customer_id=%s ORDER BY requested_at DESC",
+        (customer_id,),
+    )
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -1722,6 +1753,19 @@ def get_visa_consultations(status: str | None = None) -> list[dict]:
         cursor.execute("SELECT * FROM visa_consultations WHERE status=%s ORDER BY slot_date, slot_time", (status,))
     else:
         cursor.execute("SELECT * FROM visa_consultations ORDER BY slot_date, slot_time")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_visa_consultations_for_customer(customer_id: int) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM visa_consultations WHERE customer_id=%s ORDER BY requested_at DESC",
+        (customer_id,),
+    )
     rows = cursor.fetchall()
     cursor.close()
     conn.close()

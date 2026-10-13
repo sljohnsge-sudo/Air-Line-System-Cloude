@@ -91,7 +91,7 @@ app = FastAPI(
 # bug on the frontend until this was reordered).
 FEATURE_GATED_PREFIXES = {
     "hotels_enabled": ("/api/hotels",),
-    "visa_enabled": ("/api/visa-",),
+    "visa_enabled": ("/api/visa-", "/api/customers/me/visa-"),
     "packages_enabled": ("/api/packages",),
 }
 
@@ -2752,6 +2752,9 @@ class EmailChangeRequestBody(BaseModel):
     new_email: EmailStr
 
 
+EMAIL_CHANGE_REQUESTS_PER_YEAR = 2
+
+
 @app.post("/api/customers/me/email-change-request", status_code=status.HTTP_201_CREATED)
 def customer_request_email_change(request: EmailChangeRequestBody, current: dict = Depends(auth.get_current_customer)):
     if database.get_pending_email_change_request(current["customer_id"]):
@@ -2760,6 +2763,12 @@ def customer_request_email_change(request: EmailChangeRequestBody, current: dict
         raise HTTPException(status_code=422, detail="That is already your current email address.")
     if database.get_customer_by_email(str(request.new_email)):
         raise HTTPException(status_code=409, detail="An account with that email already exists.")
+    used = database.count_recent_email_change_requests(current["customer_id"], days=365)
+    if used >= EMAIL_CHANGE_REQUESTS_PER_YEAR:
+        raise HTTPException(
+            status_code=429,
+            detail=f"You've used all {EMAIL_CHANGE_REQUESTS_PER_YEAR} email change requests allowed in a 12-month period. Please contact support if this is urgent.",
+        )
     req = database.create_email_change_request(current["customer_id"], current["sub"], str(request.new_email))
     return req
 
@@ -2798,6 +2807,39 @@ def submit_cancellation_request(request: CancellationRequestCreate, customer_id:
         request.all_passengers_cancelling,
     )
     return req
+
+
+@app.get("/api/customers/me/cancellation-requests")
+def customer_my_cancellation_requests(current: dict = Depends(auth.get_current_customer)):
+    return {"requests": database.get_cancellation_requests_for_customer(current["customer_id"])}
+
+
+# ── Visa Status Check & History (Customer) ───────────────────────────────────
+# Looks up the admin-curated visa_requirements table (same data the Admin
+# Portal manages) by nationality + destination, plus the customer's own past
+# visa consultation bookings — no new data model, just customer-scoped reads
+# of tables that already exist for the admin/B2C visa consultation flow.
+
+@app.get("/api/customers/me/visa-status")
+def customer_visa_status(
+    nationality: str = Query(..., min_length=2, max_length=100),
+    destination: str = Query(..., min_length=2, max_length=100),
+    _current: dict = Depends(auth.get_current_customer),
+):
+    requirement = database.get_visa_requirement(nationality.strip(), destination.strip())
+    if not requirement:
+        return {
+            "found": False,
+            "nationality": nationality.strip(),
+            "destination": destination.strip(),
+            "message": "We don't have this route documented yet. Please book a visa consultation for personalised guidance.",
+        }
+    return {"found": True, **requirement}
+
+
+@app.get("/api/customers/me/visa-history")
+def customer_visa_history(current: dict = Depends(auth.get_current_customer)):
+    return {"consultations": database.get_visa_consultations_for_customer(current["customer_id"])}
 
 
 # ═══════════════════════════════════════════════════════════════════════════

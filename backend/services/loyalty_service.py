@@ -10,6 +10,31 @@ loyalty_accounts/loyalty_transactions for why.
 
 import database
 
+# Static perk copy shown on the customer's loyalty card — tier thresholds
+# themselves stay admin-configurable (see get_settings), but the benefit
+# descriptions are fixed business copy, not data the admin edits.
+TIER_BENEFITS = {
+    "Bronze": [
+        "Earn points on every ticketed booking",
+        "Email support priority queue",
+    ],
+    "Silver": [
+        "Everything in Bronze",
+        "Free seat selection on domestic sectors",
+        "Priority email support",
+    ],
+    "Gold": [
+        "Everything in Silver",
+        "One free date-change waiver per year",
+        "Dedicated phone support line",
+    ],
+    "Platinum": [
+        "Everything in Gold",
+        "Complimentary excess baggage allowance (airline permitting)",
+        "Fast-track visa consultation booking",
+    ],
+}
+
 
 def get_settings() -> dict:
     return database.get_loyalty_settings()
@@ -55,10 +80,13 @@ def get_loyalty_summary(email: str) -> dict:
         next_threshold = settings.get("tier_gold_threshold", 5000)
     elif tier == "Gold":
         next_threshold = settings.get("tier_platinum_threshold", 15000)
+    next_tier = {"Bronze": "Silver", "Silver": "Gold", "Gold": "Platinum", "Platinum": None}[tier]
     return {
         "email": email,
         "points_balance": balance,
         "tier": tier,
         "points_to_next_tier": (next_threshold - balance) if next_threshold else None,
-        "next_tier": {"Bronze": "Silver", "Silver": "Gold", "Gold": "Platinum", "Platinum": None}[tier],
+        "next_tier": next_tier,
+        "tier_benefits": TIER_BENEFITS.get(tier, []),
+        "next_tier_benefits": TIER_BENEFITS.get(next_tier, []) if next_tier else [],
     }

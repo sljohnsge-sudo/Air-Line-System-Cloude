@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import BookingCard from './BookingCard.jsx';
 
-export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation }) {
+export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation, visaEnabled }) {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +22,15 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [emailFormMsg, setEmailFormMsg] = useState('');
   const [emailFormOpen, setEmailFormOpen] = useState(false);
   const [emailSubmitting, setEmailSubmitting] = useState(false);
+
+  const [cancellationRequests, setCancellationRequests] = useState([]);
+
+  const [visaNationality, setVisaNationality] = useState('');
+  const [visaDestination, setVisaDestination] = useState('');
+  const [visaResult, setVisaResult] = useState(null);
+  const [visaError, setVisaError] = useState('');
+  const [visaChecking, setVisaChecking] = useState(false);
+  const [visaHistory, setVisaHistory] = useState([]);
 
   const loadBookings = async () => {
     setLoadingBookings(true);
@@ -59,13 +68,54 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     } catch { /* non-critical, ignore */ }
   };
 
+  const loadCancellationRequests = async () => {
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/customers/me/cancellation-requests`, {
+        headers: { Authorization: `Bearer ${customerToken}` },
+      });
+      const data = await handleApiResponse(res, 'Failed to load cancellation requests');
+      setCancellationRequests(data.requests || []);
+    } catch { /* non-critical, ignore */ }
+  };
+
+  const loadVisaHistory = async () => {
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/customers/me/visa-history`, {
+        headers: { Authorization: `Bearer ${customerToken}` },
+      });
+      const data = await handleApiResponse(res, 'Failed to load visa consultation history');
+      setVisaHistory(data.consultations || []);
+    } catch { /* non-critical, ignore */ }
+  };
+
   useEffect(() => {
     if (customerToken) {
       loadBookings();
       loadLoyalty();
       loadEmailRequest();
+      loadCancellationRequests();
+      if (visaEnabled) loadVisaHistory();
     }
   }, [customerToken]);
+
+  const checkVisaStatus = async (e) => {
+    e.preventDefault();
+    setVisaError('');
+    setVisaResult(null);
+    setVisaChecking(true);
+    try {
+      const params = new URLSearchParams({ nationality: visaNationality, destination: visaDestination });
+      const res = await fetchWithRetry(`${API_BASE}/customers/me/visa-status?${params}`, {
+        headers: { Authorization: `Bearer ${customerToken}` },
+      });
+      const data = await handleApiResponse(res, 'Failed to check visa status');
+      setVisaResult(data);
+    } catch (err) {
+      setVisaError(err.message);
+    } finally {
+      setVisaChecking(false);
+    }
+  };
 
   const submitEmailChange = async (e) => {
     e.preventDefault();
@@ -236,6 +286,26 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
               </div>
             </div>
           </div>
+          {(loyalty.tier_benefits?.length > 0 || loyalty.next_tier_benefits?.length > 0) && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+              {loyalty.tier_benefits?.length > 0 && (
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Your {loyalty.tier} Benefits</div>
+                  <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    {loyalty.tier_benefits.map((b, i) => <li key={i} style={{ marginBottom: '0.2rem' }}>{b}</li>)}
+                  </ul>
+                </div>
+              )}
+              {loyalty.next_tier && loyalty.next_tier_benefits?.length > 0 && (
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Unlock at {loyalty.next_tier}</div>
+                  <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    {loyalty.next_tier_benefits.map((b, i) => <li key={i} style={{ marginBottom: '0.2rem' }}>{b}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           {loyalty.recent_transactions?.length > 0 && (
             <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
               <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Recent Activity</div>
@@ -247,6 +317,71 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {visaEnabled && (
+        <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+          <h3 className="results-heading" style={{ marginTop: 0 }}>Visa Status Check</h3>
+          <form onSubmit={checkVisaStatus} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '180px' }}>
+              <label className="form-label">Your Nationality</label>
+              <input className="form-input" required placeholder="e.g. Sri Lanka" value={visaNationality} onChange={e => setVisaNationality(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '180px' }}>
+              <label className="form-label">Destination</label>
+              <input className="form-input" required placeholder="e.g. United Kingdom" value={visaDestination} onChange={e => setVisaDestination(e.target.value)} />
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={visaChecking}>
+              {visaChecking ? 'Checking…' : 'Check Status'}
+            </button>
+          </form>
+          {visaError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{visaError}</div>}
+          {visaResult && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+              {visaResult.found ? (
+                <>
+                  <div style={{ fontWeight: '800', color: 'var(--gs-dark)' }}>
+                    {visaResult.nationality} → {visaResult.destination}: <span style={{ color: visaResult.visa_required === 'not_required' || visaResult.visa_required === 'visa_free' ? '#166534' : '#b45309' }}>{visaResult.visa_required}</span>
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.4rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '0.4rem' }}>
+                    {visaResult.visa_type && <div><strong>Type:</strong> {visaResult.visa_type}</div>}
+                    {visaResult.processing_time && <div><strong>Processing:</strong> {visaResult.processing_time}</div>}
+                    {visaResult.validity && <div><strong>Validity:</strong> {visaResult.validity}</div>}
+                  </div>
+                  {visaResult.notes && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>{visaResult.notes}</p>}
+                </>
+              ) : (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{visaResult.message}</p>
+              )}
+            </div>
+          )}
+          {visaHistory.length > 0 && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Your Visa Consultation History</div>
+              {visaHistory.map(v => (
+                <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.3rem 0', borderBottom: '1px solid var(--border-color)' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>{v.nationality} → {v.destination} · {v.slot_date} {v.slot_time}</span>
+                  <span style={{ fontWeight: '700', textTransform: 'capitalize' }}>{v.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {cancellationRequests.length > 0 && (
+        <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+          <h3 className="results-heading" style={{ marginTop: 0 }}>My Cancellation Requests</h3>
+          {cancellationRequests.map(r => (
+            <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.4rem 0', borderBottom: '1px solid var(--border-color)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>PNR {r.booking_locator} · Travel {r.travel_date}</span>
+              <span style={{
+                fontWeight: '700', textTransform: 'capitalize',
+                color: r.status === 'resolved' ? '#166534' : r.status === 'rejected' ? '#991b1b' : '#b45309',
+              }}>{r.status}</span>
+            </div>
+          ))}
         </section>
       )}
 

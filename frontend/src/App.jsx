@@ -6675,6 +6675,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           onViewTicket={handleViewTicket}
           onOpenInvoice={() => openInvoiceAs('customer')}
           onRequestCancellation={openCancellationRequest}
+          visaEnabled={featureFlags.visa_enabled}
         />
       )}
 
