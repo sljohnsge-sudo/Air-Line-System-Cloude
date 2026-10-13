@@ -410,7 +410,11 @@ async def search_flights(request: FlightSearchRequest):
             legs=legs,
             content_source=request.content_source
         )
-        return services.parse_flight_offers(raw, legs=legs)
+        return services.parse_flight_offers(
+            raw, legs=legs,
+            origin=request.origin.upper() if request.origin else None,
+            destination=request.destination.upper() if request.destination else None,
+        )
 
     tp_task = asyncio.to_thread(_search_travelport) if tp_enabled else None
     # Amadeus is only wired for a plain one-way search right now.
@@ -1353,7 +1357,7 @@ def ndc_search(request: NdcSearchRequest):
             adult_count=request.adult_count, child_count=request.child_count,
             infant_count=request.infant_count, legs=legs, content_source="NDC",
         )
-        offers = services.parse_flight_offers(raw, legs=legs)
+        offers = services.parse_flight_offers(raw, legs=legs, origin=None if legs else o, destination=None if legs else d)
     except Exception as e:
         logger.error(f"NDC search failed: {e}")
         raise HTTPException(status_code=502, detail=f"Travelport NDC search error: {str(e)[:400]}")

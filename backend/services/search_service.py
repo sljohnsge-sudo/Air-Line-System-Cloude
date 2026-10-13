@@ -538,7 +538,7 @@ def parse_penalties(terms: dict, prod_refs: list) -> tuple:
     return change_desc, cancel_desc
 
 
-def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list[dict]:
+def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin: Optional[str] = None, destination: Optional[str] = None) -> list[dict]:
     """
     Parse Travelport v11 catalog search response into simplified flight offer objects.
 
@@ -549,6 +549,18 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
             and return offers are paired by CombinabilityCode into merged itinerary objects
             (see pair_round_trip_offers). Otherwise (one-way, or 3+ legs / multi-city) the
             flat per-direction offer list is returned unchanged.
+        origin, destination (str|None): For a plain one-way search (legs is None), the
+            requested origin/destination — used only for the exact-airport filter below.
+
+    Confirmed live (2026-10): even when a specific airport (not an ambiguous city code
+    like "LON") is requested, Travelport's GDS content can still return itineraries
+    landing at a *different* nearby airport entirely — e.g. requesting CMB->LHR came
+    back with real, bookable-looking offers whose segments actually end at LGW (27 of
+    107 offers on one test search). This isn't a city-code ambiguity on our side (the
+    request always carries one exact IATA code per leg); it's the GDS including
+    "London area" alternates unasked. Every offer is filtered below to keep only ones
+    whose actual departure/arrival exactly match a requested leg, before any one-way
+    display or round-trip/multi-city pairing happens.
     """
     offers = []
     pricing_settings = get_pricing_settings()
@@ -1022,6 +1034,28 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None) -> list
     except Exception as e:
         logger.error(f"Error parsing flight offers: {e}", exc_info=True)
         return offers
+
+    # ── Exact-airport filter ──────────────────────────────────────────────
+    # See the "Confirmed live" note in the docstring above — drop any offer
+    # whose actual departure/arrival doesn't exactly match a requested leg,
+    # before it can reach a customer or get paired into a round-trip card.
+    effective_legs = legs or ([{"origin": origin, "destination": destination}] if origin and destination else None)
+    if effective_legs:
+        requested_pairs = {
+            ((l.get("origin") or "").upper(), (l.get("destination") or "").upper())
+            for l in effective_legs
+        }
+        before_count = len(offers)
+        offers = [
+            o for o in offers
+            if ((o.get("departure_airport") or "").upper(), (o.get("arrival_airport") or "").upper()) in requested_pairs
+        ]
+        dropped = before_count - len(offers)
+        if dropped:
+            logger.info(
+                f"Filtered out {dropped} of {before_count} offer(s) whose actual departure/arrival airport "
+                f"didn't exactly match a requested leg {sorted(requested_pairs)} (GDS nearby-airport alternates)"
+            )
 
     # ── Round-trip / multi-city pairing ─────────────────────────────────────
     if legs and len(legs) == 2:
