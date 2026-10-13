@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">4d99fe09-520a-4d8b-8dfa-ee40ec09dd51</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/PNRADD_22_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><awsse:Session xmlns:awsse="http://xml.amadeus.com/2010/06/Session_v3" TransactionStatusCode="InSeries"><awsse:SessionId>03HJ1MT459</awsse:SessionId><awsse:SequenceNumber>2</awsse:SequenceNumber><awsse:SecurityToken>1KB3LEQDN658H1JDSSIO6T1LNY</awsse:SecurityToken></awsse:Session>
+  </soapenv:Header>
+  <soapenv:Body>
+<PNR_AddMultiElements xmlns="http://xml.amadeus.com/PNRADD_22_1_1A">
+      <reservationInfo><reservation/></reservationInfo>
+      <pnrActions><optionCode>0</optionCode></pnrActions>
+      <dataElementsMaster>
+        <marker1/>
+        <dataElementsIndiv>
+        <elementManagementData>
+          <reference><qualifier>PT</qualifier><number>2</number></reference>
+          <segmentName>SSR</segmentName>
+        </elementManagementData>
+        <serviceRequest>
+          <ssr>
+            <type>DOCS</type>
+            <status>HK</status>
+            <quantity>1</quantity>
+            <companyId>QR</companyId>
+            <freetext>P/LK/N3232434/LK/01MAY26/M/31OCT26/SFDSDF/SDFSF</freetext>
+          </ssr>
+        </serviceRequest>
+      </dataElementsIndiv><dataElementsIndiv>
+        <elementManagementData>
+          <reference><qualifier>PT</qualifier><number>2</number></reference>
+          <segmentName>SSR</segmentName>
+        </elementManagementData>
+        <serviceRequest>
+          <ssr>
+            <type>FOID</type>
+            <status>HK</status>
+            <quantity>1</quantity>
+            <companyId>QR</companyId>
+            <freetext>PPN3232434</freetext>
+          </ssr>
+        </serviceRequest>
+      </dataElementsIndiv>
+      </dataElementsMaster>
+    </PNR_AddMultiElements>
+  </soapenv:Body>
+</soapenv:Envelope>

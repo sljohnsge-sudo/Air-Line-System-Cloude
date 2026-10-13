@@ -1,10 +1,93 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/reservation/reservations/470f902d-df88-4ed8-813e-a2319bf04036' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAzMzc4NjYsImV4cCI6MTc5MDQyNDI2NiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ktEKfA9b-4-dDEqHyVUOQFVqeZFIlJd1dGLrfVGh9a7i1JI9J7a3lkrKSGRXEr05H_5nZL8rIbA6hwQLXt3vP8pG6saSDVLSxozYrRNfqDWbFIdb84Q4Fh2WxWWKITQz16YGfq4541ARkejCBAzmq1BGGqO9PSVjA2l7US9Fxpss_qM8UzFNoLNgiEF4Wc-7lyPhCwVqt7AMKj_UGsthRYKMlLdWK254QFHec24SsoOh9w8EtYLwaNADxjcVVIhsc0L2y0shQd6nUc41hQdhxkUAixPpY-aZALZ6TLiE3sAsIefsXcflaTg6iktZHuaff4_671SmhTMEsZj6RAz0QQ' \
+curl --location --globoff 'https://api.pp.travelport.net/11/hotel/book/reservations/build' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE3NzczOTQsImV4cCI6MTc5MTg2Mzc5NCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.bna-815D7evJ1afaUKGpN460rQbCemSfEO6OXO8eYx2a2cBoD78OjoBM6_jmqMsM1FSrrbO3i4X4crQPZYZLp3HWFy6j7sCtqQlH5LTZarWedvdrizHEmbHXULMeR2q0Ax8dRiuaAsFu6fSXjIMp0GroHQ6sqryFTmRZT2y0Y2UX5TeO33cIFv7YdLx4-PdmWYGK6dnp81z_c54kkiLgV1jiBwCYU0VR8p_Tg6MXUmc9U89dyo4YJsuZH6f_ktVUaYO08SkV1g-6hkgcjHZ8u3VCQbO9e_BCMuxXIBAe9_x9W_pHhqZ9Vj1ZhKMMKoonHwIhFP7Dl5qA5B_EBle-RQ' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
 --header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
---header 'taxbreakdown: true' \
---header 'accept-version: 11' \
---header 'content-version: 11' \
---header 'traceid: TraceID_E4468F343739'
+--header 'tvp-pcc-core: 7F3C_1G' \
+--header 'traceid: TraceID_EF499A18A35E' \
+--header 'tvp-correlation-id: e2eb1a52-de49-4603-8b2c-4b881c644e3c' \
+--data-raw '{
+    "ReservationQueryBuild": {
+        "@type": "ReservationQueryBuild",
+        "ReservationBuild": {
+            "@type": "ReservationBuildFromCatalogOffering",
+            "BuildFromCatalogOfferingHospitality": {
+                "@type": "BuildFromCatalogOfferingHospitality",
+                "CatalogOfferingIdentifier": {
+                    "value": "bea825fa-d17d-48bb-bc96-12e87485cb5b:af71cb3080af72a3e8ccc51f5718f7a3"
+                }
+            },
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "PersonName": {
+                        "@type": "PersonNameDetail",
+                        "Given": "fds",
+                        "Surname": "fdsf"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": null,
+                            "areaCityCode": null,
+                            "phoneNumber": "+97434344"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "value": "aaa@gmail.com"
+                        }
+                    ]
+                }
+            ],
+            "Payment": [
+                {
+                    "@type": "Payment",
+                    "Amount": {
+                        "code": "INR",
+                        "value": 17257.46
+                    },
+                    "guaranteeInd": true,
+                    "depositInd": false
+                }
+            ],
+            "FormOfPayment": [
+                {
+                    "@type": "FormOfPaymentPaymentCard",
+                    "PaymentCard": {
+                        "@type": "PaymentCardDetail",
+                        "expireDate": "1226",
+                        "CardType": "Credit",
+                        "CardCode": "VI",
+                        "CardHolderName": "Test and Test",
+                        "CardNumber": {
+                            "@type": "CardNumber",
+                            "PlainText": "4564456445644564"
+                        },
+                        "SeriesCode": {
+                            "@type": "SeriesCode",
+                            "PlainText": "582"
+                        },
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Given": "Test",
+                            "Surname": "and Test"
+                        },
+                        "Address": {
+                            "@type": "AddressDetail",
+                            "AddressLine": [
+                                ""
+                            ],
+                            "City": "",
+                            "Country": {
+                                "value": "LK"
+                            },
+                            "PostalCode": ""
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}'

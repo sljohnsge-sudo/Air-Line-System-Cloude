@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <add:MessageID xmlns:add="http://www.w3.org/2005/08/addressing">df50c8dd-0996-4890-a586-678adb5058c1</add:MessageID><add:Action xmlns:add="http://www.w3.org/2005/08/addressing">http://webservices.amadeus.com/TPSCGQ_16_1_1A</add:Action><add:To xmlns:add="http://www.w3.org/2005/08/addressing">https://nodeD2.test.webservices.amadeus.com/1ASIWGSTMLR</add:To><oas:Security xmlns:oas="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:oas1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+      <oas:UsernameToken oas1:Id="UsernameToken-1">
+        <oas:Username>WSMLRGST</oas:Username>
+        <oas:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">I8ElLozDGoi1mAXm3TWWasUSXzc82w4HX+hYGar4U5g=</oas:Nonce>
+        <oas:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">d8MAQkyNdeSSRRp3g2EiWAnJDnU=</oas:Password>
+        <oas1:Created>2026-10-12T04:46:22.451Z</oas1:Created>
+      </oas:UsernameToken>
+    </oas:Security><AMA_SecurityHostedUser xmlns="http://xml.amadeus.com/2010/06/Security_v1"><UserID AgentDutyCode="SU" RequestorType="U" PseudoCityCode="CMBVS3299" POS_Type="1"/></AMA_SecurityHostedUser>
+  </soapenv:Header>
+  <soapenv:Body>
+<Service_StandaloneCatalogue xmlns="http://xml.amadeus.com/TPSCGQ_16_1_1A">
+      <passengerInfoGroup>
+        <specificTravellerDetails><travellerDetails><referenceNumber>1</referenceNumber></travellerDetails></specificTravellerDetails>
+        <fareInfo><valueQualifier>ADT</valueQualifier></fareInfo>
+      </passengerInfoGroup>
+      <flightInfo>
+          <flightDetails>
+            <flightDate>
+            <departureDate>131026</departureDate>
+            <departureTime>0435</departureTime>
+            <arrivalDate>131026</arrivalDate>
+            <arrivalTime>0655</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>CMB</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>DOH</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>QR</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>659</flightNumber>
+            <bookingClass>O</bookingClass>
+          </flightIdentification>
+            <itemNumber>1</itemNumber>
+          </flightDetails>
+        </flightInfo><flightInfo>
+          <flightDetails>
+            <flightDate>
+            <departureDate>131026</departureDate>
+            <departureTime>0755</departureTime>
+            <arrivalDate>131026</arrivalDate>
+            <arrivalTime>1015</arrivalTime>
+          </flightDate>
+          <boardPointDetails><trueLocationId>DOH</trueLocationId></boardPointDetails>
+          <offpointDetails><trueLocationId>DXB</trueLocationId></offpointDetails>
+          <companyDetails><marketingCompany>QR</marketingCompany></companyDetails>
+          <flightIdentification>
+            <flightNumber>1006</flightNumber>
+            <bookingClass>O</bookingClass>
+          </flightIdentification>
+            <itemNumber>2</itemNumber>
+          </flightDetails>
+        </flightInfo>
+      <pricingOption>
+          <pricingOptionKey><pricingOptionKey>FBA</pricingOptionKey></pricingOptionKey>
+          <optionDetail><criteriaDetails><attributeType>R1CFOIA</attributeType></criteriaDetails></optionDetail>
+          <paxSegTstReference><referenceDetails><type>S</type><value>1</value></referenceDetails></paxSegTstReference>
+        </pricingOption><pricingOption>
+          <pricingOptionKey><pricingOptionKey>FBA</pricingOptionKey></pricingOptionKey>
+          <optionDetail><criteriaDetails><attributeType>R1CFOIA</attributeType></criteriaDetails></optionDetail>
+          <paxSegTstReference><referenceDetails><type>S</type><value>2</value></referenceDetails></paxSegTstReference>
+        </pricingOption>
+      <pricingOption>
+        <pricingOptionKey><pricingOptionKey>GRP</pricingOptionKey></pricingOptionKey>
+        <optionDetail>
+          <criteriaDetails><attributeType>BG</attributeType></criteriaDetails>
+          <criteriaDetails><attributeType>ML</attributeType></criteriaDetails>
+        </optionDetail>
+      </pricingOption>
+      <pricingOption><pricingOptionKey><pricingOptionKey>SCD</pricingOptionKey></pricingOptionKey></pricingOption>
+      <pricingOption><pricingOptionKey><pricingOptionKey>OIS</pricingOptionKey></pricingOptionKey></pricingOption>
+      <pricingOption><pricingOptionKey><pricingOptionKey>MIF</pricingOptionKey></pricingOptionKey></pricingOption>
+    </Service_StandaloneCatalogue>
+  </soapenv:Body>
+</soapenv:Envelope>
