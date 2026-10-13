@@ -111,6 +111,28 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # Four-eyes approval queue for Pricing/Markup and Loyalty settings changes
+    # per the boss's requirement -- an admin's edit no longer applies
+    # immediately; it sits here until a DIFFERENT admin approves it (approving
+    # your own proposal is rejected server-side). proposed_data is the full
+    # settings payload as JSON, applied verbatim on approval.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings_change_requests (
+            id                   INT AUTO_INCREMENT PRIMARY KEY,
+            setting_type         VARCHAR(20) NOT NULL,
+            proposed_data        TEXT NOT NULL,
+            proposed_by_admin_id INT NOT NULL,
+            status               VARCHAR(20) NOT NULL DEFAULT 'pending',
+            reviewed_by_admin_id INT NULL,
+            admin_note           VARCHAR(500),
+            requested_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at          DATETIME NULL,
+            CONSTRAINT fk_settings_change_proposer FOREIGN KEY (proposed_by_admin_id) REFERENCES admins(id) ON DELETE CASCADE,
+            CONSTRAINT fk_settings_change_reviewer FOREIGN KEY (reviewed_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+            INDEX idx_settings_change_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS customers (
             id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -2166,6 +2188,96 @@ def get_admin_by_username(username: str) -> dict | None:
     cursor.close()
     conn.close()
     return row
+
+
+def list_admins() -> list[dict]:
+    """Never includes password_hash."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, username, full_name, created_at FROM admins ORDER BY created_at")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+# ── Settings Change Requests (four-eyes approval for Pricing/Loyalty) ────────
+
+def create_settings_change_request(setting_type: str, proposed_data: dict, proposed_by_admin_id: int) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "INSERT INTO settings_change_requests (setting_type, proposed_data, proposed_by_admin_id) VALUES (%s,%s,%s)",
+            (setting_type, json.dumps(proposed_data), proposed_by_admin_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM settings_change_requests WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_settings_change_requests(status: str | None = None) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    query = """
+        SELECT r.*, p.username AS proposed_by_username, rv.username AS reviewed_by_username
+        FROM settings_change_requests r
+        JOIN admins p ON p.id = r.proposed_by_admin_id
+        LEFT JOIN admins rv ON rv.id = r.reviewed_by_admin_id
+    """
+    if status:
+        query += " WHERE r.status=%s ORDER BY r.requested_at DESC"
+        cursor.execute(query, (status,))
+    else:
+        query += " ORDER BY r.requested_at DESC"
+        cursor.execute(query)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    for row in rows:
+        row["proposed_data"] = json.loads(row["proposed_data"])
+    return rows
+
+
+def get_settings_change_request_by_id(request_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM settings_change_requests WHERE id=%s", (request_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if row:
+        row["proposed_data"] = json.loads(row["proposed_data"])
+    return row
+
+
+def resolve_settings_change_request(request_id: int, status: str, reviewed_by_admin_id: int, admin_note: str | None) -> dict:
+    """status must be 'approved' or 'rejected'."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "UPDATE settings_change_requests SET status=%s, reviewed_by_admin_id=%s, admin_note=%s, reviewed_at=NOW() WHERE id=%s",
+            (status, reviewed_by_admin_id, admin_note, request_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM settings_change_requests WHERE id=%s", (request_id,))
+        row = cursor.fetchone()
+        if row:
+            row["proposed_data"] = json.loads(row["proposed_data"])
+        return row
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # ---------------------------------------------------------------------------

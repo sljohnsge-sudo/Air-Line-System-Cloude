@@ -10,6 +10,31 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [activeAdminSection, setActiveAdminSection] = useState('pricing');
   const [visaSectionOpen, setVisaSectionOpen] = useState(false);
 
+  // Decoded from the JWT (unsigned, display-only -- the real trust boundary
+  // is server-side) so the UI can grey out "Approve" on an admin's own
+  // pending settings change. The real self-approval block is enforced by
+  // the backend regardless of what this shows.
+  const currentAdminId = (() => {
+    try {
+      const payload = JSON.parse(atob(adminToken.split('.')[1]));
+      return payload.admin_id ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const [pendingSettingsChanges, setPendingSettingsChanges] = useState([]);
+  const [pendingSettingsChangesError, setPendingSettingsChangesError] = useState('');
+  const [settingsChangeActionId, setSettingsChangeActionId] = useState(null);
+
+  const [adminsList, setAdminsList] = useState([]);
+  const [adminsError, setAdminsError] = useState('');
+  const emptyNewAdminForm = { username: '', password: '', full_name: '' };
+  const [newAdminForm, setNewAdminForm] = useState(emptyNewAdminForm);
+  const [newAdminSubmitting, setNewAdminSubmitting] = useState(false);
+  const [newAdminError, setNewAdminError] = useState('');
+  const [newAdminMsg, setNewAdminMsg] = useState('');
+
   const [settings, setSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsError, setSettingsError] = useState('');
@@ -175,6 +200,65 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setLoyaltySettings(data);
     } catch (err) {
       setLoyaltySettingsError(err.message);
+    }
+  };
+
+  const loadPendingSettingsChanges = async () => {
+    setPendingSettingsChangesError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/settings-change-requests?status=pending`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load pending settings changes');
+      setPendingSettingsChanges(data.requests || []);
+    } catch (err) {
+      setPendingSettingsChangesError(err.message);
+    }
+  };
+
+  const reviewSettingsChange = async (id, action) => {
+    setSettingsChangeActionId(id);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/settings-change-requests/${id}/${action}`, {
+        method: 'POST', headers: authHeaders, body: JSON.stringify({}),
+      });
+      await adminApiResponse(res, `Failed to ${action} change request`);
+      loadPendingSettingsChanges();
+      loadSettings();
+      loadLoyaltySettings();
+    } catch (err) {
+      setPendingSettingsChangesError(err.message);
+    } finally {
+      setSettingsChangeActionId(null);
+    }
+  };
+
+  const loadAdmins = async () => {
+    setAdminsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/admins`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load admin accounts');
+      setAdminsList(data.admins || []);
+    } catch (err) {
+      setAdminsError(err.message);
+    }
+  };
+
+  const createAdmin = async (e) => {
+    e.preventDefault();
+    setNewAdminError('');
+    setNewAdminMsg('');
+    setNewAdminSubmitting(true);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/admins`, {
+        method: 'POST', headers: authHeaders, body: JSON.stringify(newAdminForm),
+      });
+      await adminApiResponse(res, 'Failed to create admin account');
+      setNewAdminMsg(`Admin "${newAdminForm.username}" created.`);
+      setNewAdminForm(emptyNewAdminForm);
+      loadAdmins();
+    } catch (err) {
+      setNewAdminError(err.message);
+    } finally {
+      setNewAdminSubmitting(false);
     }
   };
 
@@ -441,6 +525,8 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       loadPackageRequests();
       loadVisaRequirements();
       loadForceIssuedLog();
+      loadPendingSettingsChanges();
+      loadAdmins();
     }
   }, [adminToken]);
 
@@ -482,10 +568,12 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         headers: authHeaders,
         body: JSON.stringify(loyaltySettings),
       });
-      const data = await adminApiResponse(res, 'Failed to save loyalty settings');
-      setLoyaltySettings(data);
-      setLoyaltySaveMsg('Saved.');
-      setTimeout(() => setLoyaltySaveMsg(''), 3000);
+      // Response is now a pending change-request record -- same four-eyes
+      // approval as pricing settings, see handleSaveSettings above.
+      await adminApiResponse(res, 'Failed to submit loyalty settings for approval');
+      setLoyaltySaveMsg('Submitted for approval — a different admin must approve this change before it takes effect.');
+      setTimeout(() => setLoyaltySaveMsg(''), 6000);
+      loadPendingSettingsChanges();
     } catch (err) {
       setLoyaltySettingsError(err.message);
     } finally {
@@ -881,10 +969,14 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         headers: authHeaders,
         body: JSON.stringify(settings),
       });
-      const data = await adminApiResponse(res, 'Failed to save pricing settings');
-      setSettings(data);
-      setSaveMsg('Saved.');
-      setTimeout(() => setSaveMsg(''), 3000);
+      // Response is now a pending change-request record, not the applied
+      // settings -- four-eyes approval means this hasn't taken effect yet,
+      // so the form keeps showing the currently-live settings, not the
+      // proposal, until a different admin approves it.
+      await adminApiResponse(res, 'Failed to submit pricing settings for approval');
+      setSaveMsg('Submitted for approval — a different admin must approve this change before it takes effect.');
+      setTimeout(() => setSaveMsg(''), 6000);
+      loadPendingSettingsChanges();
     } catch (err) {
       setSettingsError(err.message);
     } finally {
@@ -954,6 +1046,8 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
   const adminNavItems = [
     { id: 'pricing', label: 'Pricing & Markup' },
+    { id: 'settings-approvals', label: 'Pending Approvals', count: pendingSettingsChanges.length },
+    { id: 'admins', label: 'Admin Users' },
     { id: 'loyalty', label: 'Loyalty Program' },
     { id: 'email-requests', label: 'Email Change Requests', count: emailRequests.length },
     { id: 'visa-bookings', label: 'Visa Consultation Bookings', count: visaConsultations.length },
@@ -1126,6 +1220,86 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             {saveMsg && <span style={{ marginLeft: '0.75rem', color: '#16a34a', fontWeight: 600, fontSize: '0.85rem' }}>{saveMsg}</span>}
           </>
         )}
+      </section>
+      )}
+
+      {activeAdminSection === 'settings-approvals' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Pending Approvals {pendingSettingsChanges.length > 0 && `(${pendingSettingsChanges.length})`}</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+          Changes to Pricing &amp; Markup or Loyalty Program settings don't take effect immediately — a different admin
+          must review and approve them here first. You can't approve your own submission.
+        </p>
+        {pendingSettingsChangesError && <div className="error-banner">{pendingSettingsChangesError}</div>}
+        {pendingSettingsChanges.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No pending settings changes.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {pendingSettingsChanges.map(r => {
+              const isOwn = r.proposed_by_admin_id === currentAdminId;
+              return (
+                <div key={r.id} style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem' }}>
+                    <div style={{ fontSize: '0.85rem' }}>
+                      <strong style={{ color: 'var(--gs-crimson)', textTransform: 'capitalize' }}>{r.setting_type} settings</strong>
+                      {' proposed by '}<strong>{r.proposed_by_username}</strong>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Requested {new Date(r.requested_at).toLocaleString()}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button className="btn btn-primary btn-sm" disabled={isOwn || settingsChangeActionId === r.id}
+                        title={isOwn ? "You can't approve your own change" : undefined}
+                        onClick={() => reviewSettingsChange(r.id, 'approve')}>Approve</button>
+                      <button className="btn btn-danger btn-sm" disabled={isOwn || settingsChangeActionId === r.id}
+                        title={isOwn ? "You can't reject your own change" : undefined}
+                        onClick={() => reviewSettingsChange(r.id, 'reject')}>Reject</button>
+                    </div>
+                  </div>
+                  <pre style={{ fontSize: '0.72rem', color: '#475569', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.5rem 0.75rem', marginTop: '0.5rem', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                    {JSON.stringify(r.proposed_data, null, 2)}
+                  </pre>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      )}
+
+      {activeAdminSection === 'admins' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Admin Users</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+          At least two admin accounts are needed for the Pricing/Loyalty approval workflow above to actually work —
+          otherwise there's no second admin who can approve your changes.
+        </p>
+        {adminsError && <div className="error-banner">{adminsError}</div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          {adminsList.map(a => (
+            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.85rem' }}>
+              <span><strong>{a.username}</strong>{a.full_name && ` — ${a.full_name}`}{a.id === currentAdminId && ' (you)'}</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Since {new Date(a.created_at).toLocaleDateString()}</span>
+            </div>
+          ))}
+        </div>
+
+        <h4 style={{ fontSize: '0.9rem', color: 'var(--gs-dark)', marginBottom: '0.75rem' }}>+ Add Admin</h4>
+        <form onSubmit={createAdmin} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '160px' }}>
+            <label className="form-label">Username *</label>
+            <input className="form-input" required value={newAdminForm.username} onChange={e => setNewAdminForm(f => ({ ...f, username: e.target.value }))} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '160px' }}>
+            <label className="form-label">Password *</label>
+            <input type="password" className="form-input" required minLength={8} value={newAdminForm.password} onChange={e => setNewAdminForm(f => ({ ...f, password: e.target.value }))} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '160px' }}>
+            <label className="form-label">Full Name</label>
+            <input className="form-input" value={newAdminForm.full_name} onChange={e => setNewAdminForm(f => ({ ...f, full_name: e.target.value }))} />
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={newAdminSubmitting}>{newAdminSubmitting ? 'Creating…' : 'Create Admin'}</button>
+        </form>
+        {newAdminError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{newAdminError}</div>}
+        {newAdminMsg && <p style={{ fontSize: '0.8rem', color: '#166534', marginTop: '0.75rem' }}>{newAdminMsg}</p>}
       </section>
       )}
 

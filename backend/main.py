@@ -2057,21 +2057,16 @@ def get_pricing_settings(_admin: dict = Depends(auth.get_current_admin)):
 
 
 @app.put("/api/admin/pricing-settings")
-def put_pricing_settings(request: PricingSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
+def put_pricing_settings(request: PricingSettingsRequest, admin: dict = Depends(auth.get_current_admin)):
     if (request.ticket_markup_mode not in ("percent", "fixed")
             or request.seat_markup_mode not in ("percent", "fixed")
             or request.amadeus_ticket_markup_mode not in ("percent", "fixed")
             or request.ancillary_markup_mode not in ("percent", "fixed")
             or request.refund_charge_mode not in ("percent", "fixed")):
         raise HTTPException(status_code=422, detail="markup_mode must be 'percent' or 'fixed'")
-    return database.update_pricing_settings(
-        request.ticket_markup_mode, request.ticket_markup_percent, request.ticket_markup_fixed,
-        request.seat_markup_mode, request.seat_markup_percent, request.seat_markup_fixed,
-        request.markup_scope,
-        request.amadeus_ticket_markup_mode, request.amadeus_ticket_markup_percent, request.amadeus_ticket_markup_fixed,
-        request.ancillary_markup_mode, request.ancillary_markup_percent, request.ancillary_markup_fixed,
-        request.refund_charge_mode, request.refund_charge_percent, request.refund_charge_fixed,
-    )
+    # Four-eyes approval: this no longer applies immediately -- it queues for
+    # a DIFFERENT admin to approve (see /api/admin/settings-change-requests).
+    return database.create_settings_change_request("pricing", request.model_dump(), admin["admin_id"])
 
 
 @app.get("/api/admin/reports/summary")
@@ -2101,15 +2096,91 @@ def get_loyalty_settings_admin(_admin: dict = Depends(auth.get_current_admin)):
 
 
 @app.put("/api/admin/loyalty-settings")
-def put_loyalty_settings_admin(request: LoyaltySettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
+def put_loyalty_settings_admin(request: LoyaltySettingsRequest, admin: dict = Depends(auth.get_current_admin)):
     if request.tier_gold_threshold < request.tier_silver_threshold:
         raise HTTPException(status_code=422, detail="Gold threshold must be >= Silver threshold.")
     if request.tier_platinum_threshold < request.tier_gold_threshold:
         raise HTTPException(status_code=422, detail="Platinum threshold must be >= Gold threshold.")
-    return database.update_loyalty_settings(
-        request.points_per_lkr, request.points_per_usd,
-        request.tier_silver_threshold, request.tier_gold_threshold, request.tier_platinum_threshold,
+    # Four-eyes approval: this no longer applies immediately -- see pricing-settings above.
+    return database.create_settings_change_request("loyalty", request.model_dump(), admin["admin_id"])
+
+
+# ── Settings Change Approval Queue (four-eyes for Pricing/Loyalty) ───────────
+
+@app.get("/api/admin/settings-change-requests")
+def admin_list_settings_change_requests(status_filter: Optional[str] = Query(None, alias="status"), _admin: dict = Depends(auth.get_current_admin)):
+    return {"requests": database.get_settings_change_requests(status_filter)}
+
+
+class SettingsChangeReview(BaseModel):
+    admin_note: Optional[str] = None
+
+
+@app.post("/api/admin/settings-change-requests/{request_id}/approve")
+def admin_approve_settings_change(request_id: int, body: SettingsChangeReview, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_settings_change_request_by_id(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Change request not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
+    if req["proposed_by_admin_id"] == admin["admin_id"]:
+        raise HTTPException(status_code=403, detail="You cannot approve your own change -- a different admin must review it.")
+    data = req["proposed_data"]
+    if req["setting_type"] == "pricing":
+        database.update_pricing_settings(
+            data["ticket_markup_mode"], data["ticket_markup_percent"], data["ticket_markup_fixed"],
+            data["seat_markup_mode"], data["seat_markup_percent"], data["seat_markup_fixed"],
+            data.get("markup_scope", "shared"),
+            data.get("amadeus_ticket_markup_mode", "percent"), data.get("amadeus_ticket_markup_percent", 0.0), data.get("amadeus_ticket_markup_fixed", 0.0),
+            data.get("ancillary_markup_mode", "percent"), data.get("ancillary_markup_percent", 0.0), data.get("ancillary_markup_fixed", 0.0),
+            data.get("refund_charge_mode", "percent"), data.get("refund_charge_percent", 0.0), data.get("refund_charge_fixed", 0.0),
+        )
+    elif req["setting_type"] == "loyalty":
+        database.update_loyalty_settings(
+            data["points_per_lkr"], data["points_per_usd"],
+            data["tier_silver_threshold"], data["tier_gold_threshold"], data["tier_platinum_threshold"],
+        )
+    else:
+        raise HTTPException(status_code=500, detail=f"Unknown setting_type '{req['setting_type']}'.")
+    return database.resolve_settings_change_request(request_id, "approved", admin["admin_id"], body.admin_note)
+
+
+@app.post("/api/admin/settings-change-requests/{request_id}/reject")
+def admin_reject_settings_change(request_id: int, body: SettingsChangeReview, admin: dict = Depends(auth.get_current_admin)):
+    req = database.get_settings_change_request_by_id(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Change request not found.")
+    if req["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Request already {req['status']}.")
+    if req["proposed_by_admin_id"] == admin["admin_id"]:
+        raise HTTPException(status_code=403, detail="You cannot reject your own change -- a different admin must review it.")
+    return database.resolve_settings_change_request(request_id, "rejected", admin["admin_id"], body.admin_note)
+
+
+# ── Admin User Management ─────────────────────────────────────────────────────
+# Needed so a second admin account can actually exist to approve the first
+# admin's settings changes above -- previously the only way to create an
+# admin was the seed_admin.py CLI script.
+
+class AdminCreateRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=100)
+    password: str = Field(..., min_length=8, max_length=100)
+    full_name: Optional[str] = Field(None, max_length=150)
+
+
+@app.get("/api/admin/admins")
+def admin_list_admins(_admin: dict = Depends(auth.get_current_admin)):
+    return {"admins": database.list_admins()}
+
+
+@app.post("/api/admin/admins", status_code=status.HTTP_201_CREATED)
+def admin_create_admin(request: AdminCreateRequest, _admin: dict = Depends(auth.get_current_admin)):
+    created = database.create_admin_if_not_exists(
+        request.username.strip(), auth.hash_password(request.password), request.full_name,
     )
+    if not created:
+        raise HTTPException(status_code=409, detail="An admin with that username already exists.")
+    return {"created": True, "username": request.username.strip()}
 
 
 class LoyaltyTierBenefitCreate(BaseModel):
