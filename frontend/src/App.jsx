@@ -3741,6 +3741,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               }
             }
           }
+          // fare_options must stay sorted ascending by price -- it's an
+          // invariant the backend guarantees on its own arrays (used below
+          // for the "cheapest" badge and each cabin tab's "from" price), but
+          // concatenating two already-sorted arrays above doesn't preserve it.
+          for (const merged of byCombo.values()) {
+            merged.fare_options.sort((a, b) => (a.price || 0) - (b.price || 0));
+          }
           sourceFlights = Array.from(byCombo.values());
         }
 
