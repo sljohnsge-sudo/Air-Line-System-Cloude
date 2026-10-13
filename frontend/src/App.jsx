@@ -3720,8 +3720,25 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             if (!pair.legs?.length) continue;
             const key = pair.legs.map(legKey).sort().join('|');
             const existing = byCombo.get(key);
-            if (!existing || pair.price < existing.price) {
-              byCombo.set(key, pair);
+            if (!existing) {
+              byCombo.set(key, { ...pair, fare_options: [...(pair.fare_options || [])] });
+            } else {
+              // The same flight-number/time combo can legitimately appear via
+              // more than one content source (e.g. an NDC economy-only fare
+              // and a separate GDS fare that also has Business) -- keeping
+              // only the cheaper pair wholesale silently dropped cabins that
+              // only exist on the pricier source (Business/First vanished
+              // from "Other fares & cabins" and the cabin-class filter
+              // entirely). Merge their fare_options instead of discarding.
+              const seen = new Set(existing.fare_options.map(fo => `${fo.brand_name}|${fo.cabin_class}|${fo.fare_source}|${fo.price}`));
+              for (const fo of (pair.fare_options || [])) {
+                const sig = `${fo.brand_name}|${fo.cabin_class}|${fo.fare_source}|${fo.price}`;
+                if (!seen.has(sig)) { existing.fare_options.push(fo); seen.add(sig); }
+              }
+              if ((pair.price || 0) < (existing.price || Infinity)) {
+                existing.price = pair.price;
+                existing.currency = pair.currency;
+              }
             }
           }
           sourceFlights = Array.from(byCombo.values());
