@@ -1019,8 +1019,9 @@ export default function App() {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [packagesTypeView, setPackagesTypeView] = useState('tour');
 
-  const emptyPackageBookingForm = { full_name: '', email: '', phone: '', num_travelers: 1, preferred_date: '', notes: '' };
+  const emptyPackageBookingForm = { full_name: '', email: '', phone: '', adults_count: 1, children_count: 0, infants_count: 0, preferred_date: '', notes: '' };
   const [packageBookingForm, setPackageBookingForm] = useState(emptyPackageBookingForm);
+  const [packagePdpaAgreed, setPackagePdpaAgreed] = useState(false);
   const [packageBookingSubmitting, setPackageBookingSubmitting] = useState(false);
   const [packageBookingSubmitted, setPackageBookingSubmitted] = useState(false);
   const [packageBookingError, setPackageBookingError] = useState('');
@@ -1047,6 +1048,7 @@ export default function App() {
     setSelectedPackage(pkg);
     setPackageBookingSubmitted(false);
     setPackageBookingError('');
+    setPackagePdpaAgreed(false);
     setPackageBookingForm({
       ...emptyPackageBookingForm,
       full_name: customerProfile?.full_name || '',
@@ -1057,6 +1059,10 @@ export default function App() {
   const submitPackageBookingRequest = (e) => {
     e.preventDefault();
     if (!selectedPackage) return;
+    if (!packagePdpaAgreed) {
+      setPackageBookingError('Please agree to the data collection disclosure before submitting.');
+      return;
+    }
     setPackageBookingError('');
     setPackageBookingSubmitting(true);
     fetch(`${API_BASE}/packages/${selectedPackage.id}/book-request`, {
@@ -1067,7 +1073,10 @@ export default function App() {
       },
       body: JSON.stringify({
         ...packageBookingForm,
-        num_travelers: parseInt(packageBookingForm.num_travelers, 10) || 1,
+        adults_count: parseInt(packageBookingForm.adults_count, 10) || 1,
+        children_count: parseInt(packageBookingForm.children_count, 10) || 0,
+        infants_count: parseInt(packageBookingForm.infants_count, 10) || 0,
+        pdpa_consent: packagePdpaAgreed,
       }),
     })
       .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
@@ -6108,8 +6117,23 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </div>
                     <div className="form-group">
                       <label className="form-label">Number of Travelers *</label>
-                      <input type="number" min="1" max="50" className="form-input" required value={packageBookingForm.num_travelers}
-                        onChange={e => setPackageBookingForm(f => ({ ...f, num_travelers: e.target.value }))} />
+                      <div style={{ display: 'flex', gap: '0.6rem' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Adults</label>
+                          <input type="number" min="1" max="50" className="form-input" required value={packageBookingForm.adults_count}
+                            onChange={e => setPackageBookingForm(f => ({ ...f, adults_count: e.target.value }))} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Children</label>
+                          <input type="number" min="0" max="50" className="form-input" value={packageBookingForm.children_count}
+                            onChange={e => setPackageBookingForm(f => ({ ...f, children_count: e.target.value }))} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Infants</label>
+                          <input type="number" min="0" max="50" className="form-input" value={packageBookingForm.infants_count}
+                            onChange={e => setPackageBookingForm(f => ({ ...f, infants_count: e.target.value }))} />
+                        </div>
+                      </div>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Preferred Travel Date</label>
@@ -6121,7 +6145,21 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       <textarea className="form-input" rows={3} value={packageBookingForm.notes}
                         onChange={e => setPackageBookingForm(f => ({ ...f, notes: e.target.value }))} />
                     </div>
-                    <button type="submit" className="btn btn-primary" disabled={packageBookingSubmitting} style={{ width: '100%', marginTop: '0.5rem' }}>
+
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem', fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxHeight: '160px', overflowY: 'auto' }}>
+                      <p style={{ margin: '0 0 0.5rem' }}>
+                        George Steuart Travels ("we," "us," "our," or the "Company") operates an online travel booking platform that enables customers to search, compare, book, and manage travel services, including airline tickets and hotel reservations. We are committed to protecting our customers' privacy and handling their personal information securely and transparently.
+                      </p>
+                      <p style={{ margin: 0 }}>
+                        By using our Platform and providing the required consent, you authorize George Steuart Travels to collect and process your personal data for booking and managing travel services, communicating booking updates, and providing personalized marketing communications, promotions, and travel offers. Your personal data will be processed in accordance with applicable laws, including the Personal Data Protection Act No. 9 of 2022 of Sri Lanka, as amended or replaced. Where consent is the applicable legal basis, you may withdraw your consent to personalized marketing communications at any time.
+                      </p>
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={packagePdpaAgreed} onChange={e => setPackagePdpaAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
+                      <span>I have read and agree to the data collection disclosure above.</span>
+                    </label>
+
+                    <button type="submit" className="btn btn-primary" disabled={packageBookingSubmitting || !packagePdpaAgreed} style={{ width: '100%', marginTop: '0.5rem' }}>
                       {packageBookingSubmitting ? 'Submitting…' : 'Submit Booking Request'}
                     </button>
                     <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.75rem', textAlign: 'center' }}>

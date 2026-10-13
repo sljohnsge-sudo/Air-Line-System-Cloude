@@ -413,6 +413,23 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # package_booking_requests traveler breakdown + PDPA consent — added via
+    # a guarded ALTER, same reasoning as bookings.customer_id above.
+    # num_travelers (existing column) stays as the simple total so any
+    # existing admin display reading it keeps working unchanged; these are
+    # the breakdown the boss asked for. pdpa_consent_at is a timestamp (not
+    # just a boolean) since "when did they consent" is the actual compliance
+    # record a PDPA request would need, not just "did they".
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='package_booking_requests' AND COLUMN_NAME='adults_count'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE package_booking_requests ADD COLUMN adults_count INT NOT NULL DEFAULT 1 AFTER num_travelers")
+        cursor.execute("ALTER TABLE package_booking_requests ADD COLUMN children_count INT NOT NULL DEFAULT 0 AFTER adults_count")
+        cursor.execute("ALTER TABLE package_booking_requests ADD COLUMN infants_count INT NOT NULL DEFAULT 0 AFTER children_count")
+        cursor.execute("ALTER TABLE package_booking_requests ADD COLUMN pdpa_consent_at DATETIME NULL AFTER infants_count")
+
     # ── Visa Requirements (B2C, admin-curated lookup table) ─────────────────
     # Staff enter known nationality->destination visa info; customers look it
     # up by picking their nationality and destination. Not exhaustive — a
@@ -1565,15 +1582,18 @@ def get_tour_package_by_id(package_id: int) -> dict | None:
 def create_package_booking_request(
     package_id: int, customer_id: int | None, full_name: str, email: str, phone: str,
     num_travelers: int, preferred_date: str | None, notes: str | None,
+    adults_count: int = 1, children_count: int = 0, infants_count: int = 0, pdpa_consent: bool = False,
 ) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
             """INSERT INTO package_booking_requests
-               (package_id, customer_id, full_name, email, phone, num_travelers, preferred_date, notes)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (package_id, customer_id, full_name, email, phone, num_travelers, preferred_date, notes),
+               (package_id, customer_id, full_name, email, phone, num_travelers, preferred_date, notes,
+                adults_count, children_count, infants_count, pdpa_consent_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (package_id, customer_id, full_name, email, phone, num_travelers, preferred_date, notes,
+             adults_count, children_count, infants_count, datetime.now() if pdpa_consent else None),
         )
         conn.commit()
         cursor.execute("SELECT * FROM package_booking_requests WHERE id=%s", (cursor.lastrowid,))

@@ -1698,7 +1698,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             {packageRequests.map(r => (
               <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
                 <div style={{ fontSize: '0.85rem' }}>
-                  <div><strong style={{ color: 'var(--gs-crimson)' }}>{r.package_title}</strong> — {r.num_travelers} traveler(s){r.preferred_date && ` · Preferred: ${r.preferred_date}`}</div>
+                  <div><strong style={{ color: 'var(--gs-crimson)' }}>{r.package_title}</strong> — {(r.adults_count || r.children_count || r.infants_count) ? `${r.adults_count} Adult${r.adults_count === 1 ? '' : 's'}${r.children_count > 0 ? `, ${r.children_count} Child${r.children_count === 1 ? '' : 'ren'}` : ''}${r.infants_count > 0 ? `, ${r.infants_count} Infant${r.infants_count === 1 ? '' : 's'}` : ''}` : `${r.num_travelers} traveler(s)`}{r.preferred_date && ` · Preferred: ${r.preferred_date}`}</div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>{r.full_name} · {r.email} · {r.phone}</div>
                   {r.notes && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem', fontStyle: 'italic' }}>"{r.notes}"</div>}
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Requested {new Date(r.requested_at).toLocaleString()}</div>

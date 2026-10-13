@@ -2390,9 +2390,12 @@ class PackageBookingRequestCreate(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150)
     email: EmailStr
     phone: str = Field(..., min_length=7, max_length=30)
-    num_travelers: int = Field(default=1, ge=1, le=50)
+    adults_count: int = Field(default=1, ge=1, le=50)
+    children_count: int = Field(default=0, ge=0, le=50)
+    infants_count: int = Field(default=0, ge=0, le=50)
     preferred_date: Optional[str] = None
     notes: Optional[str] = Field(None, max_length=1000)
+    pdpa_consent: bool = Field(..., description="Must be true -- customer must explicitly agree to the PDPA data-collection disclosure before submitting")
 
 
 class PackageBookingReview(BaseModel):
@@ -2424,9 +2427,13 @@ def submit_package_booking_request(
     pkg = database.get_tour_package_by_id(package_id)
     if not pkg or not pkg["is_active"]:
         raise HTTPException(status_code=404, detail="Package not found.")
+    if not request.pdpa_consent:
+        raise HTTPException(status_code=422, detail="You must agree to the data collection disclosure before submitting.")
+    total_travelers = request.adults_count + request.children_count + request.infants_count
     return database.create_package_booking_request(
         package_id, customer_id, request.full_name.strip(), str(request.email),
-        request.phone.strip(), request.num_travelers, request.preferred_date, request.notes,
+        request.phone.strip(), total_travelers, request.preferred_date, request.notes,
+        request.adults_count, request.children_count, request.infants_count, request.pdpa_consent,
     )
 
 
