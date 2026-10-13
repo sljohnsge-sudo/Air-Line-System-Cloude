@@ -1446,6 +1446,7 @@ export default function App() {
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState('card');
+  const [dataConfirmAgreed, setDataConfirmAgreed] = useState(false);
   const [cardholderName, setCardholderName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -1970,7 +1971,8 @@ export default function App() {
     });
     setBookingStep('passenger');
     setBookingError('');
-    
+    setDataConfirmAgreed(false);
+
     const travelerList = [];
     const extraFields = {
       birth_place: '', document_issue_date: '', issued_for_geo_political_area: '',
@@ -7933,7 +7935,31 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </div>
                   )}
                 </div>
-                
+
+                {(() => {
+                  // Real-time (computed from this exact itinerary's own
+                  // already-known layover_minutes, not a countdown/timer) —
+                  // flags any connection under the common 60-minute minimum
+                  // connect-time guideline so the customer sees it before
+                  // confirming, not after.
+                  const allSegments = selectedFlight.legs && selectedFlight.legs.length > 0
+                    ? selectedFlight.legs.flatMap(leg => leg.segments || [])
+                    : (selectedFlight.segments || []);
+                  const shortLayovers = allSegments.filter(seg => seg.layover_minutes !== undefined && seg.layover_minutes > 0 && seg.layover_minutes < 60);
+                  if (shortLayovers.length === 0) return null;
+                  return (
+                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.5rem', padding: '1rem 1.1rem', marginBottom: '1rem', fontSize: '0.84rem', color: '#78350f' }}>
+                      <strong>⚠️ Short Connection{shortLayovers.length > 1 ? 's' : ''}:</strong>{' '}
+                      {shortLayovers.map((seg, i) => (
+                        <span key={i}>
+                          {i > 0 && '; '}only {seg.layover_minutes} min at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}
+                        </span>
+                      ))}
+                      . Tight connections carry a higher risk of misconnection if an earlier flight is delayed — please confirm you're comfortable with this before proceeding.
+                    </div>
+                  );
+                })()}
+
 {(() => {
                   const bdkReview = selectedFlight.price_breakdown ? Object.keys(selectedFlight.price_breakdown) : [];
                   const flightGrandTotalReview = bdkReview.length > 0
@@ -8018,9 +8044,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   );
                 })()}
 
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
+                  <input type="checkbox" checked={dataConfirmAgreed} onChange={e => setDataConfirmAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
+                  <span>I confirm that all passenger details entered (names, passport information, dates of birth) are accurate and match my travel documents exactly. I understand that incorrect information may result in denied boarding, additional airline fees, or ticket cancellation with no refund.</span>
+                </label>
+
                 <div className="modal-actions">
                   <button className="btn btn-secondary" onClick={() => setBookingStep('review')}>← Back to Review</button>
-                  <button className="btn btn-primary" onClick={handleConfirmBooking}>
+                  <button className="btn btn-primary" disabled={!dataConfirmAgreed} onClick={handleConfirmBooking}>
                     {paymentMethod === 'card' ? 'Confirm Booking → Proceed to Payment' : 'Confirm Booking'}
                   </button>
                 </div>
