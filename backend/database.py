@@ -452,6 +452,30 @@ def init_db():
         cursor.execute("ALTER TABLE package_booking_requests ADD COLUMN infants_count INT NOT NULL DEFAULT 0 AFTER children_count")
         cursor.execute("ALTER TABLE package_booking_requests ADD COLUMN pdpa_consent_at DATETIME NULL AFTER infants_count")
 
+    # ── Terminal Connection Times (B2C, admin-curated reference lookup) ─────
+    # Travelport's own API doesn't return terminal-to-terminal walk/transfer
+    # times at connecting airports, so this is a manually-maintained
+    # reference table (same pattern as Visa Requirements) staff fill in by
+    # country/airport, with its own standalone "Terminal Connections" nav
+    # lookup page — NOT auto-shown inline in search results, since coverage
+    # is necessarily sparse and partial.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS terminal_connection_times (
+            id                INT AUTO_INCREMENT PRIMARY KEY,
+            country           VARCHAR(100) NOT NULL,
+            airport_code      VARCHAR(10) NOT NULL,
+            airport_name      VARCHAR(150),
+            from_terminal     VARCHAR(20) NOT NULL,
+            to_terminal       VARCHAR(20) NOT NULL,
+            estimated_minutes INT NOT NULL,
+            notes             VARCHAR(500),
+            created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_terminal_conn_country (country),
+            INDEX idx_terminal_conn_airport (airport_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     # ── Visa Requirements (B2C, admin-curated lookup table) ─────────────────
     # Staff enter known nationality->destination visa info; customers look it
     # up by picking their nationality and destination. Not exhaustive — a
@@ -1731,6 +1755,101 @@ def delete_visa_requirement(requirement_id: int) -> bool:
     cursor = conn.cursor()
     try:
         cursor.execute("DELETE FROM visa_requirements WHERE id=%s", (requirement_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Terminal Connection Times (B2C, admin-curated lookup table) ──────────────
+
+def get_terminal_connection_times(country: str | None = None, airport_code: str | None = None) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if airport_code:
+        cursor.execute(
+            "SELECT * FROM terminal_connection_times WHERE airport_code=%s ORDER BY from_terminal, to_terminal",
+            (airport_code.upper(),),
+        )
+    elif country:
+        cursor.execute(
+            "SELECT * FROM terminal_connection_times WHERE country=%s ORDER BY airport_code, from_terminal, to_terminal",
+            (country,),
+        )
+    else:
+        cursor.execute("SELECT * FROM terminal_connection_times ORDER BY country, airport_code, from_terminal, to_terminal")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_terminal_connection_countries() -> list[str]:
+    """Distinct countries that actually have at least one documented entry — feeds the B2C lookup page's Country dropdown."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT country FROM terminal_connection_times ORDER BY country")
+    rows = [r[0] for r in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def create_terminal_connection_time(data: dict) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO terminal_connection_times
+               (country, airport_code, airport_name, from_terminal, to_terminal, estimated_minutes, notes)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (data["country"], data["airport_code"].upper(), data.get("airport_name"),
+             data["from_terminal"], data["to_terminal"], data["estimated_minutes"], data.get("notes")),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM terminal_connection_times WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_terminal_connection_time(entry_id: int, data: dict) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id FROM terminal_connection_times WHERE id=%s", (entry_id,))
+        if not cursor.fetchone():
+            return None
+        cursor.execute(
+            """UPDATE terminal_connection_times SET country=%s, airport_code=%s, airport_name=%s,
+               from_terminal=%s, to_terminal=%s, estimated_minutes=%s, notes=%s WHERE id=%s""",
+            (data["country"], data["airport_code"].upper(), data.get("airport_name"),
+             data["from_terminal"], data["to_terminal"], data["estimated_minutes"], data.get("notes"), entry_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM terminal_connection_times WHERE id=%s", (entry_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_terminal_connection_time(entry_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM terminal_connection_times WHERE id=%s", (entry_id,))
         conn.commit()
         return cursor.rowcount > 0
     except Exception as e:

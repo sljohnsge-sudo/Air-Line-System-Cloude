@@ -128,6 +128,15 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [visaFormOpen, setVisaFormOpen] = useState(false);
   const [visaSaving, setVisaSaving] = useState(false);
 
+  const emptyTerminalConnForm = { country: '', airport_code: '', airport_name: '', from_terminal: '', to_terminal: '', estimated_minutes: 60, notes: '' };
+  const [terminalConnections, setTerminalConnections] = useState([]);
+  const [terminalConnectionsLoading, setTerminalConnectionsLoading] = useState(false);
+  const [terminalConnectionsError, setTerminalConnectionsError] = useState('');
+  const [terminalConnForm, setTerminalConnForm] = useState(emptyTerminalConnForm);
+  const [editingTerminalConnId, setEditingTerminalConnId] = useState(null);
+  const [terminalConnFormOpen, setTerminalConnFormOpen] = useState(false);
+  const [terminalConnSaving, setTerminalConnSaving] = useState(false);
+
   const emptyConsultantForm = { consultant_name: '', email: '', phone: '', is_active: true };
   const [visaConsultantRoster, setVisaConsultantRoster] = useState([]);
   const [visaConsultantRosterLoading, setVisaConsultantRosterLoading] = useState(false);
@@ -494,6 +503,69 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
+  const loadTerminalConnections = async () => {
+    setTerminalConnectionsLoading(true);
+    setTerminalConnectionsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/terminal-connections`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load terminal connection times');
+      setTerminalConnections(data.connections || []);
+    } catch (err) {
+      setTerminalConnectionsError(err.message);
+    } finally {
+      setTerminalConnectionsLoading(false);
+    }
+  };
+
+  const openTerminalConnForm = (entry) => {
+    if (entry) {
+      setEditingTerminalConnId(entry.id);
+      setTerminalConnForm({
+        country: entry.country, airport_code: entry.airport_code, airport_name: entry.airport_name || '',
+        from_terminal: entry.from_terminal, to_terminal: entry.to_terminal,
+        estimated_minutes: entry.estimated_minutes, notes: entry.notes || '',
+      });
+    } else {
+      setEditingTerminalConnId(null);
+      setTerminalConnForm(emptyTerminalConnForm);
+    }
+    setTerminalConnFormOpen(true);
+  };
+
+  const handleSaveTerminalConn = async (e) => {
+    e.preventDefault();
+    setTerminalConnSaving(true);
+    setTerminalConnectionsError('');
+    try {
+      const url = editingTerminalConnId ? `${API_BASE}/admin/terminal-connections/${editingTerminalConnId}` : `${API_BASE}/admin/terminal-connections`;
+      const res = await fetchWithRetry(url, {
+        method: editingTerminalConnId ? 'PUT' : 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ ...terminalConnForm, estimated_minutes: parseInt(terminalConnForm.estimated_minutes, 10) || 0 }),
+      });
+      await adminApiResponse(res, 'Failed to save terminal connection entry');
+      setTerminalConnFormOpen(false);
+      setEditingTerminalConnId(null);
+      setTerminalConnForm(emptyTerminalConnForm);
+      loadTerminalConnections();
+    } catch (err) {
+      setTerminalConnectionsError(err.message);
+    } finally {
+      setTerminalConnSaving(false);
+    }
+  };
+
+  const handleDeleteTerminalConn = async (id) => {
+    if (!window.confirm('Delete this terminal connection entry?')) return;
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/terminal-connections/${id}`, { method: 'DELETE', headers: authHeaders });
+      await adminApiResponse(res, 'Failed to delete terminal connection entry');
+      loadTerminalConnections();
+    } catch (err) {
+      setTerminalConnectionsError(err.message);
+    }
+  };
+
   const loadForceIssuedLog = async () => {
     setForceIssuedLogLoading(true);
     setForceIssuedLogError('');
@@ -527,6 +599,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       loadForceIssuedLog();
       loadPendingSettingsChanges();
       loadAdmins();
+      loadTerminalConnections();
     }
   }, [adminToken]);
 
@@ -1064,6 +1137,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         { id: 'visa-assignments', label: 'Visa Country Assignments' },
       ],
     },
+    { id: 'terminal-connections', label: 'Terminal Connections' },
     { id: 'assign-booking', label: 'Assign Booking' },
     { id: 'force-issue', label: 'Force Issue Ticket' },
     { id: 'reports', label: 'Reports' },
@@ -1974,6 +2048,95 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <button className="btn btn-secondary btn-sm" onClick={() => openVisaForm(req)}>Edit</button>
                   <button className="btn btn-danger btn-sm" onClick={() => handleDeleteVisaRequirement(req.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      )}
+
+      {activeAdminSection === 'terminal-connections' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem' }}>
+          <h3 className="results-heading" style={{ margin: 0 }}>Terminal Connections {terminalConnections.length > 0 && `(${terminalConnections.length})`}</h3>
+          <button className="btn btn-primary btn-sm" onClick={() => openTerminalConnForm(null)}>+ Add Entry</button>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.35rem', marginBottom: '0' }}>
+          Travelport doesn't provide terminal-to-terminal transfer times at connecting airports, so this is a manually
+          maintained reference — shown to customers on the public "Terminal Connections" lookup page, by country.
+        </p>
+        {terminalConnectionsError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{terminalConnectionsError}</div>}
+
+        {terminalConnFormOpen && (
+          <form onSubmit={handleSaveTerminalConn} style={{ marginTop: '1rem', marginBottom: '1.25rem', padding: '1rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+            <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', color: 'var(--gs-dark)' }}>{editingTerminalConnId ? 'Edit Entry' : 'New Entry'}</h4>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ flex: 1, minWidth: '180px' }}>
+                <label className="form-label">Country *</label>
+                <select className="form-input" required value={terminalConnForm.country} onChange={e => setTerminalConnForm(f => ({ ...f, country: e.target.value }))}>
+                  <option value="">-- Select country --</option>
+                  {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
+                <label className="form-label">Airport Code *</label>
+                <input className="form-input" required placeholder="e.g. SIN" maxLength={10} value={terminalConnForm.airport_code}
+                  onChange={e => setTerminalConnForm(f => ({ ...f, airport_code: e.target.value.toUpperCase() }))} />
+              </div>
+              <div className="form-group" style={{ flex: 1, minWidth: '180px' }}>
+                <label className="form-label">Airport Name</label>
+                <input className="form-input" placeholder="e.g. Singapore Changi Airport" value={terminalConnForm.airport_name}
+                  onChange={e => setTerminalConnForm(f => ({ ...f, airport_name: e.target.value }))} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
+                <label className="form-label">From Terminal *</label>
+                <input className="form-input" required placeholder="e.g. T1" value={terminalConnForm.from_terminal}
+                  onChange={e => setTerminalConnForm(f => ({ ...f, from_terminal: e.target.value }))} />
+              </div>
+              <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
+                <label className="form-label">To Terminal *</label>
+                <input className="form-input" required placeholder="e.g. T4" value={terminalConnForm.to_terminal}
+                  onChange={e => setTerminalConnForm(f => ({ ...f, to_terminal: e.target.value }))} />
+              </div>
+              <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
+                <label className="form-label">Estimated Minutes *</label>
+                <input type="number" min="0" max="600" className="form-input" required value={terminalConnForm.estimated_minutes}
+                  onChange={e => setTerminalConnForm(f => ({ ...f, estimated_minutes: e.target.value }))} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Notes</label>
+              <textarea className="form-input" rows={2} placeholder="e.g. Via Skytrain, allow extra time during peak hours" value={terminalConnForm.notes}
+                onChange={e => setTerminalConnForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <button type="submit" className="btn btn-primary" disabled={terminalConnSaving}>{terminalConnSaving ? 'Saving…' : 'Save Entry'}</button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setTerminalConnFormOpen(false); setEditingTerminalConnId(null); }}>Cancel</button>
+            </div>
+          </form>
+        )}
+
+        {terminalConnectionsLoading ? (
+          <div className="loading-state"><div className="spinner"></div><p>Loading terminal connections...</p></div>
+        ) : terminalConnections.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.75rem' }}>No terminal connection times documented yet — add one above.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.75rem' }}>
+            {terminalConnections.map(entry => (
+              <div key={entry.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                <div style={{ fontSize: '0.85rem' }}>
+                  <strong>{entry.airport_code}</strong>{entry.airport_name && ` — ${entry.airport_name}`} ({entry.country})
+                  <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, padding: '0.1rem 0.5rem', borderRadius: '999px', background: '#e0f2fe', color: '#075985' }}>
+                    {entry.from_terminal} → {entry.to_terminal}: ~{entry.estimated_minutes} min
+                  </span>
+                  {entry.notes && <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '0.2rem' }}>{entry.notes}</div>}
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => openTerminalConnForm(entry)}>Edit</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => handleDeleteTerminalConn(entry.id)}>Delete</button>
                 </div>
               </div>
             ))}

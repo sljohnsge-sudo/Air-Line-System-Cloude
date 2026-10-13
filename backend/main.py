@@ -2646,6 +2646,60 @@ def admin_delete_visa_requirement(requirement_id: int, _admin: dict = Depends(au
     return {"message": f"Visa requirement {requirement_id} deleted."}
 
 
+# ── Terminal Connection Times (B2C, admin-curated reference lookup) ──────────
+# Travelport doesn't return terminal-to-terminal walk/transfer times at
+# connecting airports, so this is a manually-maintained reference table
+# (same pattern as Visa Requirements above) with its own standalone B2C
+# lookup page -- not shown automatically in search results.
+
+class TerminalConnectionTimeInput(BaseModel):
+    country: str = Field(..., min_length=2, max_length=100)
+    airport_code: str = Field(..., min_length=3, max_length=10)
+    airport_name: Optional[str] = Field(None, max_length=150)
+    from_terminal: str = Field(..., min_length=1, max_length=20)
+    to_terminal: str = Field(..., min_length=1, max_length=20)
+    estimated_minutes: int = Field(..., ge=0, le=600)
+    notes: Optional[str] = Field(None, max_length=500)
+
+
+@app.get("/api/terminal-connections/countries")
+def list_terminal_connection_countries():
+    """Public — countries that actually have documented entries, for the B2C lookup page's Country dropdown."""
+    return {"countries": database.get_terminal_connection_countries()}
+
+
+@app.get("/api/terminal-connections")
+def check_terminal_connections(country: Optional[str] = None, airport_code: Optional[str] = None):
+    """Public lookup — returns an empty list rather than 404 when nothing is documented for that country/airport, since that's an expected, normal case."""
+    return {"connections": database.get_terminal_connection_times(country, airport_code)}
+
+
+@app.get("/api/admin/terminal-connections")
+def admin_list_terminal_connections(_admin: dict = Depends(auth.get_current_admin)):
+    return {"connections": database.get_terminal_connection_times()}
+
+
+@app.post("/api/admin/terminal-connections", status_code=status.HTTP_201_CREATED)
+def admin_create_terminal_connection(request: TerminalConnectionTimeInput, _admin: dict = Depends(auth.get_current_admin)):
+    return database.create_terminal_connection_time(request.model_dump())
+
+
+@app.put("/api/admin/terminal-connections/{entry_id}")
+def admin_update_terminal_connection(entry_id: int, request: TerminalConnectionTimeInput, _admin: dict = Depends(auth.get_current_admin)):
+    updated = database.update_terminal_connection_time(entry_id, request.model_dump())
+    if not updated:
+        raise HTTPException(status_code=404, detail="Terminal connection entry not found.")
+    return updated
+
+
+@app.delete("/api/admin/terminal-connections/{entry_id}")
+def admin_delete_terminal_connection(entry_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    deleted = database.delete_terminal_connection_time(entry_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Terminal connection entry not found.")
+    return {"message": f"Terminal connection entry {entry_id} deleted."}
+
+
 # ── Visa Consultants (admin-curated officer roster + country coverage) ────────
 # Staff maintain a roster of named officers and assign each one to any number
 # of destination countries (a country can have several officers covering it).
