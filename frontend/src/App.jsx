@@ -1912,7 +1912,16 @@ export default function App() {
       // Reset filters for new search
       setFilterMaxPrice(null);
       setFilterStops('any');
-      setFilterCabin('any');
+      // Travelport's server-side CabinPreference (sent as cabin_preference
+      // above) is silently ignored by the GDS — confirmed live: identical
+      // cabin counts returned whether "Business"/"Permitted" is sent or not,
+      // and even with maxNumberOfUpsellsToReturn forced to 0 it still only
+      // ever returns Economy regardless of the requested cabin. So the
+      // search-form cabin picker is carried into the results page's own
+      // client-side cabin filter (which does work, since it filters the
+      // already-parsed fare_options) instead of being reset to "any" here —
+      // otherwise picking "Business" on the form silently showed every cabin.
+      setFilterCabin(cabinPref && cabinPref !== 'All' ? cabinPref : 'any');
       setFilterTimeOfDay('any');
       setFilterAirlines([]);
       setSortBy('price');
