@@ -2519,6 +2519,7 @@ class VisaRequirementInput(BaseModel):
     processing_time: Optional[str] = Field(None, max_length=100)
     validity: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = Field(None, max_length=1000)
+    cancellation_policy: Optional[str] = Field(None, max_length=1000)
 
 
 @app.get("/api/visa-requirements/check")
@@ -2845,6 +2846,15 @@ class CancellationRequestCreate(BaseModel):
 
 @app.post("/api/cancellation-requests", status_code=status.HTTP_201_CREATED)
 def submit_cancellation_request(request: CancellationRequestCreate, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+    try:
+        travel_dt = datetime.strptime(request.travel_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="travel_date must be in YYYY-MM-DD format.")
+    if (travel_dt - datetime.now()).total_seconds() < 48 * 3600:
+        raise HTTPException(
+            status_code=422,
+            detail="Cancellation requests must be submitted at least 48 hours before the flight. For urgent cancellations within 48 hours, please contact our support team directly by phone.",
+        )
     req = database.create_cancellation_request(
         customer_id,
         request.booking_locator.upper().strip(),

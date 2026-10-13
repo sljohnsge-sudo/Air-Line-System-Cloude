@@ -412,6 +412,15 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # visa_requirements.cancellation_policy — added via a guarded ALTER, same
+    # reasoning as bookings.customer_id above.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='visa_requirements' AND COLUMN_NAME='cancellation_policy'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE visa_requirements ADD COLUMN cancellation_policy VARCHAR(1000) AFTER notes")
+
     # ── Visa Consultants (admin-curated officer roster) ────────────────────────
     # A named officer (e.g. Rashini, Kaveen) can cover any number of destination
     # countries, and a country can be covered by several officers at once — see
@@ -1617,10 +1626,10 @@ def create_visa_requirement(data: dict) -> dict:
     try:
         cursor.execute(
             """INSERT INTO visa_requirements
-               (nationality, destination, visa_required, visa_type, processing_time, validity, notes)
-               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+               (nationality, destination, visa_required, visa_type, processing_time, validity, notes, cancellation_policy)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
             (data["nationality"], data["destination"], data["visa_required"], data.get("visa_type"),
-             data.get("processing_time"), data.get("validity"), data.get("notes")),
+             data.get("processing_time"), data.get("validity"), data.get("notes"), data.get("cancellation_policy")),
         )
         conn.commit()
         cursor.execute("SELECT * FROM visa_requirements WHERE id=%s", (cursor.lastrowid,))
@@ -1639,9 +1648,9 @@ def update_visa_requirement(requirement_id: int, data: dict) -> dict | None:
     try:
         cursor.execute(
             """UPDATE visa_requirements SET nationality=%s, destination=%s, visa_required=%s,
-               visa_type=%s, processing_time=%s, validity=%s, notes=%s WHERE id=%s""",
+               visa_type=%s, processing_time=%s, validity=%s, notes=%s, cancellation_policy=%s WHERE id=%s""",
             (data["nationality"], data["destination"], data["visa_required"], data.get("visa_type"),
-             data.get("processing_time"), data.get("validity"), data.get("notes"), requirement_id),
+             data.get("processing_time"), data.get("validity"), data.get("notes"), data.get("cancellation_policy"), requirement_id),
         )
         conn.commit()
         cursor.execute("SELECT * FROM visa_requirements WHERE id=%s", (requirement_id,))

@@ -6,6 +6,7 @@ import BookingCard from './BookingCard.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
+import { COUNTRIES } from './countries.js';
 
 // Use whatever host the page was loaded from (not a hardcoded 'localhost') so
 // this also works when someone on the same network opens this machine's LAN
@@ -77,62 +78,7 @@ const trendingDestinations = [
   { city: 'New York', country: 'United States', code: 'JFK', image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=500&q=80', tag: 'Metro Hub' },
 ];
 
-// ── Countries (ISO 3166-1 alpha-3) — for TravelDocument.IssuedForGeoPoliticalArea ──
-const COUNTRIES = [
-  { name: 'Afghanistan', code: 'AFG' }, { name: 'Albania', code: 'ALB' }, { name: 'Algeria', code: 'DZA' },
-  { name: 'Andorra', code: 'AND' }, { name: 'Angola', code: 'AGO' }, { name: 'Argentina', code: 'ARG' },
-  { name: 'Armenia', code: 'ARM' }, { name: 'Australia', code: 'AUS' }, { name: 'Austria', code: 'AUT' },
-  { name: 'Azerbaijan', code: 'AZE' }, { name: 'Bahamas', code: 'BHS' }, { name: 'Bahrain', code: 'BHR' },
-  { name: 'Bangladesh', code: 'BGD' }, { name: 'Barbados', code: 'BRB' }, { name: 'Belarus', code: 'BLR' },
-  { name: 'Belgium', code: 'BEL' }, { name: 'Belize', code: 'BLZ' }, { name: 'Benin', code: 'BEN' },
-  { name: 'Bhutan', code: 'BTN' }, { name: 'Bolivia', code: 'BOL' }, { name: 'Bosnia and Herzegovina', code: 'BIH' },
-  { name: 'Botswana', code: 'BWA' }, { name: 'Brazil', code: 'BRA' }, { name: 'Brunei', code: 'BRN' },
-  { name: 'Bulgaria', code: 'BGR' }, { name: 'Burkina Faso', code: 'BFA' }, { name: 'Burundi', code: 'BDI' },
-  { name: 'Cambodia', code: 'KHM' }, { name: 'Cameroon', code: 'CMR' }, { name: 'Canada', code: 'CAN' },
-  { name: 'Chad', code: 'TCD' }, { name: 'Chile', code: 'CHL' }, { name: 'China', code: 'CHN' },
-  { name: 'Colombia', code: 'COL' }, { name: 'Congo', code: 'COG' }, { name: 'Costa Rica', code: 'CRI' },
-  { name: 'Croatia', code: 'HRV' }, { name: 'Cuba', code: 'CUB' }, { name: 'Cyprus', code: 'CYP' },
-  { name: 'Czech Republic', code: 'CZE' }, { name: 'Denmark', code: 'DNK' }, { name: 'Djibouti', code: 'DJI' },
-  { name: 'Dominican Republic', code: 'DOM' }, { name: 'Ecuador', code: 'ECU' }, { name: 'Egypt', code: 'EGY' },
-  { name: 'El Salvador', code: 'SLV' }, { name: 'Estonia', code: 'EST' }, { name: 'Ethiopia', code: 'ETH' },
-  { name: 'Fiji', code: 'FJI' }, { name: 'Finland', code: 'FIN' }, { name: 'France', code: 'FRA' },
-  { name: 'Georgia', code: 'GEO' }, { name: 'Germany', code: 'DEU' }, { name: 'Ghana', code: 'GHA' },
-  { name: 'Greece', code: 'GRC' }, { name: 'Guatemala', code: 'GTM' }, { name: 'Honduras', code: 'HND' },
-  { name: 'Hong Kong', code: 'HKG' }, { name: 'Hungary', code: 'HUN' }, { name: 'Iceland', code: 'ISL' },
-  { name: 'India', code: 'IND' }, { name: 'Indonesia', code: 'IDN' }, { name: 'Iran', code: 'IRN' },
-  { name: 'Iraq', code: 'IRQ' }, { name: 'Ireland', code: 'IRL' }, { name: 'Israel', code: 'ISR' },
-  { name: 'Italy', code: 'ITA' }, { name: 'Jamaica', code: 'JAM' }, { name: 'Japan', code: 'JPN' },
-  { name: 'Jordan', code: 'JOR' }, { name: 'Kazakhstan', code: 'KAZ' }, { name: 'Kenya', code: 'KEN' },
-  { name: 'Kuwait', code: 'KWT' }, { name: 'Kyrgyzstan', code: 'KGZ' }, { name: 'Laos', code: 'LAO' },
-  { name: 'Latvia', code: 'LVA' }, { name: 'Lebanon', code: 'LBN' }, { name: 'Lesotho', code: 'LSO' },
-  { name: 'Liberia', code: 'LBR' }, { name: 'Libya', code: 'LBY' }, { name: 'Liechtenstein', code: 'LIE' },
-  { name: 'Lithuania', code: 'LTU' }, { name: 'Luxembourg', code: 'LUX' }, { name: 'Madagascar', code: 'MDG' },
-  { name: 'Malawi', code: 'MWI' }, { name: 'Malaysia', code: 'MYS' }, { name: 'Maldives', code: 'MDV' },
-  { name: 'Mali', code: 'MLI' }, { name: 'Malta', code: 'MLT' }, { name: 'Mauritius', code: 'MUS' },
-  { name: 'Mexico', code: 'MEX' }, { name: 'Moldova', code: 'MDA' }, { name: 'Monaco', code: 'MCO' },
-  { name: 'Mongolia', code: 'MNG' }, { name: 'Montenegro', code: 'MNE' }, { name: 'Morocco', code: 'MAR' },
-  { name: 'Mozambique', code: 'MOZ' }, { name: 'Myanmar', code: 'MMR' }, { name: 'Namibia', code: 'NAM' },
-  { name: 'Nepal', code: 'NPL' }, { name: 'Netherlands', code: 'NLD' }, { name: 'New Zealand', code: 'NZL' },
-  { name: 'Nicaragua', code: 'NIC' }, { name: 'Niger', code: 'NER' }, { name: 'Nigeria', code: 'NGA' },
-  { name: 'North Korea', code: 'PRK' }, { name: 'North Macedonia', code: 'MKD' }, { name: 'Norway', code: 'NOR' },
-  { name: 'Oman', code: 'OMN' }, { name: 'Pakistan', code: 'PAK' }, { name: 'Panama', code: 'PAN' },
-  { name: 'Papua New Guinea', code: 'PNG' }, { name: 'Paraguay', code: 'PRY' }, { name: 'Peru', code: 'PER' },
-  { name: 'Philippines', code: 'PHL' }, { name: 'Poland', code: 'POL' }, { name: 'Portugal', code: 'PRT' },
-  { name: 'Qatar', code: 'QAT' }, { name: 'Romania', code: 'ROU' }, { name: 'Russia', code: 'RUS' },
-  { name: 'Rwanda', code: 'RWA' }, { name: 'Saudi Arabia', code: 'SAU' }, { name: 'Senegal', code: 'SEN' },
-  { name: 'Serbia', code: 'SRB' }, { name: 'Seychelles', code: 'SYC' }, { name: 'Singapore', code: 'SGP' },
-  { name: 'Slovakia', code: 'SVK' }, { name: 'Slovenia', code: 'SVN' }, { name: 'Somalia', code: 'SOM' },
-  { name: 'South Africa', code: 'ZAF' }, { name: 'South Korea', code: 'KOR' }, { name: 'South Sudan', code: 'SSD' },
-  { name: 'Spain', code: 'ESP' }, { name: 'Sri Lanka', code: 'LKA' }, { name: 'Sudan', code: 'SDN' },
-  { name: 'Sweden', code: 'SWE' }, { name: 'Switzerland', code: 'CHE' }, { name: 'Syria', code: 'SYR' },
-  { name: 'Taiwan', code: 'TWN' }, { name: 'Tajikistan', code: 'TJK' }, { name: 'Tanzania', code: 'TZA' },
-  { name: 'Thailand', code: 'THA' }, { name: 'Togo', code: 'TGO' }, { name: 'Trinidad and Tobago', code: 'TTO' },
-  { name: 'Tunisia', code: 'TUN' }, { name: 'Turkey', code: 'TUR' }, { name: 'Turkmenistan', code: 'TKM' },
-  { name: 'Uganda', code: 'UGA' }, { name: 'Ukraine', code: 'UKR' }, { name: 'United Arab Emirates', code: 'ARE' },
-  { name: 'United Kingdom', code: 'GBR' }, { name: 'United States', code: 'USA' }, { name: 'Uruguay', code: 'URY' },
-  { name: 'Uzbekistan', code: 'UZB' }, { name: 'Venezuela', code: 'VEN' }, { name: 'Vietnam', code: 'VNM' },
-  { name: 'Yemen', code: 'YEM' }, { name: 'Zambia', code: 'ZMB' }, { name: 'Zimbabwe', code: 'ZWE' },
-];
+// COUNTRIES now imported from ./countries.js (shared with AdminPortal.jsx)
 
 // ── Nationalities (ISO 3166-1 alpha-2 + dialing code) — for TravelDocument.issueCountry/birthCountry ──
 const NATIONALITIES = [
@@ -1014,10 +960,12 @@ export default function App() {
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [cancelSubmitted, setCancelSubmitted] = useState(false);
   const [cancelError, setCancelError] = useState('');
+  const [cancelAgreed, setCancelAgreed] = useState(false);
 
   const openCancellationRequest = (booking) => {
     setCancelSubmitted(false);
     setCancelError('');
+    setCancelAgreed(false);
     if (booking) {
       setCancelForm({
         booking_locator: booking.locator_code || '',
@@ -1036,6 +984,17 @@ export default function App() {
   const submitCancellationRequest = (e) => {
     e.preventDefault();
     setCancelError('');
+    if (!cancelAgreed) {
+      setCancelError('Please confirm you have read and agree to the cancellation terms before submitting.');
+      return;
+    }
+    if (cancelForm.travel_date) {
+      const hoursUntilTravel = (new Date(`${cancelForm.travel_date}T00:00:00`) - new Date()) / (1000 * 60 * 60);
+      if (hoursUntilTravel < 48) {
+        setCancelError('Cancellation requests must be submitted at least 48 hours before the flight. For urgent cancellations within 48 hours, please contact our support team directly by phone.');
+        return;
+      }
+    }
     setCancelSubmitting(true);
     fetch(`${API_BASE}/cancellation-requests`, {
       method: 'POST',
@@ -2130,6 +2089,26 @@ export default function App() {
             return;
           }
         }
+      }
+      if (!/^[A-Za-z0-9]{5,20}$/.test(t.passport_number.trim())) {
+        setBookingError(`Passenger ${i + 1} passport number looks invalid — it should be 5–20 letters/numbers only, no spaces or symbols.`);
+        setActivePassengerIdx(i);
+        return;
+      }
+      if (t.passport_expiry && new Date(t.passport_expiry) <= new Date()) {
+        setBookingError(`Passenger ${i + 1}'s passport has expired (or expires today). Please use a passport valid beyond the travel date.`);
+        setActivePassengerIdx(i);
+        return;
+      }
+      if (!/^\S+@\S+\.\S+$/.test(t.email.trim())) {
+        setBookingError(`Passenger ${i + 1} email address looks invalid.`);
+        setActivePassengerIdx(i);
+        return;
+      }
+      if (t.phone.replace(/\D/g, '').length < 7) {
+        setBookingError(`Passenger ${i + 1} phone number looks too short — please include the full mobile number.`);
+        setActivePassengerIdx(i);
+        return;
       }
     }
     setBookingError('');
@@ -6422,6 +6401,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           {visaResult.processing_time && <div><strong>Processing Time:</strong> {visaResult.processing_time}</div>}
                           {visaResult.validity && <div><strong>Validity:</strong> {visaResult.validity}</div>}
                           {visaResult.notes && <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}><strong>Notes:</strong> {visaResult.notes}</div>}
+                          {visaResult.cancellation_policy && <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}><strong>Cancellation Policy:</strong> {visaResult.cancellation_policy}</div>}
                         </div>
                       </div>
                     );
@@ -6598,6 +6578,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </ul>
                 </div>
 
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '1rem 1.1rem', marginBottom: '1rem', fontSize: '0.82rem', color: '#78350f', lineHeight: 1.6 }}>
+                  <strong>Canceled Events:</strong> If the event is canceled entirely, a full refund of the ticket face value will be automatically issued to the original method of payment. Please note that service fees, booking fees, and processing charges may be non-refundable.
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={cancelAgreed} onChange={e => setCancelAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
+                  <span>I have read and agree to the cancellation terms above.</span>
+                </label>
+
                 {cancelError && <div className="error-banner">{cancelError}</div>}
 
                 <form onSubmit={submitCancellationRequest}>
@@ -6647,7 +6636,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </div>
                   </div>
 
-                  <button type="submit" className="btn btn-primary" disabled={cancelSubmitting} style={{ width: '100%', marginTop: '0.75rem' }}>
+                  <button type="submit" className="btn btn-primary" disabled={cancelSubmitting || !cancelAgreed} style={{ width: '100%', marginTop: '0.75rem' }}>
                     {cancelSubmitting ? 'Submitting…' : 'Submit Cancellation Request'}
                   </button>
                 </form>

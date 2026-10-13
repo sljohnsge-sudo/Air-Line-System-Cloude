@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import BookingCard from './BookingCard.jsx';
+import { COUNTRIES } from './countries.js';
 
 export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation, visaEnabled }) {
   const [activeSection, setActiveSection] = useState('bookings');
@@ -370,11 +371,17 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
               <form onSubmit={checkVisaStatus} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '180px' }}>
                   <label className="form-label">Your Nationality</label>
-                  <input className="form-input" required placeholder="e.g. Sri Lanka" value={visaNationality} onChange={e => setVisaNationality(e.target.value)} />
+                  <select className="form-input" required value={visaNationality} onChange={e => setVisaNationality(e.target.value)}>
+                    <option value="">-- Select nationality --</option>
+                    {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '180px' }}>
                   <label className="form-label">Destination</label>
-                  <input className="form-input" required placeholder="e.g. United Kingdom" value={visaDestination} onChange={e => setVisaDestination(e.target.value)} />
+                  <select className="form-input" required value={visaDestination} onChange={e => setVisaDestination(e.target.value)}>
+                    <option value="">-- Select destination --</option>
+                    {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
                 </div>
                 <button type="submit" className="btn btn-primary" disabled={visaChecking}>
                   {visaChecking ? 'Checking…' : 'Check Status'}
@@ -394,6 +401,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
                         {visaResult.validity && <div><strong>Validity:</strong> {visaResult.validity}</div>}
                       </div>
                       {visaResult.notes && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>{visaResult.notes}</p>}
+                      {visaResult.cancellation_policy && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}><strong>Cancellation Policy:</strong> {visaResult.cancellation_policy}</p>}
                     </>
                   ) : (
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{visaResult.message}</p>

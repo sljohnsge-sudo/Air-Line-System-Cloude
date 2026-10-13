@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { COUNTRIES } from './countries.js';
 
 export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, API_BASE, AMADEUS_API_BASE, fetchWithRetry, handleApiResponse, onNavigate, onOpenInvoice }) {
   const [username, setUsername] = useState('');
@@ -93,7 +94,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [packageRequestsError, setPackageRequestsError] = useState('');
   const [packageRequestActionId, setPackageRequestActionId] = useState(null);
 
-  const emptyVisaForm = { nationality: '', destination: '', visa_required: 'required', visa_type: '', processing_time: '', validity: '', notes: '' };
+  const emptyVisaForm = { nationality: '', destination: '', visa_required: 'required', visa_type: '', processing_time: '', validity: '', notes: '', cancellation_policy: '' };
   const [visaRequirements, setVisaRequirements] = useState([]);
   const [visaRequirementsLoading, setVisaRequirementsLoading] = useState(false);
   const [visaRequirementsError, setVisaRequirementsError] = useState('');
@@ -717,7 +718,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setVisaForm({
         nationality: req.nationality, destination: req.destination, visa_required: req.visa_required,
         visa_type: req.visa_type || '', processing_time: req.processing_time || '',
-        validity: req.validity || '', notes: req.notes || '',
+        validity: req.validity || '', notes: req.notes || '', cancellation_policy: req.cancellation_policy || '',
       });
     } else {
       setEditingVisaId(null);
@@ -1703,11 +1704,17 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
                 <label className="form-label">Nationality *</label>
-                <input className="form-input" required placeholder="e.g. Sri Lanka" value={visaForm.nationality} onChange={e => setVisaForm(f => ({ ...f, nationality: e.target.value }))} />
+                <select className="form-input" required value={visaForm.nationality} onChange={e => setVisaForm(f => ({ ...f, nationality: e.target.value }))}>
+                  <option value="">-- Select nationality --</option>
+                  {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
                 <label className="form-label">Destination *</label>
-                <input className="form-input" required placeholder="e.g. United Kingdom" value={visaForm.destination} onChange={e => setVisaForm(f => ({ ...f, destination: e.target.value }))} />
+                <select className="form-input" required value={visaForm.destination} onChange={e => setVisaForm(f => ({ ...f, destination: e.target.value }))}>
+                  <option value="">-- Select destination --</option>
+                  {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
               </div>
             </div>
             <div className="form-group">
@@ -1736,6 +1743,10 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             <div className="form-group">
               <label className="form-label">Notes</label>
               <textarea className="form-input" rows={2} value={visaForm.notes} onChange={e => setVisaForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Visa Cancellation Policy</label>
+              <textarea className="form-input" rows={2} placeholder="e.g. Visa fee is non-refundable once the application has been submitted to the consulate." value={visaForm.cancellation_policy} onChange={e => setVisaForm(f => ({ ...f, cancellation_policy: e.target.value }))} />
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
               <button type="submit" className="btn btn-primary" disabled={visaSaving}>{visaSaving ? 'Saving…' : 'Save Requirement'}</button>
