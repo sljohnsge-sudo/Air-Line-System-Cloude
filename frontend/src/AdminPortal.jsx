@@ -1439,49 +1439,41 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         {providerSettingsLoading ? (
           <div className="loading-state"><div className="spinner"></div><p>Loading provider settings...</p></div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '520px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxWidth: '520px' }}>
             {[
-              {
-                mode: 'both',
-                title: 'Both — Travelport + Amadeus',
-                desc: 'Search shows fares from both GDS side by side (TP / AD badges), sorted by price. This is what the unified search has been doing.',
-              },
-              {
-                mode: 'travelport_only',
-                title: 'Travelport only',
-                desc: 'Amadeus is not queried at all — only Travelport (TP) fares are shown and bookable. Use this if Amadeus has an outage or you only want to sell Travelport content.',
-              },
-              {
-                mode: 'amadeus_only',
-                title: 'Amadeus only',
-                desc: 'Travelport is not queried at all — only Amadeus (AD) fares are shown. Note: Amadeus ticket issuance is still pending that account’s own ticketing authorization.',
-              },
-            ].map(opt => {
-              const active = providerSettings?.search_mode === opt.mode;
+              { key: 'travelport', label: 'Travelport (GDS + NDC)', desc: 'Travelport fares (TP badge) shown and bookable in the unified flight search.' },
+              { key: 'amadeus', label: 'Amadeus', desc: 'Amadeus fares (AD badge) shown and bookable in the unified flight search. Note: Amadeus ticket issuance is still pending that account’s own ticketing authorization.' },
+            ].map(prov => {
+              const mode = providerSettings?.search_mode || 'both';
+              const tpOn = mode === 'both' || mode === 'travelport_only';
+              const adOn = mode === 'both' || mode === 'amadeus_only';
+              const isOn = prov.key === 'travelport' ? tpOn : adOn;
+              const otherOn = prov.key === 'travelport' ? adOn : tpOn;
               return (
-                <button
-                  key={opt.mode}
-                  type="button"
-                  disabled={providerSettingsSaving || active}
-                  onClick={() => updateProviderSettings({ search_mode: opt.mode })}
-                  style={{
-                    textAlign: 'left',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '8px',
-                    border: active ? '2px solid var(--gs-crimson)' : '1px solid var(--border-color)',
-                    background: active ? '#fff1f2' : '#f8fafc',
-                    cursor: active ? 'default' : 'pointer',
-                    opacity: providerSettingsSaving && !active ? 0.6 : 1,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: active ? 'var(--gs-crimson)' : 'var(--text-primary)' }}>
-                      {opt.title}
-                    </span>
-                    {active && <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'white', background: 'var(--gs-crimson)', borderRadius: '3px', padding: '0.1rem 0.4rem', letterSpacing: '0.03em' }}>ACTIVE</span>}
+                <label key={prov.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#f8fafc', cursor: providerSettingsSaving ? 'default' : 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isOn}
+                    disabled={providerSettingsSaving || (isOn && !otherOn)}
+                    title={isOn && !otherOn ? 'At least one provider must stay enabled.' : undefined}
+                    onChange={e => {
+                      const nextTp = prov.key === 'travelport' ? e.target.checked : tpOn;
+                      const nextAd = prov.key === 'amadeus' ? e.target.checked : adOn;
+                      const nextMode = nextTp && nextAd ? 'both' : nextTp ? 'travelport_only' : nextAd ? 'amadeus_only' : mode;
+                      updateProviderSettings({ search_mode: nextMode });
+                    }}
+                    style={{ marginTop: '0.2rem' }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>
+                      {prov.label}{' '}
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'white', borderRadius: '3px', padding: '0.1rem 0.4rem', letterSpacing: '0.03em', background: isOn ? '#16a34a' : '#64748b' }}>
+                        {isOn ? 'LIVE' : 'HIDDEN'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>{prov.desc}</div>
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{opt.desc}</div>
-                </button>
+                </label>
               );
             })}
           </div>
