@@ -26,6 +26,11 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [loyaltySaving, setLoyaltySaving] = useState(false);
   const [loyaltySaveMsg, setLoyaltySaveMsg] = useState('');
 
+  const [loyaltyTierBenefits, setLoyaltyTierBenefits] = useState([]);
+  const [loyaltyTierBenefitsError, setLoyaltyTierBenefitsError] = useState('');
+  const [newBenefitText, setNewBenefitText] = useState({ Bronze: '', Silver: '', Gold: '', Platinum: '' });
+  const [benefitDrafts, setBenefitDrafts] = useState({});
+
   const [emailRequests, setEmailRequests] = useState([]);
   const [emailRequestsLoading, setEmailRequestsLoading] = useState(false);
   const [emailRequestsError, setEmailRequestsError] = useState('');
@@ -169,6 +174,69 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setLoyaltySettings(data);
     } catch (err) {
       setLoyaltySettingsError(err.message);
+    }
+  };
+
+  const loadLoyaltyTierBenefits = async () => {
+    setLoyaltyTierBenefitsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/loyalty-tier-benefits`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load tier benefits');
+      setLoyaltyTierBenefits(data.benefits || []);
+    } catch (err) {
+      setLoyaltyTierBenefitsError(err.message);
+    }
+  };
+
+  const addTierBenefit = async (tier) => {
+    const text = (newBenefitText[tier] || '').trim();
+    if (!text) return;
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/loyalty-tier-benefits`, {
+        method: 'POST', headers: authHeaders, body: JSON.stringify({ tier, benefit_text: text }),
+      });
+      await adminApiResponse(res, 'Failed to add benefit');
+      setNewBenefitText(s => ({ ...s, [tier]: '' }));
+      loadLoyaltyTierBenefits();
+    } catch (err) {
+      setLoyaltyTierBenefitsError(err.message);
+    }
+  };
+
+  const saveTierBenefitText = async (id, text) => {
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/loyalty-tier-benefits/${id}`, {
+        method: 'PUT', headers: authHeaders, body: JSON.stringify({ benefit_text: text }),
+      });
+      await adminApiResponse(res, 'Failed to update benefit');
+      loadLoyaltyTierBenefits();
+    } catch (err) {
+      setLoyaltyTierBenefitsError(err.message);
+    }
+  };
+
+  const deleteTierBenefit = async (id) => {
+    if (!window.confirm('Remove this benefit from the loyalty card?')) return;
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/loyalty-tier-benefits/${id}`, {
+        method: 'DELETE', headers: authHeaders,
+      });
+      await adminApiResponse(res, 'Failed to delete benefit');
+      loadLoyaltyTierBenefits();
+    } catch (err) {
+      setLoyaltyTierBenefitsError(err.message);
+    }
+  };
+
+  const moveTierBenefit = async (id, direction) => {
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/loyalty-tier-benefits/${id}/move?direction=${direction}`, {
+        method: 'POST', headers: authHeaders,
+      });
+      const data = await adminApiResponse(res, 'Failed to reorder benefit');
+      setLoyaltyTierBenefits(data.benefits || []);
+    } catch (err) {
+      setLoyaltyTierBenefitsError(err.message);
     }
   };
 
@@ -360,6 +428,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       loadSettings();
       loadSummary();
       loadLoyaltySettings();
+      loadLoyaltyTierBenefits();
       loadEmailRequests();
       loadCancellationRequests();
       loadNotifications();
@@ -1074,6 +1143,58 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
               {loyaltySaving ? 'Saving…' : 'Save Loyalty Settings'}
             </button>
             {loyaltySaveMsg && <span style={{ marginLeft: '0.75rem', color: '#16a34a', fontWeight: 600, fontSize: '0.85rem' }}>{loyaltySaveMsg}</span>}
+
+            <h4 style={{ margin: '1.75rem 0 0.75rem', fontSize: '0.95rem', color: 'var(--gs-dark)' }}>Member Benefits per Tier</h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 1rem' }}>
+              Shown on the customer's own Loyalty Program card in the Customer Portal — their current tier's benefits, and what they unlock at the next tier. Changes save immediately.
+            </p>
+            {loyaltyTierBenefitsError && <div className="error-banner">{loyaltyTierBenefitsError}</div>}
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              {[
+                { tier: 'Bronze', emoji: '🥉' },
+                { tier: 'Silver', emoji: '🥈' },
+                { tier: 'Gold', emoji: '🥇' },
+                { tier: 'Platinum', emoji: '💎' },
+              ].map(({ tier, emoji }) => {
+                const rows = loyaltyTierBenefits.filter(b => b.tier === tier);
+                return (
+                  <div key={tier} style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', flex: 1, minWidth: '240px' }}>
+                    <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', color: 'var(--gs-dark)' }}>{emoji} {tier}</h4>
+                    {rows.length === 0 && <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>No benefits listed yet.</p>}
+                    {rows.map((b, i) => (
+                      <div key={b.id} style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <button className="btn btn-secondary btn-sm" style={{ padding: '0 0.3rem', lineHeight: 1 }} disabled={i === 0} onClick={() => moveTierBenefit(b.id, 'up')} title="Move up">▲</button>
+                          <button className="btn btn-secondary btn-sm" style={{ padding: '0 0.3rem', lineHeight: 1 }} disabled={i === rows.length - 1} onClick={() => moveTierBenefit(b.id, 'down')} title="Move down">▼</button>
+                        </div>
+                        <input
+                          className="form-input"
+                          style={{ flex: 1, fontSize: '0.82rem', padding: '0.4rem 0.5rem' }}
+                          value={benefitDrafts[b.id] !== undefined ? benefitDrafts[b.id] : b.benefit_text}
+                          onChange={e => setBenefitDrafts(d => ({ ...d, [b.id]: e.target.value }))}
+                          onBlur={() => {
+                            const draft = benefitDrafts[b.id];
+                            if (draft !== undefined && draft.trim() && draft !== b.benefit_text) saveTierBenefitText(b.id, draft.trim());
+                          }}
+                        />
+                        <button className="btn btn-danger btn-sm" onClick={() => deleteTierBenefit(b.id)} title="Remove">✕</button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
+                      <input
+                        className="form-input"
+                        placeholder="Add a benefit…"
+                        style={{ flex: 1, fontSize: '0.82rem', padding: '0.4rem 0.5rem' }}
+                        value={newBenefitText[tier] || ''}
+                        onChange={e => setNewBenefitText(s => ({ ...s, [tier]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTierBenefit(tier); } }}
+                      />
+                      <button className="btn btn-secondary btn-sm" onClick={() => addTierBenefit(tier)}>+ Add</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </>
         )}
       </section>

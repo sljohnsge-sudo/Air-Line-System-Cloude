@@ -241,6 +241,43 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # Admin-editable perk copy per tier, shown on the customer's loyalty card
+    # (CustomerPortal.jsx) — replaces what used to be a hardcoded Python list
+    # so an admin can add/edit/remove/reorder benefits without a deploy.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS loyalty_tier_benefits (
+            id           INT AUTO_INCREMENT PRIMARY KEY,
+            tier         VARCHAR(20) NOT NULL,
+            benefit_text VARCHAR(255) NOT NULL,
+            sort_order   INT NOT NULL DEFAULT 0,
+            created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_loyalty_tier_benefit_tier (tier)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    cursor.execute("SELECT COUNT(*) FROM loyalty_tier_benefits")
+    if cursor.fetchone()[0] == 0:
+        _default_tier_benefits = [
+            ("Bronze", "Earn points on every ticketed booking"),
+            ("Bronze", "Email support priority queue"),
+            ("Silver", "Everything in Bronze"),
+            ("Silver", "Free seat selection on domestic sectors"),
+            ("Silver", "Priority email support"),
+            ("Gold", "Everything in Silver"),
+            ("Gold", "One free date-change waiver per year"),
+            ("Gold", "Dedicated phone support line"),
+            ("Platinum", "Everything in Gold"),
+            ("Platinum", "Complimentary excess baggage allowance (airline permitting)"),
+            ("Platinum", "Fast-track visa consultation booking"),
+        ]
+        _tier_counters = {}
+        for _tier, _text in _default_tier_benefits:
+            _order = _tier_counters.get(_tier, 0)
+            cursor.execute(
+                "INSERT INTO loyalty_tier_benefits (tier, benefit_text, sort_order) VALUES (%s,%s,%s)",
+                (_tier, _text, _order),
+            )
+            _tier_counters[_tier] = _order + 1
+
     # ── Email Change Requests ───────────────────────────────────────────────
     # Self-service email changes aren't safe here (no email verification
     # capability at all), so a customer's request goes into a queue an admin
@@ -793,6 +830,112 @@ def update_loyalty_settings(points_per_lkr: float, points_per_usd: float,
     finally:
         cursor.close()
         conn.close()
+
+
+_TIER_ORDER_SQL = "CASE tier WHEN 'Bronze' THEN 1 WHEN 'Silver' THEN 2 WHEN 'Gold' THEN 3 WHEN 'Platinum' THEN 4 ELSE 5 END"
+
+
+def get_all_loyalty_tier_benefits() -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(f"SELECT * FROM loyalty_tier_benefits ORDER BY {_TIER_ORDER_SQL}, sort_order")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_loyalty_tier_benefits_map() -> dict:
+    """Tier name -> ordered list of benefit strings, for the customer's own loyalty card."""
+    result = {"Bronze": [], "Silver": [], "Gold": [], "Platinum": []}
+    for row in get_all_loyalty_tier_benefits():
+        result.setdefault(row["tier"], []).append(row["benefit_text"])
+    return result
+
+
+def create_loyalty_tier_benefit(tier: str, benefit_text: str) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT COALESCE(MAX(sort_order),-1)+1 AS next_order FROM loyalty_tier_benefits WHERE tier=%s", (tier,))
+        next_order = cursor.fetchone()["next_order"]
+        cursor.execute(
+            "INSERT INTO loyalty_tier_benefits (tier, benefit_text, sort_order) VALUES (%s,%s,%s)",
+            (tier, benefit_text, next_order),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM loyalty_tier_benefits WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_loyalty_tier_benefit(benefit_id: int, benefit_text: str) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id FROM loyalty_tier_benefits WHERE id=%s", (benefit_id,))
+        if not cursor.fetchone():
+            return None
+        cursor.execute("UPDATE loyalty_tier_benefits SET benefit_text=%s WHERE id=%s", (benefit_text, benefit_id))
+        conn.commit()
+        cursor.execute("SELECT * FROM loyalty_tier_benefits WHERE id=%s", (benefit_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_loyalty_tier_benefit(benefit_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM loyalty_tier_benefits WHERE id=%s", (benefit_id,))
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    cursor.close()
+    conn.close()
+    return deleted
+
+
+def move_loyalty_tier_benefit(benefit_id: int, direction: str) -> list[dict] | None:
+    """Swaps sort_order with the adjacent sibling within the same tier. No-op (but still
+    returns the current list) if already at that edge. Returns None if benefit_id doesn't exist."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM loyalty_tier_benefits WHERE id=%s", (benefit_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        if direction == "up":
+            cursor.execute(
+                "SELECT * FROM loyalty_tier_benefits WHERE tier=%s AND sort_order < %s ORDER BY sort_order DESC LIMIT 1",
+                (row["tier"], row["sort_order"]),
+            )
+        else:
+            cursor.execute(
+                "SELECT * FROM loyalty_tier_benefits WHERE tier=%s AND sort_order > %s ORDER BY sort_order ASC LIMIT 1",
+                (row["tier"], row["sort_order"]),
+            )
+        neighbor = cursor.fetchone()
+        if neighbor:
+            cursor.execute("UPDATE loyalty_tier_benefits SET sort_order=%s WHERE id=%s", (neighbor["sort_order"], row["id"]))
+            cursor.execute("UPDATE loyalty_tier_benefits SET sort_order=%s WHERE id=%s", (row["sort_order"], neighbor["id"]))
+            conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+    return get_all_loyalty_tier_benefits()
 
 
 def award_loyalty_points(email: str, points: int, locator_code: str | None, reason: str) -> int:

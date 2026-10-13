@@ -2105,6 +2105,52 @@ def put_loyalty_settings_admin(request: LoyaltySettingsRequest, _admin: dict = D
     )
 
 
+class LoyaltyTierBenefitCreate(BaseModel):
+    tier: str = Field(..., pattern="^(Bronze|Silver|Gold|Platinum)$")
+    benefit_text: str = Field(..., min_length=1, max_length=255)
+
+
+class LoyaltyTierBenefitUpdate(BaseModel):
+    benefit_text: str = Field(..., min_length=1, max_length=255)
+
+
+@app.get("/api/admin/loyalty-tier-benefits")
+def get_loyalty_tier_benefits_admin(_admin: dict = Depends(auth.get_current_admin)):
+    return {"benefits": database.get_all_loyalty_tier_benefits()}
+
+
+@app.post("/api/admin/loyalty-tier-benefits", status_code=status.HTTP_201_CREATED)
+def create_loyalty_tier_benefit_admin(request: LoyaltyTierBenefitCreate, _admin: dict = Depends(auth.get_current_admin)):
+    return database.create_loyalty_tier_benefit(request.tier, request.benefit_text.strip())
+
+
+@app.put("/api/admin/loyalty-tier-benefits/{benefit_id}")
+def update_loyalty_tier_benefit_admin(benefit_id: int, request: LoyaltyTierBenefitUpdate, _admin: dict = Depends(auth.get_current_admin)):
+    row = database.update_loyalty_tier_benefit(benefit_id, request.benefit_text.strip())
+    if not row:
+        raise HTTPException(status_code=404, detail="Benefit not found.")
+    return row
+
+
+@app.delete("/api/admin/loyalty-tier-benefits/{benefit_id}")
+def delete_loyalty_tier_benefit_admin(benefit_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    if not database.delete_loyalty_tier_benefit(benefit_id):
+        raise HTTPException(status_code=404, detail="Benefit not found.")
+    return {"deleted": True}
+
+
+@app.post("/api/admin/loyalty-tier-benefits/{benefit_id}/move")
+def move_loyalty_tier_benefit_admin(
+    benefit_id: int,
+    direction: str = Query(..., pattern="^(up|down)$"),
+    _admin: dict = Depends(auth.get_current_admin),
+):
+    rows = database.move_loyalty_tier_benefit(benefit_id, direction)
+    if rows is None:
+        raise HTTPException(status_code=404, detail="Benefit not found.")
+    return {"benefits": rows}
+
+
 # ── Manual Booking Assignment (Admin) ─────────────────────────────────────────
 # Covers cases auto-link-by-email can't: a booking made under a different
 # email than the customer's account (typo, alternate address, shared family
