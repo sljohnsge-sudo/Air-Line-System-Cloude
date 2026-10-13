@@ -35,7 +35,7 @@ def _api_get(url: str) -> dict:
 
 
 def _parse_pax_type_label(ptc: str) -> str:
-    return {"ADT": "Adult", "CNN": "Child", "INF": "Infant"}.get(ptc.upper(), ptc)
+    return {"ADT": "Adult", "CNN": "Child", "INF": "Infant", "STU": "Student"}.get(ptc.upper(), ptc)
 
 
 def _parse_invoice_product(product: dict) -> dict | None:

@@ -434,8 +434,8 @@ def _extract_passenger_criteria_from_offering(raw_offering: dict) -> list:
     if not pax_by_type:
         pax_by_type = {"ADT": 1}
 
-    age_map = {"ADT": 25, "INF": 1, "CNN": 10}
-    passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+    age_map = {"ADT": 25, "STU": 20, "INF": 1, "CNN": 10}
+    passenger_type_order = {"ADT": 0, "STU": 1, "INF": 2, "CNN": 3}
     return [
         {
             "@type": "PassengerCriteria",
@@ -1229,7 +1229,7 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
                 # 2026-09-23 per an earlier, different reference set) — this
                 # latest guidance is the current standard for both content
                 # sources.
-                passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+                passenger_type_order = {"ADT": 0, "STU": 1, "INF": 2, "CNN": 3}
                 ordered_travelers = sorted(
                     travelers,
                     key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
@@ -1319,7 +1319,7 @@ def run_instant_pay_flow(raw_offering: dict, travelers: list, max_attempts: int 
     import uuid
     from services.ticket_service import cancel_reservation
 
-    passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+    passenger_type_order = {"ADT": 0, "STU": 1, "INF": 2, "CNN": 3}
     ordered = sorted(travelers, key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99))
     last_error = "unknown error"
 

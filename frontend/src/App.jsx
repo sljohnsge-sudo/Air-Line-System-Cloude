@@ -1390,6 +1390,7 @@ export default function App() {
   const [adultCount, setAdultCount] = useState(() => Number(initialResultsPayload?.adults) || 1);
   const [childCount, setChildCount] = useState(() => Number(initialResultsPayload?.children) || 0);
   const [infantCount, setInfantCount] = useState(() => Number(initialResultsPayload?.infants) || 0);
+  const [studentCount, setStudentCount] = useState(() => Number(initialResultsPayload?.students) || 0);
   const [cabinPref, setCabinPref] = useState(() => initialResultsPayload?.cabin || 'All');
   const [showTravelersPopover, setShowTravelersPopover] = useState(false);
   const [showCabinPopover, setShowCabinPopover] = useState(false);
@@ -1688,7 +1689,7 @@ export default function App() {
         origin: searchOrigin, destination: searchDest, date: searchDate,
         returnDate: searchType === 'roundtrip' ? returnDate : null,
         type: searchType, adults: adultCount, children: childCount,
-        infants: infantCount, cabin: cabinPref,
+        infants: infantCount, students: studentCount, cabin: cabinPref,
       };
       const token = encryptForUrl(JSON.stringify(payload));
       return { path: token ? `/results/${token}` : '/results', search: '' };
@@ -1705,7 +1706,7 @@ export default function App() {
   }, [
     activeTab, bookingStep, issuedTicket?.locator_code, issuedTicket?.pnr,
     searchOrigin, searchDest, searchDate, returnDate, searchType,
-    adultCount, childCount, infantCount, cabinPref, flights.length, showSearchForm,
+    adultCount, childCount, infantCount, studentCount, cabinPref, flights.length, showSearchForm,
   ]);
 
   // ── URL → app state ────────────────────────────────────────────────────
@@ -1770,6 +1771,7 @@ export default function App() {
         if (payload.adults) setAdultCount(Number(payload.adults) || 1);
         if (payload.children) setChildCount(Number(payload.children) || 0);
         if (payload.infants) setInfantCount(Number(payload.infants) || 0);
+        if (payload.students) setStudentCount(Number(payload.students) || 0);
         if (payload.cabin) setCabinPref(payload.cabin);
         handleSearch(null, { origin, destination, date });
       }
@@ -1896,6 +1898,7 @@ export default function App() {
           adult_count: adultCount,
           child_count: childCount,
           infant_count: infantCount,
+          student_count: studentCount,
           cabin_preference: cabinPref === 'All' ? null : (cabinPref || null)
         })
       });
@@ -2028,6 +2031,14 @@ export default function App() {
         first_name: '', last_name: '', date_of_birth: '',
         gender: 'Male', passport_number: '', passport_expiry: '',
         nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'INF',
+        ...extraFields
+      });
+    }
+    for (let i = 0; i < studentCount; i++) {
+      travelerList.push({
+        first_name: '', last_name: '', date_of_birth: '',
+        gender: 'Male', passport_number: '', passport_expiry: '',
+        nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'STU',
         ...extraFields
       });
     }
@@ -3284,7 +3295,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     onClick={() => setShowTravelersPopover(!showTravelersPopover)}
                   >
                     <span>
-                      {adultCount + childCount + infantCount} Traveler{adultCount + childCount + infantCount > 1 ? 's' : ''}
+                      {adultCount + childCount + infantCount + studentCount} Traveler{(adultCount + childCount + infantCount + studentCount) > 1 ? 's' : ''}
                     </span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showTravelersPopover ? 'rotate(180deg)' : 'none' }}>
                       <path d="M6 9l6 6 6-6" />
@@ -3461,6 +3472,46 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
                                 alignItems: 'center', justifyContent: 'center',
                                 cursor: infantCount >= 8 ? 'not-allowed' : 'pointer', opacity: infantCount >= 8 ? 0.5 : 1,
+                                outline: 'none', padding: 0, userSelect: 'none'
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Row: Student */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1.5px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: '700', color: '#475569', fontSize: '0.95rem' }}>
+                              Student <span style={{ fontWeight: '400', fontSize: '0.8rem', color: '#94a3b8' }}>(fare subject to airline)</span>
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <button
+                              type="button"
+                              disabled={studentCount <= 0}
+                              onClick={() => setStudentCount(prev => Math.max(0, prev - 1))}
+                              style={{
+                                width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #cbd5e1',
+                                background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                cursor: studentCount <= 0 ? 'not-allowed' : 'pointer', opacity: studentCount <= 0 ? 0.5 : 1,
+                                outline: 'none', padding: 0, userSelect: 'none'
+                              }}
+                            >
+                              –
+                            </button>
+                            <span style={{ minWidth: '16px', textAlign: 'center', fontWeight: '700', color: '#1e293b', fontSize: '1.1rem' }}>{studentCount}</span>
+                            <button
+                              type="button"
+                              disabled={studentCount >= 9}
+                              onClick={() => setStudentCount(prev => Math.min(9, prev + 1))}
+                              style={{
+                                width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #cbd5e1',
+                                background: 'white', color: '#475569', fontSize: '1.4rem', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                cursor: studentCount >= 9 ? 'not-allowed' : 'pointer', opacity: studentCount >= 9 ? 0.5 : 1,
                                 outline: 'none', padding: 0, userSelect: 'none'
                               }}
                             >
@@ -3780,7 +3831,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <span className="rcb-summary">
                   {searchOrigin || 'Origin'} <span className="rcb-arrow">→</span> {searchDest || 'Destination'}
                   {' · '}{searchDate || 'Any date'}{searchType === 'roundtrip' && returnDate ? ` – ${returnDate}` : ''}
-                  {' · '}{adultCount + childCount + infantCount} Pax
+                  {' · '}{adultCount + childCount + infantCount + studentCount} Pax
                 </span>
                 <span className="rcb-edit">Edit ✎</span>
               </div>
@@ -3872,7 +3923,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     <div className="rsb-label">TRAVELERS & CLASS</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                       <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {adultCount + childCount + infantCount} Pax, {cabinPref === 'PremiumEconomy' ? 'Prem Eco' : cabinPref}
+                        {adultCount + childCount + infantCount + studentCount} Pax, {cabinPref === 'PremiumEconomy' ? 'Prem Eco' : cabinPref}
                       </span>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '4px', color: '#64748b', transition: 'transform 0.2s', transform: showResultsPopover ? 'rotate(180deg)' : 'none' }}>
                         <path d="M6 9l6 6 6-6" />
@@ -4142,6 +4193,72 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 justifyContent: 'center',
                                 cursor: infantCount >= 8 ? 'not-allowed' : 'pointer',
                                 opacity: infantCount >= 8 ? 0.5 : 1,
+                                outline: 'none',
+                                padding: 0,
+                                userSelect: 'none'
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Row: Student */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1.5px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: '700', color: '#475569', fontSize: '0.95rem' }}>
+                              Student <span style={{ fontWeight: '400', fontSize: '0.8rem', color: '#94a3b8' }}>(fare subject to airline)</span>
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <button
+                              type="button"
+                              disabled={studentCount <= 0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setStudentCount(prev => Math.max(0, prev - 1));
+                              }}
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                border: '1.5px solid #cbd5e1',
+                                background: 'white',
+                                color: '#475569',
+                                fontSize: '1.4rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: studentCount <= 0 ? 'not-allowed' : 'pointer',
+                                opacity: studentCount <= 0 ? 0.5 : 1,
+                                outline: 'none',
+                                padding: 0,
+                                userSelect: 'none'
+                              }}
+                            >
+                              –
+                            </button>
+                            <span style={{ minWidth: '16px', textAlign: 'center', fontWeight: '700', color: '#1e293b', fontSize: '1.1rem' }}>{studentCount}</span>
+                            <button
+                              type="button"
+                              disabled={studentCount >= 9}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setStudentCount(prev => Math.min(9, prev + 1));
+                              }}
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                border: '1.5px solid #cbd5e1',
+                                background: 'white',
+                                color: '#475569',
+                                fontSize: '1.4rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: studentCount >= 9 ? 'not-allowed' : 'pointer',
+                                opacity: studentCount >= 9 ? 0.5 : 1,
                                 outline: 'none',
                                 padding: 0,
                                 userSelect: 'none'
@@ -4440,7 +4557,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                 {!loadingFlights && displayed.map((flight, idx) => {
                   const isFareExpanded = !!expandedFareIds[flight.offer_id || idx];
-                  const totalPax = adultCount + childCount + infantCount;
+                  const totalPax = adultCount + childCount + infantCount + studentCount;
 
                   const fId = flight.offer_id || idx;
                   // When a cabin filter is active (e.g. "Business") and this
@@ -4959,8 +5076,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                           {/* Per-type pills */}
                           {Object.entries(currentPriceBreakdown).map(([ptc, details], pIdx) => {
-                            const label = ptc === 'ADT' ? 'Adult' : ptc === 'CNN' ? 'Child (2–11)' : ptc === 'INF' ? 'Infant' : ptc;
-                            const icon  = ptc === 'ADT' ? '🧑' : ptc === 'CNN' ? '🧒' : '👶';
+                            const label = ptc === 'ADT' ? 'Adult' : ptc === 'CNN' ? 'Child (2–11)' : ptc === 'INF' ? 'Infant' : ptc === 'STU' ? 'Student' : ptc;
+                            const icon  = ptc === 'ADT' ? '🧑' : ptc === 'CNN' ? '🧒' : ptc === 'STU' ? '🎓' : '👶';
                             const pillColors = [
                               { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
                               { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' },
@@ -5018,8 +5135,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 </div>
 
                                 {Object.entries(flight.price_breakdown).map(([ptc, details], pIdx) => {
-                                  const label = ptc === 'ADT' ? 'Adult' : ptc === 'CNN' ? 'Child (2–11 yrs)' : ptc === 'INF' ? 'Infant (<2 yrs)' : ptc;
-                                  const icon  = ptc === 'ADT' ? '🧑' : ptc === 'CNN' ? '🧒' : '👶';
+                                  const label = ptc === 'ADT' ? 'Adult' : ptc === 'CNN' ? 'Child (2–11 yrs)' : ptc === 'INF' ? 'Infant (<2 yrs)' : ptc === 'STU' ? 'Student' : ptc;
+                                  const icon  = ptc === 'ADT' ? '🧑' : ptc === 'CNN' ? '🧒' : ptc === 'STU' ? '🎓' : '👶';
                                   return (
                                     <div key={ptc} style={{
                                       display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1fr',
@@ -6946,7 +7063,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             transition: 'all 0.15s'
                           }}
                         >
-                          Passenger {idx + 1} ({t.passenger_type === 'ADT' ? 'Adult' : t.passenger_type === 'CNN' ? 'Child' : 'Infant'})
+                          Passenger {idx + 1} ({t.passenger_type === 'ADT' ? 'Adult' : t.passenger_type === 'CNN' ? 'Child' : t.passenger_type === 'STU' ? 'Student' : t.passenger_type === 'INF' ? 'Infant' : t.passenger_type})
                           {complete ? (
                             <span style={{ color: activePassengerIdx === idx ? 'white' : '#16a34a', fontWeight: 'bold' }}>✓</span>
                           ) : (
@@ -7992,8 +8109,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.75rem' }}>
                     {displayTravelers.map((t, pIdx) => {
-                      const paxTypeLabel = t.passenger_type === 'CNN' ? 'Child' : t.passenger_type === 'INF' ? 'Infant' : 'Adult';
-                      const paxIcon = t.passenger_type === 'CNN' ? '🧒' : t.passenger_type === 'INF' ? '👶' : '🧑';
+                      const paxTypeLabel = t.passenger_type === 'CNN' ? 'Child' : t.passenger_type === 'INF' ? 'Infant' : t.passenger_type === 'STU' ? 'Student' : 'Adult';
+                      const paxIcon = t.passenger_type === 'CNN' ? '🧒' : t.passenger_type === 'INF' ? '👶' : t.passenger_type === 'STU' ? '🎓' : '🧑';
                       // For pax 1, prefer the confirmed name from Travelport if available
                       const displayName = pIdx === 0 && issuedTicket.passenger_name
                         ? cleanPassengerName(issuedTicket.passenger_name)

@@ -135,6 +135,7 @@ def search_flights(
     adult_count: int = 1,
     child_count: int = 0,
     infant_count: int = 0,
+    student_count: int = 0,
     cabin_preference: Optional[str] = None,
     legs: Optional[list] = None,
     content_source: Optional[str] = None
@@ -149,6 +150,13 @@ def search_flights(
         adult_count (int): Number of adult passengers (default 1)
         child_count (int): Number of child passengers (default 0)
         infant_count (int): Number of infant passengers (default 0)
+        student_count (int): Number of student passengers (default 0) —
+            passengerTypeCode "STU". Confirmed live against Travelport's
+            catalog search (accepted with no error, 2026-10-13), but priced
+            identically to ADT in this test environment since no carrier in
+            the sandbox has filed a distinguishable student fare — expect
+            real discounts only once a carrier that actually files one is
+            queried, same as the earlier Air India meal-content finding.
         cabin_preference (str|None): "Economy", "Business", "First" — or None for all
         legs (list|None): List of flight search legs for round-trip or multi-city
         content_source (str|None): Per-request override to restrict the search
@@ -164,10 +172,10 @@ def search_flights(
     """
     if legs:
         leg_str = " | ".join([f"{l.get('origin')}->{l.get('destination')} on {l.get('departure_date') or l.get('date')}" for l in legs])
-        logger.info(f"Searching flights: {leg_str}, Adults={adult_count}, Children={child_count}, Infants={infant_count}")
+        logger.info(f"Searching flights: {leg_str}, Adults={adult_count}, Children={child_count}, Infants={infant_count}, Students={student_count}")
     else:
         logger.info(f"Searching flights: {origin} -> {destination} on {departure_date}, "
-                    f"Adults={adult_count}, Children={child_count}, Infants={infant_count}")
+                    f"Adults={adult_count}, Children={child_count}, Infants={infant_count}, Students={student_count}")
 
     # ── Passenger Criteria (array format per Travelport v11 spec) ─────────────
     passenger_criteria = []
@@ -191,6 +199,13 @@ def search_flights(
             "number": child_count,
             "age": 10,
             "passengerTypeCode": "CNN"
+        })
+    if student_count > 0:
+        passenger_criteria.append({
+            "@type": "PassengerCriteria",
+            "number": student_count,
+            "age": 20,
+            "passengerTypeCode": "STU"
         })
 
     # ── SearchCriteriaFlight (per Travelport v11 spec) ─────────────────────────

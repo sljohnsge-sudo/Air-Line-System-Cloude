@@ -178,6 +178,7 @@ class FlightSearchRequest(BaseModel):
     adult_count: int = Field(default=1, ge=1, le=9)
     child_count: int = Field(default=0, ge=0, le=8)
     infant_count: int = Field(default=0, ge=0, le=8)
+    student_count: int = Field(default=0, ge=0, le=9, description="passengerTypeCode STU — Travelport-only, requires a carrier that files student fares to see a discount")
     cabin_preference: Optional[str] = Field(default=None, description="Economy|Business|First")
     content_source: Optional[str] = Field(default=None, description="Per-request override: 'GDS' or 'NDC' — defaults to server config when omitted")
 
@@ -404,6 +405,7 @@ async def search_flights(request: FlightSearchRequest):
             adult_count=request.adult_count,
             child_count=request.child_count,
             infant_count=request.infant_count,
+            student_count=request.student_count,
             cabin_preference=request.cabin_preference,
             legs=legs,
             content_source=request.content_source
@@ -618,7 +620,7 @@ def _attach_traveler_details(ticket: dict, travelers: list) -> None:
     if not travelers:
         return
 
-    passenger_type_order = {"ADT": 0, "INF": 1, "CNN": 2}
+    passenger_type_order = {"ADT": 0, "STU": 1, "INF": 2, "CNN": 3}
     ordered = sorted(
         travelers,
         key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
