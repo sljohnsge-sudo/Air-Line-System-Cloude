@@ -976,7 +976,11 @@ export default function App() {
         all_passengers_cancelling: true,
       });
     } else {
-      setCancelForm(emptyCancelForm);
+      setCancelForm({
+        ...emptyCancelForm,
+        requester_name: customerProfile?.full_name || '',
+        email: customerProfile?.email || '',
+      });
     }
     setActiveTab('cancelRequest');
   };
@@ -6389,6 +6393,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         height: '150px', background: property.image_urls?.[0] ? `url(${property.image_urls[0]}) center/cover no-repeat` : 'linear-gradient(135deg,#0f172a,#334155)',
                       }} />
                       <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1 }}>
+                        {property.source && (
+                          <span style={{
+                            alignSelf: 'flex-start', fontSize: '0.62rem', fontWeight: 700, padding: '0.15rem 0.55rem',
+                            borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.03em', color: '#fff',
+                            background: property.source === 'BKNG' ? '#003580' : property.source === 'TVPT' ? '#0f172a' : '#64748b',
+                          }}>
+                            {property.source === 'BKNG' ? 'Booking.com' : property.source === 'TVPT' ? 'Travelport' : property.source}
+                          </span>
+                        )}
                         <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--gs-dark)' }}>{property.property_name}</h3>
                         <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {[property.address?.city, property.address?.country_code].filter(Boolean).join(', ')}

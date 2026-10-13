@@ -424,9 +424,12 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
 
           {activeSection === 'cancellations' && (
             <section className="search-section glass-panel">
-              <h3 className="results-heading" style={{ marginTop: 0 }}>Cancellation Requests</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '-0.5rem 0 1rem' }}>
-                Use "Request Cancellation" on a booking under My Bookings to submit a new one — they land here once submitted.
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                <h3 className="results-heading" style={{ margin: 0 }}>Cancellation Requests</h3>
+                <button className="btn btn-primary btn-sm" onClick={() => onRequestCancellation()}>+ New Cancellation Request</button>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 1rem' }}>
+                Submit a new request here, or click "Request Cancellation" directly on a booking under My Bookings — either way, it lands in this list once submitted.
               </p>
               {cancellationRequests.length === 0 ? (
                 <div className="empty-state glass-panel animate-fade">
