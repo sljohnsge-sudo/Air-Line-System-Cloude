@@ -4342,40 +4342,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   ))}
                 </div>
 
-                {/* Stops Group */}
-                <div className="filter-group">
-                  <div className="filter-group-title">Stops</div>
-                  {[['any','Any'],['0','Non-stop only'],['1+','1+ Stop']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${filterStops === val ? 'active' : ''}`}>
-                      <input type="radio" name="stops" value={val} checked={filterStops === val} onChange={() => setFilterStops(val)} />
-                      {lbl}
-                    </label>
-                  ))}
-                </div>
-
-                {/* Cabin Class Group */}
-                <div className="filter-group">
-                  <div className="filter-group-title">Cabin Class</div>
-                  {[['any','All Classes'],['Economy','Economy'],['PremiumEconomy','Premium Economy'],['Business','Business'],['First','First Class']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${filterCabin === val ? 'active' : ''}`}>
-                      <input type="radio" name="cabin" value={val} checked={filterCabin === val} onChange={() => setFilterCabin(val)} />
-                      {lbl}
-                    </label>
-                  ))}
-                </div>
-
-
-                {/* Time of Day Group */}
-                <div className="filter-group">
-                  <div className="filter-group-title">Departure Time</div>
-                  {[['any','Any Time'],['morning','Morning (before 12 PM)'],['afternoon','Afternoon (12 PM - 6 PM)'],['evening','Evening (after 6 PM)']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${filterTimeOfDay === val ? 'active' : ''}`}>
-                      <input type="radio" name="time" value={val} checked={filterTimeOfDay === val} onChange={() => setFilterTimeOfDay(val)} />
-                      {lbl}
-                    </label>
-                  ))}
-                </div>
-
                 {/* Dynamic Airlines Group */}
                 {uniqueAirlines.length > 0 && (
                   <div className="filter-group">
@@ -4417,6 +4383,40 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </div>
                   </div>
                 )}
+
+                {/* Stops Group */}
+                <div className="filter-group">
+                  <div className="filter-group-title">Stops</div>
+                  {[['any','Any'],['0','Non-stop only'],['1+','1+ Stop']].map(([val,lbl]) => (
+                    <label key={val} className={`filter-radio-row ${filterStops === val ? 'active' : ''}`}>
+                      <input type="radio" name="stops" value={val} checked={filterStops === val} onChange={() => setFilterStops(val)} />
+                      {lbl}
+                    </label>
+                  ))}
+                </div>
+
+                {/* Cabin Class Group */}
+                <div className="filter-group">
+                  <div className="filter-group-title">Cabin Class</div>
+                  {[['any','All Classes'],['Economy','Economy'],['PremiumEconomy','Premium Economy'],['Business','Business'],['First','First Class']].map(([val,lbl]) => (
+                    <label key={val} className={`filter-radio-row ${filterCabin === val ? 'active' : ''}`}>
+                      <input type="radio" name="cabin" value={val} checked={filterCabin === val} onChange={() => setFilterCabin(val)} />
+                      {lbl}
+                    </label>
+                  ))}
+                </div>
+
+
+                {/* Time of Day Group */}
+                <div className="filter-group">
+                  <div className="filter-group-title">Departure Time</div>
+                  {[['any','Any Time'],['morning','Morning (before 12 PM)'],['afternoon','Afternoon (12 PM - 6 PM)'],['evening','Evening (after 6 PM)']].map(([val,lbl]) => (
+                    <label key={val} className={`filter-radio-row ${filterTimeOfDay === val ? 'active' : ''}`}>
+                      <input type="radio" name="time" value={val} checked={filterTimeOfDay === val} onChange={() => setFilterTimeOfDay(val)} />
+                      {lbl}
+                    </label>
+                  ))}
+                </div>
 
                 {/* Max Price Group */}
                 {prices.length > 0 && (
