@@ -658,8 +658,24 @@ function ItineraryRow({ leg, label }) {
   );
 }
 
+// Best-effort terminal-connection-time lookup for a layover: exact
+// from/to-terminal match first, falling back to any documented entry for
+// that airport (still useful without precise terminal data on the
+// segment) — returns null when nothing is documented, the normal case
+// for most airports since admin coverage is necessarily partial.
+function lookupTerminalConnection(connections, airportCode, fromTerminal, toTerminal) {
+  if (!connections || connections.length === 0 || !airportCode) return null;
+  const forAirport = connections.filter(c => c.airport_code === airportCode);
+  if (forAirport.length === 0) return null;
+  if (fromTerminal && toTerminal) {
+    const exact = forAirport.find(c => c.from_terminal === fromTerminal && c.to_terminal === toTerminal);
+    if (exact) return exact;
+  }
+  return forAirport[0];
+}
+
 // ── Segment List: connecting-flight breakdown for one leg (used in review) ──
-function SegmentList({ segments }) {
+function SegmentList({ segments, terminalConnections = [] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
       {segments.map((seg, sIdx) => (
@@ -676,11 +692,19 @@ function SegmentList({ segments }) {
             <span>{seg.carrier_name} • {seg.flight_number}</span>
             <span>Dep: {seg.departure_time?.split('T')[1]?.slice(0,5)} | Arr: {seg.arrival_time?.split('T')[1]?.slice(0,5)}</span>
           </div>
-          {seg.layover_minutes !== undefined && (
-            <div style={{ fontSize: '0.72rem', color: '#b45309', background: '#fffbeb', padding: '0.2rem 0.5rem', borderRadius: '4px', marginTop: '5px', fontWeight: '700' }}>
-              ⏱️ Connection Layover: {Math.floor(seg.layover_minutes / 60)}h {seg.layover_minutes % 60}m at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}
-            </div>
-          )}
+          {seg.layover_minutes !== undefined && (() => {
+            const terminalInfo = lookupTerminalConnection(terminalConnections, seg.arrival_airport, seg.arrival_terminal, segments[sIdx + 1]?.departure_terminal);
+            return (
+              <div style={{ fontSize: '0.72rem', color: '#b45309', background: '#fffbeb', padding: '0.2rem 0.5rem', borderRadius: '4px', marginTop: '5px', fontWeight: '700' }}>
+                ⏱️ Connection Layover: {Math.floor(seg.layover_minutes / 60)}h {seg.layover_minutes % 60}m at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}
+                {terminalInfo && (
+                  <div style={{ color: '#1e40af', fontWeight: '600', marginTop: '0.2rem' }}>
+                    🚶 {terminalInfo.from_terminal} → {terminalInfo.to_terminal}: ~{terminalInfo.estimated_minutes} min transfer{terminalInfo.notes ? ` — ${terminalInfo.notes}` : ''}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       ))}
     </div>
@@ -688,7 +712,7 @@ function SegmentList({ segments }) {
 }
 
 // ── Segment Timeline: dot/line visual breakdown for one leg (results card) ──
-function SegmentTimeline({ segments }) {
+function SegmentTimeline({ segments, terminalConnections = [] }) {
   return (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingLeft: '0.75rem', margin: '0.5rem 0' }}>
       {/* Visual Timeline Line */}
@@ -737,15 +761,26 @@ function SegmentTimeline({ segments }) {
           </div>
 
           {/* Layover Indicator */}
-          {seg.layover_minutes !== undefined && (
-            <div style={{ display: 'flex', gap: '1rem', position: 'relative', zIndex: 2, alignItems: 'center', margin: '0.15rem 0' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#d97706', border: '4px solid white', boxShadow: '0 0 0 1px #f59e0b', flexShrink: 0 }}></div>
-              <div style={{ flex: 1, background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.72rem', color: '#b45309', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <span>⏱️</span>
-                <span>Connection Layover: {Math.floor(seg.layover_minutes / 60)}h {seg.layover_minutes % 60}m at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}</span>
+          {seg.layover_minutes !== undefined && (() => {
+            const terminalInfo = lookupTerminalConnection(terminalConnections, seg.arrival_airport, seg.arrival_terminal, segments[sIdx + 1]?.departure_terminal);
+            return (
+              <div style={{ display: 'flex', gap: '1rem', position: 'relative', zIndex: 2, alignItems: 'center', margin: '0.15rem 0' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#d97706', border: '4px solid white', boxShadow: '0 0 0 1px #f59e0b', flexShrink: 0 }}></div>
+                <div style={{ flex: 1, background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.72rem', color: '#b45309', fontWeight: '700', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>⏱️</span>
+                    <span>Connection Layover: {Math.floor(seg.layover_minutes / 60)}h {seg.layover_minutes % 60}m at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}</span>
+                  </div>
+                  {terminalInfo && (
+                    <div style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span>🚶</span>
+                      <span>{terminalInfo.from_terminal} → {terminalInfo.to_terminal}: ~{terminalInfo.estimated_minutes} min transfer{terminalInfo.notes ? ` — ${terminalInfo.notes}` : ''}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </React.Fragment>
       ))}
     </div>
@@ -1374,6 +1409,22 @@ export default function App() {
       .catch(err => { setHotelBookingError(err.message); setHotelBookingSubmitting(false); });
   };
 
+  // Terminal connection times, looked up inline against each connecting
+  // flight's layover (airport + from/to terminal) in the search results —
+  // fetched once per results page (not per card) and kept as a flat array;
+  // matching happens per-segment in SegmentTimeline/SegmentList below.
+  // Originally a standalone "Terminal Connections" nav page only, moved
+  // inline per explicit request: a customer comparing connecting flights
+  // needs this at the point of choosing a flight, not on a separate page.
+  const [terminalConnectionsData, setTerminalConnectionsData] = useState([]);
+  const loadTerminalConnectionsData = () => {
+    if (terminalConnectionsData.length > 0) return; // already loaded this session
+    fetch(`${API_BASE}/terminal-connections`)
+      .then(r => r.json())
+      .then(d => setTerminalConnectionsData(d.connections || []))
+      .catch(() => {});
+  };
+
   // Search state
   const [searchType, setSearchType] = useState(() => initialResultsPayload?.type || 'roundtrip'); // 'oneway' | 'roundtrip' | 'multicity' -- Round Trip is the default per boss's requirements doc
   const [searchOrigin, setSearchOrigin] = useState(() => initialResultsPayload?.origin || 'CMB');
@@ -1912,6 +1963,7 @@ export default function App() {
       const data = await handleApiResponse(res, 'Search failed');
       const fetched = data.flights || [];
       setFlights(fetched);
+      loadTerminalConnectionsData();
       // Reset filters for new search
       setFilterMaxPrice(null);
       setFilterStops('any');
@@ -4850,7 +4902,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                       Total Duration: {leg.duration?.replace('PT','').replace('H','h ').replace('M','m')}
                                     </span>
                                   </div>
-                                  <SegmentTimeline segments={leg.segments} />
+                                  <SegmentTimeline segments={leg.segments} terminalConnections={terminalConnectionsData} />
                                 </div>
                               );
                             })
@@ -4862,7 +4914,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 Total Duration: {flight.duration?.replace('PT','').replace('H','h ').replace('M','m')}
                               </span>
                             </div>
-                            <SegmentTimeline segments={flight.segments} />
+                            <SegmentTimeline segments={flight.segments} terminalConnections={terminalConnectionsData} />
                           </>
                         ) : null}
                       </div>
@@ -6861,7 +6913,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   {segments.length > 0 && (
                     <div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em', marginBottom: '0.5rem' }}>Flight Segments</div>
-                      <SegmentList segments={segments} />
+                      <SegmentList segments={segments} terminalConnections={terminalConnectionsData} />
                     </div>
                   )}
 
@@ -8053,7 +8105,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           <div key={lIdx}>
                             <div style={{ fontSize: '0.68rem', fontWeight: '800', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>{legLabel}</div>
                             {leg.segments && leg.segments.length > 0 ? (
-                              <SegmentList segments={leg.segments} />
+                              <SegmentList segments={leg.segments} terminalConnections={terminalConnectionsData} />
                             ) : (
                               <div style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
                                 <strong>{leg.departure_airport}{leg.departure_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: 'var(--text-muted)' }}> (Terminal {leg.departure_terminal})</span>} → {leg.arrival_airport}{leg.arrival_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: 'var(--text-muted)' }}> (Terminal {leg.arrival_terminal})</span>}</strong>
@@ -8065,7 +8117,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       })}
                     </div>
                   ) : selectedFlight.segments && selectedFlight.segments.length > 0 ? (
-                    <SegmentList segments={selectedFlight.segments} />
+                    <SegmentList segments={selectedFlight.segments} terminalConnections={terminalConnectionsData} />
                   ) : (
                     <div style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
                       <strong>{selectedFlight.departure_airport}{selectedFlight.departure_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: 'var(--text-muted)' }}> (Terminal {selectedFlight.departure_terminal})</span>} → {selectedFlight.arrival_airport}{selectedFlight.arrival_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: 'var(--text-muted)' }}> (Terminal {selectedFlight.arrival_terminal})</span>}</strong>
