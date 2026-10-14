@@ -1162,36 +1162,6 @@ export default function App() {
       .catch(err => { setVisaError(err.message); setVisaChecking(false); });
   };
 
-  // ── Terminal Connection Times (B2C, public lookup) ─────────────────────────
-  // Travelport's own API doesn't return terminal-to-terminal transfer times
-  // at connecting airports, so this is a manually-maintained admin reference
-  // (same "may not be exhaustive" pattern as Visa Requirements above) —
-  // standalone lookup, not shown inline in search results.
-  const [terminalLookupCountries, setTerminalLookupCountries] = useState([]);
-  const [terminalLookupCountry, setTerminalLookupCountry] = useState('');
-  const [terminalLookupResults, setTerminalLookupResults] = useState(null);
-  const [terminalLookupLoading, setTerminalLookupLoading] = useState(false);
-  const [terminalLookupError, setTerminalLookupError] = useState('');
-
-  const loadTerminalLookupCountries = () => {
-    fetch(`${API_BASE}/terminal-connections/countries`)
-      .then(r => r.json())
-      .then(d => setTerminalLookupCountries(d.countries || []))
-      .catch(() => {});
-  };
-
-  const checkTerminalConnections = (country) => {
-    setTerminalLookupCountry(country);
-    setTerminalLookupResults(null);
-    setTerminalLookupError('');
-    if (!country) return;
-    setTerminalLookupLoading(true);
-    fetch(`${API_BASE}/terminal-connections?country=${encodeURIComponent(country)}`)
-      .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
-      .then(d => { setTerminalLookupResults(d.connections || []); setTerminalLookupLoading(false); })
-      .catch(err => { setTerminalLookupError(err.message); setTerminalLookupLoading(false); });
-  };
-
   // ── Visa Consultation Booking State (B2C, public) ──────────────────────────
   // Follow-on to the requirements check above: customer picks a date and one
   // of two fixed daily slots (10:30 AM / 3:30 PM) to talk to the visa
@@ -2987,7 +2957,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           )}
           <button className={`nav-tab ${activeTab === 'cancelRequest' ? 'active' : ''}`} onClick={() => openCancellationRequest(null)}>Cancel Booking</button>
           <button className={`nav-tab ${activeTab === 'ticketStatus' ? 'active' : ''}`} onClick={() => { setTicketStatusResult(null); setTicketStatusError(''); setActiveTab('ticketStatus'); }}>Check My Ticket Status</button>
-          <button className={`nav-tab ${activeTab === 'terminalConnections' ? 'active' : ''}`} onClick={() => { setTerminalLookupResults(null); setTerminalLookupError(''); loadTerminalLookupCountries(); setActiveTab('terminalConnections'); }}>Terminal Connections</button>
           <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
           <button className={`nav-tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
@@ -6684,62 +6653,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
             <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1.25rem', textAlign: 'center' }}>
               Visa requirements can change — always confirm with the relevant embassy or consulate before traveling.
-            </p>
-          </section>
-        </div>
-      )}
-
-      {/* ── TERMINAL CONNECTIONS LOOKUP TAB (public — no sign-in required) ─── */}
-      {activeTab === 'terminalConnections' && (
-        <div className="tab-content animate-fade" style={{ maxWidth: '640px', margin: '0 auto' }}>
-          <section className="search-section glass-panel">
-            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Terminal Connections</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0, marginBottom: '1.25rem' }}>
-              Check estimated terminal-to-terminal transfer times at connecting airports, by country.
-            </p>
-
-            <div className="form-group">
-              <label className="form-label">Country *</label>
-              <select className="form-input" value={terminalLookupCountry} onChange={e => checkTerminalConnections(e.target.value)}>
-                <option value="">-- Select country --</option>
-                {terminalLookupCountries.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              {terminalLookupCountries.length === 0 && (
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>No countries documented yet.</p>
-              )}
-            </div>
-
-            {terminalLookupError && <div className="error-banner" style={{ marginTop: '1rem' }}>{terminalLookupError}</div>}
-
-            {terminalLookupLoading ? (
-              <div className="loading-state"><div className="spinner"></div><p>Loading...</p></div>
-            ) : terminalLookupResults && (
-              terminalLookupResults.length === 0 ? (
-                <div style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '10px', padding: '1.25rem', textAlign: 'center', marginTop: '1rem' }}>
-                  <p style={{ fontWeight: 700, color: '#475569', margin: '0 0 0.35rem' }}>No information available yet</p>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-                    We don't have documented terminal connection times for {terminalLookupCountry} yet.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {terminalLookupResults.map(entry => (
-                    <div key={entry.id} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '1rem 1.1rem' }}>
-                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#1e40af' }}>
-                        {entry.airport_code}{entry.airport_name && ` — ${entry.airport_name}`}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>
-                        {entry.from_terminal} → {entry.to_terminal}: <strong>~{entry.estimated_minutes} min</strong>
-                      </div>
-                      {entry.notes && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>{entry.notes}</div>}
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1.25rem', textAlign: 'center' }}>
-              Transfer times are estimates and can vary — always allow extra buffer time for tight connections.
             </p>
           </section>
         </div>
