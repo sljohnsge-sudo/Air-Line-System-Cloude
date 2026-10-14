@@ -319,6 +319,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         method: 'PUT', headers: authHeaders, body: JSON.stringify({ benefit_text: text }),
       });
       await adminApiResponse(res, 'Failed to update benefit');
+      setBenefitDrafts(d => { const next = { ...d }; delete next[id]; return next; });
       loadLoyaltyTierBenefits();
     } catch (err) {
       setLoyaltyTierBenefitsError(err.message);
@@ -1445,7 +1446,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
             <h4 style={{ margin: '1.75rem 0 0.75rem', fontSize: '0.95rem', color: 'var(--gs-dark)' }}>Member Benefits per Tier</h4>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 1rem' }}>
-              Shown on the customer's own Loyalty Program card in the Customer Portal — their current tier's benefits, and what they unlock at the next tier. Changes save immediately.
+              Shown on the customer's own Loyalty Program card in the Customer Portal — their current tier's benefits, and what they unlock at the next tier. Reordering, adding, and removing a benefit save immediately; edited text needs the Save button next to it.
             </p>
             {loyaltyTierBenefitsError && <div className="error-banner">{loyaltyTierBenefitsError}</div>}
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -1460,7 +1461,10 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                   <div key={tier} style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', flex: 1, minWidth: '240px' }}>
                     <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', color: 'var(--gs-dark)' }}>{emoji} {tier}</h4>
                     {rows.length === 0 && <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>No benefits listed yet.</p>}
-                    {rows.map((b, i) => (
+                    {rows.map((b, i) => {
+                      const draftVal = benefitDrafts[b.id] !== undefined ? benefitDrafts[b.id] : b.benefit_text;
+                      const isDirty = draftVal.trim() && draftVal !== b.benefit_text;
+                      return (
                       <div key={b.id} style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', marginBottom: '0.4rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <button className="btn btn-secondary btn-sm" style={{ padding: '0 0.3rem', lineHeight: 1 }} disabled={i === 0} onClick={() => moveTierBenefit(b.id, 'up')} title="Move up">▲</button>
@@ -1469,16 +1473,16 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                         <input
                           className="form-input"
                           style={{ flex: 1, fontSize: '0.82rem', padding: '0.4rem 0.5rem' }}
-                          value={benefitDrafts[b.id] !== undefined ? benefitDrafts[b.id] : b.benefit_text}
+                          value={draftVal}
                           onChange={e => setBenefitDrafts(d => ({ ...d, [b.id]: e.target.value }))}
-                          onBlur={() => {
-                            const draft = benefitDrafts[b.id];
-                            if (draft !== undefined && draft.trim() && draft !== b.benefit_text) saveTierBenefitText(b.id, draft.trim());
-                          }}
+                          onKeyDown={e => { if (e.key === 'Enter' && isDirty) { e.preventDefault(); saveTierBenefitText(b.id, draftVal.trim()); } }}
                         />
+                        <button className="btn btn-primary btn-sm" disabled={!isDirty} title="Save this benefit"
+                          onClick={() => saveTierBenefitText(b.id, draftVal.trim())}>Save</button>
                         <button className="btn btn-danger btn-sm" onClick={() => deleteTierBenefit(b.id)} title="Remove">✕</button>
                       </div>
-                    ))}
+                      );
+                    })}
                     <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
                       <input
                         className="form-input"
