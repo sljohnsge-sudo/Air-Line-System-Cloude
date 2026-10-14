@@ -424,6 +424,15 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                             fuel_surcharge += value
                         else:
                             other_taxes += value
+                # Some content sources (confirmed live: Qatar Airways NDC
+                # offers) return only Taxes.TotalTaxes with no itemized
+                # Tax[] array at all — fuel_surcharge and other_taxes both
+                # come out 0 even though TotalTaxes is nonzero, which would
+                # show as "Fuel Surcharge: 0 / Taxes: 0" on the receipt
+                # despite a real tax charge. Fall back to the known total
+                # so the breakdown still sums to it.
+                if not fuel_surcharge and not other_taxes:
+                    other_taxes = float(price.get("TotalTaxes", 0) or 0)
                 ticket["fare_breakdown"] = {
                     "base_fare": base_fare,
                     "fuel_surcharge": fuel_surcharge,

@@ -918,6 +918,16 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
                                     fuel_surcharge_val += tax_value
                                 else:
                                     other_taxes_val += tax_value
+                            # Some content sources (confirmed live: Qatar Airways
+                            # NDC offers) return only Taxes.TotalTaxes with no
+                            # itemized Tax[] array at all — fuel_surcharge_val and
+                            # other_taxes_val both come out 0 even though tax_val
+                            # (the real total) is nonzero, which would show as
+                            # "Fuel Surcharge: 0 / Taxes: 0" on the receipt despite
+                            # a real tax charge. Fall back to the known total so
+                            # the breakdown still sums to it.
+                            if not fuel_surcharge_val and not other_taxes_val and tax_val:
+                                other_taxes_val = tax_val
                             price_breakdown[ptc] = {
                                 "base_price": round(base_val, 2),
                                 "taxes": round(tax_val, 2),
