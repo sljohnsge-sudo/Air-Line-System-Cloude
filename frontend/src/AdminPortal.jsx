@@ -1,5 +1,17 @@
 import { useState, useEffect } from 'react';
 import { COUNTRIES } from './countries.js';
+import AirportSearchSelect from './AirportSearchSelect.jsx';
+
+// Common terminal labels for the Terminal Connections form's From/To
+// Terminal dropdowns. Naming isn't standardized across airports (numbers,
+// letters, "International"/"Domestic", etc.), so "Other" reveals a free-text
+// field instead of forcing staff to misuse one of the preset options.
+const TERMINAL_OPTIONS = [
+  'T1', 'T2', 'T3', 'T4', 'T5', 'T6',
+  'International', 'Domestic',
+  'A', 'B', 'C', 'D', 'E', 'F',
+  'Main Terminal', 'North Terminal', 'South Terminal', 'East Terminal', 'West Terminal',
+];
 
 export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, API_BASE, AMADEUS_API_BASE, fetchWithRetry, handleApiResponse, onNavigate, onOpenInvoice }) {
   const [username, setUsername] = useState('');
@@ -136,6 +148,10 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [editingTerminalConnId, setEditingTerminalConnId] = useState(null);
   const [terminalConnFormOpen, setTerminalConnFormOpen] = useState(false);
   const [terminalConnSaving, setTerminalConnSaving] = useState(false);
+  // Whether From/To Terminal is showing its free-text fallback — true when
+  // editing an entry whose stored value isn't one of TERMINAL_OPTIONS.
+  const [fromTerminalCustom, setFromTerminalCustom] = useState(false);
+  const [toTerminalCustom, setToTerminalCustom] = useState(false);
 
   const emptyConsultantForm = { consultant_name: '', email: '', phone: '', is_active: true };
   const [visaConsultantRoster, setVisaConsultantRoster] = useState([]);
@@ -525,9 +541,13 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         from_terminal: entry.from_terminal, to_terminal: entry.to_terminal,
         estimated_minutes: entry.estimated_minutes, notes: entry.notes || '',
       });
+      setFromTerminalCustom(!!entry.from_terminal && !TERMINAL_OPTIONS.includes(entry.from_terminal));
+      setToTerminalCustom(!!entry.to_terminal && !TERMINAL_OPTIONS.includes(entry.to_terminal));
     } else {
       setEditingTerminalConnId(null);
       setTerminalConnForm(emptyTerminalConnForm);
+      setFromTerminalCustom(false);
+      setToTerminalCustom(false);
     }
     setTerminalConnFormOpen(true);
   };
@@ -2064,7 +2084,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.35rem', marginBottom: '0' }}>
           Travelport doesn't provide terminal-to-terminal transfer times at connecting airports, so this is a manually
-          maintained reference — shown to customers on the public "Terminal Connections" lookup page, by country.
+          maintained reference — shown inline to customers in search results, next to each connecting flight's layover.
         </p>
         {terminalConnectionsError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{terminalConnectionsError}</div>}
 
@@ -2079,27 +2099,69 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                   {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
-                <label className="form-label">Airport Code *</label>
-                <input className="form-input" required placeholder="e.g. SIN" maxLength={10} value={terminalConnForm.airport_code}
-                  onChange={e => setTerminalConnForm(f => ({ ...f, airport_code: e.target.value.toUpperCase() }))} />
+              <div style={{ flex: 1, minWidth: '140px' }}>
+                <AirportSearchSelect
+                  label="Airport Code *"
+                  placeholder="Search airport..."
+                  value={terminalConnForm.airport_code}
+                  onChange={(code, airport) => setTerminalConnForm(f => ({
+                    ...f,
+                    airport_code: code,
+                    airport_name: airport ? airport.name : f.airport_name,
+                  }))}
+                />
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: '180px' }}>
                 <label className="form-label">Airport Name</label>
-                <input className="form-input" placeholder="e.g. Singapore Changi Airport" value={terminalConnForm.airport_name}
-                  onChange={e => setTerminalConnForm(f => ({ ...f, airport_name: e.target.value }))} />
+                <input className="form-input" disabled placeholder="auto-filled from Airport Code" value={terminalConnForm.airport_name} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
                 <label className="form-label">From Terminal *</label>
-                <input className="form-input" required placeholder="e.g. T1" value={terminalConnForm.from_terminal}
-                  onChange={e => setTerminalConnForm(f => ({ ...f, from_terminal: e.target.value }))} />
+                <select className="form-input" required
+                  value={fromTerminalCustom ? '__other__' : terminalConnForm.from_terminal}
+                  onChange={e => {
+                    if (e.target.value === '__other__') {
+                      setFromTerminalCustom(true);
+                      setTerminalConnForm(f => ({ ...f, from_terminal: '' }));
+                    } else {
+                      setFromTerminalCustom(false);
+                      setTerminalConnForm(f => ({ ...f, from_terminal: e.target.value }));
+                    }
+                  }}>
+                  <option value="">-- Select terminal --</option>
+                  {TERMINAL_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  <option value="__other__">Other (type manually)</option>
+                </select>
+                {fromTerminalCustom && (
+                  <input className="form-input" required placeholder="e.g. Pier D" style={{ marginTop: '0.4rem' }}
+                    value={terminalConnForm.from_terminal}
+                    onChange={e => setTerminalConnForm(f => ({ ...f, from_terminal: e.target.value }))} />
+                )}
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
                 <label className="form-label">To Terminal *</label>
-                <input className="form-input" required placeholder="e.g. T4" value={terminalConnForm.to_terminal}
-                  onChange={e => setTerminalConnForm(f => ({ ...f, to_terminal: e.target.value }))} />
+                <select className="form-input" required
+                  value={toTerminalCustom ? '__other__' : terminalConnForm.to_terminal}
+                  onChange={e => {
+                    if (e.target.value === '__other__') {
+                      setToTerminalCustom(true);
+                      setTerminalConnForm(f => ({ ...f, to_terminal: '' }));
+                    } else {
+                      setToTerminalCustom(false);
+                      setTerminalConnForm(f => ({ ...f, to_terminal: e.target.value }));
+                    }
+                  }}>
+                  <option value="">-- Select terminal --</option>
+                  {TERMINAL_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  <option value="__other__">Other (type manually)</option>
+                </select>
+                {toTerminalCustom && (
+                  <input className="form-input" required placeholder="e.g. Pier D" style={{ marginTop: '0.4rem' }}
+                    value={terminalConnForm.to_terminal}
+                    onChange={e => setTerminalConnForm(f => ({ ...f, to_terminal: e.target.value }))} />
+                )}
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
                 <label className="form-label">Estimated Minutes *</label>
