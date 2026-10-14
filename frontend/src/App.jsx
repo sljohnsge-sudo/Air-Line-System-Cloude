@@ -2279,16 +2279,23 @@ export default function App() {
           const bookRes = await fetchWithRetry(`${API_BASE}/ndc/book`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ raw_offering: selectedFlight.raw_offering, travelers })
+            body: JSON.stringify({
+              raw_offering: selectedFlight.raw_offering,
+              travelers,
+              selected_seats: selectedSeats,
+              selected_ancillaries: selectedAncillaries,
+            })
           });
           const bookData = await handleApiResponse(bookRes, 'Booking failed');
 
+          const seatChargesNdc = selectedSeats.reduce((acc, s) => acc + s.price, 0);
+          const ancillaryChargesNdc = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
           const baseUrl = `${window.location.origin}${window.location.pathname}`;
           const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              amount: selectedFlight.price,
+              amount: selectedFlight.price + seatChargesNdc + ancillaryChargesNdc,
               currency: selectedFlight.currency || 'LKR',
               return_url: `${baseUrl}?ndc_pending=${bookData.pending_id}`,
               cancel_url: `${baseUrl}?ndc_pending=${bookData.pending_id}&payment=cancelled`,
@@ -2307,7 +2314,12 @@ export default function App() {
         const res = await fetchWithRetry(`${API_BASE}/ndc/book-and-issue`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ raw_offering: selectedFlight.raw_offering, travelers })
+          body: JSON.stringify({
+            raw_offering: selectedFlight.raw_offering,
+            travelers,
+            selected_seats: selectedSeats,
+            selected_ancillaries: selectedAncillaries,
+          })
         });
         const data = await handleApiResponse(res, 'Booking failed');
         if (!data.success) {

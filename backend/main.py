@@ -1216,6 +1216,8 @@ class NdcSearchRequest(BaseModel):
 class NdcBookAndIssueRequest(BaseModel):
     raw_offering: dict = Field(..., description="raw_offering of the chosen fare option from /api/ndc/search")
     travelers: List[TravelerInfo]
+    selected_seats: List[SelectedSeat] = []
+    selected_ancillaries: List[SelectedAncillary] = []
 
 
 # Carriers whose post-commit workbench has no offer to pay against, so they
@@ -1228,7 +1230,8 @@ def _ndc_carrier_of(raw_offering: dict) -> str:
     return str((legs[0] if legs else {}).get("id", "")).split("_")[0]
 
 
-def _ndc_instant_pay(raw_offering: dict, travelers: list) -> dict:
+def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list = None,
+                      selected_ancillaries: list = None) -> dict:
     try:
         ip = services.workbench_service.run_instant_pay_flow(raw_offering, travelers)
     except services.workbench_service.InstantPayError as e:
@@ -1251,6 +1254,26 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list) -> dict:
     _backfill_terminals(ticket, _segments_of_offering(raw_offering))
     if not ticket.get("total_fare"):
         ticket["total_fare"], ticket["currency"] = ip["total_fare"], ip["currency"]
+
+    # Same display-only pattern as the GDS confirm flow: Travelport's NDC
+    # Instant Pay commit has no seat/ancillary-add step of its own, so the
+    # customer's picks are recorded locally and folded into the receipt total.
+    selected_seats = selected_seats or []
+    selected_ancillaries = selected_ancillaries or []
+    seat_numbers = [s.seat_number for s in selected_seats]
+    seat_charges = sum(s.price for s in selected_seats)
+    ancillary_names = [a.name for a in selected_ancillaries]
+    ancillary_charges = sum(a.price for a in selected_ancillaries)
+    if seat_numbers:
+        ticket["seat_number"] = ", ".join(seat_numbers)
+    if ancillary_names:
+        ticket["ancillaries"] = [a.model_dump() for a in selected_ancillaries]
+    extra_charges = seat_charges + ancillary_charges
+    if extra_charges:
+        ticket["total_fare"] = (ticket.get("total_fare") or 0) + extra_charges
+    ticket["seat_charge"] = seat_charges
+    ticket["ancillary_charge"] = ancillary_charges
+
     _attach_traveler_details(ticket, travelers)
     database.save_booking(ticket)
 
@@ -1293,6 +1316,8 @@ def ndc_book(request: NdcBookAndIssueRequest):
         _ndc_pending_instant_pay[pending_id] = {
             "raw_offering": request.raw_offering,
             "travelers": [t.model_dump() for t in request.travelers],
+            "selected_seats": request.selected_seats,
+            "selected_ancillaries": request.selected_ancillaries,
         }
         return {"requires_prepay": True, "pending_id": pending_id}
 
@@ -1333,7 +1358,10 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
         )
     trace_token = services.start_flow_trace_id()
     try:
-        result = _ndc_instant_pay(pending["raw_offering"], pending["travelers"])
+        result = _ndc_instant_pay(
+            pending["raw_offering"], pending["travelers"],
+            pending.get("selected_seats"), pending.get("selected_ancillaries"),
+        )
     finally:
         services.end_flow_trace_id(trace_token)
     result["payment_txn_reference"] = payment_result.get("txn_reference")
@@ -1384,7 +1412,10 @@ def ndc_book_and_issue(request: NdcBookAndIssueRequest):
     trace_token = services.start_flow_trace_id()
     try:
         if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
-            return _ndc_instant_pay(request.raw_offering, [t.model_dump() for t in request.travelers])
+            return _ndc_instant_pay(
+                request.raw_offering, [t.model_dump() for t in request.travelers],
+                request.selected_seats, request.selected_ancillaries,
+            )
         booked = confirm_booking(
             BookingConfirmRequest(
                 raw_offering=request.raw_offering, travelers=request.travelers,
