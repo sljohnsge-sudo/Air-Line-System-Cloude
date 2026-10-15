@@ -1449,6 +1449,8 @@ export default function App() {
   const [workbenchId, setWorkbenchId] = useState(null);
   const [offerId, setOfferId] = useState(null);
   const [seatMap, setSeatMap] = useState(null);
+  const [seatMapZoom, setSeatMapZoom] = useState(1);
+  const [seatFilterMode, setSeatFilterMode] = useState('all'); // 'all' | 'window' | 'aisle' | 'extra-legroom' | 'available'
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [ancillaries, setAncillaries] = useState([]);
   const [selectedAncillaries, setSelectedAncillaries] = useState([]);
@@ -2159,6 +2161,8 @@ export default function App() {
         setBookingStep(hasAncillaries ? 'ancillaries' : 'review');
       } else {
         setSeatMap(data.seat_map);
+        setSeatMapZoom(1);
+        setSeatFilterMode('all');
         setBookingStep('seats');
       }
 
@@ -2474,6 +2478,8 @@ export default function App() {
         return;
       }
       setSeatMap(result);
+      setSeatMapZoom(1);
+      setSeatFilterMode('all');
       setBookingStep('seats');
     } catch (err) {
       if (fetchedAncillaries.length > 0) {
@@ -2655,10 +2661,16 @@ export default function App() {
     return groups;
   };
 
-  const renderSeat = (seat, idx) => {
+  const renderSeat = (seat, idx, columnPosition) => {
     if (!seat || seat.type === 'empty' || seat.status === 'empty') {
       return <div key={idx} style={{ width: '32px', height: '32px' }} />;
     }
+
+    const matchesSeatFilter = seatFilterMode === 'all'
+      || (seatFilterMode === 'window' && columnPosition === 'Window')
+      || (seatFilterMode === 'aisle' && columnPosition === 'Aisle')
+      || (seatFilterMode === 'extra-legroom' && seat.type === 'Extra Legroom')
+      || (seatFilterMode === 'available' && seat.status === 'available');
 
     const isOccupied = seat.status === 'occupied';
     const isAvailable = seat.status === 'available';
@@ -2767,6 +2779,8 @@ export default function App() {
           outline: 'none',
           boxShadow: isSelectedByActive ? '0 0 8px rgba(195, 18, 46, 0.4)' : 'none',
           transition: 'all 0.15s',
+          opacity: matchesSeatFilter ? 1 : 0.25,
+          filter: matchesSeatFilter ? 'none' : 'grayscale(80%)',
           ...seatPatternStyle
         }}
       >
@@ -7555,15 +7569,42 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                   {/* Right Seat Map Chart - Top-down airplane styling */}
                   <div className="seat-map-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
-                    <div style={{ textAlign: 'center', padding: '0.25rem 0 0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.75rem' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aircraft Cabin Map</div>
-                      <strong style={{ fontSize: '0.85rem', color: 'var(--gs-dark)' }}>FRONT OF AIRCRAFT</strong>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', padding: '0.25rem 0 0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.75rem' }}>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aircraft Cabin Map</div>
+                        <strong style={{ fontSize: '0.82rem', color: 'var(--gs-dark)' }}>FRONT OF AIRCRAFT</strong>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <select
+                          value={seatFilterMode}
+                          onChange={e => setSeatFilterMode(e.target.value)}
+                          title="Filter seats"
+                          style={{ fontSize: '0.72rem', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', background: 'white' }}
+                        >
+                          <option value="all">All Seats</option>
+                          <option value="window">Window Seats</option>
+                          <option value="aisle">Aisle Seats</option>
+                          <option value="extra-legroom">Extra Legroom</option>
+                          <option value="available">Available Only</option>
+                        </select>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.15rem 0.25rem' }}>
+                          <button type="button" onClick={() => setSeatMapZoom(z => Math.max(0.6, +(z - 0.15).toFixed(2)))} title="Zoom out"
+                            style={{ width: '22px', height: '22px', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>−</button>
+                          <span style={{ fontSize: '0.68rem', minWidth: '34px', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 700 }}>{Math.round(seatMapZoom * 100)}%</span>
+                          <button type="button" onClick={() => setSeatMapZoom(z => Math.min(1.6, +(z + 0.15).toFixed(2)))} title="Zoom in"
+                            style={{ width: '22px', height: '22px', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>+</button>
+                          {seatMapZoom !== 1 && (
+                            <button type="button" onClick={() => setSeatMapZoom(1)} title="Reset zoom"
+                              style={{ fontSize: '0.62rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--gs-crimson)', fontWeight: 700, padding: '0 0.3rem' }}>Reset</button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Scrollable airplane fuselage — overflow-x:auto is a
                         safety net on narrow phones since the fuselage graphic
                         below has a fixed pixel width. */}
-                    <div className="seat-map-fuselage-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '0.5rem 1rem' }}>
+                    <div className="seat-map-fuselage-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '0.5rem 90px' }}>
                       
                       {(() => {
                         // Real seat blocks for THIS flight's actual aircraft, derived
@@ -7640,7 +7681,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         ));
 
                         return (
-                          <>
+                          <div style={{ transform: `scale(${seatMapZoom})`, transformOrigin: 'top center', transition: 'transform 0.15s ease' }}>
                             {/* Cockpit Nose */}
                             <div style={{
                               width: `${fuselageWidth}px`,
@@ -7674,9 +7715,26 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               flexDirection: 'column',
                               alignItems: 'center',
                               margin: '0 auto',
-                              padding: '1rem 0'
+                              padding: '1rem 0',
+                              position: 'relative',
                             }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: 'fit-content' }}>
+                              {/* Decorative wings — purely visual chrome (not derived
+                                  from flight data), fixed near the top of the cabin
+                                  rather than synced to the real wing row, since that
+                                  position varies by aircraft and we don't have it. */}
+                              <div style={{
+                                position: 'absolute', top: '70px', left: `-74px`, width: '90px', height: '130px', zIndex: 0,
+                                background: 'linear-gradient(100deg, #e2e8f0 0%, #f1f5f9 70%)',
+                                clipPath: 'polygon(100% 10%, 100% 35%, 10% 100%, 0% 85%)',
+                                border: '1px solid #cbd5e1', borderRight: 'none',
+                              }} />
+                              <div style={{
+                                position: 'absolute', top: '70px', right: `-74px`, width: '90px', height: '130px', zIndex: 0,
+                                background: 'linear-gradient(260deg, #e2e8f0 0%, #f1f5f9 70%)',
+                                clipPath: 'polygon(0% 10%, 0% 35%, 90% 100%, 100% 85%)',
+                                border: '1px solid #cbd5e1', borderLeft: 'none',
+                              }} />
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: 'fit-content', position: 'relative', zIndex: 1 }}>
 
                                 {/* Column Headers */}
                                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem', fontWeight: '700', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -7743,7 +7801,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                         }}>
                                           {row.row_number}
                                         </div>
-                                        {renderColumnGroups(c => renderSeat((row.seats || []).find(s => s.col === c.value), c.value))}
+                                        {renderColumnGroups(c => renderSeat((row.seats || []).find(s => s.col === c.value), c.value, c.position))}
                                       </div>
                                     </div>
                                   );
@@ -7769,7 +7827,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', left: '-35px', bottom: '15px', borderTopLeftRadius: '12px', transform: 'rotate(-20deg)', zIndex: -1 }}></div>
                               <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', right: '-35px', bottom: '15px', borderTopRightRadius: '12px', transform: 'rotate(20deg)', zIndex: -1 }}></div>
                             </div>
-                          </>
+                          </div>
                         );
                       })()}
                     </div>
