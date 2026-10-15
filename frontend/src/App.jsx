@@ -723,7 +723,7 @@ function StudentFareNotice() {
       <span style={{ fontSize: '1rem', lineHeight: 1 }}>🎓</span>
       <p style={{ margin: 0, fontSize: '0.76rem', color: '#1e40af', lineHeight: 1.45 }}>
         <strong>Student Fare Notice:</strong> Student fares are offered by select airlines for eligible travelers
-        (commonly ages 18–31, varies by airline). A valid student ID and an enrollment certificate from your
+        (eligible age range varies by airline). A valid student ID and an enrollment certificate from your
         educational institution must be presented at check-in/ticketing — if eligibility isn't met, the airline
         may decline the student fare. Always confirm the exact requirements with the operating carrier.
       </p>
@@ -2630,6 +2630,29 @@ export default function App() {
     } finally {
       setTicketStatusLoading(false);
     }
+  };
+
+  // Groups a cabin's flat column list (e.g. A,B,C,D,E,F,G,H,K with each
+  // marked Window/Aisle/Center by Travelport) into the actual seat blocks
+  // separated by a real aisle, instead of assuming a single aisle down the
+  // middle. An aisle sits between two columns that are BOTH marked "Aisle"
+  // (e.g. ...C|D... in 3-3-3, or ...C|D... in 2-2-2) — this is the only
+  // aircraft-agnostic signal Travelport gives us, so it works the same for
+  // a 2-2 narrowbody, a 3-3-3 widebody, a 2-2-2 business cabin, or a 3-4-3
+  // widebody economy, without hardcoding any aircraft's layout.
+  const groupColumnsByAisle = (columns) => {
+    const groups = [];
+    let current = [];
+    (columns || []).forEach((c, i) => {
+      current.push(c);
+      const nextIsAisleBoundary = c.position === 'Aisle' && columns[i + 1] && columns[i + 1].position === 'Aisle';
+      if (nextIsAisleBoundary) {
+        groups.push(current);
+        current = [];
+      }
+    });
+    if (current.length) groups.push(current);
+    return groups;
   };
 
   const renderSeat = (seat, idx) => {
@@ -7542,218 +7565,213 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         below has a fixed pixel width. */}
                     <div className="seat-map-fuselage-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '0.5rem 1rem' }}>
                       
-                      {/* Cockpit Nose */}
-                      <div style={{
-                        width: '290px',
-                        height: '75px',
-                        border: '2px solid #cbd5e1',
-                        borderBottom: 'none',
-                        borderTopLeftRadius: '150px',
-                        borderTopRightRadius: '150px',
-                        background: '#f1f5f9',
-                        position: 'relative',
-                        margin: '0 auto',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 -4px 10px rgba(0,0,0,0.02)'
-                      }}>
-                        {/* Windshields */}
-                        <div style={{ display: 'flex', gap: '8px', position: 'absolute', bottom: '15px' }}>
-                          <div style={{ width: '35px', height: '14px', background: '#1e293b', borderTopLeftRadius: '10px', borderBottomLeftRadius: '2px', transform: 'skewY(-15deg)', border: '1px solid #64748b' }}></div>
-                          <div style={{ width: '35px', height: '14px', background: '#1e293b', borderTopRightRadius: '10px', borderBottomRightRadius: '2px', transform: 'skewY(15deg)', border: '1px solid #64748b' }}></div>
-                        </div>
-                      </div>
+                      {(() => {
+                        // Real seat blocks for THIS flight's actual aircraft, derived
+                        // from Travelport's own column layout — not a fixed 2-2-2 or
+                        // 3-3-3 assumption, so a regional jet's 2-2 row, a 2-2-2
+                        // business cabin, and a 3-3-3 or 3-4-3 widebody economy cabin
+                        // all lay out correctly on the same code path.
+                        const columnGroups = groupColumnsByAisle(seatMap.columns || []);
+                        const seatW = 32, seatGap = 4, aisleGap = 24, rowLabelW = 26, rowLabelGap = 10;
+                        const groupsWidth = columnGroups.reduce((sum, g) => sum + g.length * seatW + Math.max(g.length - 1, 0) * seatGap, 0);
+                        const aislesWidth = Math.max(columnGroups.length - 1, 0) * aisleGap;
+                        const fuselageWidth = Math.max(rowLabelW + rowLabelGap + groupsWidth + aislesWidth + 32, 200);
 
-                      {/* Fuselage body */}
-                      <div style={{
-                        width: '290px',
-                        borderLeft: '2px solid #cbd5e1',
-                        borderRight: '2px solid #cbd5e1',
-                        background: '#f8fafc',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        margin: '0 auto',
-                        padding: '1rem 0'
-                      }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: 'fit-content' }}>
-                          
-                          {/* Column Headers */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.5rem', fontWeight: '700', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            {(() => {
-                              const cols = seatMap.columns || [];
-                              const half = Math.ceil(cols.length / 2);
-                              const leftCols = cols.slice(0, half);
-                              const rightCols = cols.slice(half);
-                              return (
-                                <>
-                                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                    {leftCols.map(c => (
-                                      <div key={c.value} style={{ width: '32px', textAlign: 'center' }}>{c.value}</div>
-                                    ))}
-                                  </div>
-                                  <div style={{ width: '32px', textAlign: 'center' }}></div>
-                                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                    {rightCols.map(c => (
-                                      <div key={c.value} style={{ width: '32px', textAlign: 'center' }}>{c.value}</div>
-                                    ))}
-                                  </div>
-                                </>
-                              );
-                            })()}
+                        const getRowType = (row) => {
+                          const nonCols = (row.seats || []).filter(s => s && s.type && s.type !== 'empty');
+                          if (nonCols.length === 0) return null;
+                          const typeCounts = {};
+                          nonCols.forEach(s => {
+                            typeCounts[s.type] = (typeCounts[s.type] || 0) + 1;
+                          });
+                          let bestType = null;
+                          let maxCount = -1;
+                          for (const t in typeCounts) {
+                            if (typeCounts[t] > maxCount) {
+                              maxCount = typeCounts[t];
+                              bestType = t;
+                            }
+                          }
+                          const priceObj = nonCols.find(s => s.type === bestType) || nonCols[0];
+                          return {
+                            type: bestType,
+                            price: priceObj.price || 0,
+                            currency: priceObj.currency || 'LKR'
+                          };
+                        };
+
+                        const rowMetadata = (seatMap.rows || []).map(r => getRowType(r));
+
+                        const shouldShowHeader = (rowIdx) => {
+                          const current = rowMetadata[rowIdx];
+                          if (!current || !current.type) return false;
+                          if (rowIdx === 0) return true;
+                          const previous = rowMetadata[rowIdx - 1];
+                          if (!previous || !previous.type) {
+                            let foundPrev = false;
+                            for (let k = rowIdx - 1; k >= 0; k--) {
+                              if (rowMetadata[k] && rowMetadata[k].type) {
+                                if (rowMetadata[k].type !== current.type) {
+                                  return true;
+                                }
+                                foundPrev = true;
+                                break;
+                              }
+                            }
+                            return !foundPrev;
+                          }
+                          return current.type !== previous.type;
+                        };
+
+                        // Shared row for seat-column groups, each group separated by
+                        // a real aisle gap with a faint dashed divider marking it.
+                        const renderColumnGroups = (renderCell) => columnGroups.map((group, gIdx) => (
+                          <div
+                            key={gIdx}
+                            style={{
+                              display: 'flex', gap: `${seatGap}px`,
+                              marginRight: gIdx < columnGroups.length - 1 ? `${aisleGap}px` : 0,
+                              paddingRight: gIdx < columnGroups.length - 1 ? `${aisleGap / 2}px` : 0,
+                              borderRight: gIdx < columnGroups.length - 1 ? '1px dashed #d4dbe3' : 'none',
+                            }}
+                          >
+                            {group.map(c => renderCell(c))}
                           </div>
+                        ));
 
-                          {/* Row entries */}
-                          {(() => {
-                            const getRowType = (row) => {
-                              const nonCols = (row.seats || []).filter(s => s && s.type && s.type !== 'empty');
-                              if (nonCols.length === 0) return null;
-                              const typeCounts = {};
-                              nonCols.forEach(s => {
-                                typeCounts[s.type] = (typeCounts[s.type] || 0) + 1;
-                              });
-                              let bestType = null;
-                              let maxCount = -1;
-                              for (const t in typeCounts) {
-                                if (typeCounts[t] > maxCount) {
-                                  maxCount = typeCounts[t];
-                                  bestType = t;
-                                }
-                              }
-                              const priceObj = nonCols.find(s => s.type === bestType) || nonCols[0];
-                              return {
-                                type: bestType,
-                                price: priceObj.price || 0,
-                                currency: priceObj.currency || 'LKR'
-                              };
-                            };
+                        return (
+                          <>
+                            {/* Cockpit Nose */}
+                            <div style={{
+                              width: `${fuselageWidth}px`,
+                              height: '75px',
+                              border: '2px solid #cbd5e1',
+                              borderBottom: 'none',
+                              borderTopLeftRadius: '150px',
+                              borderTopRightRadius: '150px',
+                              background: 'linear-gradient(180deg, #eef2f7 0%, #f8fafc 100%)',
+                              position: 'relative',
+                              margin: '0 auto',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 -4px 10px rgba(0,0,0,0.02)'
+                            }}>
+                              {/* Windshields */}
+                              <div style={{ display: 'flex', gap: '8px', position: 'absolute', bottom: '15px' }}>
+                                <div style={{ width: '35px', height: '14px', background: '#1e293b', borderTopLeftRadius: '10px', borderBottomLeftRadius: '2px', transform: 'skewY(-15deg)', border: '1px solid #64748b' }}></div>
+                                <div style={{ width: '35px', height: '14px', background: '#1e293b', borderTopRightRadius: '10px', borderBottomRightRadius: '2px', transform: 'skewY(15deg)', border: '1px solid #64748b' }}></div>
+                              </div>
+                            </div>
 
-                            const rowMetadata = (seatMap.rows || []).map(r => getRowType(r));
+                            {/* Fuselage body */}
+                            <div style={{
+                              width: `${fuselageWidth}px`,
+                              borderLeft: '2px solid #cbd5e1',
+                              borderRight: '2px solid #cbd5e1',
+                              background: '#f8fafc',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              margin: '0 auto',
+                              padding: '1rem 0'
+                            }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: 'fit-content' }}>
 
-                            const shouldShowHeader = (rowIdx) => {
-                              const current = rowMetadata[rowIdx];
-                              if (!current || !current.type) return false;
-                              if (rowIdx === 0) return true;
-                              const previous = rowMetadata[rowIdx - 1];
-                              if (!previous || !previous.type) {
-                                let foundPrev = false;
-                                for (let k = rowIdx - 1; k >= 0; k--) {
-                                  if (rowMetadata[k] && rowMetadata[k].type) {
-                                    if (rowMetadata[k].type !== current.type) {
-                                      return true;
-                                    }
-                                    foundPrev = true;
-                                    break;
-                                  }
-                                }
-                                return !foundPrev;
-                              }
-                              return current.type !== previous.type;
-                            };
-
-                            return seatMap.rows?.map((row, rowIdx) => {
-                              const seats = row.seats || [];
-                              const half = Math.ceil(seats.length / 2);
-                              const leftSeats = seats.slice(0, half);
-                              const rightSeats = seats.slice(half);
-                              const isExitRow = row.row_number === 12 || row.row_number === 13;
-
-                              return (
-                                <div key={row.row_number || rowIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-                                  {shouldShowHeader(rowIdx) && (() => {
-                                    const meta = rowMetadata[rowIdx];
-                                    const isFree = meta.price === 0;
-                                    return (
-                                      <div style={{
-                                        width: '100%',
-                                        textAlign: 'center',
-                                        margin: '0.85rem 0 0.5rem',
-                                        position: 'relative',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                      }}>
-                                        <div style={{ position: 'absolute', left: 0, right: 0, height: '1px', background: '#cbd5e1', zIndex: 1 }}></div>
-                                        <span style={{
-                                          position: 'relative',
-                                          zIndex: 2,
-                                          background: '#f8fafc',
-                                          padding: '0.2rem 0.65rem',
-                                          borderRadius: '20px',
-                                          fontSize: '0.62rem',
-                                          fontWeight: '800',
-                                          color: isFree ? '#16a34a' : '#d97706',
-                                          border: '1px solid ' + (isFree ? '#bbf7d0' : '#fef3c7'),
-                                          background: isFree ? '#f0fdf4' : '#fffbeb',
-                                          textTransform: 'uppercase',
-                                          letterSpacing: '0.04em',
-                                          whiteSpace: 'nowrap'
-                                        }}>
-                                          ✈ {meta.type} {meta.price > 0 ? `(+ ${meta.currency} ${meta.price.toLocaleString()})` : '(Included)'}
-                                        </span>
-                                      </div>
-                                    );
-                                  })()}
-
-                                  {isExitRow && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.6rem', color: '#b45309', background: '#fef3c7', padding: '0.15rem 0.5rem', borderRadius: '4px', margin: '0.25rem 0', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', boxSizing: 'border-box' }}>
-                                      <span>⟨ Exit Row</span>
-                                      <span>Exit Row ⟩</span>
-                                    </div>
-                                  )}
-
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', margin: '0.15rem 0' }}>
-                                    <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                      {leftSeats.map((seat, idx) => renderSeat(seat, idx))}
-                                    </div>
-
-                                    <div style={{
-                                      width: '32px',
-                                      height: '32px',
-                                      borderRadius: '50%',
-                                      background: '#f1f5f9',
-                                      border: '1px solid #e2e8f0',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      fontSize: '0.75rem',
-                                      color: 'var(--text-secondary)',
-                                      fontWeight: '700'
-                                    }}>
-                                      {row.row_number}
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                      {rightSeats.map((seat, idx) => renderSeat(seat, idx))}
-                                    </div>
-                                  </div>
+                                {/* Column Headers */}
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem', fontWeight: '700', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                  <div style={{ width: `${rowLabelW}px`, marginRight: `${rowLabelGap}px` }}></div>
+                                  {renderColumnGroups(c => (
+                                    <div key={c.value} style={{ width: `${seatW}px`, textAlign: 'center' }}>{c.value}</div>
+                                  ))}
                                 </div>
-                              );
-                            });
-                          })()}
 
-                        </div>
-                      </div>
+                                {/* Row entries */}
+                                {seatMap.rows?.map((row, rowIdx) => {
+                                  // Real signal from Travelport's own seat characteristics
+                                  // ("E"/"LE" -> Extra Legroom), not a hardcoded row number —
+                                  // exit rows sit at different row numbers on every aircraft.
+                                  const isExitRow = (row.seats || []).some(s => s && s.type === 'Extra Legroom');
 
-                      {/* Tail Cone */}
-                      <div style={{
-                        width: '290px',
-                        height: '60px',
-                        border: '2px solid #cbd5e1',
-                        borderTop: 'none',
-                        borderBottomLeftRadius: '80px 60px',
-                        borderBottomRightRadius: '80px 60px',
-                        background: '#f1f5f9',
-                        margin: '0 auto',
-                        position: 'relative',
-                        boxShadow: '0 4px 10px rgba(0,0,0,0.02)'
-                      }}>
-                        {/* Tail fins */}
-                        <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', left: '-35px', bottom: '15px', borderTopLeftRadius: '12px', transform: 'rotate(-20deg)', zIndex: -1 }}></div>
-                        <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', right: '-35px', bottom: '15px', borderTopRightRadius: '12px', transform: 'rotate(20deg)', zIndex: -1 }}></div>
-                      </div>
+                                  return (
+                                    <div key={row.row_number || rowIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                                      {shouldShowHeader(rowIdx) && (() => {
+                                        const meta = rowMetadata[rowIdx];
+                                        const isFree = meta.price === 0;
+                                        return (
+                                          <div style={{
+                                            width: '100%',
+                                            textAlign: 'center',
+                                            margin: '0.85rem 0 0.5rem',
+                                            position: 'relative',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                          }}>
+                                            <div style={{ position: 'absolute', left: 0, right: 0, height: '1px', background: '#cbd5e1', zIndex: 1 }}></div>
+                                            <span style={{
+                                              position: 'relative',
+                                              zIndex: 2,
+                                              padding: '0.2rem 0.65rem',
+                                              borderRadius: '20px',
+                                              fontSize: '0.62rem',
+                                              fontWeight: '800',
+                                              color: isFree ? '#16a34a' : '#d97706',
+                                              border: '1px solid ' + (isFree ? '#bbf7d0' : '#fef3c7'),
+                                              background: isFree ? '#f0fdf4' : '#fffbeb',
+                                              textTransform: 'uppercase',
+                                              letterSpacing: '0.04em',
+                                              whiteSpace: 'nowrap'
+                                            }}>
+                                              ✈ {meta.type} {meta.price > 0 ? `(+ ${meta.currency} ${meta.price.toLocaleString()})` : '(Included)'}
+                                            </span>
+                                          </div>
+                                        );
+                                      })()}
 
+                                      {isExitRow && (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.6rem', color: '#b45309', background: '#fef3c7', padding: '0.15rem 0.5rem', borderRadius: '4px', margin: '0.25rem 0', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', boxSizing: 'border-box' }}>
+                                          <span>⟨ Exit Row</span>
+                                          <span>Exit Row ⟩</span>
+                                        </div>
+                                      )}
+
+                                      <div style={{ display: 'flex', alignItems: 'center', margin: '0.15rem 0' }}>
+                                        <div style={{
+                                          width: `${rowLabelW}px`, marginRight: `${rowLabelGap}px`, textAlign: 'center',
+                                          fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '700'
+                                        }}>
+                                          {row.row_number}
+                                        </div>
+                                        {renderColumnGroups(c => renderSeat((row.seats || []).find(s => s.col === c.value), c.value))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                              </div>
+                            </div>
+
+                            {/* Tail Cone */}
+                            <div style={{
+                              width: `${fuselageWidth}px`,
+                              height: '60px',
+                              border: '2px solid #cbd5e1',
+                              borderTop: 'none',
+                              borderBottomLeftRadius: '80px 60px',
+                              borderBottomRightRadius: '80px 60px',
+                              background: 'linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)',
+                              margin: '0 auto',
+                              position: 'relative',
+                              boxShadow: '0 4px 10px rgba(0,0,0,0.02)'
+                            }}>
+                              {/* Tail fins */}
+                              <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', left: '-35px', bottom: '15px', borderTopLeftRadius: '12px', transform: 'rotate(-20deg)', zIndex: -1 }}></div>
+                              <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', right: '-35px', bottom: '15px', borderTopRightRadius: '12px', transform: 'rotate(20deg)', zIndex: -1 }}></div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <div style={{ textAlign: 'center', padding: '0.5rem 0 0.25rem', marginTop: '0.5rem' }}>
