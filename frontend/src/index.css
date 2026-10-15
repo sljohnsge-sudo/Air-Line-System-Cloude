@@ -293,6 +293,18 @@ body {
   50% { opacity: 0.35; }
 }
 
+/* Short connecting-flight layover (under 60 min) on search results — a
+   faster, more urgent pulse than the loading-state blink above, since this
+   is a real risk-of-missed-connection warning, not a "still working" cue. */
+@keyframes layoverWarningBlink {
+  0%, 100% { background: #fef2f2; border-color: #fca5a5; }
+  50% { background: #fee2e2; border-color: #ef4444; }
+}
+
+.layover-warning-blink {
+  animation: layoverWarningBlink 1s ease-in-out infinite;
+}
+
 .loading-blink {
   display: inline-block;
   animation: loadingHeadingBlink 1.3s ease-in-out infinite;

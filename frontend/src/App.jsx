@@ -582,12 +582,26 @@ function SegmentList({ segments, terminalConnections = [] }) {
           </div>
           {seg.layover_minutes !== undefined && (() => {
             const terminalInfo = lookupTerminalConnection(terminalConnections, seg.arrival_airport, seg.arrival_terminal, segments[sIdx + 1]?.departure_terminal);
+            const isShort = seg.layover_minutes > 0 && seg.layover_minutes < 60;
             return (
-              <div style={{ fontSize: '0.72rem', color: '#b45309', background: '#fffbeb', padding: '0.2rem 0.5rem', borderRadius: '4px', marginTop: '5px', fontWeight: '700' }}>
+              <div
+                className={isShort ? 'layover-warning-blink' : undefined}
+                style={{
+                  fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: '4px', marginTop: '5px', fontWeight: '700',
+                  color: isShort ? '#b91c1c' : '#b45309',
+                  background: isShort ? '#fef2f2' : '#fffbeb',
+                  border: isShort ? '1px solid #fca5a5' : 'none',
+                }}
+              >
                 ⏱️ Connection Layover: {Math.floor(seg.layover_minutes / 60)}h {seg.layover_minutes % 60}m at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}
                 {terminalInfo && (
                   <div style={{ color: '#1e40af', fontWeight: '600', marginTop: '0.2rem' }}>
                     🚶 {terminalInfo.from_terminal} → {terminalInfo.to_terminal}: ~{terminalInfo.estimated_minutes} min transfer{terminalInfo.notes ? ` — ${terminalInfo.notes}` : ''}
+                  </div>
+                )}
+                {isShort && (
+                  <div style={{ color: '#b91c1c', fontWeight: '800', marginTop: '0.25rem' }}>
+                    ⚠️ Short terminal layover — if delayed, you could miss your next flight.
                   </div>
                 )}
               </div>
@@ -651,10 +665,20 @@ function SegmentTimeline({ segments, terminalConnections = [] }) {
           {/* Layover Indicator */}
           {seg.layover_minutes !== undefined && (() => {
             const terminalInfo = lookupTerminalConnection(terminalConnections, seg.arrival_airport, seg.arrival_terminal, segments[sIdx + 1]?.departure_terminal);
+            const isShort = seg.layover_minutes > 0 && seg.layover_minutes < 60;
             return (
               <div style={{ display: 'flex', gap: '1rem', position: 'relative', zIndex: 2, alignItems: 'center', margin: '0.15rem 0' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#d97706', border: '4px solid white', boxShadow: '0 0 0 1px #f59e0b', flexShrink: 0 }}></div>
-                <div style={{ flex: 1, background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.72rem', color: '#b45309', fontWeight: '700', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: isShort ? '#dc2626' : '#d97706', border: '4px solid white', boxShadow: `0 0 0 1px ${isShort ? '#ef4444' : '#f59e0b'}`, flexShrink: 0 }}></div>
+                <div
+                  className={isShort ? 'layover-warning-blink' : undefined}
+                  style={{
+                    flex: 1, borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.72rem', fontWeight: '700',
+                    display: 'flex', flexDirection: 'column', gap: '0.2rem',
+                    color: isShort ? '#b91c1c' : '#b45309',
+                    background: isShort ? '#fef2f2' : '#fffbeb',
+                    border: `1px solid ${isShort ? '#fca5a5' : '#fef3c7'}`,
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <span>⏱️</span>
                     <span>Connection Layover: {Math.floor(seg.layover_minutes / 60)}h {seg.layover_minutes % 60}m at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}</span>
@@ -663,6 +687,12 @@ function SegmentTimeline({ segments, terminalConnections = [] }) {
                     <div style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <span>🚶</span>
                       <span>{terminalInfo.from_terminal} → {terminalInfo.to_terminal}: ~{terminalInfo.estimated_minutes} min transfer{terminalInfo.notes ? ` — ${terminalInfo.notes}` : ''}</span>
+                    </div>
+                  )}
+                  {isShort && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#b91c1c', fontWeight: '800' }}>
+                      <span>⚠️</span>
+                      <span>Short terminal layover — if delayed, you could miss your next flight.</span>
                     </div>
                   )}
                 </div>
