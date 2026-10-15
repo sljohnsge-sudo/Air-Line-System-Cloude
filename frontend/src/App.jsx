@@ -705,6 +705,32 @@ function SegmentTimeline({ segments, terminalConnections = [] }) {
   );
 }
 
+// ── Student fare eligibility notice — shown once a traveler count form has
+// 1+ Student selected. Airlines price student fares under the STU
+// passenger type code (Travelport Display Category "S", alongside
+// Military/Government/Youth), but they're conditional on eligibility the
+// system can't verify at search time — age range, a valid student ID, and
+// an enrollment certificate from the traveler's educational institution,
+// checked at ticketing/check-in. This translates that into a plain-language
+// heads-up so customers know what to bring before they commit to the fare.
+function StudentFareNotice() {
+  return (
+    <div style={{
+      display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
+      background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px',
+      padding: '0.6rem 0.75rem', marginTop: '0.6rem', marginBottom: '0.25rem',
+    }}>
+      <span style={{ fontSize: '1rem', lineHeight: 1 }}>🎓</span>
+      <p style={{ margin: 0, fontSize: '0.76rem', color: '#1e40af', lineHeight: 1.45 }}>
+        <strong>Student Fare Notice:</strong> Student fares are offered by select airlines for eligible travelers
+        (commonly ages 18–31, varies by airline). A valid student ID and an enrollment certificate from your
+        educational institution must be presented at check-in/ticketing — if eligibility isn't met, the airline
+        may decline the student fare. Always confirm the exact requirements with the operating carrier.
+      </p>
+    </div>
+  );
+}
+
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
   // ── URL routing ────────────────────────────────────────────────────────
@@ -3507,6 +3533,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           </div>
                         </div>
 
+                        {studentCount > 0 && <StudentFareNotice />}
+
                         {/* Done button — advances straight to Cabin Class, same reduce-clicks flow as the date pickers above */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
                           <button
@@ -4299,6 +4327,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             </button>
                           </div>
                         </div>
+
+                        {studentCount > 0 && <StudentFareNotice />}
 
                         {/* Cabin buttons */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
