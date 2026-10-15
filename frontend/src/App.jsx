@@ -5161,9 +5161,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                         {icon} {label}
                                       </span>
                                       <span style={{ textAlign: 'right', color: '#64748b' }}>×{details.quantity}</span>
-                                      <span style={{ textAlign: 'right' }}>{flight.currency} {details.base_price?.toFixed(2)}</span>
-                                      <span style={{ textAlign: 'right', color: '#64748b' }}>{flight.currency} {(details.taxes + details.fees)?.toFixed(2)}</span>
-                                      <span style={{ textAlign: 'right', fontWeight: '700', color: '#1e293b' }}>{flight.currency} {details.total_price?.toFixed(2)}</span>
+                                      <span style={{ textAlign: 'right' }}>{flight.currency} {details.base_price?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                      <span style={{ textAlign: 'right', color: '#64748b' }}>{flight.currency} {(details.taxes + details.fees)?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                      <span style={{ textAlign: 'right', fontWeight: '700', color: '#1e293b' }}>{flight.currency} {details.total_price?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                   );
                                 })}
@@ -5176,7 +5176,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                   fontSize: '0.8rem', fontWeight: '800', color: 'var(--gs-crimson)', alignItems: 'center',
                                 }}>
                                   <span style={{ gridColumn: '1 / 5' }}>Total for All {totalPax} Passengers</span>
-                                  <span style={{ textAlign: 'right', fontSize: '0.95rem' }}>{flight.currency} {grandTotal.toFixed(2)}</span>
+                                  <span style={{ textAlign: 'right', fontSize: '0.95rem' }}>{flight.currency} {grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                               </div>
                               </div>
