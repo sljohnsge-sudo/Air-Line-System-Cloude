@@ -13,6 +13,24 @@ const TERMINAL_OPTIONS = [
   'Main Terminal', 'North Terminal', 'South Terminal', 'East Terminal', 'West Terminal',
 ];
 
+// snake_case settings field -> readable label, for the Pending Approvals diff
+// (e.g. "ticket_markup_percent" -> "Ticket Markup Percent").
+function prettifySettingsFieldName(key) {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .replace(/\bLkr\b/g, 'LKR')
+    .replace(/\bUsd\b/g, 'USD')
+    .replace(/\bPdpa\b/g, 'PDPA');
+}
+
+function formatSettingsValue(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  if (typeof v === 'number') return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  return String(v);
+}
+
 export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, API_BASE, AMADEUS_API_BASE, fetchWithRetry, handleApiResponse, onNavigate, onOpenInvoice }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -1329,29 +1347,97 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         {pendingSettingsChanges.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No pending settings changes.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             {pendingSettingsChanges.map(r => {
               const isOwn = r.proposed_by_admin_id === currentAdminId;
+              const isLoyalty = r.setting_type === 'loyalty';
+              const current = isLoyalty ? loyaltySettings : r.setting_type === 'pricing' ? settings : null;
+              const proposed = r.proposed_data || {};
+              const fieldKeys = Object.keys(proposed);
+              const accent = isLoyalty ? '#7c3aed' : '#0284c7';
+              const accentBg = isLoyalty ? '#f5f3ff' : '#f0f9ff';
+              const icon = isLoyalty ? '🏆' : '💰';
+              const changedKeys = current
+                ? fieldKeys.filter(k => String(current[k]) !== String(proposed[k]))
+                : [];
               return (
-                <div key={r.id} style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem' }}>
-                    <div style={{ fontSize: '0.85rem' }}>
-                      <strong style={{ color: 'var(--gs-crimson)', textTransform: 'capitalize' }}>{r.setting_type} settings</strong>
-                      {' proposed by '}<strong>{r.proposed_by_username}</strong>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Requested {new Date(r.requested_at).toLocaleString()}</div>
+                <div key={r.id} style={{
+                  background: '#fff', border: '1px solid var(--border-color)', borderLeft: `4px solid ${accent}`,
+                  borderRadius: '10px', padding: '1rem 1.15rem', boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                      <span style={{
+                        fontSize: '1.3rem', lineHeight: 1, width: '2.1rem', height: '2.1rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: accentBg, borderRadius: '50%', flexShrink: 0,
+                      }}>{icon}</span>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <strong style={{ color: accent, textTransform: 'capitalize', fontSize: '0.92rem' }}>{r.setting_type} settings</strong>
+                          {changedKeys.length > 0 && (
+                            <span style={{
+                              fontSize: '0.68rem', fontWeight: 800, color: '#15803d', background: '#dcfce7',
+                              border: '1px solid #bbf7d0', borderRadius: '999px', padding: '0.1rem 0.55rem',
+                            }}>
+                              {changedKeys.length} field{changedKeys.length > 1 ? 's' : ''} changed
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                          Proposed by <strong>{r.proposed_by_username}</strong>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          {new Date(r.requested_at).toLocaleString()}
+                        </div>
+                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                       <button className="btn btn-primary btn-sm" disabled={isOwn || settingsChangeActionId === r.id}
                         title={isOwn ? "You can't approve your own change" : undefined}
-                        onClick={() => reviewSettingsChange(r.id, 'approve')}>Approve</button>
+                        onClick={() => reviewSettingsChange(r.id, 'approve')}>✓ Approve</button>
                       <button className="btn btn-danger btn-sm" disabled={isOwn || settingsChangeActionId === r.id}
                         title={isOwn ? "You can't reject your own change" : undefined}
-                        onClick={() => reviewSettingsChange(r.id, 'reject')}>Reject</button>
+                        onClick={() => reviewSettingsChange(r.id, 'reject')}>✕ Reject</button>
                     </div>
                   </div>
-                  <pre style={{ fontSize: '0.72rem', color: '#475569', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.5rem 0.75rem', marginTop: '0.5rem', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(r.proposed_data, null, 2)}
-                  </pre>
+
+                  <div style={{
+                    marginTop: '0.9rem', display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '0.5rem',
+                  }}>
+                    {fieldKeys.map(key => {
+                      const oldVal = current ? current[key] : undefined;
+                      const newVal = proposed[key];
+                      const changed = current != null && String(oldVal) !== String(newVal);
+                      return (
+                        <div key={key} style={{
+                          background: changed ? '#f0fdf4' : '#f8fafc',
+                          border: `1px solid ${changed ? '#86efac' : '#e2e8f0'}`,
+                          borderRadius: '8px', padding: '0.5rem 0.65rem',
+                        }}>
+                          <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {prettifySettingsFieldName(key)}
+                          </div>
+                          {changed ? (
+                            <div style={{ marginTop: '0.2rem', display: 'flex', alignItems: 'baseline', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.76rem', color: '#94a3b8', textDecoration: 'line-through' }}>
+                                {formatSettingsValue(oldVal)}
+                              </span>
+                              <span style={{ fontSize: '0.7rem', color: '#16a34a' }}>→</span>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#15803d' }}>
+                                {formatSettingsValue(newVal)}
+                              </span>
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: '0.2rem', fontSize: '0.82rem', color: '#475569', fontWeight: 600 }}>
+                              {formatSettingsValue(newVal)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
