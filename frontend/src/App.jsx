@@ -723,7 +723,7 @@ function StudentFareNotice() {
       <span style={{ fontSize: '1rem', lineHeight: 1 }}>🎓</span>
       <p style={{ margin: 0, fontSize: '0.76rem', color: '#1e40af', lineHeight: 1.45 }}>
         <strong>Student Fare Notice:</strong> Student fares are offered by select airlines for eligible travelers
-        (eligible age range varies by airline). A valid student ID and an enrollment certificate from your
+        (commonly ages 18–31, varies by airline). A valid student ID and an enrollment certificate from your
         educational institution must be presented at check-in/ticketing — if eligibility isn't met, the airline
         may decline the student fare. Always confirm the exact requirements with the operating carrier.
       </p>
@@ -1449,8 +1449,6 @@ export default function App() {
   const [workbenchId, setWorkbenchId] = useState(null);
   const [offerId, setOfferId] = useState(null);
   const [seatMap, setSeatMap] = useState(null);
-  const [seatMapZoom, setSeatMapZoom] = useState(1);
-  const [seatFilterMode, setSeatFilterMode] = useState('all'); // 'all' | 'window' | 'aisle' | 'extra-legroom' | 'available'
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [ancillaries, setAncillaries] = useState([]);
   const [selectedAncillaries, setSelectedAncillaries] = useState([]);
@@ -2161,8 +2159,6 @@ export default function App() {
         setBookingStep(hasAncillaries ? 'ancillaries' : 'review');
       } else {
         setSeatMap(data.seat_map);
-        setSeatMapZoom(1);
-        setSeatFilterMode('all');
         setBookingStep('seats');
       }
 
@@ -2478,8 +2474,6 @@ export default function App() {
         return;
       }
       setSeatMap(result);
-      setSeatMapZoom(1);
-      setSeatFilterMode('all');
       setBookingStep('seats');
     } catch (err) {
       if (fetchedAncillaries.length > 0) {
@@ -2638,39 +2632,10 @@ export default function App() {
     }
   };
 
-  // Groups a cabin's flat column list (e.g. A,B,C,D,E,F,G,H,K with each
-  // marked Window/Aisle/Center by Travelport) into the actual seat blocks
-  // separated by a real aisle, instead of assuming a single aisle down the
-  // middle. An aisle sits between two columns that are BOTH marked "Aisle"
-  // (e.g. ...C|D... in 3-3-3, or ...C|D... in 2-2-2) — this is the only
-  // aircraft-agnostic signal Travelport gives us, so it works the same for
-  // a 2-2 narrowbody, a 3-3-3 widebody, a 2-2-2 business cabin, or a 3-4-3
-  // widebody economy, without hardcoding any aircraft's layout.
-  const groupColumnsByAisle = (columns) => {
-    const groups = [];
-    let current = [];
-    (columns || []).forEach((c, i) => {
-      current.push(c);
-      const nextIsAisleBoundary = c.position === 'Aisle' && columns[i + 1] && columns[i + 1].position === 'Aisle';
-      if (nextIsAisleBoundary) {
-        groups.push(current);
-        current = [];
-      }
-    });
-    if (current.length) groups.push(current);
-    return groups;
-  };
-
-  const renderSeat = (seat, idx, columnPosition) => {
+  const renderSeat = (seat, idx) => {
     if (!seat || seat.type === 'empty' || seat.status === 'empty') {
       return <div key={idx} style={{ width: '32px', height: '32px' }} />;
     }
-
-    const matchesSeatFilter = seatFilterMode === 'all'
-      || (seatFilterMode === 'window' && columnPosition === 'Window')
-      || (seatFilterMode === 'aisle' && columnPosition === 'Aisle')
-      || (seatFilterMode === 'extra-legroom' && seat.type === 'Extra Legroom')
-      || (seatFilterMode === 'available' && seat.status === 'available');
 
     const isOccupied = seat.status === 'occupied';
     const isAvailable = seat.status === 'available';
@@ -2779,8 +2744,6 @@ export default function App() {
           outline: 'none',
           boxShadow: isSelectedByActive ? '0 0 8px rgba(195, 18, 46, 0.4)' : 'none',
           transition: 'all 0.15s',
-          opacity: matchesSeatFilter ? 1 : 0.25,
-          filter: matchesSeatFilter ? 'none' : 'grayscale(80%)',
           ...seatPatternStyle
         }}
       >
@@ -6956,18 +6919,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       {/* ── BOOKING WIZARD MODAL ─────────────────────────────────────────── */}
       {selectedFlight && bookingStep && bookingStep !== 'ticket' && bookingStep !== 'amadeus_ticket' && (
         <div className="modal-overlay animate-fade-only">
-          <div className="modal-content glass-panel animate-fade" style={{
-            maxWidth: bookingStep === 'seats' ? '1400px' : (bookingStep === 'seats_loading' || bookingStep === 'ancillaries') ? '850px' : '640px',
-            width: '95%',
-            transition: 'max-width 0.25s ease',
-            // The seats step used to be a fixed-height box with its own
-            // nested scrollbars (sidebar + cabin map each scrolling
-            // independently inside the modal, which itself sat inside the
-            // page's scroll) — confusing to use. Letting it grow to its
-            // natural height instead means the whole thing is just one
-            // page the browser scrolls normally, like every other step.
-            ...(bookingStep === 'seats' ? { overflow: 'visible', maxHeight: 'none' } : {}),
-          }}>
+          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: (bookingStep === 'seats' || bookingStep === 'seats_loading' || bookingStep === 'ancillaries') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
             {/* Progress Steps — this stepper is shaped for Travelport's own step sequence; Amadeus
                 offers use a shorter flow (passenger details → seats → processing → ticket) and
                 are kept on their own step titles below instead of this (mismatched) step dial. */}
@@ -7439,10 +7391,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     this booking — the airline confirms the final seat assignment.
                   </div>
                 )}
-                <div className="seat-selector-container" style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
+                <div className="seat-selector-container" style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', maxHeight: '55vh', overflow: 'hidden' }}>
                   
                   {/* Left Sidebar */}
-                  <div className="seat-selector-sidebar" style={{ width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '1.5rem', borderRight: '1px solid var(--border-color)', paddingRight: '1.25rem', position: 'sticky', top: '0.5rem', alignSelf: 'flex-start' }}>
+                  <div className="seat-selector-sidebar" style={{ width: '260px', display: 'flex', flexDirection: 'column', gap: '1.5rem', borderRight: '1px solid var(--border-color)', paddingRight: '1.25rem', overflowY: 'auto' }}>
                     <div>
                       <h4 style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Passengers</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -7579,270 +7531,229 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
 
                   {/* Right Seat Map Chart - Top-down airplane styling */}
-                  <div className="seat-map-panel" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', padding: '0.25rem 0 0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.75rem' }}>
-                      <div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aircraft Cabin Map</div>
-                        <strong style={{ fontSize: '0.82rem', color: 'var(--gs-dark)' }}>FRONT OF AIRCRAFT</strong>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <select
-                          value={seatFilterMode}
-                          onChange={e => setSeatFilterMode(e.target.value)}
-                          title="Filter seats"
-                          style={{ fontSize: '0.72rem', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', background: 'white' }}
-                        >
-                          <option value="all">All Seats</option>
-                          <option value="window">Window Seats</option>
-                          <option value="aisle">Aisle Seats</option>
-                          <option value="extra-legroom">Extra Legroom</option>
-                          <option value="available">Available Only</option>
-                        </select>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.15rem 0.25rem' }}>
-                          <button type="button" onClick={() => setSeatMapZoom(z => Math.max(0.6, +(z - 0.15).toFixed(2)))} title="Zoom out"
-                            style={{ width: '22px', height: '22px', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>−</button>
-                          <span style={{ fontSize: '0.68rem', minWidth: '34px', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 700 }}>{Math.round(seatMapZoom * 100)}%</span>
-                          <button type="button" onClick={() => setSeatMapZoom(z => Math.min(1.6, +(z + 0.15).toFixed(2)))} title="Zoom in"
-                            style={{ width: '22px', height: '22px', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>+</button>
-                          {seatMapZoom !== 1 && (
-                            <button type="button" onClick={() => setSeatMapZoom(1)} title="Reset zoom"
-                              style={{ fontSize: '0.62rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--gs-crimson)', fontWeight: 700, padding: '0 0.3rem' }}>Reset</button>
-                          )}
-                        </div>
-                      </div>
+                  <div className="seat-map-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
+                    <div style={{ textAlign: 'center', padding: '0.25rem 0 0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.75rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aircraft Cabin Map</div>
+                      <strong style={{ fontSize: '0.85rem', color: 'var(--gs-dark)' }}>FRONT OF AIRCRAFT</strong>
                     </div>
 
-                    {/* No vertical scroll here anymore — the cabin map grows
-                        to its full natural height and the modal/page scrolls
-                        as one piece, like every other booking step. overflow-x
-                        stays as a safety net in case a wide cabin's computed
-                        width still exceeds the available space. */}
-                    <div className="seat-map-fuselage-scroll" style={{ padding: '0.5rem 90px', overflowX: 'auto' }}>
+                    {/* Scrollable airplane fuselage — overflow-x:auto is a
+                        safety net on narrow phones since the fuselage graphic
+                        below has a fixed pixel width. */}
+                    <div className="seat-map-fuselage-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '0.5rem 1rem' }}>
                       
-                      {(() => {
-                        // Real seat blocks for THIS flight's actual aircraft, derived
-                        // from Travelport's own column layout — not a fixed 2-2-2 or
-                        // 3-3-3 assumption, so a regional jet's 2-2 row, a 2-2-2
-                        // business cabin, and a 3-3-3 or 3-4-3 widebody economy cabin
-                        // all lay out correctly on the same code path.
-                        const columnGroups = groupColumnsByAisle(seatMap.columns || []);
-                        const seatW = 32, seatGap = 4, aisleGap = 24, rowLabelW = 26, rowLabelGap = 10;
-                        const groupsWidth = columnGroups.reduce((sum, g) => sum + g.length * seatW + Math.max(g.length - 1, 0) * seatGap, 0);
-                        const aislesWidth = Math.max(columnGroups.length - 1, 0) * aisleGap;
-                        const fuselageWidth = Math.max(rowLabelW + rowLabelGap + groupsWidth + aislesWidth + 32, 200);
+                      {/* Cockpit Nose */}
+                      <div style={{
+                        width: '290px',
+                        height: '75px',
+                        border: '2px solid #cbd5e1',
+                        borderBottom: 'none',
+                        borderTopLeftRadius: '150px',
+                        borderTopRightRadius: '150px',
+                        background: '#f1f5f9',
+                        position: 'relative',
+                        margin: '0 auto',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 -4px 10px rgba(0,0,0,0.02)'
+                      }}>
+                        {/* Windshields */}
+                        <div style={{ display: 'flex', gap: '8px', position: 'absolute', bottom: '15px' }}>
+                          <div style={{ width: '35px', height: '14px', background: '#1e293b', borderTopLeftRadius: '10px', borderBottomLeftRadius: '2px', transform: 'skewY(-15deg)', border: '1px solid #64748b' }}></div>
+                          <div style={{ width: '35px', height: '14px', background: '#1e293b', borderTopRightRadius: '10px', borderBottomRightRadius: '2px', transform: 'skewY(15deg)', border: '1px solid #64748b' }}></div>
+                        </div>
+                      </div>
 
-                        const getRowType = (row) => {
-                          const nonCols = (row.seats || []).filter(s => s && s.type && s.type !== 'empty');
-                          if (nonCols.length === 0) return null;
-                          const typeCounts = {};
-                          nonCols.forEach(s => {
-                            typeCounts[s.type] = (typeCounts[s.type] || 0) + 1;
-                          });
-                          let bestType = null;
-                          let maxCount = -1;
-                          for (const t in typeCounts) {
-                            if (typeCounts[t] > maxCount) {
-                              maxCount = typeCounts[t];
-                              bestType = t;
-                            }
-                          }
-                          const priceObj = nonCols.find(s => s.type === bestType) || nonCols[0];
-                          return {
-                            type: bestType,
-                            price: priceObj.price || 0,
-                            currency: priceObj.currency || 'LKR'
-                          };
-                        };
+                      {/* Fuselage body */}
+                      <div style={{
+                        width: '290px',
+                        borderLeft: '2px solid #cbd5e1',
+                        borderRight: '2px solid #cbd5e1',
+                        background: '#f8fafc',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        margin: '0 auto',
+                        padding: '1rem 0'
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: 'fit-content' }}>
+                          
+                          {/* Column Headers */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.5rem', fontWeight: '700', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {(() => {
+                              const cols = seatMap.columns || [];
+                              const half = Math.ceil(cols.length / 2);
+                              const leftCols = cols.slice(0, half);
+                              const rightCols = cols.slice(half);
+                              return (
+                                <>
+                                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                    {leftCols.map(c => (
+                                      <div key={c.value} style={{ width: '32px', textAlign: 'center' }}>{c.value}</div>
+                                    ))}
+                                  </div>
+                                  <div style={{ width: '32px', textAlign: 'center' }}></div>
+                                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                    {rightCols.map(c => (
+                                      <div key={c.value} style={{ width: '32px', textAlign: 'center' }}>{c.value}</div>
+                                    ))}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
 
-                        const rowMetadata = (seatMap.rows || []).map(r => getRowType(r));
-
-                        const shouldShowHeader = (rowIdx) => {
-                          const current = rowMetadata[rowIdx];
-                          if (!current || !current.type) return false;
-                          if (rowIdx === 0) return true;
-                          const previous = rowMetadata[rowIdx - 1];
-                          if (!previous || !previous.type) {
-                            let foundPrev = false;
-                            for (let k = rowIdx - 1; k >= 0; k--) {
-                              if (rowMetadata[k] && rowMetadata[k].type) {
-                                if (rowMetadata[k].type !== current.type) {
-                                  return true;
+                          {/* Row entries */}
+                          {(() => {
+                            const getRowType = (row) => {
+                              const nonCols = (row.seats || []).filter(s => s && s.type && s.type !== 'empty');
+                              if (nonCols.length === 0) return null;
+                              const typeCounts = {};
+                              nonCols.forEach(s => {
+                                typeCounts[s.type] = (typeCounts[s.type] || 0) + 1;
+                              });
+                              let bestType = null;
+                              let maxCount = -1;
+                              for (const t in typeCounts) {
+                                if (typeCounts[t] > maxCount) {
+                                  maxCount = typeCounts[t];
+                                  bestType = t;
                                 }
-                                foundPrev = true;
-                                break;
                               }
-                            }
-                            return !foundPrev;
-                          }
-                          return current.type !== previous.type;
-                        };
+                              const priceObj = nonCols.find(s => s.type === bestType) || nonCols[0];
+                              return {
+                                type: bestType,
+                                price: priceObj.price || 0,
+                                currency: priceObj.currency || 'LKR'
+                              };
+                            };
 
-                        // Shared row for seat-column groups, each group separated by
-                        // a real aisle gap with a faint dashed divider marking it.
-                        const renderColumnGroups = (renderCell) => columnGroups.map((group, gIdx) => (
-                          <div
-                            key={gIdx}
-                            style={{
-                              display: 'flex', gap: `${seatGap}px`,
-                              marginRight: gIdx < columnGroups.length - 1 ? `${aisleGap}px` : 0,
-                              paddingRight: gIdx < columnGroups.length - 1 ? `${aisleGap / 2}px` : 0,
-                              borderRight: gIdx < columnGroups.length - 1 ? '1px dashed #d4dbe3' : 'none',
-                            }}
-                          >
-                            {group.map(c => renderCell(c))}
-                          </div>
-                        ));
+                            const rowMetadata = (seatMap.rows || []).map(r => getRowType(r));
 
-                        return (
-                          <div style={{ transform: `scale(${seatMapZoom})`, transformOrigin: 'top center', transition: 'transform 0.15s ease' }}>
-                            {/* Cockpit Nose */}
-                            <div style={{
-                              width: `${fuselageWidth}px`,
-                              height: '75px',
-                              border: '2px solid #cbd5e1',
-                              borderBottom: 'none',
-                              borderTopLeftRadius: '150px',
-                              borderTopRightRadius: '150px',
-                              background: 'linear-gradient(180deg, #eef2f7 0%, #f8fafc 100%)',
-                              position: 'relative',
-                              margin: '0 auto',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              boxShadow: '0 -4px 10px rgba(0,0,0,0.02)'
-                            }}>
-                              {/* Windshields */}
-                              <div style={{ display: 'flex', gap: '8px', position: 'absolute', bottom: '15px' }}>
-                                <div style={{ width: '35px', height: '14px', background: '#1e293b', borderTopLeftRadius: '10px', borderBottomLeftRadius: '2px', transform: 'skewY(-15deg)', border: '1px solid #64748b' }}></div>
-                                <div style={{ width: '35px', height: '14px', background: '#1e293b', borderTopRightRadius: '10px', borderBottomRightRadius: '2px', transform: 'skewY(15deg)', border: '1px solid #64748b' }}></div>
-                              </div>
-                            </div>
+                            const shouldShowHeader = (rowIdx) => {
+                              const current = rowMetadata[rowIdx];
+                              if (!current || !current.type) return false;
+                              if (rowIdx === 0) return true;
+                              const previous = rowMetadata[rowIdx - 1];
+                              if (!previous || !previous.type) {
+                                let foundPrev = false;
+                                for (let k = rowIdx - 1; k >= 0; k--) {
+                                  if (rowMetadata[k] && rowMetadata[k].type) {
+                                    if (rowMetadata[k].type !== current.type) {
+                                      return true;
+                                    }
+                                    foundPrev = true;
+                                    break;
+                                  }
+                                }
+                                return !foundPrev;
+                              }
+                              return current.type !== previous.type;
+                            };
 
-                            {/* Fuselage body */}
-                            <div style={{
-                              width: `${fuselageWidth}px`,
-                              borderLeft: '2px solid #cbd5e1',
-                              borderRight: '2px solid #cbd5e1',
-                              background: '#f8fafc',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              margin: '0 auto',
-                              padding: '1rem 0',
-                              position: 'relative',
-                            }}>
-                              {/* Decorative wings — purely visual chrome (not derived
-                                  from flight data), fixed near the top of the cabin
-                                  rather than synced to the real wing row, since that
-                                  position varies by aircraft and we don't have it. */}
-                              <div style={{
-                                position: 'absolute', top: '70px', left: `-74px`, width: '90px', height: '130px', zIndex: 0,
-                                background: 'linear-gradient(100deg, #e2e8f0 0%, #f1f5f9 70%)',
-                                clipPath: 'polygon(100% 10%, 100% 35%, 10% 100%, 0% 85%)',
-                                border: '1px solid #cbd5e1', borderRight: 'none',
-                              }} />
-                              <div style={{
-                                position: 'absolute', top: '70px', right: `-74px`, width: '90px', height: '130px', zIndex: 0,
-                                background: 'linear-gradient(260deg, #e2e8f0 0%, #f1f5f9 70%)',
-                                clipPath: 'polygon(0% 10%, 0% 35%, 90% 100%, 100% 85%)',
-                                border: '1px solid #cbd5e1', borderLeft: 'none',
-                              }} />
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: 'fit-content', position: 'relative', zIndex: 1 }}>
+                            return seatMap.rows?.map((row, rowIdx) => {
+                              const seats = row.seats || [];
+                              const half = Math.ceil(seats.length / 2);
+                              const leftSeats = seats.slice(0, half);
+                              const rightSeats = seats.slice(half);
+                              const isExitRow = row.row_number === 12 || row.row_number === 13;
 
-                                {/* Column Headers */}
-                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem', fontWeight: '700', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                  <div style={{ width: `${rowLabelW}px`, marginRight: `${rowLabelGap}px` }}></div>
-                                  {renderColumnGroups(c => (
-                                    <div key={c.value} style={{ width: `${seatW}px`, textAlign: 'center' }}>{c.value}</div>
-                                  ))}
-                                </div>
-
-                                {/* Row entries */}
-                                {seatMap.rows?.map((row, rowIdx) => {
-                                  // Real signal from Travelport's own seat characteristics
-                                  // ("E"/"LE" -> Extra Legroom), not a hardcoded row number —
-                                  // exit rows sit at different row numbers on every aircraft.
-                                  const isExitRow = (row.seats || []).some(s => s && s.type === 'Extra Legroom');
-
-                                  return (
-                                    <div key={row.row_number || rowIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-                                      {shouldShowHeader(rowIdx) && (() => {
-                                        const meta = rowMetadata[rowIdx];
-                                        const isFree = meta.price === 0;
-                                        return (
-                                          <div style={{
-                                            width: '100%',
-                                            textAlign: 'center',
-                                            margin: '0.85rem 0 0.5rem',
-                                            position: 'relative',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                          }}>
-                                            <div style={{ position: 'absolute', left: 0, right: 0, height: '1px', background: '#cbd5e1', zIndex: 1 }}></div>
-                                            <span style={{
-                                              position: 'relative',
-                                              zIndex: 2,
-                                              padding: '0.2rem 0.65rem',
-                                              borderRadius: '20px',
-                                              fontSize: '0.62rem',
-                                              fontWeight: '800',
-                                              color: isFree ? '#16a34a' : '#d97706',
-                                              border: '1px solid ' + (isFree ? '#bbf7d0' : '#fef3c7'),
-                                              background: isFree ? '#f0fdf4' : '#fffbeb',
-                                              textTransform: 'uppercase',
-                                              letterSpacing: '0.04em',
-                                              whiteSpace: 'nowrap'
-                                            }}>
-                                              ✈ {meta.type} {meta.price > 0 ? `(+ ${meta.currency} ${meta.price.toLocaleString()})` : '(Included)'}
-                                            </span>
-                                          </div>
-                                        );
-                                      })()}
-
-                                      {isExitRow && (
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.6rem', color: '#b45309', background: '#fef3c7', padding: '0.15rem 0.5rem', borderRadius: '4px', margin: '0.25rem 0', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', boxSizing: 'border-box' }}>
-                                          <span>⟨ Exit Row</span>
-                                          <span>Exit Row ⟩</span>
-                                        </div>
-                                      )}
-
-                                      <div style={{ display: 'flex', alignItems: 'center', margin: '0.15rem 0' }}>
-                                        <div style={{
-                                          width: `${rowLabelW}px`, marginRight: `${rowLabelGap}px`, textAlign: 'center',
-                                          fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '700'
+                              return (
+                                <div key={row.row_number || rowIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                                  {shouldShowHeader(rowIdx) && (() => {
+                                    const meta = rowMetadata[rowIdx];
+                                    const isFree = meta.price === 0;
+                                    return (
+                                      <div style={{
+                                        width: '100%',
+                                        textAlign: 'center',
+                                        margin: '0.85rem 0 0.5rem',
+                                        position: 'relative',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}>
+                                        <div style={{ position: 'absolute', left: 0, right: 0, height: '1px', background: '#cbd5e1', zIndex: 1 }}></div>
+                                        <span style={{
+                                          position: 'relative',
+                                          zIndex: 2,
+                                          background: '#f8fafc',
+                                          padding: '0.2rem 0.65rem',
+                                          borderRadius: '20px',
+                                          fontSize: '0.62rem',
+                                          fontWeight: '800',
+                                          color: isFree ? '#16a34a' : '#d97706',
+                                          border: '1px solid ' + (isFree ? '#bbf7d0' : '#fef3c7'),
+                                          background: isFree ? '#f0fdf4' : '#fffbeb',
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.04em',
+                                          whiteSpace: 'nowrap'
                                         }}>
-                                          {row.row_number}
-                                        </div>
-                                        {renderColumnGroups(c => renderSeat((row.seats || []).find(s => s.col === c.value), c.value, c.position))}
+                                          ✈ {meta.type} {meta.price > 0 ? `(+ ${meta.currency} ${meta.price.toLocaleString()})` : '(Included)'}
+                                        </span>
                                       </div>
+                                    );
+                                  })()}
+
+                                  {isExitRow && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.6rem', color: '#b45309', background: '#fef3c7', padding: '0.15rem 0.5rem', borderRadius: '4px', margin: '0.25rem 0', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', boxSizing: 'border-box' }}>
+                                      <span>⟨ Exit Row</span>
+                                      <span>Exit Row ⟩</span>
                                     </div>
-                                  );
-                                })}
+                                  )}
 
-                              </div>
-                            </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', margin: '0.15rem 0' }}>
+                                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                      {leftSeats.map((seat, idx) => renderSeat(seat, idx))}
+                                    </div>
 
-                            {/* Tail Cone */}
-                            <div style={{
-                              width: `${fuselageWidth}px`,
-                              height: '60px',
-                              border: '2px solid #cbd5e1',
-                              borderTop: 'none',
-                              borderBottomLeftRadius: '80px 60px',
-                              borderBottomRightRadius: '80px 60px',
-                              background: 'linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)',
-                              margin: '0 auto',
-                              position: 'relative',
-                              boxShadow: '0 4px 10px rgba(0,0,0,0.02)'
-                            }}>
-                              {/* Tail fins */}
-                              <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', left: '-35px', bottom: '15px', borderTopLeftRadius: '12px', transform: 'rotate(-20deg)', zIndex: -1 }}></div>
-                              <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', right: '-35px', bottom: '15px', borderTopRightRadius: '12px', transform: 'rotate(20deg)', zIndex: -1 }}></div>
-                            </div>
-                          </div>
-                        );
-                      })()}
+                                    <div style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      borderRadius: '50%',
+                                      background: '#f1f5f9',
+                                      border: '1px solid #e2e8f0',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '0.75rem',
+                                      color: 'var(--text-secondary)',
+                                      fontWeight: '700'
+                                    }}>
+                                      {row.row_number}
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                      {rightSeats.map((seat, idx) => renderSeat(seat, idx))}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })()}
+
+                        </div>
+                      </div>
+
+                      {/* Tail Cone */}
+                      <div style={{
+                        width: '290px',
+                        height: '60px',
+                        border: '2px solid #cbd5e1',
+                        borderTop: 'none',
+                        borderBottomLeftRadius: '80px 60px',
+                        borderBottomRightRadius: '80px 60px',
+                        background: '#f1f5f9',
+                        margin: '0 auto',
+                        position: 'relative',
+                        boxShadow: '0 4px 10px rgba(0,0,0,0.02)'
+                      }}>
+                        {/* Tail fins */}
+                        <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', left: '-35px', bottom: '15px', borderTopLeftRadius: '12px', transform: 'rotate(-20deg)', zIndex: -1 }}></div>
+                        <div style={{ width: '45px', height: '12px', background: '#cbd5e1', position: 'absolute', right: '-35px', bottom: '15px', borderTopRightRadius: '12px', transform: 'rotate(20deg)', zIndex: -1 }}></div>
+                      </div>
+
                     </div>
 
                     <div style={{ textAlign: 'center', padding: '0.5rem 0 0.25rem', marginTop: '0.5rem' }}>

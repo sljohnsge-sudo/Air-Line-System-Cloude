@@ -1273,16 +1273,16 @@ body {
 }
 
 /* Live seat-map layout (seat-selector-container / -sidebar / seat-map-panel):
-   on desktop the 280px passenger sidebar sits beside the (now full-height,
-   unscrolled) aircraft graphic, sidebar pinned via position:sticky so it
-   stays in view as the page scrolls down a long cabin. On narrow phones the
-   side-by-side width doesn't fit — stack them instead, drop the sticky
-   pin (not useful full-width above a tall map), and keep a horizontal-
-   scroll safety net on the fuselage itself in case it's still wider than
-   a very small screen. */
+   on desktop the 260px passenger sidebar sits beside a fixed-width 290px
+   aircraft graphic. On narrow phones both fixed widths together exceed the
+   viewport, pushing the sidebar off-screen left and clipping the seat grid
+   on the right. Stack them instead, and keep a horizontal-scroll safety net
+   on the fuselage itself in case it's still wider than a very small screen. */
 @media (max-width: 620px) {
   .seat-selector-container {
     flex-direction: column !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
   .seat-selector-sidebar {
     width: 100% !important;
@@ -1290,10 +1290,12 @@ body {
     border-bottom: 1px solid var(--border-color);
     padding-right: 0 !important;
     padding-bottom: 1rem;
-    position: static !important;
+    max-height: 280px !important;
+  }
+  .seat-map-panel {
+    max-height: none !important;
   }
   .seat-map-fuselage-scroll {
-    overflow-x: auto;
     max-width: 100vw;
   }
 }

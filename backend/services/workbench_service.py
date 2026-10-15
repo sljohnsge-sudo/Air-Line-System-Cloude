@@ -1698,57 +1698,24 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
     start_row = 1
     end_row = 30
     columns = []
-
-    # Cabin.Layout.position is only a ONE-ROW summary, and Travelport picks
-    # that sample row inconsistently — confirmed live (Air India AI2275,
-    # economy cabin): Layout.position tagged only C and G as "Aisle" out of
-    # a real double-tagged 3-3-3 (C+D and F+G), because the sample row it
-    # was built from happened to be an exit row with D/E/F blocked out
-    # entirely. Any seat-grouping logic built on Layout.position alone would
-    # misplace the aisle for that cabin. The individual Row[].Space[]
-    # entries carry the same W/A Characteristic codes per seat, across every
-    # row, so a majority vote over all of them is the reliable source —
-    # Layout.position is kept only as a last-resort fallback for a column no
-    # row happens to carry a tag for at all.
-    rows_list = cabin.get("Row", [])
-    col_position_votes = {}
-    for row in rows_list:
-        for space in row.get("Space", []):
-            col = space.get("location")
-            if not col:
-                continue
-            chars = space.get("Characteristic", [])
-            if not chars:
-                continue
-            votes = col_position_votes.setdefault(col, {"Window": 0, "Aisle": 0, "Center": 0})
-            if "W" in chars:
-                votes["Window"] += 1
-            elif "A" in chars:
-                votes["Aisle"] += 1
-            else:
-                votes["Center"] += 1
-
+    
     for lay in layout_list:
         if "startRow" in lay:
             start_row = lay.get("startRow", start_row)
             end_row = lay.get("endRow", end_row)
         elif "value" in lay:
             col_val = lay.get("value")
-            votes = col_position_votes.get(col_val)
-            if votes:
-                pos = max(votes, key=votes.get)
-            else:
-                pos_list = lay.get("position", [])
-                pos = "Center"
-                if "W" in pos_list:
-                    pos = "Window"
-                elif "A" in pos_list:
-                    pos = "Aisle"
+            pos_list = lay.get("position", [])
+            pos = "Center"
+            if "W" in pos_list:
+                pos = "Window"
+            elif "A" in pos_list:
+                pos = "Aisle"
             columns.append({
                 "value": col_val,
                 "position": pos
             })
-
+            
     # 3. Parse Catalog Offerings for seat pricing & availability
     reserved_seats = set()
     available_seats = set()
@@ -1787,9 +1754,9 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
                                 seat_currencies[seat_num] = currency
                                 seat_brands[seat_num] = brand_name
                                 
-    # 4. Construct Row by Row layout (rows_list already fetched above for
-    # the column position vote)
+    # 4. Construct Row by Row layout
     parsed_rows = []
+    rows_list = cabin.get("Row", [])
     for row in rows_list:
         row_label = row.get("label")
         seats = []
