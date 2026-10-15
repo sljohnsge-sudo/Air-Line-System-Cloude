@@ -1352,6 +1352,7 @@ export default function App() {
   const [filterCabin, setFilterCabin] = useState('any');
   const [filterTimeOfDay, setFilterTimeOfDay] = useState('any'); // 'any' | 'morning' | 'afternoon' | 'evening'
   const [filterAirlines, setFilterAirlines] = useState([]); // array of selected airline names
+  const [filterLayover, setFilterLayover] = useState('any'); // 'any' | 'short' | 'medium' | 'long' — longest connection layover on the itinerary
   const [sortBy, setSortBy] = useState('price'); // 'price' | 'duration' | 'departure'
   const [airlineSortMode, setAirlineSortMode] = useState('cheapest'); // 'cheapest' | 'fastest' — orders the Airlines filter list
 
@@ -1837,6 +1838,7 @@ export default function App() {
       setFilterCabin(cabinPref && cabinPref !== 'All' ? cabinPref : 'any');
       setFilterTimeOfDay('any');
       setFilterAirlines([]);
+      setFilterLayover('any');
       setSortBy('price');
       // Round trip: results are combinable outbound+return pairs (each with
       // .legs[0]/.legs[1]), shown pre-combined as one ticket card — the
@@ -3712,6 +3714,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           return h + m;
         };
 
+        // Longest connection layover across every leg of an itinerary (0 for
+        // non-stop) — same source (seg.layover_minutes) as the inline
+        // "Connection Layover" line shown on each segment timeline.
+        const getMaxLayoverMinutes = (f) => {
+          const segs = (f.legs && f.legs.length >= 2) ? f.legs.flatMap(leg => leg.segments || []) : (f.segments || []);
+          const layovers = segs.map(s => s.layover_minutes).filter(v => typeof v === 'number' && v > 0);
+          return layovers.length ? Math.max(...layovers) : 0;
+        };
+
         // Dynamic unique list of airlines in current search results
         const uniqueAirlines = Array.from(new Set(sourceFlights.map(f => f.airline).filter(Boolean)));
 
@@ -3757,6 +3768,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
           // Airline filter
           if (filterAirlines.length > 0 && !filterAirlines.includes(f.airline)) return false;
+
+          // Connection layover filter — only restricts flights that actually
+          // have a layover; non-stop flights always pass.
+          if (filterLayover !== 'any') {
+            const maxLayover = getMaxLayoverMinutes(f);
+            if (maxLayover > 0) {
+              if (filterLayover === 'short' && maxLayover >= 120) return false;
+              if (filterLayover === 'medium' && (maxLayover < 120 || maxLayover > 300)) return false;
+              if (filterLayover === 'long' && maxLayover <= 300) return false;
+            }
+          }
 
           return true;
         });
@@ -4395,6 +4417,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   ))}
                 </div>
 
+                {/* Connection Layover Group */}
+                <div className="filter-group">
+                  <div className="filter-group-title">Connection Layover</div>
+                  {[['any','Any'],['short','Short (under 2h)'],['medium','Medium (2h – 5h)'],['long','Long (5h+)']].map(([val,lbl]) => (
+                    <label key={val} className={`filter-radio-row ${filterLayover === val ? 'active' : ''}`}>
+                      <input type="radio" name="layover" value={val} checked={filterLayover === val} onChange={() => setFilterLayover(val)} />
+                      {lbl}
+                    </label>
+                  ))}
+                </div>
+
                 {/* Cabin Class Group */}
                 <div className="filter-group">
                   <div className="filter-group-title">Cabin Class</div>
@@ -4436,7 +4469,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 )}
 
                 <button className="filter-reset-btn filter-reset-all"
-                  onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); setSortBy('price'); }}>
+                  onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterLayover('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); setSortBy('price'); }}>
                   Reset All Filters
                 </button>
               </aside>
@@ -4526,7 +4559,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     ) : (
                       <p>No flights match your filters.<br />
                         <button className="filter-reset-btn" style={{ marginTop: '0.5rem' }}
-                          onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); }}>
+                          onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterLayover('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); }}>
                           Clear all filters
                         </button>
                       </p>
