@@ -6956,7 +6956,18 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       {/* ── BOOKING WIZARD MODAL ─────────────────────────────────────────── */}
       {selectedFlight && bookingStep && bookingStep !== 'ticket' && bookingStep !== 'amadeus_ticket' && (
         <div className="modal-overlay animate-fade-only">
-          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: (bookingStep === 'seats' || bookingStep === 'seats_loading' || bookingStep === 'ancillaries') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
+          <div className="modal-content glass-panel animate-fade" style={{
+            maxWidth: bookingStep === 'seats' ? '1400px' : (bookingStep === 'seats_loading' || bookingStep === 'ancillaries') ? '850px' : '640px',
+            width: '95%',
+            transition: 'max-width 0.25s ease',
+            // The seats step used to be a fixed-height box with its own
+            // nested scrollbars (sidebar + cabin map each scrolling
+            // independently inside the modal, which itself sat inside the
+            // page's scroll) — confusing to use. Letting it grow to its
+            // natural height instead means the whole thing is just one
+            // page the browser scrolls normally, like every other step.
+            ...(bookingStep === 'seats' ? { overflow: 'visible', maxHeight: 'none' } : {}),
+          }}>
             {/* Progress Steps — this stepper is shaped for Travelport's own step sequence; Amadeus
                 offers use a shorter flow (passenger details → seats → processing → ticket) and
                 are kept on their own step titles below instead of this (mismatched) step dial. */}
@@ -7428,10 +7439,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     this booking — the airline confirms the final seat assignment.
                   </div>
                 )}
-                <div className="seat-selector-container" style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', maxHeight: '55vh', overflow: 'hidden' }}>
+                <div className="seat-selector-container" style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
                   
                   {/* Left Sidebar */}
-                  <div className="seat-selector-sidebar" style={{ width: '260px', display: 'flex', flexDirection: 'column', gap: '1.5rem', borderRight: '1px solid var(--border-color)', paddingRight: '1.25rem', overflowY: 'auto' }}>
+                  <div className="seat-selector-sidebar" style={{ width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '1.5rem', borderRight: '1px solid var(--border-color)', paddingRight: '1.25rem', position: 'sticky', top: '0.5rem', alignSelf: 'flex-start' }}>
                     <div>
                       <h4 style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Passengers</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -7568,7 +7579,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
 
                   {/* Right Seat Map Chart - Top-down airplane styling */}
-                  <div className="seat-map-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
+                  <div className="seat-map-panel" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', padding: '0.25rem 0 0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.75rem' }}>
                       <div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aircraft Cabin Map</div>
@@ -7601,10 +7612,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       </div>
                     </div>
 
-                    {/* Scrollable airplane fuselage — overflow-x:auto is a
-                        safety net on narrow phones since the fuselage graphic
-                        below has a fixed pixel width. */}
-                    <div className="seat-map-fuselage-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '0.5rem 90px' }}>
+                    {/* No vertical scroll here anymore — the cabin map grows
+                        to its full natural height and the modal/page scrolls
+                        as one piece, like every other booking step. overflow-x
+                        stays as a safety net in case a wide cabin's computed
+                        width still exceeds the available space. */}
+                    <div className="seat-map-fuselage-scroll" style={{ padding: '0.5rem 90px', overflowX: 'auto' }}>
                       
                       {(() => {
                         // Real seat blocks for THIS flight's actual aircraft, derived
