@@ -2639,6 +2639,14 @@ export default function App() {
 
     const isOccupied = seat.status === 'occupied';
     const isAvailable = seat.status === 'available';
+
+    // Window/Middle/Aisle — read straight from Travelport's own seat map
+    // column data (seatMap.columns[].position), not guessed from seat
+    // position in the row, so it's correct for whatever the real aircraft's
+    // layout is.
+    const columnPosition = (seatMap?.columns || []).find(c => c.value === seat.col)?.position;
+    const positionLabel = columnPosition === 'Window' ? 'Window Seat' : columnPosition === 'Aisle' ? 'Aisle Seat' : columnPosition === 'Center' ? 'Middle Seat' : null;
+    const positionLetter = columnPosition === 'Window' ? 'W' : columnPosition === 'Aisle' ? 'A' : columnPosition === 'Center' ? 'M' : null;
     
     // Check if selected by ANY passenger
     const selectedByP = selectedSeats.find(s => s.seat_number === seat.seat_number);
@@ -2727,7 +2735,7 @@ export default function App() {
         type="button"
         disabled={isOccupied}
         onClick={handleSeatClick}
-        title={`${seat.seat_number} - ${seat.type || 'Seat'} (${seat.price === 0 ? 'Included' : `${seat.currency} ${seat.price?.toLocaleString()}`} with ${selectedFlight.fare_family})`}
+        title={`${seat.seat_number} - ${seat.type || 'Seat'}${positionLabel ? ` - ${positionLabel}` : ''} (${seat.price === 0 ? 'Included' : `${seat.currency} ${seat.price?.toLocaleString()}`} with ${selectedFlight.fare_family})`}
         style={{
           width: '32px',
           height: '32px',
@@ -2738,8 +2746,10 @@ export default function App() {
           fontSize: '0.65rem',
           fontWeight: '700',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
+          lineHeight: 1,
           cursor: cursor,
           outline: 'none',
           boxShadow: isSelectedByActive ? '0 0 8px rgba(195, 18, 46, 0.4)' : 'none',
@@ -2747,7 +2757,12 @@ export default function App() {
           ...seatPatternStyle
         }}
       >
-        {isOccupied ? '×' : seat.seat_number?.slice(-1)}
+        {isOccupied ? '×' : (
+          <>
+            <span>{seat.seat_number?.slice(-1)}</span>
+            {positionLetter && <span style={{ fontSize: '0.42rem', fontWeight: '600', opacity: 0.7, marginTop: '1px' }}>{positionLetter}</span>}
+          </>
+        )}
       </button>
     );
   };
@@ -7501,6 +7516,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           <div style={{ width: '14px', height: '14px', borderRadius: '3px', border: '1px solid #4f46e5', background: '#e0e7ff' }}></div>
                           <span>Front Row</span>
                         </div>
+                      </div>
+                      <div style={{ marginTop: '0.6rem', paddingTop: '0.6rem', borderTop: '1px dashed var(--border-color)', color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                        Small letter under the seat number — <strong>W</strong> Window, <strong>M</strong> Middle, <strong>A</strong> Aisle (from Travelport's seat map).
                       </div>
                     </div>
 
