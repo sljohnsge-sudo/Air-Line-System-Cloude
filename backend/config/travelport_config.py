@@ -61,7 +61,13 @@ class TravelportConfig:
     MAX_UPSELLS: int = int(os.getenv("TP_MAX_UPSELLS", "1"))
 
     # ── Request Defaults ──────────────────────────────────────────────────────
-    DEFAULT_CURRENCY: str = "USD"
+    # Sent as PricingModifiersAir.currencyCode on every Search request so GDS
+    # and NDC offers alike come back priced in the agency's own currency
+    # instead of each airline's filed currency — confirmed live that without
+    # this, NDC content (e.g. Singapore Airlines SQ on CMB-SIN) came back
+    # priced in SGD while every GDS offer on the same search correctly used
+    # the PCC's default (LKR), a currency mismatch within one results page.
+    DEFAULT_CURRENCY: str = os.getenv("TP_CURRENCY", "LKR")
     DEFAULT_LANGUAGE: str = "en"
     REQUEST_TIMEOUT: int = 120   # seconds per HTTP request
 

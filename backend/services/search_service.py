@@ -257,7 +257,19 @@ def search_flights(
             # one source when a caller specifically wants it.
             "contentSourceList": [content_source] if content_source else ["GDS", "NDC"],
             "PassengerCriteria": passenger_criteria,
-            "SearchCriteriaFlight": search_criteria_flight
+            "SearchCriteriaFlight": search_criteria_flight,
+            # Without this, Travelport only applies the PCC's default
+            # currency to GDS offers — confirmed live that NDC content (e.g.
+            # Singapore Airlines SQ on CMB-SIN) came back priced in SGD, the
+            # airline's own filed currency, while GDS offers on the exact
+            # same search correctly showed LKR. currencyCode is documented
+            # (Travelport Airv11 Search API Reference, PricingModifiersAir)
+            # specifically to override the default and applies to GDS and
+            # NDC alike, so every offer in one results page is comparable.
+            "PricingModifiersAir": {
+                "@type": "PricingModifiersAir",
+                "currencyCode": TravelportConfig.DEFAULT_CURRENCY
+            }
         }
     }
 
