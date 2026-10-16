@@ -34,6 +34,16 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [visaChecking, setVisaChecking] = useState(false);
   const [visaHistory, setVisaHistory] = useState([]);
 
+  // A customer token expires after 24h (see AuthConfig.JWT_EXPIRE_MINUTES) --
+  // without this, an expired token made every "me" call below 401 silently
+  // (their catch blocks are non-critical/ignore), leaving e.g. the Loyalty
+  // tab stuck on "Loading your loyalty status..." forever with no sign the
+  // session itself had lapsed. Logging the customer out on a 401 sends them
+  // back to the sign-in form instead of a dead spinner.
+  const handleSessionExpired = () => {
+    onCustomerLogout();
+  };
+
   const loadBookings = async () => {
     setLoadingBookings(true);
     setBookingsError('');
@@ -41,6 +51,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       const res = await fetchWithRetry(`${API_BASE}/customers/me/bookings`, {
         headers: { Authorization: `Bearer ${customerToken}` },
       });
+      if (res.status === 401) return handleSessionExpired();
       const data = await handleApiResponse(res, 'Failed to load your bookings');
       setBookings(data.bookings || []);
     } catch (err) {
@@ -55,6 +66,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       const res = await fetchWithRetry(`${API_BASE}/customers/me/loyalty`, {
         headers: { Authorization: `Bearer ${customerToken}` },
       });
+      if (res.status === 401) return handleSessionExpired();
       const data = await handleApiResponse(res, 'Failed to load loyalty status');
       setLoyalty(data);
     } catch { /* non-critical, ignore */ }
@@ -65,6 +77,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       const res = await fetchWithRetry(`${API_BASE}/customers/me/email-change-request`, {
         headers: { Authorization: `Bearer ${customerToken}` },
       });
+      if (res.status === 401) return handleSessionExpired();
       const data = await handleApiResponse(res, 'Failed to load email change status');
       setEmailRequest(data.request || null);
     } catch { /* non-critical, ignore */ }
@@ -75,6 +88,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       const res = await fetchWithRetry(`${API_BASE}/customers/me/cancellation-requests`, {
         headers: { Authorization: `Bearer ${customerToken}` },
       });
+      if (res.status === 401) return handleSessionExpired();
       const data = await handleApiResponse(res, 'Failed to load cancellation requests');
       setCancellationRequests(data.requests || []);
     } catch { /* non-critical, ignore */ }
@@ -85,6 +99,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       const res = await fetchWithRetry(`${API_BASE}/customers/me/visa-history`, {
         headers: { Authorization: `Bearer ${customerToken}` },
       });
+      if (res.status === 401) return handleSessionExpired();
       const data = await handleApiResponse(res, 'Failed to load visa consultation history');
       setVisaHistory(data.consultations || []);
     } catch { /* non-critical, ignore */ }
