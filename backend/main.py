@@ -51,6 +51,7 @@ from services import hotel_search_service, hotel_booking_service, hotel_availabi
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
 from services.indigo_uapi_client import IndigoApiError
+from config.travelport_config import TravelportConfig
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -398,23 +399,46 @@ async def search_flights(request: FlightSearchRequest):
     ad_enabled = search_mode in ("both", "amadeus_only")
 
     def _search_travelport() -> list[dict]:
-        raw = services.search_flights(
-            origin=request.origin.upper() if request.origin else None,
-            destination=request.destination.upper() if request.destination else None,
-            departure_date=request.departure_date,
-            adult_count=request.adult_count,
-            child_count=request.child_count,
-            infant_count=request.infant_count,
-            student_count=request.student_count,
-            cabin_preference=request.cabin_preference,
-            legs=legs,
-            content_source=request.content_source
-        )
-        return services.parse_flight_offers(
-            raw, legs=legs,
-            origin=request.origin.upper() if request.origin else None,
-            destination=request.destination.upper() if request.destination else None,
-        )
+        # Travelport's PricingModifiersAir.currencyCode override (see
+        # search_service.py) reliably reprices GDS content, but confirmed live
+        # (2026-10-16, CMB-SIN) that NDC content occasionally ignores it on a
+        # given request -- Singapore Airlines NDC brands came back in SGD while
+        # an identical search moments earlier/later came back all in LKR. Since
+        # this system shows no mock/fabricated data, the fix is to re-query
+        # live Travelport (not invent an FX rate) until every offer matches the
+        # agency's configured currency, same backoff-retry pattern already used
+        # for flaky Travelport responses elsewhere (see workbench_service.py
+        # ancillary-shop 504 retries).
+        last_offers: list[dict] = []
+        for attempt in range(3):
+            raw = services.search_flights(
+                origin=request.origin.upper() if request.origin else None,
+                destination=request.destination.upper() if request.destination else None,
+                departure_date=request.departure_date,
+                adult_count=request.adult_count,
+                child_count=request.child_count,
+                infant_count=request.infant_count,
+                student_count=request.student_count,
+                cabin_preference=request.cabin_preference,
+                legs=legs,
+                content_source=request.content_source
+            )
+            last_offers = services.parse_flight_offers(
+                raw, legs=legs,
+                origin=request.origin.upper() if request.origin else None,
+                destination=request.destination.upper() if request.destination else None,
+            )
+            mismatched = [o for o in last_offers if o.get("currency") and o["currency"] != TravelportConfig.DEFAULT_CURRENCY]
+            if not mismatched:
+                return last_offers
+            logger.warning(
+                f"Search attempt {attempt + 1}/3: {len(mismatched)} offer(s) still priced outside "
+                f"{TravelportConfig.DEFAULT_CURRENCY} (e.g. {mismatched[0].get('flight_number')} "
+                f"in {mismatched[0].get('currency')}) -- retrying" if attempt < 2 else
+                f"{len(mismatched)} offer(s) still priced outside {TravelportConfig.DEFAULT_CURRENCY} "
+                f"after 3 attempts -- returning as-is, each correctly labeled with its own currency"
+            )
+        return last_offers
 
     tp_task = asyncio.to_thread(_search_travelport) if tp_enabled else None
     # Amadeus is only wired for a plain one-way search right now.
