@@ -36,11 +36,12 @@ import logging
 import os
 import uuid
 from datetime import datetime
+from urllib.parse import urlencode
 import httpx
 from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import Optional, List, Literal
 import database
@@ -52,6 +53,7 @@ from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
 from services.indigo_uapi_client import IndigoApiError
 from config.travelport_config import TravelportConfig
+from config.auth_config import AuthConfig
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -1255,7 +1257,7 @@ def _ndc_carrier_of(raw_offering: dict) -> str:
 
 
 def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list = None,
-                      selected_ancillaries: list = None) -> dict:
+                      selected_ancillaries: list = None, customer_id: Optional[int] = None) -> dict:
     try:
         ip = services.workbench_service.run_instant_pay_flow(raw_offering, travelers)
     except services.workbench_service.InstantPayError as e:
@@ -1299,6 +1301,7 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
     ticket["ancillary_charge"] = ancillary_charges
 
     _attach_traveler_details(ticket, travelers)
+    ticket["customer_id"] = customer_id
     database.save_booking(ticket)
 
     for _, number in ip["ticket_numbers"]:
@@ -1327,7 +1330,7 @@ class NdcInstantPayCompleteRequest(BaseModel):
 
 
 @app.post("/api/ndc/book")
-def ndc_book(request: NdcBookAndIssueRequest):
+def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
     """
     STEP 1 of the pay-before-ticket NDC flow: creates the PNR (held, not yet
     ticketed) for carriers whose post-commit workbench can pay normally.
@@ -1342,6 +1345,7 @@ def ndc_book(request: NdcBookAndIssueRequest):
             "travelers": [t.model_dump() for t in request.travelers],
             "selected_seats": request.selected_seats,
             "selected_ancillaries": request.selected_ancillaries,
+            "customer_id": customer_id,
         }
         return {"requires_prepay": True, "pending_id": pending_id}
 
@@ -1352,7 +1356,7 @@ def ndc_book(request: NdcBookAndIssueRequest):
                 raw_offering=request.raw_offering, travelers=request.travelers,
                 selected_seats=[], payment_method="card", reference_payload_only=True,
             ),
-            customer_id=None,
+            customer_id=customer_id,
         )
     finally:
         services.end_flow_trace_id(trace_token)
@@ -1385,6 +1389,7 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
         result = _ndc_instant_pay(
             pending["raw_offering"], pending["travelers"],
             pending.get("selected_seats"), pending.get("selected_ancillaries"),
+            customer_id=pending.get("customer_id"),
         )
     finally:
         services.end_flow_trace_id(trace_token)
@@ -1419,7 +1424,7 @@ def ndc_search(request: NdcSearchRequest):
 
 
 @app.post("/api/ndc/book-and-issue")
-def ndc_book_and_issue(request: NdcBookAndIssueRequest):
+def ndc_book_and_issue(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
     """
     Books the chosen NDC offer (PNR), then issues the ticket, in Travelport's
     NDC certification order: price → session → add offer → travelers → commit
@@ -1439,13 +1444,14 @@ def ndc_book_and_issue(request: NdcBookAndIssueRequest):
             return _ndc_instant_pay(
                 request.raw_offering, [t.model_dump() for t in request.travelers],
                 request.selected_seats, request.selected_ancillaries,
+                customer_id=customer_id,
             )
         booked = confirm_booking(
             BookingConfirmRequest(
                 raw_offering=request.raw_offering, travelers=request.travelers,
                 selected_seats=[], payment_method="cash", reference_payload_only=True,
             ),
-            customer_id=None,
+            customer_id=customer_id,
         )
         locator = booked["ticket"]["locator_code"]
         issued = issue_ticket_after_payment(locator, IssueTicketRequest())
@@ -2951,6 +2957,7 @@ def customer_register(request: CustomerRegisterRequest):
     customer = database.create_customer(request.email, password_hash, request.full_name, request.phone)
     # Pick up any guest bookings already made under this email before the account existed.
     database.link_guest_bookings_by_email(customer["id"], customer["email"])
+    hotel_database.link_guest_hotel_bookings_by_email(customer["id"], customer["email"])
     token = auth.create_access_token({
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
     })
@@ -2967,6 +2974,7 @@ def customer_login(request: CustomerLoginRequest):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     # Pick up any guest bookings made under this email since the last login.
     database.link_guest_bookings_by_email(customer["id"], customer["email"])
+    hotel_database.link_guest_hotel_bookings_by_email(customer["id"], customer["email"])
     token = auth.create_access_token({
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
     })
@@ -2974,6 +2982,66 @@ def customer_login(request: CustomerLoginRequest):
         "access_token": token, "token_type": "bearer",
         "customer": {"email": customer["email"], "full_name": customer["full_name"]},
     }
+
+
+# ── Google / Microsoft Sign-In (Customer Portal) ──────────────────────────────
+# See services/customer_oauth_service.py for the OAuth exchange itself.
+# Both endpoints are full-page redirects (no popup/JS SDK) -- the frontend
+# just points window.location at /start, and /callback lands the browser
+# back on the Customer Portal with a finished access token in the URL
+# (App.jsx's oauth_token handler picks it up and clears the URL).
+
+@app.get("/api/customers/oauth/{provider}/start")
+def customer_oauth_start(provider: str):
+    if provider not in ("google", "microsoft"):
+        raise HTTPException(status_code=404, detail="Unknown sign-in provider.")
+    if not services.oauth_is_configured(provider):
+        return RedirectResponse(f"{AuthConfig.FRONTEND_BASE_URL}/account?oauth_error=not_configured")
+    state = services.oauth_make_state()
+    redirect_uri = f"{AuthConfig.OAUTH_REDIRECT_BASE}/api/customers/oauth/{provider}/callback"
+    try:
+        url = services.oauth_build_authorize_url(provider, redirect_uri, state)
+    except services.OAuthNotConfigured:
+        return RedirectResponse(f"{AuthConfig.FRONTEND_BASE_URL}/account?oauth_error=not_configured")
+    return RedirectResponse(url)
+
+
+@app.get("/api/customers/oauth/{provider}/callback")
+def customer_oauth_callback(provider: str, code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    fail_redirect = f"{AuthConfig.FRONTEND_BASE_URL}/account?oauth_error=failed"
+    if provider not in ("google", "microsoft"):
+        raise HTTPException(status_code=404, detail="Unknown sign-in provider.")
+    if error or not code or not state or not services.oauth_verify_state(state):
+        logger.warning(f"Customer OAuth ({provider}) callback rejected: error={error}, has_code={bool(code)}, state_valid={bool(state and services.oauth_verify_state(state))}")
+        return RedirectResponse(fail_redirect)
+
+    redirect_uri = f"{AuthConfig.OAUTH_REDIRECT_BASE}/api/customers/oauth/{provider}/callback"
+    try:
+        profile = services.oauth_exchange_code_for_profile(provider, code, redirect_uri)
+    except services.OAuthExchangeError as e:
+        logger.error(f"Customer OAuth ({provider}) exchange failed: {e}")
+        return RedirectResponse(fail_redirect)
+
+    email = profile["email"]
+    customer = database.get_customer_by_email(email)
+    if not customer:
+        # OAuth-only account: a random, never-disclosed password hash fills
+        # the NOT NULL column -- this customer can only ever sign in via
+        # Google/Microsoft (or an admin-assisted password reset), same
+        # pattern as any "social login" account with no password of its own.
+        placeholder_hash = auth.hash_password(uuid.uuid4().hex)
+        customer = database.create_customer(email, placeholder_hash, profile.get("name") or email, None)
+    # Same auto-claim as email/password login+register -- a booking made as a
+    # guest under this email, before this OAuth account existed, is picked
+    # up right now instead of waiting for a future email/password login.
+    database.link_guest_bookings_by_email(customer["id"], customer["email"])
+    hotel_database.link_guest_hotel_bookings_by_email(customer["id"], customer["email"])
+
+    token = auth.create_access_token({
+        "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
+    })
+    params = urlencode({"oauth_token": token, "oauth_email": customer["email"], "oauth_name": customer["full_name"]})
+    return RedirectResponse(f"{AuthConfig.FRONTEND_BASE_URL}/account?{params}")
 
 
 @app.get("/api/customers/me/bookings")

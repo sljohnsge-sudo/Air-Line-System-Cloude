@@ -859,6 +859,23 @@ export default function App() {
     localStorage.removeItem('customerProfile');
   };
 
+  // Google/Microsoft sign-in: the backend does the whole OAuth exchange
+  // server-side (see /api/customers/oauth/{provider}/callback) and redirects
+  // the browser back here with the finished access token in the URL --
+  // there's no token exchange to do on this end, just pick it up and clear
+  // the URL so a refresh doesn't try to "re-login" with a stale query string.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthToken = params.get('oauth_token');
+    if (oauthToken) {
+      handleCustomerLogin(oauthToken, {
+        email: params.get('oauth_email') || '',
+        full_name: params.get('oauth_name') || '',
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // ── Dynamic sticky-header offset (header height varies by breakpoint —
   //    e.g. it wraps to 2 rows on mobile — so it's measured, not hardcoded) ──
   const headerRef = useRef(null);
@@ -2194,7 +2211,10 @@ export default function App() {
         if (paymentMethod === 'card') {
           const bookRes = await fetchWithRetry(`${API_BASE}/ndc/book`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
+            },
             body: JSON.stringify({
               raw_offering: selectedFlight.raw_offering,
               travelers,
@@ -2229,7 +2249,10 @@ export default function App() {
         // one combined call (the same endpoint the standalone NDC page used).
         const res = await fetchWithRetry(`${API_BASE}/ndc/book-and-issue`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
+          },
           body: JSON.stringify({
             raw_offering: selectedFlight.raw_offering,
             travelers,

@@ -34,6 +34,16 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [visaChecking, setVisaChecking] = useState(false);
   const [visaHistory, setVisaHistory] = useState([]);
 
+  const [oauthError, setOauthError] = useState('');
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get('oauth_error');
+    if (err) {
+      setOauthError(err === 'not_configured' ? 'That sign-in method isn\'t set up yet.' : 'Sign-in failed. Please try again or use your email and password.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // A customer token expires after 24h (see AuthConfig.JWT_EXPIRE_MINUTES) --
   // without this, an expired token made every "me" call below 401 silently
   // (their catch blocks are non-critical/ignore), leaving e.g. the Loyalty
@@ -197,7 +207,51 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
           </div>
 
           <h2 className="section-title">{mode === 'login' ? 'Customer Sign In' : 'Create Your Account'}</h2>
+          {oauthError && <div className="error-banner">{oauthError}</div>}
           {formError && <div className="error-banner">{formError}</div>}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
+            <button
+              type="button"
+              onClick={() => { window.location.href = `${API_BASE}/customers/oauth/google/start`; }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
+                width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #e2e8f0',
+                background: 'white', color: '#0f172a', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/>
+                <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+                <path fill="#4CAF50" d="M24 44c5.5 0 10.4-2.1 14.1-5.6l-6.5-5.5C29.5 34.5 26.9 35.5 24 35.5c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"/>
+                <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.5C41.3 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/>
+              </svg>
+              Continue with Google
+            </button>
+            <button
+              type="button"
+              onClick={() => { window.location.href = `${API_BASE}/customers/oauth/microsoft/start`; }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
+                width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #e2e8f0',
+                background: 'white', color: '#0f172a', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true">
+                <path fill="#f25022" d="M1 1h10v10H1z"/>
+                <path fill="#00a4ef" d="M1 12h10v10H1z"/>
+                <path fill="#7fba00" d="M12 1h10v10H12z"/>
+                <path fill="#ffb900" d="M12 12h10v10H12z"/>
+              </svg>
+              Continue with Microsoft
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0 0 1.25rem', color: '#94a3b8', fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase' }}>
+            <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+            or
+            <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+          </div>
+
           <form onSubmit={handleSubmit}>
             {mode === 'register' && (
               <div className="form-group">

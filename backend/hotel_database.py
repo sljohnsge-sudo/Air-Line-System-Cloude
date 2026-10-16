@@ -154,6 +154,26 @@ def get_hotel_bookings_for_customer(customer_id: int) -> list[dict]:
     return rows
 
 
+def link_guest_hotel_bookings_by_email(customer_id: int, email: str) -> int:
+    """Claim any unclaimed guest hotel bookings (customer_id IS NULL) whose
+    guest_email matches this customer's account email. Mirrors
+    database.link_guest_bookings_by_email() for the flight bookings table --
+    called on every customer login/register so hotel stays booked as a guest
+    get picked up automatically. Returns the number of bookings linked."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE hotel_bookings SET customer_id=%s WHERE customer_id IS NULL AND guest_email=%s",
+            (customer_id, email),
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def cancel_hotel_booking(locator_code: str) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
