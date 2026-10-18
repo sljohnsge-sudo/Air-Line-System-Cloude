@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import gsLogo from './assets/george_steuart_logo.png';
+import whatsappIcon from './assets/whatsapp_icon.png';
+import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
@@ -8665,9 +8667,18 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             }}>
               <button className="btn btn-secondary" onClick={() => handleRefreshTicket(issuedTicket.locator_code || issuedTicket.pnr)} disabled={refreshingTicket} style={{ background: '#7c3aed', color: 'white', border: '1px solid #7c3aed' }}>🔄 {refreshingTicket ? 'Syncing...' : 'Sync PNR'}</button>
               <button className="btn btn-secondary" onClick={() => window.print()}>🖨 Print Ticket</button>
-              <button className="btn btn-secondary" onClick={handleDownloadPDF} title="Download PDF" aria-label="Download PDF" style={{ background: '#0284c7', color: 'white', border: '1px solid #0284c7', width: '44px', padding: 0, fontSize: '1.1rem' }}>📥</button>
-              <button className="btn btn-secondary" onClick={handleShareWhatsApp} title="Share via WhatsApp" aria-label="Share via WhatsApp" style={{ background: '#22c55e', color: 'white', border: '1px solid #22c55e', width: '44px', padding: 0, fontSize: '1.1rem' }}>💬</button>
-              <button className="btn btn-secondary" onClick={handleShareEmail} title="Share via Email" aria-label="Share via Email" style={{ background: '#64748b', color: 'white', border: '1px solid #64748b', width: '44px', padding: 0, fontSize: '1.1rem' }}>✉️</button>
+              <button className="btn btn-secondary" onClick={handleDownloadPDF} title="Download PDF" aria-label="Download PDF" style={{ background: 'white', border: '1px solid #e2e8f0', width: '44px', height: '44px', padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src={downloadIcon} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </button>
+              <button className="btn btn-secondary" onClick={handleShareWhatsApp} title="Share via WhatsApp" aria-label="Share via WhatsApp" style={{ background: 'white', border: '1px solid #e2e8f0', width: '44px', height: '44px', padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src={whatsappIcon} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </button>
+              <button className="btn btn-secondary" onClick={handleShareEmail} title="Share via Email" aria-label="Share via Email" style={{ background: '#2563eb', border: '1px solid #2563eb', width: '44px', height: '44px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: '58%', height: '58%' }}>
+                  <rect x="2.5" y="5" width="19" height="14" rx="2" />
+                  <path d="M3 6.5l9 6.5 9-6.5" />
+                </svg>
+              </button>
               <button className="btn btn-primary" onClick={() => { closeBookingFlow(); setActiveTab('account'); }}>My Account</button>
               <button className="btn btn-secondary" onClick={closeBookingFlow}>Close</button>
             </div>
