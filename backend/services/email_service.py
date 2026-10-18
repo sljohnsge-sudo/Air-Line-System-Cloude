@@ -73,6 +73,33 @@ def send_visa_consultation_email(booking: dict) -> tuple[bool, str | None]:
     return _send(to_addr, subject, body)
 
 
+def send_ticket_share_email(to_addr: str, ticket: dict) -> tuple[bool, str | None]:
+    """Re-sends an already-issued ticket's details to the customer -- used by
+    the admin's "Share Ticket" tool (see main.py's share_ticket_with_customer)
+    for the "payment succeeded but the customer never received their ticket"
+    recovery case. to_addr has already been verified by the caller to match
+    the booking's own passenger_email before this is ever called."""
+    locator = ticket.get("locator_code") or ticket.get("pnr") or ""
+    subject = f"Your E-Ticket — PNR: {locator}"
+    body = (
+        f"Dear {ticket.get('passenger_name') or 'Traveler'},\n\n"
+        f"Here are your e-ticket details for booking {locator}.\n\n"
+        f"PNR / Locator:   {locator}\n"
+        f"Ticket Number:   {ticket.get('ticket_number') or 'Pending'}\n"
+        f"Flight:          {ticket.get('flight_number') or ''} ({ticket.get('airline') or ''})\n"
+        f"Route:           {ticket.get('departure_airport') or ''} → {ticket.get('arrival_airport') or ''}\n"
+        f"Departure:       {ticket.get('departure_time') or ''}\n"
+        f"Cabin:           {ticket.get('cabin_class') or 'Economy'}\n"
+        f"Fare:            {ticket.get('currency') or ''} {ticket.get('total_fare') or ''}\n"
+        f"Status:          {ticket.get('status') or ''}\n\n"
+        f"For the full itinerary or a printable copy, please contact George Steuart Travel.\n\n"
+        f"George Steuart Travel Ltd. (Established 1835)\n"
+        f"14, Leyden Bastian Road, Colombo 01, Sri Lanka\n"
+        f"Tel: +94 11 232 5311 | Email: support@georgesteuart.lk\n"
+    )
+    return _send(to_addr, subject, body)
+
+
 def send_provider_failure_email(to_addr: str, provider: str, error_message: str, route_info: str | None) -> tuple[bool, str | None]:
     """Alerts staff that the unified flight search (Travelport "TP" + Amadeus
     "AD") couldn't get fares back from one of the two providers -- so results

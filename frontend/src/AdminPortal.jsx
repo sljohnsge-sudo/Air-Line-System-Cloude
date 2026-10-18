@@ -128,6 +128,17 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [forceIssuedLogLoading, setForceIssuedLogLoading] = useState(false);
   const [forceIssuedLogError, setForceIssuedLogError] = useState('');
 
+  // Share Ticket with Customer — recovery tool for "payment succeeded but the
+  // customer never received their ticket". Independent of forceIssueLocator
+  // (above) since this is also used for tickets that were issued normally
+  // and never needed force-issuing at all — the admin just looks up the PNR.
+  const [shareLocator, setShareLocator] = useState('');
+  const [shareChannel, setShareChannel] = useState('email');
+  const [shareContact, setShareContact] = useState('');
+  const [shareSubmitting, setShareSubmitting] = useState(false);
+  const [shareError, setShareError] = useState('');
+  const [shareResult, setShareResult] = useState(null);
+
   const emptyPackageForm = {
     title: '', package_type: 'tour', destination: '', duration_days: 1, duration_nights: 0, price: 0, currency: 'LKR',
     image_url: '', summary: '', description: '', itinerary: '', inclusions: '', exclusions: '',
@@ -667,6 +678,35 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setForceIssueError(err.message);
     } finally {
       setForceIssueSubmitting(false);
+    }
+  };
+
+  const submitShareTicket = async () => {
+    const locator = shareLocator.trim().toUpperCase();
+    const contact = shareContact.trim();
+    if (!locator || !contact) {
+      setShareError('Enter the PNR and the customer\'s contact to send to.');
+      return;
+    }
+    setShareSubmitting(true);
+    setShareError('');
+    setShareResult(null);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/bookings/${locator}/share-ticket`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ channel: shareChannel, contact }),
+      });
+      const data = await adminApiResponse(res, 'Failed to share ticket');
+      setShareResult(data);
+      if (data.channel === 'whatsapp') {
+        const waUrl = `https://wa.me/${data.whatsapp_number_digits}?text=${encodeURIComponent(data.share_text)}`;
+        window.open(waUrl, '_blank');
+      }
+    } catch (err) {
+      setShareError(err.message);
+    } finally {
+      setShareSubmitting(false);
     }
   };
 
@@ -2503,6 +2543,48 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           <p style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.75rem' }}>
             Issued — {forceIssueResult.locator_code}, {forceIssueResult.passenger_name}, {forceIssueResult.airline} {forceIssueResult.flight_number},
             {' '}{forceIssueResult.currency} {forceIssueResult.total_fare}. Status: {forceIssueResult.status}.
+          </p>
+        )}
+
+        <div style={{ borderTop: '1px solid var(--border-color)', margin: '1.5rem 0 1rem' }} />
+
+        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--gs-dark)' }}>Share Ticket with Customer</h4>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
+          If a customer paid successfully but never received their ticket, re-send it here by PNR. For security,
+          the email or WhatsApp number you enter must match exactly what the customer gave at booking time — if it
+          doesn't match, sending is blocked so a booking can never be sent to the wrong person.
+        </p>
+        <form onSubmit={e => { e.preventDefault(); submitShareTicket(); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '520px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">PNR / Locator Code</label>
+            <input className="form-input" required value={shareLocator} onChange={e => setShareLocator(e.target.value.toUpperCase())} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Send Via</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="button" onClick={() => setShareChannel('email')} className={`btn ${shareChannel === 'email' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }}>Email</button>
+              <button type="button" onClick={() => setShareChannel('whatsapp')} className={`btn ${shareChannel === 'whatsapp' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }}>WhatsApp</button>
+            </div>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Customer's {shareChannel === 'email' ? 'Email Address' : 'WhatsApp Number'} *</label>
+            <input
+              className="form-input" required
+              type={shareChannel === 'email' ? 'email' : 'tel'}
+              placeholder={shareChannel === 'email' ? 'customer@example.com' : '+94771234567'}
+              value={shareContact} onChange={e => setShareContact(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={shareSubmitting} style={{ alignSelf: 'flex-start' }}>
+            {shareSubmitting ? 'Verifying…' : shareChannel === 'email' ? 'Verify & Send Email' : 'Verify & Open WhatsApp'}
+          </button>
+        </form>
+        {shareError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{shareError}</div>}
+        {shareResult && (
+          <p style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.75rem' }}>
+            {shareResult.channel === 'email'
+              ? `Ticket emailed to ${shareResult.sent_to}.`
+              : `Verified — WhatsApp opened with the ticket details pre-filled for ${shareResult.sent_to}.`}
           </p>
         )}
 

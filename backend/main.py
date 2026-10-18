@@ -1558,6 +1558,130 @@ def list_force_issued_tickets(_admin: dict = Depends(auth.get_current_admin)):
     return {"items": database.get_force_issued_tickets()}
 
 
+# ── Share Ticket with Customer (Admin, Force Issue screen) ────────────────────
+# Recovery tool for "payment succeeded but the customer never got their
+# ticket" (lost email, typo'd address, spam filter, etc.). The admin re-sends
+# an already-issued ticket's details by locator code -- but to guard against
+# sending one customer's booking details to the WRONG person (typo, mixed-up
+# PNR, or a deliberate attempt), the contact the admin types in must match
+# what the customer themselves entered at booking time (passenger_email /
+# phone on the booking record). A mismatch is refused outright, never sent
+# partially or with a warning-only prompt, and every attempt -- matched or
+# blocked -- is logged to ticket_shares for audit.
+
+class ShareTicketRequest(BaseModel):
+    channel: Literal["email", "whatsapp"]
+    contact: str = Field(..., min_length=3, max_length=200)
+
+
+def _digits_only(s: str) -> str:
+    return "".join(ch for ch in (s or "") if ch.isdigit())
+
+
+def _phone_matches(entered: str, on_file: str) -> bool:
+    """Phone numbers are free-text (see booking's "phone" field) and commonly
+    written with or without a country code / leading trunk 0 (e.g. the same
+    Sri Lankan number as local "0771234567" vs international "+94771234567"
+    -- the leading 0 is dropped entirely when the country code is added, so
+    it's not even a prefix/suffix of the other). An exact string match would
+    reject this legitimate case, so instead compare only the last 9 digits
+    (a typical local subscriber number) of each, ignoring country code and
+    any leading trunk digit on either side -- strict enough to catch a
+    genuinely different number, lenient enough to tolerate that formatting."""
+    a, b = _digits_only(entered), _digits_only(on_file)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    n = min(len(a), len(b), 9)
+    return n >= 7 and a[-n:] == b[-n:]
+
+
+@app.post("/api/admin/bookings/{locator_code}/share-ticket")
+def share_ticket_with_customer(
+    locator_code: str,
+    request: ShareTicketRequest,
+    admin: dict = Depends(auth.get_current_admin),
+):
+    locator_code = locator_code.upper().strip()
+    booking = database.get_booking_by_locator(locator_code)
+    if not booking:
+        raise HTTPException(status_code=404, detail=f"No booking found for locator '{locator_code}'.")
+    if booking.get("status") != "Ticketed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Booking {locator_code} has not been ticketed yet (status: {booking.get('status')}) — nothing to share.",
+        )
+
+    contact = request.contact.strip()
+    if request.channel == "email":
+        on_file = (booking.get("email") or booking.get("passenger_email") or "").strip().lower()
+        matched = bool(on_file) and contact.lower() == on_file
+    else:
+        on_file = booking.get("phone") or ""
+        matched = _phone_matches(contact, on_file)
+
+    if not matched:
+        database.log_ticket_share(
+            locator_code=locator_code, admin_id=admin.get("admin_id"), admin_username=admin.get("sub"),
+            channel=request.channel, contact=contact, matched=False, status="blocked_mismatch",
+        )
+        logger.warning(
+            f"ADMIN SHARE-TICKET BLOCKED: {locator_code} by {admin.get('sub')} "
+            f"(admin_id={admin.get('admin_id')}) — entered {request.channel}={contact!r} "
+            f"does not match the customer's own {request.channel} on file."
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"That {('email' if request.channel == 'email' else 'WhatsApp number')} doesn't match what this "
+                f"customer entered during booking. For security, ticket details can't be sent to a different "
+                f"contact — please verify with the customer before trying again."
+            ),
+        )
+
+    if request.channel == "email":
+        sent, email_error = services.send_ticket_share_email(contact, booking)
+        database.log_ticket_share(
+            locator_code=locator_code, admin_id=admin.get("admin_id"), admin_username=admin.get("sub"),
+            channel="email", contact=contact, matched=True, status="sent" if sent else "send_failed",
+        )
+        if not sent:
+            raise HTTPException(status_code=502, detail=f"Could not send the email: {email_error}")
+        logger.info(f"ADMIN SHARE-TICKET: {locator_code} emailed to {contact} by {admin.get('sub')}")
+        return {"success": True, "channel": "email", "sent_to": contact}
+
+    # WhatsApp: no server-side WhatsApp send capability exists in this system
+    # (no Twilio/Meta Business API integration) -- the match was verified
+    # server-side, so the frontend is now cleared to open a wa.me deep link
+    # pre-filled with the ticket details, which the admin sends themselves
+    # from their own WhatsApp. wa.me needs the number in full international
+    # digits (country code, no leading 0/+) -- the admin may have typed a
+    # local format (e.g. "0771234567"), so the link uses the customer's own
+    # on-file number (already in that format), not whatever the admin typed.
+    share_text = (
+        f"George Steuart Travel — Your E-Ticket\n"
+        f"PNR: {booking.get('locator_code')}\n"
+        f"Passenger: {booking.get('passenger_name') or ''}\n"
+        f"Flight: {booking.get('flight_number') or ''} ({booking.get('airline') or ''})\n"
+        f"Route: {booking.get('departure_airport') or ''} -> {booking.get('arrival_airport') or ''}\n"
+        f"Departure: {booking.get('departure_time') or ''}\n"
+        f"Fare: {booking.get('currency') or ''} {booking.get('total_fare') or ''}\n"
+        f"Status: {booking.get('status') or ''}"
+    )
+    database.log_ticket_share(
+        locator_code=locator_code, admin_id=admin.get("admin_id"), admin_username=admin.get("sub"),
+        channel="whatsapp", contact=contact, matched=True, status="validated",
+    )
+    logger.info(f"ADMIN SHARE-TICKET: {locator_code} validated for WhatsApp to {contact} by {admin.get('sub')}")
+    return {"success": True, "channel": "whatsapp", "sent_to": contact, "whatsapp_number_digits": _digits_only(on_file), "share_text": share_text}
+
+
+@app.get("/api/admin/ticket-shares")
+def list_ticket_shares(_admin: dict = Depends(auth.get_current_admin)):
+    return {"items": database.get_ticket_shares()}
+
+
 # ── STEP 8: Retrieve PNR ───────────────────────────────────────────────────────
 
 

@@ -673,6 +673,29 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # ── Ticket Share audit log (admin-only) ──────────────────────────────────
+    # Records every attempt an admin makes to re-send an already-issued
+    # ticket's details to a customer (email or WhatsApp) from the Force Issue
+    # Ticket screen -- including BLOCKED attempts where the admin-entered
+    # contact didn't match what the customer gave at booking time. That
+    # mismatch case is deliberately logged too (not just successes), since
+    # catching/recording a wrong-recipient attempt is the whole point of this
+    # feature (see share_ticket_with_customer in main.py).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ticket_shares (
+            id             INT AUTO_INCREMENT PRIMARY KEY,
+            locator_code   VARCHAR(20) NOT NULL,
+            admin_id       INT NOT NULL,
+            admin_username VARCHAR(100) NOT NULL,
+            channel        VARCHAR(20) NOT NULL,
+            contact        VARCHAR(200) NOT NULL,
+            matched        TINYINT(1) NOT NULL,
+            status         VARCHAR(30) NOT NULL,
+            created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_ticket_shares_locator (locator_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     # ── Provider fare-fetch notifications (unified TP+AD search) ────────────
     # Logged whenever either provider in the unified flight search (Travelport
     # "TP" or Amadeus "AD") fails to return fares for a search -- so a GDS
@@ -2168,6 +2191,40 @@ def get_force_issued_tickets() -> list[dict]:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM force_issued_tickets ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def log_ticket_share(
+    locator_code: str, admin_id: int, admin_username: str, channel: str,
+    contact: str, matched: bool, status: str,
+) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO ticket_shares
+               (locator_code, admin_id, admin_username, channel, contact, matched, status)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (locator_code, admin_id, admin_username, channel, contact, matched, status),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM ticket_shares WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_ticket_shares() -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM ticket_shares ORDER BY created_at DESC")
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
