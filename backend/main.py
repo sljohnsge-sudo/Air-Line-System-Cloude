@@ -1084,6 +1084,72 @@ class IssueTicketRequest(BaseModel):
     )
 
 
+def _verify_and_claim_payment(
+    reqid: str, expected_client_ref: str, locator_code: Optional[str] = None,
+    expected_amount: Optional[float] = None, expected_currency: Optional[str] = None,
+) -> dict:
+    """Confirms a PayCorp reqid actually paid for THIS booking, not just that
+    some payment somewhere succeeded. Closes two real gaps: (1) a successful
+    reqid from one booking being replayed against a different, more expensive
+    one (checked here via clientRef, which PayCorp echoes back unchanged from
+    whatever /api/payments/init sent — our own booking/pending id), and (2) the
+    same reqid being redeemed for issuance more than once (checked via a
+    single-use DB claim, see database.claim_payment_reqid). Raises a clear
+    HTTPException and claims nothing on any failure; only a reqid that passes
+    every check gets marked consumed."""
+    try:
+        payment_result = services.complete_payment(reqid)
+    except services.PayCorpError as e:
+        logger.error(f"PayCorp payment check failed (reqid={reqid}): {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+
+    if not payment_result.get("success"):
+        logger.warning(
+            f"Ticket issuance refused — payment not successful "
+            f"(code={payment_result.get('response_code')}, reqid={reqid})"
+        )
+        raise HTTPException(
+            status_code=402,
+            detail=f"Payment not successful (code={payment_result.get('response_code')}): "
+                   f"{payment_result.get('response_text')}. Ticket not issued."
+        )
+
+    if (payment_result.get("client_ref") or "") != expected_client_ref:
+        logger.error(
+            f"PAYMENT CLIENT_REF MISMATCH: reqid={reqid} paid for client_ref="
+            f"{payment_result.get('client_ref')!r}, but ticketing was requested for "
+            f"{expected_client_ref!r} — refusing to issue."
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="This payment does not match the booking being ticketed. Ticket not issued.",
+        )
+
+    if expected_amount is not None:
+        paid_cents = payment_result.get("payment_amount")
+        expected_cents = round(expected_amount * 100)
+        paid_currency = (payment_result.get("currency") or "").upper()
+        if paid_cents != expected_cents or (expected_currency and paid_currency != expected_currency.upper()):
+            logger.error(
+                f"PAYMENT AMOUNT MISMATCH: reqid={reqid} paid {paid_cents} {paid_currency} cents, "
+                f"expected {expected_cents} {expected_currency} cents for {expected_client_ref!r} — refusing to issue."
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="The confirmed payment amount does not match this booking's fare. Ticket not issued.",
+            )
+
+    if not database.claim_payment_reqid(reqid, expected_client_ref, locator_code):
+        logger.error(f"PAYMENT REQID REPLAY: reqid={reqid} was already used for a previous ticket issuance — refusing to issue again.")
+        raise HTTPException(
+            status_code=409,
+            detail="This payment has already been used to issue a ticket. Ticket not issued.",
+        )
+
+    logger.info(f"Payment verified for client_ref={expected_client_ref} (txnReference={payment_result.get('txn_reference')}) — issuing ticket...")
+    return payment_result
+
+
 @app.post("/api/bookings/{locator_code}/issue-ticket")
 def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     """
@@ -1098,23 +1164,13 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     payment_result = None
 
     if request.reqid:
-        try:
-            payment_result = services.complete_payment(request.reqid)
-        except services.PayCorpError as e:
-            logger.error(f"PayCorp payment check failed for {locator_code}: {e}")
-            raise HTTPException(status_code=502, detail=str(e))
-
-        if not payment_result.get("success"):
-            logger.warning(
-                f"Ticket issuance refused for {locator_code} — payment not successful "
-                f"(code={payment_result.get('response_code')}, reqid={request.reqid})"
-            )
-            raise HTTPException(
-                status_code=402,
-                detail=f"Payment not successful (code={payment_result.get('response_code')}): "
-                       f"{payment_result.get('response_text')}. Ticket not issued."
-            )
-        logger.info(f"Payment confirmed for {locator_code} (txnReference={payment_result.get('txn_reference')}) — issuing ticket...")
+        existing = database.get_booking_by_locator(locator_code)
+        expected_fare = existing.get("total_fare") if existing else None
+        expected_currency = existing.get("currency") if existing else None
+        payment_result = _verify_and_claim_payment(
+            request.reqid, expected_client_ref=locator_code, locator_code=locator_code,
+            expected_amount=expected_fare, expected_currency=expected_currency,
+        )
     else:
         logger.info(f"Issuing ticket for {locator_code} without a PayCorp reqid (cash/bank transfer)...")
 
@@ -1374,16 +1430,13 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
     pending = _ndc_pending_instant_pay.pop(request.pending_id, None)
     if not pending:
         raise HTTPException(status_code=404, detail="This booking has expired or was already completed. Please search and select the flight again.")
-    try:
-        payment_result = services.complete_payment(request.reqid)
-    except services.PayCorpError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    if not payment_result.get("success"):
-        raise HTTPException(
-            status_code=402,
-            detail=f"Payment not successful (code={payment_result.get('response_code')}): "
-                   f"{payment_result.get('response_text')}. No booking was made.",
-        )
+    # expected_amount is intentionally not checked here (unlike the GDS path
+    # below) -- there's no pre-existing booking record yet to compare against
+    # at this point (the PNR+ticket are created together, after this check).
+    # client_ref binding + single-use claim still close the main exploitable
+    # gap: a successful reqid being replayed against a DIFFERENT pending
+    # Instant Pay booking.
+    payment_result = _verify_and_claim_payment(request.reqid, expected_client_ref=request.pending_id)
     trace_token = services.start_flow_trace_id()
     try:
         result = _ndc_instant_pay(

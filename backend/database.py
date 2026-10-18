@@ -696,6 +696,24 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # ── Consumed PayCorp reqids (single-use payment enforcement) ─────────────
+    # A PayCorp reqid, on its own, only proves "some payment succeeded" -- it
+    # says nothing about WHICH booking it was for. Without this table, a
+    # successful reqid could be replayed against a DIFFERENT (more expensive)
+    # booking's issue-ticket call, since nothing stopped the same reqid being
+    # presented twice. claim_payment_reqid() uses reqid's UNIQUE constraint to
+    # atomically ensure each reqid is consumed at most once, for the one
+    # booking it was actually paid for (see main.py's payment/ticketing flow).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS consumed_payment_reqids (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            reqid         VARCHAR(100) NOT NULL UNIQUE,
+            client_ref    VARCHAR(100) NOT NULL,
+            locator_code  VARCHAR(20),
+            consumed_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     # ── Provider fare-fetch notifications (unified TP+AD search) ────────────
     # Logged whenever either provider in the unified flight search (Travelport
     # "TP" or Amadeus "AD") fails to return fares for a search -- so a GDS
@@ -2229,6 +2247,30 @@ def get_ticket_shares() -> list[dict]:
     cursor.close()
     conn.close()
     return rows
+
+
+def claim_payment_reqid(reqid: str, client_ref: str, locator_code: str | None = None) -> bool:
+    """Atomically marks a PayCorp reqid as consumed for one specific booking.
+    Returns True the first (and only the first) time a given reqid is claimed;
+    returns False -- without inserting anything -- on every later attempt to
+    claim the same reqid again, whether for the same booking or a different
+    one. The caller must treat False as "this payment has already been used"
+    and refuse to issue a ticket, not retry or ignore it."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO consumed_payment_reqids (reqid, client_ref, locator_code) VALUES (%s,%s,%s)",
+            (reqid, client_ref, locator_code),
+        )
+        conn.commit()
+        return True
+    except mysql.connector.IntegrityError:
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def cancel_booking(locator_code: str) -> bool:
