@@ -714,6 +714,31 @@ def init_db():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
+    # ── Stuck-booking notifications (paid but not ticketed) ──────────────────
+    # Logged whenever a payment was confirmed (or no payment was required --
+    # cash/bank-transfer) but Travelport's own ticketing commit then failed --
+    # the booking is created but sits un-ticketed, with no customer-facing
+    # retry path. Without this, staff only find out via the customer calling
+    # in with their held locator code, or by manually scanning the bookings
+    # list for a non-Ticketed status. Mirrors provider_notifications' review
+    # pattern (status + admin_note + reviewed_at/by).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stuck_booking_notifications (
+            id              INT AUTO_INCREMENT PRIMARY KEY,
+            locator_code    VARCHAR(20) NOT NULL,
+            error_message   VARCHAR(1000) NOT NULL,
+            payment_txn_ref VARCHAR(100),
+            email_sent      TINYINT(1) NOT NULL DEFAULT 0,
+            status          VARCHAR(20) NOT NULL DEFAULT 'new',
+            admin_note      VARCHAR(500),
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at     DATETIME NULL,
+            reviewed_by_admin_id INT NULL,
+            INDEX idx_stuck_booking_locator (locator_code),
+            INDEX idx_stuck_booking_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     # ── Provider fare-fetch notifications (unified TP+AD search) ────────────
     # Logged whenever either provider in the unified flight search (Travelport
     # "TP" or Amadeus "AD") fails to return fares for a search -- so a GDS
@@ -1448,6 +1473,59 @@ def acknowledge_provider_notification(notification_id: int, admin_id: int, admin
         )
         conn.commit()
         cursor.execute("SELECT * FROM provider_notifications WHERE id=%s", (notification_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def create_stuck_booking_notification(locator_code: str, error_message: str, payment_txn_ref: str | None, email_sent: bool) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO stuck_booking_notifications (locator_code, error_message, payment_txn_ref, email_sent)
+               VALUES (%s,%s,%s,%s)""",
+            (locator_code, error_message[:1000], payment_txn_ref, email_sent),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM stuck_booking_notifications WHERE id=%s", (cursor.lastrowid,))
+        return cursor.fetchone()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_stuck_booking_notifications(status: str | None = None) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if status:
+        cursor.execute("SELECT * FROM stuck_booking_notifications WHERE status=%s ORDER BY created_at DESC", (status,))
+    else:
+        cursor.execute("SELECT * FROM stuck_booking_notifications ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def acknowledge_stuck_booking_notification(notification_id: int, admin_id: int, admin_note: str | None) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """UPDATE stuck_booking_notifications SET status='acknowledged', admin_note=%s,
+               reviewed_at=CURRENT_TIMESTAMP, reviewed_by_admin_id=%s WHERE id=%s""",
+            (admin_note, admin_id, notification_id),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM stuck_booking_notifications WHERE id=%s", (notification_id,))
         return cursor.fetchone()
     except Exception as e:
         conn.rollback()

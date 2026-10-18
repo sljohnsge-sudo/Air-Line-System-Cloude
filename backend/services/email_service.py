@@ -117,3 +117,22 @@ def send_provider_failure_email(to_addr: str, provider: str, error_message: str,
         f"Check the provider's status and the Admin Portal's Notifications tab for the full log.\n"
     )
     return _send(to_addr, subject, body)
+
+
+def send_stuck_booking_email(to_addr: str, locator_code: str, error_message: str, payment_txn_ref: str | None) -> tuple[bool, str | None]:
+    """Alerts staff that a booking has payment confirmed (or no payment was
+    required) but Travelport's own ticketing commit failed, so the booking is
+    created but sits un-ticketed with no automatic retry. Without this, staff
+    only find out via the customer calling in or manually scanning the
+    bookings list. Called from main.py's _issue_and_save_ticket."""
+    subject = f"Booking stuck — payment OK, ticket NOT issued — {locator_code}"
+    body = (
+        f"Ticket issuance failed for a booking whose payment step already succeeded "
+        f"(or required no online payment).\n\n"
+        f"PNR / Locator:        {locator_code}\n"
+        f"Payment txn reference: {payment_txn_ref or 'n/a (cash/bank transfer or admin override)'}\n"
+        f"Travelport error:      {error_message}\n\n"
+        f"This booking needs manual follow-up — check it in the Admin Portal's Bookings list, and use "
+        f"Force Issue Ticket once the underlying issue is confirmed resolved.\n"
+    )
+    return _send(to_addr, subject, body)

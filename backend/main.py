@@ -32,8 +32,10 @@ Booking Workflow:
 """
 
 import asyncio
+import hashlib
 import logging
 import os
+import time
 import uuid
 from datetime import datetime
 from urllib.parse import urlencode
@@ -42,7 +44,7 @@ from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator
 from typing import Optional, List, Literal
 import database
 import services
@@ -191,14 +193,42 @@ class TravelerInfo(BaseModel):
     first_name: str = Field(..., min_length=2, max_length=50)
     last_name: str = Field(..., min_length=2, max_length=50)
     date_of_birth: str = Field(..., description="YYYY-MM-DD")
-    gender: str = Field(..., description="Male or Female")
+    gender: str = Field(..., pattern="^(Male|Female)$", description="Male or Female")
     passport_number: str = Field(..., min_length=5, max_length=20)
-    passport_expiry: str = Field(..., description="YYYY-MM-DD")
+    passport_expiry: str = Field(..., description="YYYY-MM-DD, must be a future date")
     nationality: str = Field(default="LK", min_length=2, max_length=3)
     passport_issue_country: str = Field(default="LK", min_length=2, max_length=3, description="TravelDocument.issueCountry — the country that issued the passport, which can differ from nationality")
     email: EmailStr
     phone: str = Field(..., min_length=7, max_length=20)
-    passenger_type: Optional[str] = Field(default="ADT", description="ADT|CNN|INF")
+    passenger_type: Optional[str] = Field(default="ADT", pattern="^(ADT|CNN|INF|STU)$", description="ADT|CNN|INF|STU")
+
+    # These two fields were previously only validated in the frontend (format,
+    # "must be a future date" for passport_expiry) — a direct API call bypassing
+    # the UI could submit an expired passport or a malformed/nonsense date.
+    # Mirrors the same checks frontend/src/App.jsx already runs before submit.
+    @field_validator("date_of_birth")
+    @classmethod
+    def _validate_date_of_birth(cls, v: str) -> str:
+        try:
+            dob = datetime.strptime(v, "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError("date_of_birth must be a valid date in YYYY-MM-DD format")
+        if dob > datetime.now().date():
+            raise ValueError("date_of_birth cannot be in the future")
+        if dob.year < 1900:
+            raise ValueError("date_of_birth is not a plausible date")
+        return v
+
+    @field_validator("passport_expiry")
+    @classmethod
+    def _validate_passport_expiry(cls, v: str) -> str:
+        try:
+            expiry = datetime.strptime(v, "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError("passport_expiry must be a valid date in YYYY-MM-DD format")
+        if expiry <= datetime.now().date():
+            raise ValueError("passport_expiry must be a future date")
+        return v
 
     # ── Optional Travelport TravelDocument / Telephone / Address fields ──────
     # All optional — not required for a booking to succeed (proven by existing
@@ -366,6 +396,28 @@ def _notify_provider_failure(provider: str, error_message: str, route_info: str 
         database.create_provider_notification(provider, error_message, route_info, email_sent)
     except Exception as db_err:
         logger.error(f"Failed to log provider_notifications row: {db_err}")
+
+
+def _notify_stuck_booking(locator_code: str, error_message: str, payment_txn_ref: str | None) -> None:
+    """Logs a stuck_booking_notifications row and emails every active
+    notification_recipients address whenever a booking's payment step
+    succeeded (or needed no online payment) but Travelport's ticketing
+    commit then failed -- the booking exists but was never ticketed, with
+    no automatic retry. No debounce here (unlike provider failures): each
+    stuck booking is a distinct, specific transaction staff need to see, not
+    a repeating symptom of one outage."""
+    recipients = [r["email"] for r in database.get_notification_recipients(active_only=True)]
+    email_sent = False
+    if recipients:
+        sent, err = services.send_stuck_booking_email(", ".join(recipients), locator_code, error_message, payment_txn_ref)
+        email_sent = sent
+        if not sent:
+            logger.warning(f"Stuck-booking notification email not sent: {err}")
+
+    try:
+        database.create_stuck_booking_notification(locator_code, error_message, payment_txn_ref, email_sent)
+    except Exception as db_err:
+        logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
 
 
 @app.post("/api/flights/search")
@@ -683,6 +735,98 @@ def _attach_traveler_details(ticket: dict, travelers: list) -> None:
     ticket["date_of_birth"] = lead.get("date_of_birth", "")
 
 
+def _verify_custom_price(custom_price: float, raw_offering: dict) -> None:
+    """custom_price is sent by the client (normally just echoing the price
+    this backend itself quoted at search time -- the frontend never lets a
+    customer edit it) and is applied directly as the ticket's authoritative
+    fare with no server-side check against Travelport's own priced offer, so
+    a caller bypassing the UI could submit any value. This re-derives the
+    SAME Price Travelport returned for this exact offer straight out of
+    raw_offering -- data already present in the request, not a fresh
+    Travelport call -- and refuses the booking if custom_price doesn't match
+    it (after the same markup every legitimate quote already has applied).
+
+    Only checked for the single-leg offer shape search_service.py builds
+    (raw_offering["ProductBrandOptions"][0]["ProductBrandOffering"][0]
+    ["BestCombinablePrice"]). Round-trip ({"outbound","inbound"}) and
+    multi-city ({"legs":[...]}) offers have a different raw_offering shape
+    not covered here -- rather than guess at validating those and risk
+    rejecting a legitimate booking, this silently skips verification for any
+    shape it doesn't recognize. That's a real, acknowledged gap, not a
+    silent "fixed" claim -- extending coverage to those shapes is separate
+    follow-up work.
+    """
+    try:
+        brand_options = raw_offering.get("ProductBrandOptions", [{}])[0]
+        brand_offering = brand_options.get("ProductBrandOffering", [{}])[0]
+        best_price = brand_offering.get("BestCombinablePrice")
+        if not best_price:
+            return
+        offer_total = float(best_price.get("TotalPrice", 0))
+        if not offer_total:
+            return
+    except Exception:
+        return
+
+    pricing_settings = services.get_pricing_settings_cfg()
+    expected_price, _ = services.apply_markup(offer_total, pricing_settings, "ticket")
+    if abs(custom_price - expected_price) > 0.01:
+        logger.error(
+            f"CUSTOM_PRICE MISMATCH: client submitted {custom_price}, this offer's "
+            f"real (marked-up) fare is {expected_price} — refusing to book."
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="The submitted price does not match this offer's actual fare. Booking refused.",
+        )
+
+
+# ── Duplicate-submission guard for PNR creation ────────────────────────────────
+# /api/bookings/create and /api/bookings/confirm have no locator_code to key
+# an idempotency check on -- the PNR doesn't exist until the call succeeds.
+# The frontend already guards against a same-tab double-click (an in-memory
+# ref flag), but that does nothing for two browser tabs, or a network-level
+# retry, submitting the identical offer+travelers within moments of each
+# other -- each would otherwise create its own separate Travelport PNR/
+# workbench. This keeps a short-lived fingerprint of each in-flight/recent
+# submission (single-process in-memory state -- same pattern already used by
+# _ndc_pending_instant_pay below) and refuses an exact repeat within the
+# window rather than letting Travelport create a second PNR for one action.
+_recent_booking_fingerprints: dict[str, float] = {}
+_BOOKING_DEDUP_WINDOW_SECONDS = 20
+
+
+def _booking_fingerprint(raw_offering: dict, travelers: list[dict]) -> str:
+    offer_id = (
+        raw_offering.get("id")
+        or raw_offering.get("CatalogProductOfferingsIdentifier")
+        or str(raw_offering.get("Identifier", ""))
+    )
+    traveler_key = "|".join(sorted(
+        f"{t.get('first_name', '')}:{t.get('last_name', '')}:{t.get('passport_number', '')}"
+        for t in travelers
+    ))
+    return hashlib.sha256(f"{offer_id}:{traveler_key}".encode("utf-8")).hexdigest()
+
+
+def _claim_booking_submission(raw_offering: dict, travelers: list[dict]) -> None:
+    """Raises 409 if this exact offer+traveler combination was already
+    submitted within the dedup window; otherwise records it and lets the
+    request through."""
+    fp = _booking_fingerprint(raw_offering, travelers)
+    now = time.time()
+    for key, ts in list(_recent_booking_fingerprints.items()):
+        if now - ts > _BOOKING_DEDUP_WINDOW_SECONDS:
+            del _recent_booking_fingerprints[key]
+    if fp in _recent_booking_fingerprints:
+        logger.warning("Duplicate booking submission blocked (same offer+travelers submitted again within the dedup window).")
+        raise HTTPException(
+            status_code=409,
+            detail="This exact booking was just submitted. Please wait a moment and check your bookings before trying again.",
+        )
+    _recent_booking_fingerprints[fp] = now
+
+
 # ── STEPS 4-9: Create Full Booking + Issue Ticket ─────────────────────────────
 
 @app.post("/api/bookings/create", status_code=status.HTTP_201_CREATED)
@@ -701,6 +845,7 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
     """
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
+    _claim_booking_submission(raw_offering, travelers)
 
     try:
         # STEPS 4-7: Full booking flow with automatic stale-workbench retry and cleanup.
@@ -724,6 +869,7 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
 
         # Apply pricing overrides if selecting custom fare family
         if request.custom_price:
+            _verify_custom_price(request.custom_price, raw_offering)
             ticket["total_fare"] = request.custom_price
         if request.cabin_class:
             ticket["cabin_class"] = request.cabin_class
@@ -897,6 +1043,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
     selected_seats = request.selected_seats
+    _claim_booking_submission(raw_offering, travelers)
 
     # One TraceId for every Travelport call this confirm makes — run_booking_flow()
     # (STEPS 4-7) plus the retrieve_reservation() calls (STEP 8) below all share
@@ -998,6 +1145,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         seat_charges += ancillary_charges
 
         if request.custom_price:
+            _verify_custom_price(request.custom_price, raw_offering)
             ticket["total_fare"] = request.custom_price + seat_charges
             # NDC content: Travelport's Offer has no Price at all (confirmed
             # live), so ticket["currency"] is still whatever _parse_reservation()
@@ -1163,8 +1311,18 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     locator_code = locator_code.upper().strip()
     payment_result = None
 
+    # Idempotency: a double-click, a retried request, or a race between two
+    # browser tabs could otherwise call this twice for the same PNR, which
+    # without this check would re-run the full Travelport buildfromlocator ->
+    # formofpayment -> payment -> ticketing-commit sequence a second time
+    # against an already-issued ticket. If it's already ticketed, just hand
+    # back the existing ticket instead of touching Travelport again.
+    existing = database.get_booking_by_locator(locator_code)
+    if existing and existing.get("ticket_number"):
+        logger.info(f"Issue-ticket for {locator_code} called again — already ticketed (#{existing['ticket_number']}), returning the existing ticket instead of re-issuing.")
+        return {"success": True, "ticket": existing, "cached_id": existing.get("id"), "already_issued": True}
+
     if request.reqid:
-        existing = database.get_booking_by_locator(locator_code)
         expected_fare = existing.get("total_fare") if existing else None
         expected_currency = existing.get("currency") if existing else None
         payment_result = _verify_and_claim_payment(
@@ -1188,7 +1346,12 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         ticket = services.issue_ticket(locator_code)
     except Exception as e:
         logger.error(f"Ticket issuance failed for {locator_code}: {e}")
-        txn_note = f" (txnReference={payment_result.get('txn_reference')})" if payment_result else ""
+        txn_ref = payment_result.get("txn_reference") if payment_result else None
+        txn_note = f" (txnReference={txn_ref})" if txn_ref else ""
+        try:
+            _notify_stuck_booking(locator_code, str(e), txn_ref)
+        except Exception as notify_err:
+            logger.error(f"Failed to send stuck-booking notification for {locator_code} (non-fatal): {notify_err}")
         raise HTTPException(
             status_code=502,
             detail=f"Payment succeeded{txn_note} but Travelport ticket issuance failed: {str(e)}"
@@ -1877,6 +2040,15 @@ def booking_history(email: Optional[str] = Query(None, description="Filter by pa
 def cancel_booking(locator_code: str):
     """
     Cancel a booking: cancels on Travelport and updates local cache.
+
+    Only ever marks the local record Cancelled -- and only ever reports
+    success -- when Travelport's own cancellation actually succeeded.
+    Previously this unconditionally updated the local cache and only 404'd
+    when BOTH the Travelport call and the local update failed, so a
+    genuine Travelport-side cancellation failure (e.g. a transient API
+    error) could still come back as "successfully cancelled" while the
+    booking was in fact still live and ticketed on Travelport -- a real
+    no-show/refund-mismatch risk for whoever acted on that response.
     """
     # One TraceId for cancel_reservation()'s internal calls (buildfromlocator
     # -> cancelitems -> commit) — it never raises (returns bool), so no
@@ -1885,15 +2057,21 @@ def cancel_booking(locator_code: str):
     tp_cancelled = services.cancel_reservation(locator_code)
     services.end_flow_trace_id(trace_token)
 
-    # Update local cache
-    db_cancelled = database.cancel_booking(locator_code)
-
-    if not tp_cancelled and not db_cancelled:
+    if not tp_cancelled:
+        existing = database.get_booking_by_locator(locator_code)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Booking not found.")
+        logger.error(f"Cancel booking: Travelport did not confirm cancellation for {locator_code} — leaving local record unchanged.")
         raise HTTPException(
-            status_code=404,
-            detail="Booking not found or already cancelled."
+            status_code=502,
+            detail=(
+                f"Travelport did not confirm cancellation for {locator_code} — the booking may still be "
+                f"active and ticketed. Nothing was changed locally; please verify directly with Travelport "
+                f"before telling the customer it's cancelled."
+            ),
         )
 
+    database.cancel_booking(locator_code)
     return {"message": f"Booking {locator_code} successfully cancelled."}
 
 
@@ -2240,10 +2418,17 @@ def payments_init(request: PaymentInitRequestBody):
 
 
 @app.get("/api/payments/complete")
-def payments_complete(reqid: str = Query(..., description="reqid returned by /api/payments/init")):
+def payments_complete(reqid: str = Query(..., description="reqid returned by /api/payments/init"), _admin: dict = Depends(auth.get_current_admin)):
     """
-    STEP 3: Look up the final result of a hosted-page payment after the
-    customer is redirected back. success=true iff response_code == '00'.
+    Admin-only lookup of a hosted-page payment's final result (masked card,
+    amounts, txn reference, auth code) by reqid. Nothing in this app's own
+    flow calls this — ticket issuance verifies payment server-side via
+    services.complete_payment() directly (see _verify_and_claim_payment),
+    never through this route — so this was previously reachable by anyone
+    with no authentication at all, returning full payment details for any
+    reqid to anyone who had or guessed one. Gated to admin-only since it's a
+    support/lookup tool, not part of the customer-facing payment flow.
+    success=true iff response_code == '00'.
     """
     try:
         result = services.complete_payment(reqid)
@@ -2599,6 +2784,21 @@ def admin_acknowledge_notification(notification_id: int, body: ProviderNotificat
     if not note:
         raise HTTPException(status_code=404, detail="Notification not found.")
     return database.acknowledge_provider_notification(notification_id, admin["admin_id"], body.admin_note)
+
+
+@app.get("/api/admin/stuck-bookings")
+def admin_list_stuck_bookings(status_filter: Optional[str] = Query(None, alias="status"), _admin: dict = Depends(auth.get_current_admin)):
+    """Bookings whose payment succeeded (or needed none) but Travelport's own
+    ticketing commit then failed — see _notify_stuck_booking / _issue_and_save_ticket."""
+    return {"notifications": database.get_stuck_booking_notifications(status_filter)}
+
+
+@app.post("/api/admin/stuck-bookings/{notification_id}/acknowledge")
+def admin_acknowledge_stuck_booking(notification_id: int, body: ProviderNotificationReview, admin: dict = Depends(auth.get_current_admin)):
+    rows = database.get_stuck_booking_notifications()
+    if not any(r["id"] == notification_id for r in rows):
+        raise HTTPException(status_code=404, detail="Notification not found.")
+    return database.acknowledge_stuck_booking_notification(notification_id, admin["admin_id"], body.admin_note)
 
 
 @app.get("/api/admin/notification-recipients")

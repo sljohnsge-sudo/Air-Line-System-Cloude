@@ -1021,3 +1021,14 @@ def cancel_reservation(locator_code: str) -> bool:
     except httpx.HTTPStatusError as e:
         logger.error(f"Cancel failed: {e.response.status_code} — {e.response.text}")
         return False
+    except Exception as e:
+        # Confirmed live: a nonexistent/already-gone locator doesn't always
+        # make Travelport's buildfromlocator call itself fail with an HTTP
+        # error status (the httpx.HTTPStatusError case above) -- it can come
+        # back 200 with no workbench Identifier at all, which raised the
+        # ValueError above uncaught, crashing this call with a 500 instead
+        # of the documented "bool: True if successful" contract every caller
+        # (main.py's cancel_booking) relies on to tell a genuine Travelport-
+        # side failure apart from "nothing to cancel."
+        logger.error(f"Cancel failed for {locator_code} (non-HTTP error): {e}")
+        return False
