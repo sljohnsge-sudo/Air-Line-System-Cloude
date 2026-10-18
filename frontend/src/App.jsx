@@ -1462,7 +1462,6 @@ export default function App() {
 
   // Issued ticket (Step 10 popup)
   const [issuedTicket, setIssuedTicket] = useState(null);
-  const [refreshingTicket, setRefreshingTicket] = useState(false);
   // Which tab to return to when a viewed (not just-issued) ticket is closed.
   // Opening a ticket always pushes the URL to /booking/:token (see
   // computeCanonicalPath), and tabFromPath() maps that to 'book' for the
@@ -1798,24 +1797,6 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, location.search]);
-
-  const handleRefreshTicket = async (locatorCode) => {
-    if (!locatorCode) return;
-    setRefreshingTicket(true);
-    showNotification('Refreshing reservation details from GDS...', 'success');
-    try {
-      const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${locatorCode}`);
-      const data = await handleApiResponse(res, 'Failed to refresh ticket');
-      setIssuedTicket(data);
-      showNotification('🔄 Ticket details synchronized with Travelport GDS.', 'success');
-      fetchBookings();
-    } catch (err) {
-      const errMsg = err.message || String(err);
-      showNotification(errMsg, 'error');
-    } finally {
-      setRefreshingTicket(false);
-    }
-  };
 
   const handleViewTicket = async (ticket) => {
     setTicketOriginTab(activeTab);
@@ -8665,7 +8646,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               gap: '0.75rem',
               flexWrap: 'wrap'
             }}>
-              <button className="btn btn-secondary" onClick={() => handleRefreshTicket(issuedTicket.locator_code || issuedTicket.pnr)} disabled={refreshingTicket} style={{ background: '#7c3aed', color: 'white', border: '1px solid #7c3aed' }}>🔄 {refreshingTicket ? 'Syncing...' : 'Sync PNR'}</button>
               <button className="btn btn-secondary" onClick={() => window.print()}>🖨 Print Ticket</button>
               <button className="btn btn-secondary" onClick={handleDownloadPDF} title="Download PDF" aria-label="Download PDF" style={{ background: 'white', border: '1px solid #e2e8f0', width: '44px', height: '44px', padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src={downloadIcon} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -8679,8 +8659,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <path d="M3 6.5l9 6.5 9-6.5" />
                 </svg>
               </button>
-              <button className="btn btn-primary" onClick={() => { closeBookingFlow(); setActiveTab('account'); }}>My Account</button>
-              <button className="btn btn-secondary" onClick={closeBookingFlow}>Close</button>
+              <button className="btn btn-primary" onClick={() => { closeBookingFlow(); setActiveTab('account'); }} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>My Account</button>
+              <button className="btn btn-secondary" onClick={closeBookingFlow} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Close</button>
             </div>
 
           </div>
