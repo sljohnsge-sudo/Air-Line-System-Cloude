@@ -1461,6 +1461,18 @@ export default function App() {
   // Issued ticket (Step 10 popup)
   const [issuedTicket, setIssuedTicket] = useState(null);
   const [refreshingTicket, setRefreshingTicket] = useState(false);
+  // Which tab to return to when a viewed (not just-issued) ticket is closed.
+  // Opening a ticket always pushes the URL to /booking/:token (see
+  // computeCanonicalPath), and tabFromPath() maps that to 'book' for the
+  // normal "just completed a booking" case -- but handleViewTicket() is also
+  // how the Customer Portal and Admin bookings list open an EXISTING
+  // booking's ticket, and that URL round-trip was silently kicking activeTab
+  // over to 'book' even though the user opened it from 'account'/'bookings',
+  // so Close landed them on the Flights tab (with its stale search results)
+  // instead of back where they were. Only handleViewTicket sets this -- the
+  // normal post-payment ticket display never does, so it still closes back
+  // to 'book' as it always has.
+  const [ticketOriginTab, setTicketOriginTab] = useState(null);
 
   // Workbench and seat map states
   const [workbenchId, setWorkbenchId] = useState(null);
@@ -1804,6 +1816,7 @@ export default function App() {
   };
 
   const handleViewTicket = async (ticket) => {
+    setTicketOriginTab(activeTab);
     setIssuedTicket(ticket);
     setBookingStep('ticket');
     
@@ -2354,6 +2367,10 @@ export default function App() {
     setSelectedFlight(null);
     setBookingStep(null);
     setIssuedTicket(null);
+    if (ticketOriginTab) {
+      setActiveTab(ticketOriginTab);
+      setTicketOriginTab(null);
+    }
     setBookingError('');
     setWorkbenchId(null);
     setOfferId(null);
