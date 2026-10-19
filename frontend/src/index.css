@@ -2289,7 +2289,7 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 12mm;
+    margin: 0;   /* zero margin suppresses browser's title/URL header & footer */
   }
 
   html, body {
@@ -2338,13 +2338,29 @@ body {
     max-width: 100% !important;
     width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 7mm 9mm !important;   /* page margin (browser no longer provides one) */
     border: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     background: #fff !important;
     color: #1e293b !important;
     overflow: visible !important;
+    zoom: 0.88 !important;         /* scale down ~12% so content fits one A4 page */
+  }
+
+  /* ── Tighten ticket body padding and section spacing for one-page fit ── */
+  .ticket-receipt-body {
+    padding: 0.75rem 1rem !important;
+  }
+
+  .ticket-header-row {
+    padding-bottom: 0.6rem !important;
+    margin-bottom: 0.8rem !important;
+  }
+
+  .ticket-ref-grid {
+    margin-bottom: 0.8rem !important;
+    padding: 0.6rem 0.9rem !important;
   }
 
   /* ── Force background colors and images to print ── */
