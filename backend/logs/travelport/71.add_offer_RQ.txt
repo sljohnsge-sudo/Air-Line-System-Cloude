@@ -1,0 +1,71 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/d1658fa6-c03e-4cda-87c4-8bc7e4b783f7/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE5NTYwOTIsImV4cCI6MTc5MjA0MjQ5MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.JwXiuKmAlr7eByZJTVhc-bDKe06_e-J-2Sd-yUBxsVUGhnzLtZZF_LdwUc_qBGMMaA6cT3PPGPFiglZ95lG_sNh4xIEKu-xa6kk5CMvrwWArji20JtXQtsPry8HY9WYowRDW9Oq0pCo0SwouSYKmSoJqVNAgEIWYw3L4Bojrhjci_a8riv4Zil6-SS6LMi85wM-fKm9HS2xWHAOEKWe8uMvRwk_gO6fqPhepEGVb2rYAPOsiQ7AJNhkcsAzkmVnAQ4SDHt0cOyx1UrnhTlUbfpan_RrEOSh8zmlj3yZ7ZtcH_ZMscplzV1IbLDPTRBNDvM9ynuPGFAXKb4W8mggkHw' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_F112845F1C4A' \
+--data-raw '{
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "659",
+                        "from": "CMB",
+                        "to": "DOH",
+                        "departureDate": "2026-10-17",
+                        "segmentSequence": 1,
+                        "departureTime": "04:35:00",
+                        "arrivalDate": "2026-10-17",
+                        "arrivalTime": "06:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "O",
+                        "ContentSource": "NDC"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "1022",
+                        "from": "DOH",
+                        "to": "DXB",
+                        "departureDate": "2026-10-17",
+                        "segmentSequence": 2,
+                        "departureTime": "09:20:00",
+                        "arrivalDate": "2026-10-17",
+                        "arrivalTime": "11:40:00",
+                        "cabin": "Economy",
+                        "classOfService": "O",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "ECONOMY CLASSIC",
+                "BrandRef": "QRb1"
+            }
+        }
+    }
+}'

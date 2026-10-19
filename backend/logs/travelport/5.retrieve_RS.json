@@ -1,556 +1,94 @@
-{
-    "ReservationResponse": {
-        "@type": "ReservationResponse",
-        "Reservation": {
-            "@type": "Reservation",
-            "Identifier": {
-                "authority": "Travelport",
-                "value": "d4b4246f-0370-448c-a94b-731f1c14694a"
-            },
-            "Offer": [
-                {
-                    "@type": "Offer",
-                    "id": "offer_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "ba8c6f5f-034c-4d67-81c2-0ae7cc232e9e"
-                    },
-                    "ContentSource": "GDS",
-                    "Product": [
-                        {
-                            "@type": "ProductAir",
-                            "id": "product_1",
-                            "Identifier": {
-                                "authority": "Travelport",
-                                "value": "f15b2135-c294-4c87-92cd-4201050c07f3"
-                            },
-                            "FlightSegment": [
-                                {
-                                    "@type": "FlightSegment",
-                                    "id": "FlightSegment_01",
-                                    "sequence": 1,
-                                    "Flight": {
-                                        "@type": "Flight",
-                                        "duration": "PT1H25M",
-                                        "carrier": "UL",
-                                        "number": "123",
-                                        "equipment": "32B",
-                                        "id": "Flight_01",
-                                        "Identifier": {
-                                            "authority": "Travelport",
-                                            "value": "dcdfdccc-7b58-40a6-9c06-12e729090e01"
-                                        },
-                                        "Departure": {
-                                            "@type": "Departure",
-                                            "location": "CMB",
-                                            "date": "2026-10-07",
-                                            "time": "18:45:00"
-                                        },
-                                        "Arrival": {
-                                            "@type": "Arrival",
-                                            "location": "MAA",
-                                            "date": "2026-10-07",
-                                            "time": "20:10:00"
-                                        }
-                                    }
-                                }
-                            ],
-                            "PassengerFlight": [
-                                {
-                                    "@type": "PassengerFlight",
-                                    "passengerQuantity": 1,
-                                    "passengerTypeCode": "ADT",
-                                    "FlightProduct": [
-                                        {
-                                            "@type": "FlightProduct",
-                                            "segmentSequence": [
-                                                1
-                                            ],
-                                            "classOfService": "S",
-                                            "cabin": "Economy",
-                                            "fareBasisCode": "SOWLK",
-                                            "fareType": "PublicFare"
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ],
-                    "Price": {
-                        "@type": "PriceDetail",
-                        "id": "PriceDetail_1",
-                        "CurrencyCode": {
-                            "value": "LKR"
-                        },
-                        "Base": 16100,
-                        "TotalTaxes": 32357,
-                        "TotalFees": 0,
-                        "TotalPrice": 48457,
-                        "PriceBreakdown": [
-                            {
-                                "@type": "PriceBreakdownAir",
-                                "quantity": 1,
-                                "requestedPassengerType": "ADT",
-                                "Amount": {
-                                    "@type": "Amount",
-                                    "CurrencyCode": {
-                                        "decimalPlace": 2,
-                                        "value": "USD"
-                                    },
-                                    "Base": 47.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_1"
-                                ]
-                            },
-                            {
-                                "@type": "PriceBreakdownAir",
-                                "quantity": 1,
-                                "requestedPassengerType": "ADT",
-                                "Amount": {
-                                    "@type": "Amount",
-                                    "currencySource": "Charged",
-                                    "approximateInd": true,
-                                    "CurrencyCode": {
-                                        "decimalPlace": 0,
-                                        "value": "LKR"
-                                    },
-                                    "Base": 16100,
-                                    "Taxes": {
-                                        "@type": "TaxesDetail",
-                                        "TotalTaxes": 32357,
-                                        "Tax": [
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "LK",
-                                                "value": 20436
-                                            },
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "YQ",
-                                                "value": 6812
-                                            },
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "YR",
-                                                "value": 5109
-                                            }
-                                        ]
-                                    },
-                                    "Total": 48457
-                                },
-                                "FiledAmount": {
-                                    "currencyCode": "USD",
-                                    "decimalPlace": 2,
-                                    "value": 47.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_1"
-                                ],
-                                "FareCalculation": "CMB UL MAA Q2.00 45.00SOWLK NUC47.00END ROE1.0"
-                            }
-                        ]
-                    },
-                    "TermsAndConditionsFull": [
-                        {
-                            "@type": "TermsAndConditionsFullAir",
-                            "secureFlightPassengerDataRequiredInd": true,
-                            "Identifier": {
-                                "authority": "Travelport",
-                                "value": "b5b4856a-80f2-4994-bf21-321ab1cce1f2"
-                            },
-                            "BaggageAllowance": [
-                                {
-                                    "@type": "BaggageAllowanceDetail",
-                                    "passengerTypeCodes": [
-                                        "ADT"
-                                    ],
-                                    "SegmentSequenceList": [
-                                        1
-                                    ],
-                                    "Text": [
-                                        "30K"
-                                    ]
-                                }
-                            ],
-                            "ValidatingAirline": [
-                                {
-                                    "@type": "ValidatingAirline",
-                                    "ValidatingAirline": "UL"
-                                }
-                            ],
-                            "TicketingAgency": [
-                                {
-                                    "@type": "TicketingAgency",
-                                    "Code": "7F3C"
-                                }
-                            ],
-                            "PricingAgency": [
-                                {
-                                    "@type": "PricingAgency",
-                                    "Code": "7F3C"
-                                }
-                            ],
-                            "FareGuaranteePolicy": [
-                                {
-                                    "@type": "FareGuaranteePolicy",
-                                    "passengerTypeCodes": [
-                                        "ADT"
-                                    ],
-                                    "Code": {
-                                        "value": "G"
-                                    }
-                                }
-                            ]
-                        },
-                        {
-                            "@type": "TermsAndConditionsFullAir",
-                            "Restriction": [
-                                {
-                                    "value": "VALID ON UL ONLY"
-                                },
-                                {
-                                    "value": "CHANGE FEE MAY APPLY"
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ],
-            "Traveler": [
-                {
-                    "@type": "Traveler",
-                    "birthDate": "2026-02-05",
-                    "gender": "Male",
-                    "passengerTypeCode": "ADT",
-                    "id": "travelerRefId_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "7227c2cc-8b5f-457b-a16a-cae13f487c56"
-                    },
-                    "PersonName": {
-                        "@type": "PersonName",
-                        "Given": "FSDF MR",
-                        "Surname": "FSDF"
-                    },
-                    "Telephone": [
-                        {
-                            "@type": "TelephoneDetail",
-                            "countryAccessCode": "94",
-                            "phoneNumber": "234234234",
-                            "id": "telephone_1",
-                            "cityCode": "CMB",
-                            "role": "Mobile"
-                        },
-                        {
-                            "@type": "TelephoneDetail",
-                            "countryAccessCode": "94",
-                            "areaCityCode": "11",
-                            "phoneNumber": "7792400",
-                            "id": "telephone_2",
-                            "cityCode": "CMB",
-                            "role": "Other"
-                        }
-                    ],
-                    "Email": [
-                        {
-                            "emailType": "FROM",
-                            "value": "ticketing@gstravels.lk"
-                        },
-                        {
-                            "emailType": "TO",
-                            "value": "aaaa@gmail.com"
-                        }
-                    ],
-                    "TravelDocument": [
-                        {
-                            "@type": "TravelDocumentDetail",
-                            "docNumber": "N23132213",
-                            "docType": "Passport",
-                            "expireDate": "2026-11-07",
-                            "issueCountry": "LK",
-                            "birthDate": "2026-02-05",
-                            "Gender": "Male",
-                            "Nationality": "LK",
-                            "PersonName": {
-                                "@type": "PersonName",
-                                "Given": "FSDF",
-                                "Surname": "FSDF"
-                            }
-                        }
-                    ]
-                }
-            ],
-            "TravelerProduct": [
-                {
-                    "@type": "TravelerProduct",
-                    "id": "travelerProduct_1",
-                    "TravelerRef": "travelerRefId_1",
-                    "OfferRef": "offer_1"
-                }
-            ],
-            "FormOfPayment": [
-                {
-                    "@type": "FormOfPaymentCash",
-                    "id": "formOfPayment_1",
-                    "FormOfPaymentRef": "formOfPayment_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "7060aa99-8006-4954-900c-8565484d0f78"
-                    }
-                }
-            ],
-            "Payment": [
-                {
-                    "@type": "Payment",
-                    "id": "payment_1",
-                    "PaymentRef": "payment_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "f6c1adcb-5507-4301-bcbb-fe5c8485f48a"
-                    },
-                    "Amount": {
-                        "minorUnit": 0,
-                        "value": 48457
-                    },
-                    "FormOfPaymentIdentifier": {
-                        "FormOfPaymentRef": "formOfPayment_1"
-                    }
-                }
-            ],
-            "Receipt": [
-                {
-                    "@type": "ReceiptConfirmation",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "e1755de5-2893-4863-909c-13e8fc5f75f6"
-                    },
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "OfferStatus": {
-                            "@type": "OfferStatusAir",
-                            "StatusAir": [
-                                {
-                                    "flightRefs": [
-                                        "Flight_01"
-                                    ],
-                                    "code": "HK",
-                                    "value": "Confirmed"
-                                }
-                            ]
-                        },
-                        "Locator": {
-                            "source": "1G",
-                            "creationDate": "2026-10-05",
-                            "value": "HN9NZW"
-                        }
-                    }
-                },
-                {
-                    "@type": "ReceiptConfirmation",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "06d3aee9-0037-4557-8ed6-049d7c511bfd"
-                    },
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "Locator": {
-                            "source": "1A",
-                            "value": "59LP7K"
-                        }
-                    }
-                },
-                {
-                    "@type": "ReceiptPayment",
-                    "dateTime": "2026-10-05T11:42:00Z",
-                    "id": "receipt_1",
-                    "ReceiptRef": "receipt_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "df5a4d42-802c-461e-909d-5a191a9e8dc5"
-                    },
-                    "OfferRef": [
-                        "offer_1"
-                    ],
-                    "Document": [
-                        {
-                            "@type": "DocumentTicket",
-                            "Number": "6032903683687",
-                            "TravelerIdentifierRef": {
-                                "passengerTypeCode": "ADT",
-                                "id": "travelerRefId_1",
-                                "value": "f21c061f-1349-4c77-a7ef-2ab3333a81fd"
-                            },
-                            "Amount": {
-                                "@type": "Amount",
-                                "CurrencyCode": {
-                                    "decimalPlace": 0,
-                                    "value": "LKR"
-                                },
-                                "Base": 16100,
-                                "Taxes": {
-                                    "@type": "TaxesDetail",
-                                    "TotalTaxes": 32357,
-                                    "Tax": [
-                                        {
-                                            "taxCode": "LK",
-                                            "value": 20436
-                                        },
-                                        {
-                                            "taxCode": "YQ",
-                                            "value": 6812
-                                        },
-                                        {
-                                            "taxCode": "YR",
-                                            "value": 5109
-                                        }
-                                    ]
-                                },
-                                "Total": 48457
-                            },
-                            "IssuingPCC": "7F3C",
-                            "FiledAmount": {
-                                "currencyCode": "USD",
-                                "decimalPlace": 0,
-                                "value": 4700
-                            }
-                        }
-                    ],
-                    "PaymentIdentifier": {
-                        "id": "payment_1",
-                        "PaymentRef": "payment_1",
-                        "Identifier": {
-                            "authority": "Travelport",
-                            "value": "f6c1adcb-5507-4301-bcbb-fe5c8485f48a"
-                        }
-                    }
-                }
-            ],
-            "ReservationComment": [
-                {
-                    "@type": "ReservationComment",
-                    "commentSource": "Supplier",
-                    "shareWith": "Agency",
-                    "shareWithSupplier": [
-                        "1A"
-                    ],
-                    "id": "RSRVComment_1",
-                    "Comment": [
-                        {
-                            "id": "VeiComment_3",
-                            "name": "Vendor Remarks",
-                            "value": "ADTK1GTOUL BY 05OCT 1811 CMB TIME ZONE OTHERWISE WILL BE XLD"
-                        }
-                    ]
-                },
-                {
-                    "@type": "ReservationComment",
-                    "commentSource": "Supplier",
-                    "shareWith": "Agency",
-                    "shareWithSupplier": [
-                        "UL"
-                    ],
-                    "id": "RSRVComment_2",
-                    "Comment": [
-                        {
-                            "id": "VeiComment_1",
-                            "name": "Vendor Remarks",
-                            "value": "MISSING SSR CTCM MOBILE OR SSR CTCE EMAIL OR SSR CTCR NON-CONSENT FOR UL"
-                        },
-                        {
-                            "id": "VeiComment_2",
-                            "name": "Vendor Remarks",
-                            "value": "ETSYNC SSRTKNX - ETICKET NUMBER DOES NOT EXIST - 6032903683687"
-                        }
-                    ]
-                }
-            ],
-            "TravelAgency": {
-                "@type": "TravelAgencyDetail",
-                "id": "travelAgency_1",
-                "Identifier": {
-                    "authority": "Travelport",
-                    "value": "7f5709f2-c6d3-4ce4-86bf-0056b76cdfae"
-                },
-                "Telephone": [
-                    {
-                        "@type": "TelephoneDetail",
-                        "countryAccessCode": "94",
-                        "areaCityCode": "11",
-                        "phoneNumber": "7792400",
-                        "id": "telephone_1",
-                        "cityCode": "CMB"
-                    }
-                ],
-                "Address": [
-                    {
-                        "@type": "Address",
-                        "id": "address_1",
-                        "role": "Business",
-                        "AddressLine": [
-                            "Ground Floor, 439 Galle Rd"
-                        ],
-                        "City": "Colombo",
-                        "Country": {
-                            "name": "LK"
-                        },
-                        "PostalCode": "00300"
-                    }
-                ],
-                "Email": [
-                    {
-                        "id": "email_1",
-                        "value": "ticketing@gstravels.lk"
-                    }
-                ]
-            },
-            "SpecialService": [
-                {
-                    "@type": "SpecialService",
-                    "id": "SpecialService_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "f2c7a6fe-4ca1-405a-a6c3-ef650e82706e"
-                    },
-                    "AppliesTo": {
-                        "@type": "AppliesToOfferProductSegment",
-                        "OfferIdentifier": {
-                            "offerRef": "offer_1"
-                        },
-                        "ProductIdentifier": {
-                            "productRef": "product_1"
-                        },
-                        "SegmentSequenceList": [
-                            1
-                        ]
-                    },
-                    "Status": {
-                        "value": "Confirmed"
-                    },
-                    "TravelerIdentifier": {
-                        "TravelerRef": "travelerRefId_1",
-                        "Identifier": {
-                            "authority": "Travelport",
-                            "value": "7227c2cc-8b5f-457b-a16a-cae13f487c56"
-                        }
-                    },
-                    "Quantity": 1,
-                    "FreeText": "6032903683687C1",
-                    "SSRCode": "TKNE"
-                }
-            ],
-            "ReservationDisplaySequence": {
-                "@type": "ReservationDisplaySequence",
-                "DisplaySequence": [
-                    {
-                        "@type": "DisplaySequence",
-                        "displaySequence": 1,
-                        "OfferRef": "offer_1",
-                        "ProductRef": "product_1",
-                        "Sequence": 1
-                    }
-                ]
-            }
-        }
-    }
-}
+HTTP 503
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style type="text/css">
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        line-height: 1.66666667;
+        font-size: 16px;
+        color: #333;
+        background-color: #fff;
+        margin: 2em 1em;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 400;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      .alert.alert-info {
+        background-color: #F0F0F0;
+        margin-top: 30px;
+        padding: 30px;
+      }
+      .alert p {
+        padding-left: 35px;
+      }
+      ul {
+        padding-left: 51px;
+        position: relative;
+      }
+      li {
+        font-size: 14px;
+        margin-bottom: 1em;
+      }
+      p.info {
+        position: relative;
+        font-size: 20px;
+      }
+      p.info:before, p.info:after {
+        content: "";
+        left: 0;
+        position: absolute;
+        top: 0;
+      }
+      p.info:before {
+        background: #0066CC;
+        border-radius: 16px;
+        color: #fff;
+        content: "i";
+        font: bold 16px/24px serif;
+        height: 24px;
+        left: 0px;
+        text-align: center;
+        top: 4px;
+        width: 24px;
+      }
+
+      @media (min-width: 768px) {
+        body {
+          margin: 6em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Application is not available</h1>
+      <p>The application is currently not serving requests at this endpoint. It may not have been started or is still starting.</p>
+
+      <div class="alert alert-info">
+        <p class="info">
+          Possible reasons you are seeing this page:
+        </p>
+        <ul>
+          <li>
+            <strong>The host doesn't exist.</strong>
+            Make sure the hostname was typed correctly and that a route matching this hostname exists.
+          </li>
+          <li>
+            <strong>The host exists, but doesn't have a matching path.</strong>
+            Check if the URL path was typed correctly and that the route was created using the desired path.
+          </li>
+          <li>
+            <strong>Route and path matches, but all pods are down.</strong>
+            Make sure that the resources exposed by this route (pods, services, deployment configs, etc) have at least one pod running.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>

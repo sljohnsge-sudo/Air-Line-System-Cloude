@@ -1,29 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: 30f953754407d0d44e58d692b9ba308b587df5c3ef2f3d9880e42acc9b240441' \
+--header 'hmac: 6b8d33ef7061f252a5f1e7642a7d3e97edaf8a68a7d55c952537ceda4c8613f2' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "d821725c-7d83-470b-bca3-7efa8e9bd54f",
+    "msgId": "93eb6c55-456f-4be5-870d-600b8254ebc8",
     "operation": "PAYMENT_INIT",
-    "requestDate": "2026-09-15 15:14:55",
+    "requestDate": "2026-10-14 12:07:55",
     "validateOnly": false,
     "requestData": {
         "clientId": "14008400",
         "clientIdHash": "",
         "transactionType": "PURCHASE",
         "transactionAmount": {
-            "paymentAmount": 9035730,
+            "paymentAmount": 6565400,
             "currency": "LKR"
         },
         "redirect": {
-            "returnUrl": "http://localhost:5173/?locator=HN4RJV",
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX19g76ECvxDYZcGk_jwN7PU3ESSnbZy--kxCb7r_q2C7vLvN_Jeo8SbDMxdYk1fp2AqOh8bPAGXqUQdbs4uiNu-06bPXX3vFYRxWAwo8r636FtCHhzH7pLLm8LTFyi4qOicraE5gsKjuivuqB1G_DLfF__0RgpEFw8UVBPWcCzQ67XNzMh0KKoNiwWb1TItJgR_3_cbhRheE98wcWLPZ4QMDoE9GS-3-JtZJxfBwBQT9gyPGqK7uOU_R?locator=HNCQMQ",
             "returnMethod": "GET",
-            "cancelUrl": "http://localhost:5173/?locator=HN4RJV&payment=cancelled"
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX19g76ECvxDYZcGk_jwN7PU3ESSnbZy--kxCb7r_q2C7vLvN_Jeo8SbDMxdYk1fp2AqOh8bPAGXqUQdbs4uiNu-06bPXX3vFYRxWAwo8r636FtCHhzH7pLLm8LTFyi4qOicraE5gsKjuivuqB1G_DLfF__0RgpEFw8UVBPWcCzQ67XNzMh0KKoNiwWb1TItJgR_3_cbhRheE98wcWLPZ4QMDoE9GS-3-JtZJxfBwBQT9gyPGqK7uOU_R?locator=HNCQMQ&payment=cancelled"
         },
         "useReliability": true,
-        "clientRef": "HN4RJV",
-        "comment": "George Steuart Travel - HN4RJV"
+        "clientRef": "HNCQMQ",
+        "comment": "George Steuart Travel - HNCQMQ"
     }
 }'

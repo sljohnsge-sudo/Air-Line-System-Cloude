@@ -1,15 +1,29 @@
 curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
 --header 'accept: */*' \
---header 'hmac: cfac2897151bfb5222f94d846bf0e6f88792ebb572779cd67d9ec9df628dae08' \
+--header 'hmac: 95fbbd3f9d4288224525306df78a2fcf0761b30d2b95c6efbd733311c0cee6b3' \
 --header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
 --header 'content-type: application/json' \
 --data-raw '{
     "version": "1.04",
-    "msgId": "c0a4f861-891a-4612-9861-b600256c2d49",
-    "operation": "PAYMENT_COMPLETE",
-    "requestDate": "2026-10-05 16:41:24",
+    "msgId": "095f062d-3aea-4afc-97f4-10b2ee41924d",
+    "operation": "PAYMENT_INIT",
+    "requestDate": "2026-10-16 09:00:50",
     "validateOnly": false,
     "requestData": {
-        "reqid": "mFEA77OYQ1232Z2oh21s"
+        "clientId": "14008400",
+        "clientIdHash": "",
+        "transactionType": "PURCHASE",
+        "transactionAmount": {
+            "paymentAmount": 11640000,
+            "currency": "LKR"
+        },
+        "redirect": {
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX1_syaVUmy9d9K-BmneOOcZ-tFC2vqBa-3jwtfwB6agh38dlXQxkTbOrDL-ZNKModBDGOP0DNL7wzdKWiFKwWpqDkP9r2gDM7tzjoKZkw7T4sF5F5NrEVa6Y32IcOQpo6ntIVtR7gnI9tttcC8GTsCnFi6XG36qde4nWxYqbXIAfqtMpmvTxAkj8nhkO229PG7XJvERLZnEI2Ktfv1Pp9TY1OCQWIg-3m0vX_yL8QSPDZXGI8PMkMJVxh6dUXBD76OrpdV91mNHACA?locator=HNDBNV",
+            "returnMethod": "GET",
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX1_syaVUmy9d9K-BmneOOcZ-tFC2vqBa-3jwtfwB6agh38dlXQxkTbOrDL-ZNKModBDGOP0DNL7wzdKWiFKwWpqDkP9r2gDM7tzjoKZkw7T4sF5F5NrEVa6Y32IcOQpo6ntIVtR7gnI9tttcC8GTsCnFi6XG36qde4nWxYqbXIAfqtMpmvTxAkj8nhkO229PG7XJvERLZnEI2Ktfv1Pp9TY1OCQWIg-3m0vX_yL8QSPDZXGI8PMkMJVxh6dUXBD76OrpdV91mNHACA?locator=HNDBNV&payment=cancelled"
+        },
+        "useReliability": true,
+        "clientRef": "HNDBNV",
+        "comment": "George Steuart Travel - HNDBNV"
     }
 }'

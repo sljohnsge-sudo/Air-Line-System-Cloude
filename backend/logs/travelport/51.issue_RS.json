@@ -1,242 +1,94 @@
-{
-    "ReservationResponse": {
-        "@type": "ReservationResponse",
-        "Reservation": {
-            "@type": "Reservation",
-            "Traveler": [
-                {
-                    "@type": "Traveler",
-                    "birthDate": "1990-01-01",
-                    "gender": "Male",
-                    "passengerTypeCode": "ADT",
-                    "id": "travelerRefId_1",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "13075bab-e13f-41a0-880d-1d605f099751"
-                    },
-                    "PersonName": {
-                        "@type": "PersonName",
-                        "Given": "AMADEUS MR",
-                        "Surname": "AUDITTPGDC"
-                    },
-                    "Telephone": [
-                        {
-                            "@type": "TelephoneDetail",
-                            "countryAccessCode": "94",
-                            "phoneNumber": "771234567",
-                            "id": "telephone_1",
-                            "cityCode": "CMB",
-                            "role": "Mobile"
-                        },
-                        {
-                            "@type": "TelephoneDetail",
-                            "countryAccessCode": "94",
-                            "areaCityCode": "11",
-                            "phoneNumber": "7792400",
-                            "id": "telephone_2",
-                            "cityCode": "CMB",
-                            "role": "Other"
-                        }
-                    ],
-                    "Email": [
-                        {
-                            "emailType": "FROM",
-                            "value": "ticketing@gstravels.lk"
-                        },
-                        {
-                            "emailType": "TO",
-                            "value": "audit@example.com"
-                        }
-                    ],
-                    "TravelDocument": [
-                        {
-                            "@type": "TravelDocumentDetail",
-                            "docNumber": "N1234567",
-                            "docType": "Passport",
-                            "expireDate": "2030-01-01",
-                            "issueCountry": "LK",
-                            "birthDate": "1990-01-01",
-                            "Gender": "Male",
-                            "Nationality": "LK",
-                            "PersonName": {
-                                "@type": "PersonName",
-                                "Given": "AMADEUS",
-                                "Surname": "AUDITTPGDC"
-                            }
-                        }
-                    ]
-                }
-            ],
-            "TravelerProduct": [
-                {
-                    "@type": "TravelerProduct",
-                    "TravelerRef": "travelerRefId_1",
-                    "UnpricedFlightSegmentRefs": [
-                        "unPricedFlightSegment_1"
-                    ]
-                }
-            ],
-            "Receipt": [
-                {
-                    "@type": "ReceiptConfirmation",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "e8dee4fe-473a-447a-8feb-b468f0091a1f"
-                    },
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "Locator": {
-                            "source": "1G",
-                            "creationDate": "2026-10-07",
-                            "value": "HNB2YS"
-                        },
-                        "UnpricedSegmentsStatus": [
-                            {
-                                "@type": "UnpricedSegmentsStatus",
-                                "StatusAir": [
-                                    {
-                                        "flightRefs": [
-                                            "Flight_01"
-                                        ],
-                                        "code": "HX",
-                                        "value": "Cancelled"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                },
-                {
-                    "@type": "ReceiptConfirmation",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "b8a98072-f271-4d0d-a538-da030cf269fc"
-                    },
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "Locator": {
-                            "source": "1A",
-                            "value": "5E2SIP"
-                        }
-                    }
-                }
-            ],
-            "ReservationComment": [
-                {
-                    "@type": "ReservationComment",
-                    "commentSource": "Supplier",
-                    "shareWith": "Agency",
-                    "shareWithSupplier": [
-                        "1A"
-                    ],
-                    "id": "RSRVComment_1",
-                    "Comment": [
-                        {
-                            "id": "VeiComment_2",
-                            "name": "Vendor Remarks",
-                            "value": "194659902684 - TIME LIMIT APPLIED FOR TICKETING"
-                        },
-                        {
-                            "id": "VeiComment_3",
-                            "name": "Vendor Remarks",
-                            "value": "ADTK1GTOEY BY 08OCT 0854 CMB TIME ZONE OTHERWISE WILL BE XLD"
-                        },
-                        {
-                            "id": "VeiComment_4",
-                            "name": "Vendor Remarks",
-                            "value": "CANCELED BY EY DUE TO INVALID NAME"
-                        }
-                    ]
-                },
-                {
-                    "@type": "ReservationComment",
-                    "commentSource": "Supplier",
-                    "shareWith": "Agency",
-                    "shareWithSupplier": [
-                        "EY"
-                    ],
-                    "id": "RSRVComment_2",
-                    "Comment": [
-                        {
-                            "id": "VeiComment_1",
-                            "name": "Vendor Remarks",
-                            "value": "MISSING SSR CTCM MOBILE OR SSR CTCE EMAIL OR SSR CTCR NON-CONSENT FOR EY"
-                        }
-                    ]
-                },
-                {
-                    "@type": "ReservationComment",
-                    "commentSource": "Agency",
-                    "shareWith": "Supplier",
-                    "shareWithSupplier": [
-                        "1G"
-                    ],
-                    "id": "RSRVComment_3",
-                    "Comment": [
-                        {
-                            "id": "SinComment_1",
-                            "name": "OSI Remarks",
-                            "language": "EN",
-                            "value": "SNC RLOC 1A 5E2SIP"
-                        }
-                    ]
-                }
-            ],
-            "TravelAgency": {
-                "@type": "TravelAgencyDetail",
-                "id": "travelAgency_1",
-                "Identifier": {
-                    "authority": "Travelport",
-                    "value": "08b05f14-6f46-42d3-9e22-af475a1e60c6"
-                },
-                "Telephone": [
-                    {
-                        "@type": "TelephoneDetail",
-                        "countryAccessCode": "94",
-                        "areaCityCode": "11",
-                        "phoneNumber": "7792400",
-                        "id": "telephone_1",
-                        "cityCode": "CMB"
-                    }
-                ],
-                "Address": [
-                    {
-                        "@type": "Address",
-                        "id": "address_1",
-                        "role": "Business",
-                        "AddressLine": [
-                            "Ground Floor, 439 Galle Rd"
-                        ],
-                        "City": "Colombo",
-                        "Country": {
-                            "name": "LK"
-                        },
-                        "PostalCode": "00300"
-                    }
-                ],
-                "Email": [
-                    {
-                        "id": "email_1",
-                        "value": "ticketing@gstravels.lk"
-                    }
-                ]
-            },
-            "ReservationDisplaySequence": {
-                "@type": "ReservationDisplaySequence"
-            }
-        },
-        "Result": {
-            "@type": "Result",
-            "Error": [
-                {
-                    "@type": "ErrorDetail",
-                    "category": "VALIDATION",
-                    "StatusCode": 200,
-                    "Message": "FILED FARE IS NO LONGER VALID",
-                    "SourceID": "1G",
-                    "SourceCode": "4118"
-                }
-            ]
-        }
-    }
-}
+HTTP 503
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style type="text/css">
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        line-height: 1.66666667;
+        font-size: 16px;
+        color: #333;
+        background-color: #fff;
+        margin: 2em 1em;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 400;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      .alert.alert-info {
+        background-color: #F0F0F0;
+        margin-top: 30px;
+        padding: 30px;
+      }
+      .alert p {
+        padding-left: 35px;
+      }
+      ul {
+        padding-left: 51px;
+        position: relative;
+      }
+      li {
+        font-size: 14px;
+        margin-bottom: 1em;
+      }
+      p.info {
+        position: relative;
+        font-size: 20px;
+      }
+      p.info:before, p.info:after {
+        content: "";
+        left: 0;
+        position: absolute;
+        top: 0;
+      }
+      p.info:before {
+        background: #0066CC;
+        border-radius: 16px;
+        color: #fff;
+        content: "i";
+        font: bold 16px/24px serif;
+        height: 24px;
+        left: 0px;
+        text-align: center;
+        top: 4px;
+        width: 24px;
+      }
+
+      @media (min-width: 768px) {
+        body {
+          margin: 6em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Application is not available</h1>
+      <p>The application is currently not serving requests at this endpoint. It may not have been started or is still starting.</p>
+
+      <div class="alert alert-info">
+        <p class="info">
+          Possible reasons you are seeing this page:
+        </p>
+        <ul>
+          <li>
+            <strong>The host doesn't exist.</strong>
+            Make sure the hostname was typed correctly and that a route matching this hostname exists.
+          </li>
+          <li>
+            <strong>The host exists, but doesn't have a matching path.</strong>
+            Check if the URL path was typed correctly and that the route was created using the desired path.
+          </li>
+          <li>
+            <strong>Route and path matches, but all pods are down.</strong>
+            Make sure that the resources exposed by this route (pods, services, deployment configs, etc) have at least one pod running.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>

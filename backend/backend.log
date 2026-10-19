@@ -1,0 +1,1450 @@
+INFO:     Will watch for changes in these directories: ['D:\\New folder\\Air-Line-System-Cloude\\backend']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [33592] using StatReload
+INFO:     Started server process [35188]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-10-18 17:44:34,869 [INFO] services.ticket_service: Cancelling reservation: NOTREAL2
+2026-10-18 17:44:34,878 [INFO] services.auth_service: Requesting new Travelport access token...
+2026-10-18 17:44:37,139 [INFO] httpx: HTTP Request: POST https://auth.pp.travelport.net/oauth/token "HTTP/1.1 200 OK"
+2026-10-18 17:44:37,143 [INFO] services.auth_service: New token obtained. Expires in 86400s.
+2026-10-18 17:44:40,738 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench/buildfromlocator?Locator=NOTREAL2 "HTTP/1.1 200 OK"
+2026-10-18 17:44:40,745 [ERROR] services.ticket_service: Cancel failed for NOTREAL2 (non-HTTP error): No workbench ID returned from post-commit workbench creation
+INFO:     127.0.0.1:56892 - "POST /api/bookings/NOTREAL2/cancel HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64944 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64947 - "POST /api/admin/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64949 - "GET /api/admin/pricing-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64951 - "GET /api/admin/force-issued-tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64953 - "GET /api/admin/ticket-shares HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64955 - "GET /api/admin/stuck-bookings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64957 - "POST /api/customers/register HTTP/1.1" 201 Created
+INFO:     127.0.0.1:64959 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64961 - "GET /api/payments/complete?reqid=x HTTP/1.1" 401 Unauthorized
+2026-10-18 17:45:07,040 [INFO] main: Issuing ticket for NOTREAL3 without a PayCorp reqid (cash/bank transfer)...
+2026-10-18 17:45:07,041 [INFO] services.ticket_service: Issuing ticket for PNR: NOTREAL3 via post-commit workbench buildfromlocator
+2026-10-18 17:45:07,041 [INFO] services.ticket_service: Step 1: POST buildfromlocator for PNR NOTREAL3
+2026-10-18 17:45:09,007 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench/buildfromlocator?Locator=NOTREAL3 "HTTP/1.1 200 OK"
+2026-10-18 17:45:09,012 [WARNING] services.ticket_service: Could not extract workbench_id from: {'ReservationResponse': {'@type': 'ReservationResponse', 'Result': {'@type': 'Result', 'Error': [{'@type': 'ErrorDetail', 'category': 'VALIDATION', 'StatusCode': 200, 'Message': 'RECORD LOCATOR DOES NOT EXIST', 'SourceID': '1G', 'SourceCode': '4247'}]}}}
+2026-10-18 17:45:09,013 [ERROR] services.ticket_service: Ticketing flow error for NOTREAL3: No workbench ID returned from post-commit workbench creation
+2026-10-18 17:45:09,013 [INFO] services.ticket_service: Retrieving reservation: NOTREAL3
+2026-10-18 17:45:11,784 [INFO] httpx: HTTP Request: GET https://api.pp.travelport.net/11/air/book/reservation/reservations/NOTREAL3?detailViewInd=true "HTTP/1.1 503 Service Unavailable"
+2026-10-18 17:45:11,789 [ERROR] main: Ticket issuance failed for NOTREAL3: [Errno 22] Invalid argument: 'logs/travelport\\4.retrieve_RS.json'
+2026-10-18 17:45:11,797 [WARNING] main: Stuck-booking notification email not sent: SMTP is not configured yet (missing SMTP_USER / SMTP_PASSWORD in .env).
+INFO:     127.0.0.1:64963 - "POST /api/bookings/NOTREAL3/issue-ticket HTTP/1.1" 502 Bad Gateway
+INFO:     127.0.0.1:59529 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51689 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61685 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52383 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51689 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52383 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61685 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49342 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60429 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51190 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51190 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60429 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49342 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51190 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60429 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58168 - "GET /api/reference/airports?q=Colombo%20(CMB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58168 - "GET /api/reference/airports?q=Colombo%20(CMB)Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53413 - "GET /api/reference/airports?q=Colombo HTTP/1.1" 200 OK
+2026-10-19 08:43:02,327 [INFO] services.ticket_service: Retrieving reservation: HNCNTY
+INFO:     127.0.0.1:53432 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53430 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53431 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53433 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53433 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53430 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53432 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53431 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53433 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 08:43:05,002 [INFO] main: Flight search (multi-leg): CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27
+2026-10-19 08:43:05,012 [INFO] services.search_service: Searching flights: CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 08:43:05,012 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}, {'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-27', 'From': {'value': 'DXB'}, 'To': {'value': 'CMB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:53433 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53430 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53430 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53433 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+2026-10-19 08:43:05,900 [INFO] httpx: HTTP Request: GET https://api.pp.travelport.net/11/air/book/reservation/reservations/HNCNTY?detailViewInd=true "HTTP/1.1 503 Service Unavailable"
+2026-10-19 08:43:05,904 [WARNING] main: Live retrieval failed for PNR HNCNTY: [Errno 22] Invalid argument: 'logs/travelport\\5.retrieve_RS.json'
+INFO:     127.0.0.1:53434 - "GET /api/bookings/retrieve/HNCNTY HTTP/1.1" 200 OK
+2026-10-19 08:43:05,931 [INFO] services.ticket_service: Retrieving reservation: HNCNTY
+2026-10-19 08:43:06,955 [INFO] httpx: HTTP Request: GET https://api.pp.travelport.net/11/air/book/reservation/reservations/HNCNTY?detailViewInd=true "HTTP/1.1 503 Service Unavailable"
+2026-10-19 08:43:06,959 [WARNING] main: Live retrieval failed for PNR HNCNTY: [Errno 22] Invalid argument: 'logs/travelport\\7.retrieve_RS.json'
+INFO:     127.0.0.1:53433 - "GET /api/bookings/retrieve/HNCNTY HTTP/1.1" 200 OK
+2026-10-19 08:43:08,521 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 08:43:08,866 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:53432 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62166 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 08:43:13,502 [INFO] main: Flight search (multi-leg): CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27
+2026-10-19 08:43:13,528 [INFO] services.search_service: Searching flights: CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27, Adults=1, Children=0, Infants=0, Students=0
+INFO:     127.0.0.1:50011 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+2026-10-19 08:43:13,530 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}, {'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-27', 'From': {'value': 'DXB'}, 'To': {'value': 'CMB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:53097 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50011 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59252 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53432 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59265 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59266 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59267 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59265 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59266 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59267 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59266 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59267 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59266 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59267 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 08:43:27,719 [INFO] main: Flight search: CMB \u2192 DXB on 2026-10-20
+2026-10-19 08:43:27,723 [INFO] services.search_service: Searching flights: CMB -> DXB on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 08:43:27,724 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:59266 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59273 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59266 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59273 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 08:43:37,124 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 08:43:38,283 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 08:43:38,641 [INFO] services.search_service: Filtered out 6 of 109 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB'), ('DXB', 'CMB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:62166 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62166 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+2026-10-19 08:43:56,111 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 08:43:56,534 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:59267 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59267 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58125 - "OPTIONS /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 08:45:08,335 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 08:45:08,336 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 08:45:09,423 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 08:45:09,428 [INFO] services.workbench_service: Workbench created: 4f008b24-dee0-4d16-88a3-365b3fce307e
+2026-10-19 08:45:09,429 [INFO] services.workbench_service: Adding offer to workbench 4f008b24-dee0-4d16-88a3-365b3fce307e...
+2026-10-19 08:45:11,187 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/4f008b24-dee0-4d16-88a3-365b3fce307e/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 08:45:11,200 [WARNING] services.workbench_service: Full-payload Add Offer failed for non-GDS content (Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*); falling back to reference payload (Travelport docs: full payload not supported for NDC).
+2026-10-19 08:45:12,314 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/4f008b24-dee0-4d16-88a3-365b3fce307e/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 08:45:12,329 [INFO] services.workbench_service: Offer added to workbench (reference payload).
+2026-10-19 08:45:12,329 [INFO] services.workbench_service: Querying seat map for workbench 4f008b24-dee0-4d16-88a3-365b3fce307e, offer e31eb5ac-01d0-4545-922a-a010208c8f18...
+2026-10-19 08:45:13,229 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities "HTTP/1.1 200 OK"
+2026-10-19 08:45:13,233 [WARNING] services.workbench_service: No seating chart found in Travelport response.
+2026-10-19 08:45:13,233 [WARNING] main: Live seat map retrieval failed: Travelport Seating Chart Error: OFFER IDENTIFIER IS NOT VALID
+2026-10-19 08:45:13,233 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 4f008b24-dee0-4d16-88a3-365b3fce307e in a single request: gfg Done  (ADT)
+INFO:     127.0.0.1:50622 - "OPTIONS /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 08:45:13,307 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 08:45:13,307 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 08:45:14,342 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 08:45:14,344 [INFO] services.workbench_service: Workbench created: b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5
+2026-10-19 08:45:14,345 [INFO] services.workbench_service: Adding offer to workbench b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5...
+2026-10-19 08:45:14,411 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/4f008b24-dee0-4d16-88a3-365b3fce307e/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 08:45:14,415 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 08:45:14,415 [INFO] services.workbench_service: Querying ancillary offers for workbench 4f008b24-dee0-4d16-88a3-365b3fce307e, offer e31eb5ac-01d0-4545-922a-a010208c8f18...
+2026-10-19 08:45:15,696 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries "HTTP/1.1 200 OK"
+2026-10-19 08:45:15,699 [WARNING] main: Live ancillary offers retrieval failed: Travelport Ancillary Shop Error: ANCILLARY SEARCH CANNOT BE PROCESSED AT THIS TIME
+2026-10-19 08:45:15,699 [INFO] main: Cleaning up temporary initiate workbench session 4f008b24-dee0-4d16-88a3-365b3fce307e...
+2026-10-19 08:45:15,699 [INFO] services.workbench_service: Discarding workbench session 4f008b24-dee0-4d16-88a3-365b3fce307e...
+2026-10-19 08:45:16,195 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 08:45:16,197 [WARNING] services.workbench_service: Full-payload Add Offer failed for non-GDS content (Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*); falling back to reference payload (Travelport docs: full payload not supported for NDC).
+2026-10-19 08:45:16,875 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/4f008b24-dee0-4d16-88a3-365b3fce307e "HTTP/1.1 204 No Content"
+2026-10-19 08:45:16,886 [INFO] services.workbench_service: Workbench session 4f008b24-dee0-4d16-88a3-365b3fce307e discarded successfully.
+INFO:     127.0.0.1:58125 - "POST /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 08:45:17,306 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 08:45:17,312 [INFO] services.workbench_service: Offer added to workbench (reference payload).
+2026-10-19 08:45:17,312 [INFO] services.workbench_service: Querying seat map for workbench b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5, offer 3913d079-98c9-4d50-b474-60d98f00fd33...
+2026-10-19 08:45:18,410 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities "HTTP/1.1 200 OK"
+2026-10-19 08:45:18,413 [WARNING] services.workbench_service: No seating chart found in Travelport response.
+2026-10-19 08:45:18,413 [WARNING] main: Live seat map retrieval failed: Travelport Seating Chart Error: OFFER IDENTIFIER IS NOT VALID
+2026-10-19 08:45:18,413 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5 in a single request: John Doe (ADT)
+2026-10-19 08:45:19,606 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 08:45:19,609 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 08:45:19,610 [INFO] services.workbench_service: Querying ancillary offers for workbench b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5, offer 3913d079-98c9-4d50-b474-60d98f00fd33...
+2026-10-19 08:45:20,727 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries "HTTP/1.1 200 OK"
+2026-10-19 08:45:20,730 [WARNING] main: Live ancillary offers retrieval failed: Travelport Ancillary Shop Error: ANCILLARY SEARCH CANNOT BE PROCESSED AT THIS TIME
+2026-10-19 08:45:20,730 [INFO] main: Cleaning up temporary initiate workbench session b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5...
+2026-10-19 08:45:20,731 [INFO] services.workbench_service: Discarding workbench session b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5...
+2026-10-19 08:45:21,871 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5 "HTTP/1.1 204 No Content"
+2026-10-19 08:45:21,875 [INFO] services.workbench_service: Workbench session b40c2749-8a4e-4e2e-8b66-9bc81d1da1e5 discarded successfully.
+INFO:     127.0.0.1:50622 - "POST /api/bookings/initiate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59707 - "POST /api/admin/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59709 - "GET /api/admin/pricing-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59711 - "GET /api/admin/admins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59713 - "GET /api/admin/force-issued-tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59715 - "GET /api/admin/ticket-shares HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59717 - "GET /api/admin/stuck-bookings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59719 - "GET /api/admin/reports/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59721 - "GET /api/bookings/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59723 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59725 - "POST /api/customers/register HTTP/1.1" 201 Created
+INFO:     127.0.0.1:54705 - "OPTIONS /api/bookings/confirm HTTP/1.1" 200 OK
+2026-10-19 08:46:37,353 [INFO] main: Confirming booking — creating fresh GDS workbench at commit time...
+2026-10-19 08:46:37,354 [INFO] services.workbench_service: Confirming price via AirPrice (NDC/LCC offer, reference payload)...
+2026-10-19 08:46:39,357 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 08:46:39,362 [INFO] services.workbench_service: AirPrice confirmed. transactionId for Add Offer: ccfd9a43-11e7-4a9f-9abf-83e2c7447bab_PC
+2026-10-19 08:46:39,362 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 08:46:40,348 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 08:46:40,351 [INFO] services.workbench_service: Workbench created: 9ca71b6f-1873-49d1-9bc8-ff93e201abd1
+2026-10-19 08:46:40,351 [INFO] services.workbench_service: [Flow attempt 1/3] Workbench: 9ca71b6f-1873-49d1-9bc8-ff93e201abd1
+2026-10-19 08:46:40,352 [INFO] services.workbench_service: Adding offer to workbench 9ca71b6f-1873-49d1-9bc8-ff93e201abd1...
+2026-10-19 08:46:42,054 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/9ca71b6f-1873-49d1-9bc8-ff93e201abd1/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 08:46:42,058 [WARNING] services.workbench_service: Full-payload Add Offer failed for non-GDS content (Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*); falling back to reference payload (Travelport docs: full payload not supported for NDC).
+2026-10-19 08:46:43,026 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/9ca71b6f-1873-49d1-9bc8-ff93e201abd1/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 08:46:43,029 [INFO] services.workbench_service: Offer added to workbench (reference payload).
+2026-10-19 08:46:43,029 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 9ca71b6f-1873-49d1-9bc8-ff93e201abd1 in a single request: gfg Done  (ADT)
+2026-10-19 08:46:44,074 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/9ca71b6f-1873-49d1-9bc8-ff93e201abd1/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 08:46:44,086 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 08:46:44,087 [INFO] services.workbench_service: Committing workbench 9ca71b6f-1873-49d1-9bc8-ff93e201abd1 to generate PNR...
+2026-10-19 08:46:44,862 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/reservation/reservations/9ca71b6f-1873-49d1-9bc8-ff93e201abd1 "HTTP/1.1 503 Service Unavailable"
+2026-10-19 08:46:44,866 [ERROR] services.workbench_service: API POST Error 503 for URL https://api.pp.travelport.net/11/air/book/reservation/reservations/9ca71b6f-1873-49d1-9bc8-ff93e201abd1: <html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style type="text/css">
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        line-height: 1.66666667;
+        font-size: 16px;
+        color: #333;
+        background-color: #fff;
+        margin: 2em 1em;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 400;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      .alert.alert-info {
+        background-color: #F0F0F0;
+        margin-top: 30px;
+        padding: 30px;
+      }
+      .alert p {
+        padding-left: 35px;
+      }
+      ul {
+        padding-left: 51px;
+        position: relative;
+      }
+      li {
+        font-size: 14px;
+        margin-bottom: 1em;
+      }
+      p.info {
+        position: relative;
+        font-size: 20px;
+      }
+      p.info:before, p.info:after {
+        content: "";
+        left: 0;
+        position: absolute;
+        top: 0;
+      }
+      p.info:before {
+        background: #0066CC;
+        border-radius: 16px;
+        color: #fff;
+        content: "i";
+        font: bold 16px/24px serif;
+        height: 24px;
+        left: 0px;
+        text-align: center;
+        top: 4px;
+        width: 24px;
+      }
+
+      @media (min-width: 768px) {
+        body {
+          margin: 6em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Application is not available</h1>
+      <p>The application is currently not serving requests at this endpoint. It may not have been started or is still starting.</p>
+
+      <div class="alert alert-info">
+        <p class="info">
+          Possible reasons you are seeing this page:
+        </p>
+        <ul>
+          <li>
+            <strong>The host doesn't exist.</strong>
+            Make sure the hostname was typed correctly and that a route matching this hostname exists.
+          </li>
+          <li>
+            <strong>The host exists, but doesn't have a matching path.</strong>
+            Check if the URL path was typed correctly and that the route was created using the desired path.
+          </li>
+          <li>
+            <strong>Route and path matches, but all pods are down.</strong>
+            Make sure that the resources exposed by this route (pods, services, deployment configs, etc) have at least one pod running.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>
+
+2026-10-19 08:46:44,867 [WARNING] services.workbench_service: Error occurred during booking flow. Discarding workbench 9ca71b6f-1873-49d1-9bc8-ff93e201abd1...
+2026-10-19 08:46:44,867 [INFO] services.workbench_service: Discarding workbench session 9ca71b6f-1873-49d1-9bc8-ff93e201abd1...
+2026-10-19 08:46:46,099 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/9ca71b6f-1873-49d1-9bc8-ff93e201abd1 "HTTP/1.1 204 No Content"
+2026-10-19 08:46:46,101 [INFO] services.workbench_service: Workbench session 9ca71b6f-1873-49d1-9bc8-ff93e201abd1 discarded successfully.
+2026-10-19 08:46:46,101 [ERROR] main: Confirmation failed with HTTPStatusError: Server error '503 Service Unavailable' for url 'https://api.pp.travelport.net/11/air/book/reservation/reservations/9ca71b6f-1873-49d1-9bc8-ff93e201abd1'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503. Details: <html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style type="text/css">
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        line-height: 1.66666667;
+        font-size: 16px;
+        color: #333;
+        bac
+INFO:     127.0.0.1:54705 - "POST /api/bookings/confirm HTTP/1.1" 502 Bad Gateway
+INFO:     127.0.0.1:55690 - "OPTIONS /api/bookings/initiate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55690 - "POST /api/bookings/initiate HTTP/1.1" 422 Unprocessable Content
+2026-10-19 08:58:42,312 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 08:58:42,313 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 08:58:43,370 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 08:58:43,375 [INFO] services.workbench_service: Workbench created: 7914e5a9-fbc0-4828-a933-81340a6f643a
+2026-10-19 08:58:43,376 [INFO] services.workbench_service: Adding offer to workbench 7914e5a9-fbc0-4828-a933-81340a6f643a...
+2026-10-19 08:58:44,968 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/7914e5a9-fbc0-4828-a933-81340a6f643a/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 08:58:44,971 [INFO] services.workbench_service: Offer added to workbench (full payload).
+2026-10-19 08:58:44,971 [INFO] services.workbench_service: Querying seat map for workbench 7914e5a9-fbc0-4828-a933-81340a6f643a, offer 299dee2b-5368-41fc-a86c-ca65e51478b8...
+2026-10-19 08:59:07,300 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities "HTTP/1.1 200 OK"
+2026-10-19 08:59:07,326 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 7914e5a9-fbc0-4828-a933-81340a6f643a in a single request: fsdaf fdf (ADT)
+2026-10-19 08:59:08,364 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/7914e5a9-fbc0-4828-a933-81340a6f643a/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 08:59:08,367 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 08:59:08,367 [INFO] services.workbench_service: Querying ancillary offers for workbench 7914e5a9-fbc0-4828-a933-81340a6f643a, offer 299dee2b-5368-41fc-a86c-ca65e51478b8...
+2026-10-19 08:59:09,692 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries "HTTP/1.1 200 OK"
+2026-10-19 08:59:09,696 [WARNING] main: Live ancillary offers retrieval failed: Travelport Ancillary Shop Error: ANCILLARIES ARE NOT AVAILABLE FOR THE REQUESTED FLIGHT DATA
+2026-10-19 08:59:09,696 [INFO] main: Cleaning up temporary initiate workbench session 7914e5a9-fbc0-4828-a933-81340a6f643a...
+2026-10-19 08:59:09,696 [INFO] services.workbench_service: Discarding workbench session 7914e5a9-fbc0-4828-a933-81340a6f643a...
+2026-10-19 08:59:11,062 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/7914e5a9-fbc0-4828-a933-81340a6f643a "HTTP/1.1 204 No Content"
+2026-10-19 08:59:11,064 [INFO] services.workbench_service: Workbench session 7914e5a9-fbc0-4828-a933-81340a6f643a discarded successfully.
+INFO:     127.0.0.1:55699 - "POST /api/bookings/initiate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59657 - "OPTIONS /api/ndc/book HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59657 - "POST /api/ndc/book HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59657 - "OPTIONS /api/payments/init HTTP/1.1" 200 OK
+2026-10-19 08:59:37,459 [INFO] services.paycorp_service: PayCorp PAYMENT_INIT: LKR 121389.0 (clientId=14008400)
+2026-10-19 08:59:39,683 [INFO] httpx: HTTP Request: POST https://sampath.paycorp.lk/rest/service/proxy "HTTP/1.1 200 "
+INFO:     127.0.0.1:59657 - "POST /api/payments/init HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55774 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52712 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55774 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52205 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51446 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52712 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52205 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55774 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63043 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52382 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63043 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52382 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52382 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:00:09,077 [INFO] main: Flight search: CMB \u2192 DXB on 2026-10-20
+2026-10-19 09:00:09,079 [INFO] services.search_service: Searching flights: CMB -> DXB on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:00:09,080 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:63043 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63043 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63043 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63043 - "GET /api/reference/countries HTTP/1.1" 200 OK
+2026-10-19 09:00:09,137 [INFO] main: Flight search: CMB \u2192 DXB on 2026-10-20
+2026-10-19 09:00:09,140 [INFO] services.search_service: Searching flights: CMB -> DXB on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:00:09,141 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:61392 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61271 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61392 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61271 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51000 - "OPTIONS /api/ndc/instant-pay/complete HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51000 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51001 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:00:16,199 [INFO] services.paycorp_service: PayCorp PAYMENT_COMPLETE: reqid=CFvA1AopS5ClS2wHrAL8
+2026-10-19 09:00:16,206 [INFO] main: Flight search: CMB \u2192 DXB on 2026-10-20
+2026-10-19 09:00:16,209 [INFO] services.search_service: Searching flights: CMB -> DXB on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:00:16,209 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:51002 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51001 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 09:00:16,214 [INFO] main: Flight search: CMB \u2192 DXB on 2026-10-20
+2026-10-19 09:00:16,218 [INFO] services.search_service: Searching flights: CMB -> DXB on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:00:16,218 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:51003 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51004 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51001 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51003 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51004 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51001 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51003 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51004 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51001 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51004 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+2026-10-19 09:00:18,430 [INFO] httpx: HTTP Request: POST https://sampath.paycorp.lk/rest/service/proxy "HTTP/1.1 200 "
+2026-10-19 09:00:18,437 [INFO] services.paycorp_service: PayCorp PAYMENT_COMPLETE result: responseCode=00 (SUCCESS) txnReference=2026200011366110
+2026-10-19 09:00:18,445 [INFO] main: Payment verified for client_ref=f67b9f7f-d812-4be3-b258-973a1f03f23e (txnReference=2026200011366110) — issuing ticket...
+2026-10-19 09:00:18,446 [INFO] services.workbench_service: Confirming price via AirPrice (NDC/LCC offer, reference payload)...
+2026-10-19 09:00:20,305 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:00:20,317 [INFO] services.workbench_service: AirPrice confirmed. transactionId for Add Offer: ccfd9a43-11e7-4a9f-9abf-83e2c7447bab_PC
+2026-10-19 09:00:20,317 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 09:00:21,521 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 09:00:21,529 [INFO] services.workbench_service: Workbench created: f2a80614-9e35-42a0-80b0-a78ef6baeccc
+2026-10-19 09:00:21,530 [INFO] services.workbench_service: [Instant Pay 1/3] Workbench: f2a80614-9e35-42a0-80b0-a78ef6baeccc
+2026-10-19 09:00:21,530 [INFO] services.workbench_service: Adding offer to workbench f2a80614-9e35-42a0-80b0-a78ef6baeccc...
+2026-10-19 09:00:22,947 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/f2a80614-9e35-42a0-80b0-a78ef6baeccc/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:00:22,955 [INFO] services.workbench_service: Offer added to workbench (reference payload).
+2026-10-19 09:00:22,957 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench f2a80614-9e35-42a0-80b0-a78ef6baeccc in a single request: fsdaf fdf (ADT)
+2026-10-19 09:00:24,136 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/f2a80614-9e35-42a0-80b0-a78ef6baeccc/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 09:00:24,144 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 09:00:24,145 [INFO] services.workbench_service: Retrieving workbench f2a80614-9e35-42a0-80b0-a78ef6baeccc details...
+2026-10-19 09:00:25,263 [INFO] httpx: HTTP Request: GET https://api.pp.travelport.net/11/air/book/session/reservationworkbench/f2a80614-9e35-42a0-80b0-a78ef6baeccc "HTTP/1.1 200 OK"
+2026-10-19 09:00:26,465 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/payment/reservationworkbench/f2a80614-9e35-42a0-80b0-a78ef6baeccc/formofpayment "HTTP/1.1 200 OK"
+2026-10-19 09:00:26,471 [INFO] services.workbench_service: Retrieving workbench f2a80614-9e35-42a0-80b0-a78ef6baeccc details...
+2026-10-19 09:00:27,470 [INFO] httpx: HTTP Request: GET https://api.pp.travelport.net/11/air/book/session/reservationworkbench/f2a80614-9e35-42a0-80b0-a78ef6baeccc "HTTP/1.1 200 OK"
+2026-10-19 09:00:28,512 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/paymentoffer/reservationworkbench/f2a80614-9e35-42a0-80b0-a78ef6baeccc/payments "HTTP/1.1 200 OK"
+2026-10-19 09:00:29,681 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/reservation/reservations/f2a80614-9e35-42a0-80b0-a78ef6baeccc?Issuance=Ticket&DocumentValue=Retain "HTTP/1.1 503 Service Unavailable"
+2026-10-19 09:00:29,690 [ERROR] services.workbench_service: API POST Error 503 for URL https://api.pp.travelport.net/11/air/book/reservation/reservations/f2a80614-9e35-42a0-80b0-a78ef6baeccc?Issuance=Ticket&DocumentValue=Retain: <html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style type="text/css">
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        line-height: 1.66666667;
+        font-size: 16px;
+        color: #333;
+        background-color: #fff;
+        margin: 2em 1em;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 400;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      .alert.alert-info {
+        background-color: #F0F0F0;
+        margin-top: 30px;
+        padding: 30px;
+      }
+      .alert p {
+        padding-left: 35px;
+      }
+      ul {
+        padding-left: 51px;
+        position: relative;
+      }
+      li {
+        font-size: 14px;
+        margin-bottom: 1em;
+      }
+      p.info {
+        position: relative;
+        font-size: 20px;
+      }
+      p.info:before, p.info:after {
+        content: "";
+        left: 0;
+        position: absolute;
+        top: 0;
+      }
+      p.info:before {
+        background: #0066CC;
+        border-radius: 16px;
+        color: #fff;
+        content: "i";
+        font: bold 16px/24px serif;
+        height: 24px;
+        left: 0px;
+        text-align: center;
+        top: 4px;
+        width: 24px;
+      }
+
+      @media (min-width: 768px) {
+        body {
+          margin: 6em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Application is not available</h1>
+      <p>The application is currently not serving requests at this endpoint. It may not have been started or is still starting.</p>
+
+      <div class="alert alert-info">
+        <p class="info">
+          Possible reasons you are seeing this page:
+        </p>
+        <ul>
+          <li>
+            <strong>The host doesn't exist.</strong>
+            Make sure the hostname was typed correctly and that a route matching this hostname exists.
+          </li>
+          <li>
+            <strong>The host exists, but doesn't have a matching path.</strong>
+            Check if the URL path was typed correctly and that the route was created using the desired path.
+          </li>
+          <li>
+            <strong>Route and path matches, but all pods are down.</strong>
+            Make sure that the resources exposed by this route (pods, services, deployment configs, etc) have at least one pod running.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>
+
+INFO:     127.0.0.1:51000 - "POST /api/ndc/instant-pay/complete HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\uvicorn\protocols\http\h11_impl.py", line 416, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 63, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\fastapi\applications.py", line 1163, in __call__
+    await super().__call__(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\applications.py", line 96, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
+    raise exc
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\New folder\Air-Line-System-Cloude\backend\main.py", line 116, in _enforce_module_flags
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\routing.py", line 670, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\fastapi\routing.py", line 2734, in app
+    await route.handle(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\fastapi\routing.py", line 1281, in handle
+    await super().handle(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\routing.py", line 280, in handle
+    await self.app(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\fastapi\routing.py", line 158, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\fastapi\routing.py", line 144, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\fastapi\routing.py", line 706, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\fastapi\routing.py", line 354, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\starlette\concurrency.py", line 34, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\anyio\to_thread.py", line 65, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2641, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1033, in run
+    result = context.run(func, *args)
+  File "D:\New folder\Air-Line-System-Cloude\backend\main.py", line 1605, in ndc_instant_pay_complete
+    result = _ndc_instant_pay(
+        pending["raw_offering"], pending["travelers"],
+        pending.get("selected_seats"), pending.get("selected_ancillaries"),
+        customer_id=pending.get("customer_id"),
+    )
+  File "D:\New folder\Air-Line-System-Cloude\backend\main.py", line 1481, in _ndc_instant_pay
+    ip = services.workbench_service.run_instant_pay_flow(raw_offering, travelers)
+  File "D:\New folder\Air-Line-System-Cloude\backend\services\workbench_service.py", line 1377, in run_instant_pay_flow
+    result = _api_post(commit_url, "", session_id=workbench_id)
+  File "D:\New folder\Air-Line-System-Cloude\backend\services\workbench_service.py", line 45, in _api_post
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\New folder\Air-Line-System-Cloude\backend\venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Server error '503 Service Unavailable' for url 'https://api.pp.travelport.net/11/air/book/reservation/reservations/f2a80614-9e35-42a0-80b0-a78ef6baeccc?Issuance=Ticket&DocumentValue=Retain'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503
+INFO:     127.0.0.1:57157 - "OPTIONS /api/ndc/instant-pay/complete HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57157 - "POST /api/ndc/instant-pay/complete HTTP/1.1" 404 Not Found
+2026-10-19 09:00:31,843 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:00:32,205 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:00:32,363 [INFO] services.search_service: Filtered out 4 of 64 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:63043 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63043 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+2026-10-19 09:00:37,275 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:00:37,393 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:52382 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52382 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+2026-10-19 09:00:38,977 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:00:39,102 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:00:39,198 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:00:39,349 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:00:39,354 [INFO] services.search_service: Filtered out 4 of 64 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:51002 - "POST /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:00:39,544 [INFO] services.search_service: Filtered out 4 of 64 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:51005 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51002 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51002 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "OPTIONS /api/admin/pricing-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58257 - "OPTIONS /api/admin/reports/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "OPTIONS /api/admin/loyalty-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58257 - "OPTIONS /api/admin/email-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "OPTIONS /api/admin/cancellation-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58258 - "OPTIONS /api/admin/loyalty-tier-benefits HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58257 - "OPTIONS /api/admin/visa-consultations?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "OPTIONS /api/admin/notifications?status=new HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "OPTIONS /api/admin/visa-consultants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58261 - "OPTIONS /api/admin/provider-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58260 - "OPTIONS /api/admin/notification-recipients HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58257 - "GET /api/admin/email-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58264 - "GET /api/admin/loyalty-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58262 - "GET /api/admin/pricing-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "GET /api/admin/visa-consultations?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58263 - "GET /api/admin/cancellation-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "GET /api/admin/loyalty-tier-benefits HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58258 - "GET /api/admin/reports/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58261 - "GET /api/admin/notifications?status=new HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58260 - "GET /api/admin/visa-consultants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58257 - "GET /api/admin/provider-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58262 - "GET /api/admin/email-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58264 - "GET /api/admin/notification-recipients HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "GET /api/admin/loyalty-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58263 - "GET /api/admin/pricing-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58258 - "GET /api/admin/cancellation-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "GET /api/admin/visa-consultations?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58260 - "GET /api/admin/reports/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58261 - "GET /api/admin/loyalty-tier-benefits HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "OPTIONS /api/admin/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58261 - "OPTIONS /api/admin/package-booking-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58257 - "GET /api/admin/notifications?status=new HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "OPTIONS /api/admin/visa-requirements HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58261 - "OPTIONS /api/admin/force-issued-tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58264 - "GET /api/admin/provider-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58262 - "GET /api/admin/visa-consultants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "GET /api/admin/notification-recipients HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "OPTIONS /api/admin/settings-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "OPTIONS /api/admin/admins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "OPTIONS /api/admin/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58263 - "GET /api/admin/package-booking-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58260 - "GET /api/admin/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58261 - "GET /api/admin/force-issued-tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58257 - "GET /api/admin/visa-requirements HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "GET /api/admin/admins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "GET /api/admin/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58262 - "GET /api/admin/settings-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58261 - "GET /api/admin/package-booking-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58256 - "GET /api/admin/visa-requirements HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58260 - "GET /api/admin/force-issued-tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58262 - "GET /api/admin/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58257 - "GET /api/admin/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58259 - "GET /api/admin/admins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58263 - "GET /api/admin/settings-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58265 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58275 - "OPTIONS /api/packages/9/book-request HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58275 - "POST /api/packages/9/book-request HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:58275 - "POST /api/packages/9/book-request HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:58275 - "POST /api/packages/9/book-request HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:58279 - "POST /api/packages/9/book-request HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57298 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57298 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65333 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52386 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60415 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65333 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52386 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57298 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57188 - "GET /api/reference/airports?q=Colombo%20(CMB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57188 - "GET /api/reference/airports?q=Colombo%20(CMB)Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63045 - "GET /api/reference/airports?q=Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63049 - "GET /api/visa-consultants/by-country?country=India HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63049 - "GET /api/visa-requirements/check?nationality=Sri%20Lanka&destination=India HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63049 - "GET /api/visa-consultation/slots?date=2026-10-20 HTTP/1.1" 200 OK
+2026-10-19 09:04:50,646 [INFO] main: Flight search (multi-leg): CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27
+2026-10-19 09:04:50,649 [INFO] services.search_service: Searching flights: CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:04:50,649 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}, {'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-27', 'From': {'value': 'DXB'}, 'To': {'value': 'CMB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:51118 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60058 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51118 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60058 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 09:04:53,923 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:04:54,083 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:49823 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49823 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61733 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60531 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57376 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57376 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57376 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60531 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61733 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57376 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64914 - "GET /api/reference/airports?q=Colombo%20(CMB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64008 - "GET /api/reference/airports?q=Colombo%20(CMB)Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56127 - "GET /api/reference/airports?q=Dubai%20(DXB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56127 - "GET /api/reference/airports?q=Dubai%20(DXB)Dubai HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54033 - "GET /api/reference/airports?q=Dubai HTTP/1.1" 200 OK
+2026-10-19 09:07:07,681 [INFO] main: Flight search (multi-leg): CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27
+2026-10-19 09:07:07,684 [INFO] services.search_service: Searching flights: CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:07:07,684 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}, {'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-27', 'From': {'value': 'DXB'}, 'To': {'value': 'CMB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:57095 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60274 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57095 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60274 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+2026-10-19 09:07:13,899 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:07:14,100 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:52435 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52435 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55980 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55980 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55985 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55984 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55985 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55984 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55984 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55985 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55984 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55985 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55985 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:20:32,149 [INFO] main: Flight search (multi-leg): CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27
+2026-10-19 09:20:32,151 [INFO] services.search_service: Searching flights: CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:20:32,152 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}, {'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-27', 'From': {'value': 'DXB'}, 'To': {'value': 'CMB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:55984 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55980 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55984 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55980 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 09:20:55,182 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:20:55,777 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:20:56,039 [INFO] services.search_service: Filtered out 6 of 109 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB'), ('DXB', 'CMB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:55985 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55985 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49677 - "GET /api/feature-flags HTTP/1.1" 200 OK
+2026-10-19 09:21:16,899 [INFO] main: Flight search: CMB \u2192 DXB on 2026-10-20
+2026-10-19 09:21:16,936 [INFO] services.search_service: Searching flights: CMB -> DXB on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:21:16,937 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:49676 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49678 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49678 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49676 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49678 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49676 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61489 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58788 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+2026-10-19 09:21:17,246 [INFO] main: Flight search: CMB \u2192 DXB on 2026-10-20
+2026-10-19 09:21:17,259 [INFO] services.search_service: Searching flights: CMB -> DXB on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:21:17,269 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:52978 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49679 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59603 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58788 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52978 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58788 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59603 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+2026-10-19 09:21:45,766 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:21:45,779 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:21:45,923 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:21:45,954 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:21:45,964 [INFO] services.search_service: Filtered out 4 of 64 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:49670 - "POST /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:21:46,072 [INFO] services.search_service: Filtered out 4 of 64 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:61489 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61489 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63789 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62981 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52516 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63789 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54370 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52516 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62981 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63789 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55300 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59521 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55300 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55300 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59521 - "GET /api/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55300 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59521 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55300 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59521 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55300 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59521 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59521 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55300 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59521 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57360 - "GET /api/reference/airports?q=Colombo%20(CMB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57360 - "GET /api/reference/airports?q=Colombo%20(CMB)Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54220 - "GET /api/reference/airports?q=Dubai%20(DXB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54220 - "GET /api/reference/airports?q=Dubai%20(DXB)Dubai HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59427 - "GET /api/reference/airports?q=Dubai HTTP/1.1" 200 OK
+2026-10-19 09:25:23,861 [INFO] main: Flight search (multi-leg): CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27
+2026-10-19 09:25:23,863 [INFO] services.search_service: Searching flights: CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:25:23,863 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}, {'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-27', 'From': {'value': 'DXB'}, 'To': {'value': 'CMB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:54902 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55377 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54902 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55377 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 09:25:47,046 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:25:47,419 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:25:47,465 [INFO] services.search_service: Filtered out 6 of 109 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB'), ('DXB', 'CMB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:57833 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57833 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53561 - "OPTIONS /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 09:27:24,734 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 09:27:24,734 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 09:27:25,578 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 09:27:25,589 [INFO] services.workbench_service: Workbench created: 6040b111-6f14-40b2-ab38-2db899b20f81
+2026-10-19 09:27:25,589 [INFO] services.workbench_service: Adding offer to workbench 6040b111-6f14-40b2-ab38-2db899b20f81...
+2026-10-19 09:27:27,379 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6040b111-6f14-40b2-ab38-2db899b20f81/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 09:27:27,382 [WARNING] services.workbench_service: Full-payload Add Offer failed for non-GDS content (Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*); falling back to reference payload (Travelport docs: full payload not supported for NDC).
+2026-10-19 09:27:28,678 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6040b111-6f14-40b2-ab38-2db899b20f81/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:27:28,680 [INFO] services.workbench_service: Offer added to workbench (reference payload).
+2026-10-19 09:27:28,681 [INFO] services.workbench_service: Querying seat map for workbench 6040b111-6f14-40b2-ab38-2db899b20f81, offer 606dca61-f3bc-476b-b2fe-acb0534b212b...
+2026-10-19 09:27:29,528 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities "HTTP/1.1 200 OK"
+2026-10-19 09:27:29,530 [WARNING] services.workbench_service: No seating chart found in Travelport response.
+2026-10-19 09:27:29,530 [WARNING] main: Live seat map retrieval failed: Travelport Seating Chart Error: OFFER IDENTIFIER IS NOT VALID
+2026-10-19 09:27:29,531 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 6040b111-6f14-40b2-ab38-2db899b20f81 in a single request: John Doe (ADT)
+2026-10-19 09:27:30,315 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/6040b111-6f14-40b2-ab38-2db899b20f81/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 09:27:30,318 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 09:27:30,318 [INFO] services.workbench_service: Querying ancillary offers for workbench 6040b111-6f14-40b2-ab38-2db899b20f81, offer 606dca61-f3bc-476b-b2fe-acb0534b212b...
+2026-10-19 09:27:32,588 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries "HTTP/1.1 200 OK"
+2026-10-19 09:27:32,595 [WARNING] main: Live ancillary offers retrieval failed: Travelport Ancillary Shop Error: ANCILLARY SEARCH CANNOT BE PROCESSED AT THIS TIME
+2026-10-19 09:27:32,595 [INFO] main: Cleaning up temporary initiate workbench session 6040b111-6f14-40b2-ab38-2db899b20f81...
+2026-10-19 09:27:32,595 [INFO] services.workbench_service: Discarding workbench session 6040b111-6f14-40b2-ab38-2db899b20f81...
+2026-10-19 09:27:33,513 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/6040b111-6f14-40b2-ab38-2db899b20f81 "HTTP/1.1 204 No Content"
+2026-10-19 09:27:33,514 [INFO] services.workbench_service: Workbench session 6040b111-6f14-40b2-ab38-2db899b20f81 discarded successfully.
+INFO:     127.0.0.1:53561 - "POST /api/bookings/initiate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=Dubai%20(DXB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=s HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=si HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=sin HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=si HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=s HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q= HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=m HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=mel HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+2026-10-19 09:30:14,356 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 09:30:14,360 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:30:14,360 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 09:30:42,681 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:30:43,015 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:54586 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54604 - "GET /docs HTTP/1.1" 200 OK
+2026-10-19 09:32:47,219 [INFO] main: Flight search: CMB \u2192 SIN on 2026-10-20
+2026-10-19 09:32:47,222 [INFO] services.search_service: Searching flights: CMB -> SIN on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:32:47,222 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'SIN'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 09:32:52,425 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:32:52,525 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:54630 - "POST /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:32:53,165 [INFO] main: Flight search: CMB \u2192 SIN on 2026-10-21
+2026-10-19 09:32:53,168 [INFO] services.search_service: Searching flights: CMB -> SIN on 2026-10-21, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:32:53,168 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-21', 'From': {'value': 'CMB'}, 'To': {'value': 'SIN'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 09:32:57,447 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:32:57,755 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:54635 - "POST /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:32:58,373 [INFO] main: Flight search: CMB \u2192 SIN on 2026-10-22
+2026-10-19 09:32:58,378 [INFO] services.search_service: Searching flights: CMB -> SIN on 2026-10-22, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:32:58,379 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-22', 'From': {'value': 'CMB'}, 'To': {'value': 'SIN'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 09:33:03,264 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:33:03,429 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:54641 - "POST /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:33:04,037 [INFO] main: Flight search: CMB \u2192 SIN on 2026-10-25
+2026-10-19 09:33:04,040 [INFO] services.search_service: Searching flights: CMB -> SIN on 2026-10-25, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:33:04,040 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-25', 'From': {'value': 'CMB'}, 'To': {'value': 'SIN'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 09:33:31,968 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:33:32,035 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:54645 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57010 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57010 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54158 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61922 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61887 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61922 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57010 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54158 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64760 - "GET /api/reference/airports?q=Colombo%20(CMB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64760 - "GET /api/reference/airports?q=Colombo%20(CMB)Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63316 - "GET /api/reference/airports?q=Dubai%20(DXB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63316 - "GET /api/reference/airports?q=Dubai%20(DXB)Melbourne HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/reference/airports?q=Melbourne HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60538 - "GET /api/reference/airports?q=AVV HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54450 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50746 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59806 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55182 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54450 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55182 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50746 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59806 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60301 - "GET /api/reference/airports?q=Colombo%20(CMB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60301 - "GET /api/reference/airports?q=Colombo%20(CMB)Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57210 - "GET /api/reference/airports?q=Dubai%20(DXB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57210 - "GET /api/reference/airports?q=Dubai%20(DXB)Melbourne%20International HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54300 - "GET /api/reference/airports?q=Melbourne%20International HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61921 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:46:07,840 [INFO] main: Flight search (multi-leg): CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27
+2026-10-19 09:46:07,842 [INFO] services.search_service: Searching flights: CMB->DXB on 2026-10-20 | DXB->CMB on 2026-10-27, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:46:07,842 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}, {'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-27', 'From': {'value': 'DXB'}, 'To': {'value': 'CMB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:63368 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55594 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63368 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55594 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 09:46:33,170 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:46:33,484 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:46:33,585 [INFO] services.search_service: Filtered out 6 of 109 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB'), ('DXB', 'CMB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:61921 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61921 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61395 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 09:46:53,757 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 09:46:53,760 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:46:53,760 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:65425 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52609 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65425 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65425 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52609 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52609 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65425 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52609 - "GET /api/reference/countries HTTP/1.1" 200 OK
+2026-10-19 09:47:17,509 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:47:17,763 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:61395 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58532 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58188 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59102 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58532 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51592 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59102 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58188 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58532 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64125 - "GET /api/reference/airports?q=Colombo%20(CMB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64125 - "GET /api/reference/airports?q=Colombo%20(CMB)Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61987 - "GET /api/reference/airports?q= HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61987 - "GET /api/reference/airports?q=Colombo HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60263 - "GET /api/reference/airports?q= HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59109 - "GET /api/reference/airports?q=Dubai%20(DXB) HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59109 - "GET /api/reference/airports?q=Melbourne%20International HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61184 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+2026-10-19 09:48:53,915 [INFO] main: Flight search (multi-leg): CMB->MEL on 2026-10-20 | MEL->CMB on 2026-10-27
+2026-10-19 09:48:53,917 [INFO] services.search_service: Searching flights: CMB->MEL on 2026-10-20 | MEL->CMB on 2026-10-27, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:48:53,917 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}, {'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-27', 'From': {'value': 'MEL'}, 'To': {'value': 'CMB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:54715 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58062 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54715 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58062 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+2026-10-19 09:49:22,077 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:49:22,484 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:64455 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64455 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+2026-10-19 09:49:45,415 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 09:49:45,419 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:49:45,420 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 09:50:08,698 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:50:09,087 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:60091 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64967 - "OPTIONS /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 09:50:12,283 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 09:50:12,283 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 09:50:13,400 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 09:50:13,404 [INFO] services.workbench_service: Workbench created: 6a0ee3c0-216d-4b03-bef6-5d8d401ca65f
+2026-10-19 09:50:13,405 [INFO] services.workbench_service: Adding offer to workbench 6a0ee3c0-216d-4b03-bef6-5d8d401ca65f...
+2026-10-19 09:50:15,211 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6a0ee3c0-216d-4b03-bef6-5d8d401ca65f/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 09:50:15,223 [WARNING] services.workbench_service: Full-payload Add Offer failed for non-GDS content (Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*); falling back to reference payload (Travelport docs: full payload not supported for NDC).
+2026-10-19 09:50:16,536 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6a0ee3c0-216d-4b03-bef6-5d8d401ca65f/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:50:16,548 [INFO] services.workbench_service: Offer added to workbench (reference payload).
+2026-10-19 09:50:16,549 [INFO] services.workbench_service: Querying seat map for workbench 6a0ee3c0-216d-4b03-bef6-5d8d401ca65f, offer 15d9f6b5-4c05-48e9-af0b-55fd1f775c72...
+2026-10-19 09:50:17,500 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities "HTTP/1.1 200 OK"
+2026-10-19 09:50:17,503 [WARNING] services.workbench_service: No seating chart found in Travelport response.
+2026-10-19 09:50:17,503 [WARNING] main: Live seat map retrieval failed: Travelport Seating Chart Error: OFFER IDENTIFIER IS NOT VALID
+2026-10-19 09:50:17,504 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 6a0ee3c0-216d-4b03-bef6-5d8d401ca65f in a single request: fsdaf fsfd (ADT)
+2026-10-19 09:50:18,562 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/6a0ee3c0-216d-4b03-bef6-5d8d401ca65f/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 09:50:18,567 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 09:50:18,567 [INFO] services.workbench_service: Querying ancillary offers for workbench 6a0ee3c0-216d-4b03-bef6-5d8d401ca65f, offer 15d9f6b5-4c05-48e9-af0b-55fd1f775c72...
+2026-10-19 09:50:20,214 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries "HTTP/1.1 200 OK"
+2026-10-19 09:50:20,220 [WARNING] main: Live ancillary offers retrieval failed: Travelport Ancillary Shop Error: ANCILLARY SEARCH CANNOT BE PROCESSED AT THIS TIME
+2026-10-19 09:50:20,220 [INFO] main: Cleaning up temporary initiate workbench session 6a0ee3c0-216d-4b03-bef6-5d8d401ca65f...
+2026-10-19 09:50:20,221 [INFO] services.workbench_service: Discarding workbench session 6a0ee3c0-216d-4b03-bef6-5d8d401ca65f...
+2026-10-19 09:50:21,364 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/6a0ee3c0-216d-4b03-bef6-5d8d401ca65f "HTTP/1.1 204 No Content"
+2026-10-19 09:50:21,365 [INFO] services.workbench_service: Workbench session 6a0ee3c0-216d-4b03-bef6-5d8d401ca65f discarded successfully.
+INFO:     127.0.0.1:64967 - "POST /api/bookings/initiate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64980 - "OPTIONS /api/bookings/confirm HTTP/1.1" 200 OK
+2026-10-19 09:50:26,549 [INFO] main: Confirming booking — creating fresh GDS workbench at commit time...
+2026-10-19 09:50:26,549 [INFO] services.workbench_service: Confirming price via AirPrice (NDC/LCC offer, reference payload)...
+2026-10-19 09:50:28,742 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:50:28,749 [INFO] services.workbench_service: AirPrice confirmed. transactionId for Add Offer: a9bca51a-7c5b-4dce-a048-3de57f06d466_PC
+2026-10-19 09:50:28,749 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 09:50:28,807 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 09:50:28,810 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:50:28,810 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 09:50:29,789 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 09:50:29,802 [INFO] services.workbench_service: Workbench created: 499ef117-9015-4d4f-b08e-9d10874dfd51
+2026-10-19 09:50:29,802 [INFO] services.workbench_service: [Flow attempt 1/3] Workbench: 499ef117-9015-4d4f-b08e-9d10874dfd51
+2026-10-19 09:50:29,802 [INFO] services.workbench_service: Adding offer to workbench 499ef117-9015-4d4f-b08e-9d10874dfd51...
+2026-10-19 09:50:31,506 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/499ef117-9015-4d4f-b08e-9d10874dfd51/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 09:50:31,511 [WARNING] services.workbench_service: Full-payload Add Offer failed for non-GDS content (Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*); falling back to reference payload (Travelport docs: full payload not supported for NDC).
+2026-10-19 09:50:32,693 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/499ef117-9015-4d4f-b08e-9d10874dfd51/offers/buildfromcatalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:50:32,707 [INFO] services.workbench_service: Offer added to workbench (reference payload).
+2026-10-19 09:50:32,707 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 499ef117-9015-4d4f-b08e-9d10874dfd51 in a single request: fsdaf fsfd (ADT)
+2026-10-19 09:50:33,818 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/499ef117-9015-4d4f-b08e-9d10874dfd51/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 09:50:33,823 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 09:50:33,823 [INFO] services.workbench_service: Committing workbench 499ef117-9015-4d4f-b08e-9d10874dfd51 to generate PNR...
+2026-10-19 09:50:34,818 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/reservation/reservations/499ef117-9015-4d4f-b08e-9d10874dfd51 "HTTP/1.1 503 Service Unavailable"
+2026-10-19 09:50:34,824 [ERROR] services.workbench_service: API POST Error 503 for URL https://api.pp.travelport.net/11/air/book/reservation/reservations/499ef117-9015-4d4f-b08e-9d10874dfd51: <html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style type="text/css">
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        line-height: 1.66666667;
+        font-size: 16px;
+        color: #333;
+        background-color: #fff;
+        margin: 2em 1em;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 400;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      .alert.alert-info {
+        background-color: #F0F0F0;
+        margin-top: 30px;
+        padding: 30px;
+      }
+      .alert p {
+        padding-left: 35px;
+      }
+      ul {
+        padding-left: 51px;
+        position: relative;
+      }
+      li {
+        font-size: 14px;
+        margin-bottom: 1em;
+      }
+      p.info {
+        position: relative;
+        font-size: 20px;
+      }
+      p.info:before, p.info:after {
+        content: "";
+        left: 0;
+        position: absolute;
+        top: 0;
+      }
+      p.info:before {
+        background: #0066CC;
+        border-radius: 16px;
+        color: #fff;
+        content: "i";
+        font: bold 16px/24px serif;
+        height: 24px;
+        left: 0px;
+        text-align: center;
+        top: 4px;
+        width: 24px;
+      }
+
+      @media (min-width: 768px) {
+        body {
+          margin: 6em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Application is not available</h1>
+      <p>The application is currently not serving requests at this endpoint. It may not have been started or is still starting.</p>
+
+      <div class="alert alert-info">
+        <p class="info">
+          Possible reasons you are seeing this page:
+        </p>
+        <ul>
+          <li>
+            <strong>The host doesn't exist.</strong>
+            Make sure the hostname was typed correctly and that a route matching this hostname exists.
+          </li>
+          <li>
+            <strong>The host exists, but doesn't have a matching path.</strong>
+            Check if the URL path was typed correctly and that the route was created using the desired path.
+          </li>
+          <li>
+            <strong>Route and path matches, but all pods are down.</strong>
+            Make sure that the resources exposed by this route (pods, services, deployment configs, etc) have at least one pod running.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>
+
+2026-10-19 09:50:34,824 [WARNING] services.workbench_service: Error occurred during booking flow. Discarding workbench 499ef117-9015-4d4f-b08e-9d10874dfd51...
+2026-10-19 09:50:34,824 [INFO] services.workbench_service: Discarding workbench session 499ef117-9015-4d4f-b08e-9d10874dfd51...
+2026-10-19 09:50:36,036 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/499ef117-9015-4d4f-b08e-9d10874dfd51 "HTTP/1.1 204 No Content"
+2026-10-19 09:50:36,047 [INFO] services.workbench_service: Workbench session 499ef117-9015-4d4f-b08e-9d10874dfd51 discarded successfully.
+2026-10-19 09:50:36,048 [ERROR] main: Confirmation failed with HTTPStatusError: Server error '503 Service Unavailable' for url 'https://api.pp.travelport.net/11/air/book/reservation/reservations/499ef117-9015-4d4f-b08e-9d10874dfd51'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503. Details: <html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style type="text/css">
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        line-height: 1.66666667;
+        font-size: 16px;
+        color: #333;
+        bac
+INFO:     127.0.0.1:64980 - "POST /api/bookings/confirm HTTP/1.1" 502 Bad Gateway
+2026-10-19 09:50:51,566 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:50:51,981 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:59667 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57496 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49380 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52294 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60007 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57496 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60007 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49380 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52294 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 09:52:05,757 [INFO] main: Flight search: CMB \u2192 DXB on 2026-10-20
+2026-10-19 09:52:05,760 [INFO] services.search_service: Searching flights: CMB -> DXB on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:52:05,761 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'DXB'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:62558 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62558 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62558 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62558 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+2026-10-19 09:52:16,205 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 09:52:16,206 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 09:52:17,268 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 09:52:17,271 [INFO] services.workbench_service: Workbench created: 05b43e32-d75d-4187-946f-1332a62e4d6c
+2026-10-19 09:52:17,271 [INFO] services.workbench_service: Adding offer to workbench 05b43e32-d75d-4187-946f-1332a62e4d6c...
+2026-10-19 09:52:18,213 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/05b43e32-d75d-4187-946f-1332a62e4d6c/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 09:52:18,216 [INFO] services.workbench_service: Offer added to workbench (full payload).
+2026-10-19 09:52:18,217 [INFO] services.workbench_service: Querying seat map for workbench 05b43e32-d75d-4187-946f-1332a62e4d6c, offer 08861bf5-8cb4-4608-b222-858f70802db8...
+2026-10-19 09:52:19,475 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities "HTTP/1.1 200 OK"
+2026-10-19 09:52:19,479 [WARNING] services.workbench_service: No seating chart found in Travelport response.
+2026-10-19 09:52:19,479 [WARNING] main: Live seat map retrieval failed: Travelport Seating Chart Error: SEAT MAP IS UNAVAILABLE
+2026-10-19 09:52:19,479 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 05b43e32-d75d-4187-946f-1332a62e4d6c in a single request: jon  done (ADT)
+2026-10-19 09:52:20,748 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/05b43e32-d75d-4187-946f-1332a62e4d6c/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 09:52:20,753 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 09:52:20,753 [INFO] services.workbench_service: Querying ancillary offers for workbench 05b43e32-d75d-4187-946f-1332a62e4d6c, offer 08861bf5-8cb4-4608-b222-858f70802db8...
+2026-10-19 09:52:21,809 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries "HTTP/1.1 200 OK"
+2026-10-19 09:52:21,813 [WARNING] main: Live ancillary offers retrieval failed: Travelport Ancillary Shop Error: ANCILLARIES ARE NOT AVAILABLE FOR THE REQUESTED FLIGHT DATA
+2026-10-19 09:52:21,814 [INFO] main: Cleaning up temporary initiate workbench session 05b43e32-d75d-4187-946f-1332a62e4d6c...
+2026-10-19 09:52:21,814 [INFO] services.workbench_service: Discarding workbench session 05b43e32-d75d-4187-946f-1332a62e4d6c...
+2026-10-19 09:52:22,785 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/05b43e32-d75d-4187-946f-1332a62e4d6c "HTTP/1.1 204 No Content"
+2026-10-19 09:52:22,789 [INFO] services.workbench_service: Workbench session 05b43e32-d75d-4187-946f-1332a62e4d6c discarded successfully.
+INFO:     127.0.0.1:53305 - "POST /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 09:52:28,686 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:52:28,820 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:52:28,848 [INFO] services.search_service: Filtered out 4 of 64 offer(s) whose actual departure/arrival airport didn't exactly match a requested leg [('CMB', 'DXB')] (GDS nearby-airport alternates)
+INFO:     127.0.0.1:55934 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55934 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+2026-10-19 09:52:30,036 [INFO] main: Confirming booking — creating fresh GDS workbench at commit time...
+2026-10-19 09:52:30,037 [INFO] services.workbench_service: Confirming price via AirPrice (GDS offer, full payload)...
+2026-10-19 09:52:31,213 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/price/offers/buildfromproducts "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:61143 - "POST /api/bookings/confirm HTTP/1.1" 422 Unprocessable Content
+2026-10-19 09:56:46,827 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 09:56:46,827 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 09:56:48,048 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 09:56:48,060 [INFO] services.workbench_service: Workbench created: d2a55333-8eea-4fdc-9838-57d3366ca7df
+2026-10-19 09:56:48,060 [INFO] services.workbench_service: Adding offer to workbench d2a55333-8eea-4fdc-9838-57d3366ca7df...
+2026-10-19 09:56:49,755 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/d2a55333-8eea-4fdc-9838-57d3366ca7df/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 09:56:49,759 [ERROR] main: Booking initiation failed: Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*
+2026-10-19 09:56:49,759 [INFO] main: Cleaning up temporary initiate workbench session d2a55333-8eea-4fdc-9838-57d3366ca7df...
+2026-10-19 09:56:49,759 [INFO] services.workbench_service: Discarding workbench session d2a55333-8eea-4fdc-9838-57d3366ca7df...
+2026-10-19 09:56:50,897 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/d2a55333-8eea-4fdc-9838-57d3366ca7df "HTTP/1.1 204 No Content"
+2026-10-19 09:56:50,899 [INFO] services.workbench_service: Workbench session d2a55333-8eea-4fdc-9838-57d3366ca7df discarded successfully.
+INFO:     127.0.0.1:52935 - "POST /api/bookings/initiate HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:58462 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58462 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58464 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58463 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58462 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58463 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58466 - "GET /api/reference/countries HTTP/1.1" 200 OK
+2026-10-19 09:57:05,892 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 09:57:05,897 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:57:05,898 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 09:57:05,898 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 09:57:05,902 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:57:05,903 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:58462 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58463 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58465 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58467 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58463 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58462 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58467 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+2026-10-19 09:57:29,136 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:57:29,181 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:57:29,287 [INFO] services.search_service: Flight search completed successfully.
+2026-10-19 09:57:29,326 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:58464 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58466 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58464 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58466 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49730 - "GET /api/feature-flags HTTP/1.1" 200 OK
+2026-10-19 09:59:23,297 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 09:59:23,303 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:59:23,304 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:49728 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49729 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49731 - "GET /api/reference/countries HTTP/1.1" 200 OK
+2026-10-19 09:59:23,312 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 09:59:23,316 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 09:59:23,317 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:49731 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49731 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49728 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49729 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49728 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49731 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49729 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49731 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+2026-10-19 09:59:26,871 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:59:27,072 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:49733 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49733 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+2026-10-19 09:59:47,020 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 09:59:47,294 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:49732 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49732 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52156 - "OPTIONS /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 10:00:21,936 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 10:00:21,937 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 10:00:23,029 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 10:00:23,034 [INFO] services.workbench_service: Workbench created: d82b23a2-4985-4dde-8f8b-41f44aa4fdbc
+2026-10-19 10:00:23,034 [INFO] services.workbench_service: Adding offer to workbench d82b23a2-4985-4dde-8f8b-41f44aa4fdbc...
+2026-10-19 10:00:24,862 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/d82b23a2-4985-4dde-8f8b-41f44aa4fdbc/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 10:00:24,865 [ERROR] main: Booking initiation failed: Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*
+2026-10-19 10:00:24,865 [INFO] main: Cleaning up temporary initiate workbench session d82b23a2-4985-4dde-8f8b-41f44aa4fdbc...
+2026-10-19 10:00:24,865 [INFO] services.workbench_service: Discarding workbench session d82b23a2-4985-4dde-8f8b-41f44aa4fdbc...
+2026-10-19 10:00:26,092 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/d82b23a2-4985-4dde-8f8b-41f44aa4fdbc "HTTP/1.1 204 No Content"
+2026-10-19 10:00:26,095 [INFO] services.workbench_service: Workbench session d82b23a2-4985-4dde-8f8b-41f44aa4fdbc discarded successfully.
+INFO:     127.0.0.1:52156 - "POST /api/bookings/initiate HTTP/1.1" 409 Conflict
+2026-10-19 10:08:37,768 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 10:08:37,768 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 10:08:38,958 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 10:08:38,963 [INFO] services.workbench_service: Workbench created: c7da01c9-f9a1-42a9-878e-7c82146c2a00
+2026-10-19 10:08:38,963 [INFO] services.workbench_service: Adding offer to workbench c7da01c9-f9a1-42a9-878e-7c82146c2a00...
+2026-10-19 10:08:40,743 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/c7da01c9-f9a1-42a9-878e-7c82146c2a00/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 10:08:40,746 [ERROR] main: Booking initiation failed: Travelport Add Offer (full payload) failed: *0 AVAIL/WL CLOSED*
+2026-10-19 10:08:40,746 [INFO] main: Cleaning up temporary initiate workbench session c7da01c9-f9a1-42a9-878e-7c82146c2a00...
+2026-10-19 10:08:40,746 [INFO] services.workbench_service: Discarding workbench session c7da01c9-f9a1-42a9-878e-7c82146c2a00...
+2026-10-19 10:08:42,051 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/c7da01c9-f9a1-42a9-878e-7c82146c2a00 "HTTP/1.1 204 No Content"
+2026-10-19 10:08:42,052 [INFO] services.workbench_service: Workbench session c7da01c9-f9a1-42a9-878e-7c82146c2a00 discarded successfully.
+INFO:     127.0.0.1:58511 - "POST /api/bookings/initiate HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:64236 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64237 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64234 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64232 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64233 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64235 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+2026-10-19 10:08:49,600 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 10:08:49,604 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 10:08:49,605 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 10:08:49,606 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 10:08:49,613 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 10:08:49,614 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:64235 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64234 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64236 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64235 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64236 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64236 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64236 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64236 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+2026-10-19 10:08:53,142 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 10:08:53,307 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:64233 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64233 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+2026-10-19 10:09:12,677 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 10:09:12,868 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:64232 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64232 - "GET /api/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55596 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58028 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58343 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60967 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55596 - "GET /api/feature-flags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58028 - "GET /api/reference/countries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58343 - "GET /api/reference/airports?q=DXB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60967 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53595 - "OPTIONS /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 10:10:12,538 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 10:10:12,551 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 10:10:12,552 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 10:10:16,794 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 10:10:16,936 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:53595 - "POST /api/flights/search HTTP/1.1" 200 OK
+2026-10-19 10:11:01,053 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 10:11:01,055 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 10:11:01,055 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+2026-10-19 10:11:04,242 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 10:11:04,316 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:56059 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59556 - "GET /api/admin/provider-settings HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59571 - "OPTIONS /api/admin/reports/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "OPTIONS /api/admin/loyalty-tier-benefits HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "OPTIONS /api/admin/loyalty-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "OPTIONS /api/admin/email-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59573 - "OPTIONS /api/admin/pricing-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "OPTIONS /api/admin/cancellation-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "OPTIONS /api/admin/notifications?status=new HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59573 - "OPTIONS /api/admin/provider-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "OPTIONS /api/admin/visa-consultants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59575 - "OPTIONS /api/admin/visa-requirements HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59576 - "OPTIONS /api/admin/visa-consultations?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59574 - "OPTIONS /api/admin/notification-recipients HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59578 - "OPTIONS /api/admin/admins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "GET /api/admin/cancellation-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59575 - "GET /api/admin/pricing-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59573 - "GET /api/admin/loyalty-tier-benefits HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59579 - "GET /api/admin/loyalty-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59580 - "GET /api/admin/email-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59574 - "GET /api/admin/visa-requirements HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59578 - "GET /api/admin/visa-consultations?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59576 - "GET /api/admin/visa-consultants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "GET /api/admin/reports/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "GET /api/admin/notification-recipients HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59575 - "GET /api/admin/admins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59573 - "GET /api/admin/cancellation-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59579 - "GET /api/admin/pricing-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59574 - "GET /api/admin/provider-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59578 - "GET /api/admin/email-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59576 - "GET /api/admin/visa-requirements HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59580 - "GET /api/admin/notifications?status=new HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "GET /api/admin/visa-consultations?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "GET /api/admin/visa-consultants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59573 - "GET /api/admin/notification-recipients HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59579 - "GET /api/admin/loyalty-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59574 - "GET /api/admin/loyalty-tier-benefits HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59576 - "GET /api/admin/provider-settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59578 - "GET /api/admin/admins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59575 - "GET /api/admin/reports/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "OPTIONS /api/admin/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59580 - "GET /api/admin/notifications?status=new HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "OPTIONS /api/admin/package-booking-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59576 - "OPTIONS /api/admin/settings-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59578 - "OPTIONS /api/admin/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "OPTIONS /api/admin/force-issued-tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "GET /api/admin/force-issued-tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "GET /api/admin/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59573 - "GET /api/admin/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59578 - "GET /api/admin/settings-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59580 - "GET /api/admin/package-booking-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "GET /api/admin/force-issued-tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59573 - "GET /api/admin/terminal-connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59578 - "GET /api/admin/package-booking-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59576 - "GET /api/admin/packages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59580 - "GET /api/admin/settings-change-requests?status=pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59582 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59583 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59583 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59582 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+2026-10-19 10:12:12,035 [INFO] main: Flight search: CMB \u2192 MEL on 2026-10-20
+2026-10-19 10:12:12,037 [INFO] services.search_service: Searching flights: CMB -> MEL on 2026-10-20, Adults=1, Children=0, Infants=0, Students=0
+2026-10-19 10:12:12,038 [INFO] services.search_service: Request payload: {'@type': 'CatalogProductOfferingsQueryRequest', 'CatalogProductOfferingsRequest': {'@type': 'CatalogProductOfferingsRequestAir', 'maxNumberOfUpsellsToReturn': 4, 'offersPerPage': 999, 'contentSourceList': ['GDS', 'NDC'], 'PassengerCriteria': [{'@type': 'PassengerCriteria', 'number': 1, 'age': 25, 'passengerTypeCode': 'ADT'}], 'SearchCriteriaFlight': [{'@type': 'SearchCriteriaFlight', 'departureDate': '2026-10-20', 'From': {'value': 'CMB'}, 'To': {'value': 'MEL'}}], 'PricingModifiersAir': {'@type': 'PricingModifiersAir', 'currencyCode': 'LKR'}}}
+INFO:     127.0.0.1:59584 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59582 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59584 - "GET /api/reference/airports?q=MEL HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59582 - "GET /api/reference/airports?q=CMB HTTP/1.1" 200 OK
+2026-10-19 10:12:35,101 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings "HTTP/1.1 200 OK"
+2026-10-19 10:12:35,205 [INFO] services.search_service: Flight search completed successfully.
+INFO:     127.0.0.1:59583 - "POST /api/flights/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59605 - "OPTIONS /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 10:15:00,691 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 10:15:00,692 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 10:15:01,879 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 10:15:01,883 [INFO] services.workbench_service: Workbench created: 2acc26ec-f4ac-438f-b3ee-bb41539fa3af
+2026-10-19 10:15:01,884 [INFO] services.workbench_service: Adding offer to workbench 2acc26ec-f4ac-438f-b3ee-bb41539fa3af...
+2026-10-19 10:15:02,843 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/2acc26ec-f4ac-438f-b3ee-bb41539fa3af/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 10:15:02,846 [INFO] services.workbench_service: Offer added to workbench (full payload).
+2026-10-19 10:15:02,846 [INFO] services.workbench_service: Querying seat map for workbench 2acc26ec-f4ac-438f-b3ee-bb41539fa3af, offer 69b686ee-cb4b-42ae-ac47-4c10ef8060b8...
+2026-10-19 10:15:03,968 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities "HTTP/1.1 200 OK"
+2026-10-19 10:15:03,972 [WARNING] services.workbench_service: No seating chart found in Travelport response.
+2026-10-19 10:15:03,972 [WARNING] main: Live seat map retrieval failed: Travelport Seating Chart Error: SEAT MAP IS UNAVAILABLE
+2026-10-19 10:15:03,973 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 2acc26ec-f4ac-438f-b3ee-bb41539fa3af in a single request: jjj do (ADT)
+2026-10-19 10:15:05,173 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/2acc26ec-f4ac-438f-b3ee-bb41539fa3af/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 10:15:05,178 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 10:15:05,178 [INFO] services.workbench_service: Querying ancillary offers for workbench 2acc26ec-f4ac-438f-b3ee-bb41539fa3af, offer 69b686ee-cb4b-42ae-ac47-4c10ef8060b8...
+2026-10-19 10:15:06,290 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries "HTTP/1.1 200 OK"
+2026-10-19 10:15:06,294 [WARNING] main: Live ancillary offers retrieval failed: Travelport Ancillary Shop Error: ANCILLARIES ARE NOT AVAILABLE FOR THE REQUESTED FLIGHT DATA
+2026-10-19 10:15:06,294 [INFO] main: Cleaning up temporary initiate workbench session 2acc26ec-f4ac-438f-b3ee-bb41539fa3af...
+2026-10-19 10:15:06,295 [INFO] services.workbench_service: Discarding workbench session 2acc26ec-f4ac-438f-b3ee-bb41539fa3af...
+2026-10-19 10:15:07,177 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/2acc26ec-f4ac-438f-b3ee-bb41539fa3af "HTTP/1.1 204 No Content"
+2026-10-19 10:15:07,179 [INFO] services.workbench_service: Workbench session 2acc26ec-f4ac-438f-b3ee-bb41539fa3af discarded successfully.
+INFO:     127.0.0.1:59605 - "POST /api/bookings/initiate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63849 - "OPTIONS /api/bookings/confirm HTTP/1.1" 200 OK
+2026-10-19 10:15:20,263 [INFO] main: Confirming booking — creating fresh GDS workbench at commit time...
+2026-10-19 10:15:20,263 [INFO] services.workbench_service: Confirming price via AirPrice (GDS offer, full payload)...
+2026-10-19 10:15:21,226 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/price/offers/buildfromproducts "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:63849 - "POST /api/bookings/confirm HTTP/1.1" 422 Unprocessable Content
+WARNING:  StatReload detected changes in 'services\workbench_service.py'. Reloading...
+ INFO:     127.0.0.1:57998 - "GET / HTTP/1.1" 200 OK
+2026-10-19 10:21:27,993 [INFO] main: Initiating booking and fetching live seat map...
+2026-10-19 10:21:27,993 [INFO] services.workbench_service: Creating reservation workbench...
+2026-10-19 10:21:29,109 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/session/reservationworkbench "HTTP/1.1 200 OK"
+2026-10-19 10:21:29,115 [INFO] services.workbench_service: Workbench created: 28002dcb-929a-4106-bc60-f79412ef77d7
+2026-10-19 10:21:29,115 [INFO] services.workbench_service: Adding offer to workbench 28002dcb-929a-4106-bc60-f79412ef77d7...
+2026-10-19 10:21:30,261 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/28002dcb-929a-4106-bc60-f79412ef77d7/offers/buildfromproducts "HTTP/1.1 200 OK"
+2026-10-19 10:21:30,266 [INFO] services.workbench_service: Offer added to workbench (full payload).
+2026-10-19 10:21:30,266 [INFO] services.workbench_service: Querying seat map for workbench 28002dcb-929a-4106-bc60-f79412ef77d7, offer e6486391-6892-4f3e-b79d-d725df085482...
+2026-10-19 10:21:31,520 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities "HTTP/1.1 200 OK"
+2026-10-19 10:21:31,525 [WARNING] services.workbench_service: No seating chart found in Travelport response.
+2026-10-19 10:21:31,525 [WARNING] main: Live seat map retrieval failed: Travelport Seating Chart Error: SEAT MAP IS UNAVAILABLE
+2026-10-19 10:21:31,525 [INFO] services.workbench_service: Adding 1 traveler(s) to workbench 28002dcb-929a-4106-bc60-f79412ef77d7 in a single request: dsd dsd (ADT)
+2026-10-19 10:21:32,599 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/28002dcb-929a-4106-bc60-f79412ef77d7/travelers/list "HTTP/1.1 200 OK"
+2026-10-19 10:21:32,604 [INFO] services.workbench_service: 1 traveler(s) added to workbench in a single Travelport request.
+2026-10-19 10:21:32,604 [INFO] services.workbench_service: Querying ancillary offers for workbench 28002dcb-929a-4106-bc60-f79412ef77d7, offer e6486391-6892-4f3e-b79d-d725df085482...
+2026-10-19 10:21:33,598 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/ancillaryshop/catalogofferingsancillaries "HTTP/1.1 200 OK"
+2026-10-19 10:21:33,605 [WARNING] main: Live ancillary offers retrieval failed: Travelport Ancillary Shop Error: ANCILLARIES ARE NOT AVAILABLE FOR THE REQUESTED FLIGHT DATA
+2026-10-19 10:21:33,605 [INFO] main: Cleaning up temporary initiate workbench session 28002dcb-929a-4106-bc60-f79412ef77d7...
+2026-10-19 10:21:33,605 [INFO] services.workbench_service: Discarding workbench session 28002dcb-929a-4106-bc60-f79412ef77d7...
+2026-10-19 10:21:34,600 [INFO] httpx: HTTP Request: DELETE https://api.pp.travelport.net/11/air/book/session/reservationworkbench/28002dcb-929a-4106-bc60-f79412ef77d7 "HTTP/1.1 204 No Content"
+2026-10-19 10:21:34,603 [INFO] services.workbench_service: Workbench session 28002dcb-929a-4106-bc60-f79412ef77d7 discarded successfully.
+INFO:     127.0.0.1:54553 - "POST /api/bookings/initiate HTTP/1.1" 200 OK
+2026-10-19 10:21:42,332 [INFO] main: Confirming booking — creating fresh GDS workbench at commit time...
+2026-10-19 10:21:42,332 [INFO] services.workbench_service: Confirming price via AirPrice (GDS offer, full payload)...
+2026-10-19 10:21:43,516 [INFO] httpx: HTTP Request: POST https://api.pp.travelport.net/11/air/price/offers/buildfromproducts "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:54562 - "POST /api/bookings/confirm HTTP/1.1" 422 Unprocessable Content

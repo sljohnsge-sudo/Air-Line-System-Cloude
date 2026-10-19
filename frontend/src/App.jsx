@@ -7079,7 +7079,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     type="button"
                     className="btn btn-secondary btn-sm"
                     style={{ display: 'block', marginTop: '0.6rem' }}
-                    onClick={() => { closeBookingFlow(); setActiveTab('book'); }}
+                    onClick={() => { closeBookingFlow(); setShowSearchForm(true); setActiveTab('book'); }}
                   >
                     Search Again
                   </button>

@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/50b797a1-98c9-4c43-8437-0ca326633603/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEzNjA0NTAsImV4cCI6MTc5MTQ0Njg1MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.StGBY5_VUwVdGrSqCz9qmoGasEe84sQ_47FQS_-cKV8ebL8QzypGFafvmxpzwhBL1_yQAxPROWu99Lfmpgz1NpGb_8RYwaV3qqhzAN-iu0K20f6YSCiIBUHIu_ArDMxoCgzlhcs4dIqvDY9AauxKLq8SLMkOpumNqMLXF2j3mrPXO_oyGSw6T3XGhAYrMBQ4jusP7dicdoC0rF1-LjEulfoz8CrjmkMZ3UjqDOvn15wq6DYTQTTNzYzC92pxQt9boLHq21qxNTaKivRe_4XR4Ur0BRODV6U1r8mr9byqkTuDnF8P7dDOA3GEo0ALX3wHBThfTh7iUAwy3rIui8-YpQ' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/d1658fa6-c03e-4cda-87c4-8bc7e4b783f7/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE5NTYwOTIsImV4cCI6MTc5MjA0MjQ5MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.JwXiuKmAlr7eByZJTVhc-bDKe06_e-J-2Sd-yUBxsVUGhnzLtZZF_LdwUc_qBGMMaA6cT3PPGPFiglZ95lG_sNh4xIEKu-xa6kk5CMvrwWArji20JtXQtsPry8HY9WYowRDW9Oq0pCo0SwouSYKmSoJqVNAgEIWYw3L4Bojrhjci_a8riv4Zil6-SS6LMi85wM-fKm9HS2xWHAOEKWe8uMvRwk_gO6fqPhepEGVb2rYAPOsiQ7AJNhkcsAzkmVnAQ4SDHt0cOyx1UrnhTlUbfpan_RrEOSh8zmlj3yZ7ZtcH_ZMscplzV1IbLDPTRBNDvM9ynuPGFAXKb4W8mggkHw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,68 +7,32 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_124B96FE1D43' \
+--header 'traceid: TraceID_F112845F1C4A' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "653",
-                        "from": "CMB",
-                        "to": "MLE",
-                        "departureDate": "2026-10-08",
-                        "segmentSequence": 1,
-                        "departureTime": "20:35:00",
-                        "arrivalDate": "2026-10-08",
-                        "arrivalTime": "21:35:00",
-                        "cabin": "Economy",
-                        "classOfService": "K",
-                        "AvailabilitySourceCode": "Q",
-                        "boundFlightsInd": true,
-                        "ContentSource": "GDS"
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "cd840f35-1105-46b5-bf55-ad3a49333680"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "QR_CPO0"
+                        }
                     },
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "2211",
-                        "from": "MLE",
-                        "to": "DXB",
-                        "departureDate": "2026-10-08",
-                        "segmentSequence": 2,
-                        "departureTime": "23:30:00",
-                        "arrivalDate": "2026-10-09",
-                        "arrivalTime": "02:40:00",
-                        "cabin": "Economy",
-                        "classOfService": "K",
-                        "AvailabilitySourceCode": "Q",
-                        "ContentSource": "GDS"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Eco Flex",
-                "BrandRef": "b2"
-            }
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "QRp0"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'

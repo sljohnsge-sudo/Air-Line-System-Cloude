@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/b58a882a-68d4-446d-86ae-42bbdab0fe03/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEzNjc0NzAsImV4cCI6MTc5MTQ1Mzg3MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.JKsBixHDRrWnWhv5YHFN-nrW3wT-tsOL5cRmY23U6BlOVR3fb43-RiGmC1xo3rkpi40Btl2LUXmY7nb5kboq7Na7MQdTzZmhuQZj3s3tIGdR8MxtNv1wgK9yUrUAnHbSzIVSObes4LNp32aZG4DssQwwoWq257V4L7fAcIbcFuSRUxcls3HdnNrXWbGafRypWVfSBGzoQN03sWHxXyaBK9EpENzLRxKtAVPtZ5hjuL4ixI0Ks6_QOJL9G9NOjFV9VM670KiFVUFuHnoVQJNSWQQbu3wHfdUfUikmjdqhofEurzFx_2CkpvX0UXhAVfuUi-sSVnmlmfhTRywS03lB3A' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/57b2d430-c0af-45f6-9265-27e4b67be16c/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE5NTYwOTIsImV4cCI6MTc5MjA0MjQ5MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.JwXiuKmAlr7eByZJTVhc-bDKe06_e-J-2Sd-yUBxsVUGhnzLtZZF_LdwUc_qBGMMaA6cT3PPGPFiglZ95lG_sNh4xIEKu-xa6kk5CMvrwWArji20JtXQtsPry8HY9WYowRDW9Oq0pCo0SwouSYKmSoJqVNAgEIWYw3L4Bojrhjci_a8riv4Zil6-SS6LMi85wM-fKm9HS2xWHAOEKWe8uMvRwk_gO6fqPhepEGVb2rYAPOsiQ7AJNhkcsAzkmVnAQ4SDHt0cOyx1UrnhTlUbfpan_RrEOSh8zmlj3yZ7ZtcH_ZMscplzV1IbLDPTRBNDvM9ynuPGFAXKb4W8mggkHw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,68 +7,46 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_5A3406162305' \
+--header 'traceid: TraceID_4DEFDCFD1238' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "GF",
-                        "flightNumber": "145",
-                        "from": "CMB",
-                        "to": "BAH",
-                        "departureDate": "2026-11-20",
-                        "segmentSequence": 1,
-                        "departureTime": "17:00:00",
-                        "arrivalDate": "2026-11-20",
-                        "arrivalTime": "22:15:00",
-                        "cabin": "Economy",
-                        "classOfService": "E",
-                        "AvailabilitySourceCode": "Q",
-                        "boundFlightsInd": true,
-                        "ContentSource": "GDS"
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "0023d6ef-ca66-4f11-aed4-c7d52f90aefc"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "QR_CPO0"
+                        }
                     },
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "GF",
-                        "flightNumber": "520",
-                        "from": "BAH",
-                        "to": "DOH",
-                        "departureDate": "2026-11-21",
-                        "segmentSequence": 2,
-                        "departureTime": "02:05:00",
-                        "arrivalDate": "2026-11-21",
-                        "arrivalTime": "03:05:00",
-                        "cabin": "Economy",
-                        "classOfService": "E",
-                        "AvailabilitySourceCode": "Q",
-                        "ContentSource": "GDS"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Economy Light",
-                "BrandRef": "b0"
-            }
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "QRp11"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "QR_CPO1"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "QRp9"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'

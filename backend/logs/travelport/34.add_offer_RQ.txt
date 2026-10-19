@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/c3b3124c-4413-46f0-8a22-42a409ad6daa/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTEzNjc0NzAsImV4cCI6MTc5MTQ1Mzg3MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.JKsBixHDRrWnWhv5YHFN-nrW3wT-tsOL5cRmY23U6BlOVR3fb43-RiGmC1xo3rkpi40Btl2LUXmY7nb5kboq7Na7MQdTzZmhuQZj3s3tIGdR8MxtNv1wgK9yUrUAnHbSzIVSObes4LNp32aZG4DssQwwoWq257V4L7fAcIbcFuSRUxcls3HdnNrXWbGafRypWVfSBGzoQN03sWHxXyaBK9EpENzLRxKtAVPtZ5hjuL4ixI0Ks6_QOJL9G9NOjFV9VM670KiFVUFuHnoVQJNSWQQbu3wHfdUfUikmjdqhofEurzFx_2CkpvX0UXhAVfuUi-sSVnmlmfhTRywS03lB3A' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/644773a8-b406-48a5-80c7-2daa8e12c7fa/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE5NTYwOTIsImV4cCI6MTc5MjA0MjQ5MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.JwXiuKmAlr7eByZJTVhc-bDKe06_e-J-2Sd-yUBxsVUGhnzLtZZF_LdwUc_qBGMMaA6cT3PPGPFiglZ95lG_sNh4xIEKu-xa6kk5CMvrwWArji20JtXQtsPry8HY9WYowRDW9Oq0pCo0SwouSYKmSoJqVNAgEIWYw3L4Bojrhjci_a8riv4Zil6-SS6LMi85wM-fKm9HS2xWHAOEKWe8uMvRwk_gO6fqPhepEGVb2rYAPOsiQ7AJNhkcsAzkmVnAQ4SDHt0cOyx1UrnhTlUbfpan_RrEOSh8zmlj3yZ7ZtcH_ZMscplzV1IbLDPTRBNDvM9ynuPGFAXKb4W8mggkHw' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,50 +7,32 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_952D00511CBC' \
+--header 'traceid: TraceID_AE8FC2503AA3' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "655",
-                        "from": "CMB",
-                        "to": "DXB",
-                        "departureDate": "2026-10-08",
-                        "segmentSequence": 1,
-                        "departureTime": "22:05:00",
-                        "arrivalDate": "2026-10-09",
-                        "arrivalTime": "00:55:00",
-                        "cabin": "Economy",
-                        "classOfService": "T",
-                        "ContentSource": "NDC"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Economy Saver",
-                "BrandRef": "EKb1"
-            }
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "c7c1cca0-ad1a-4975-8604-d01affe74f6f"
+                }
+            },
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "EK_CPO0"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "EKp1"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'

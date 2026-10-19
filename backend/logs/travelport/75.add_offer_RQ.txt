@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/4bbda86a-93dd-4933-8190-f1164039b91a/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NDQyMDcsImV4cCI6MTc4OTUzMDYwNywiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ovnMoNeqoE7VFQNFGmRzJvskYrLkqNLAcbgJPFaBCtQrTSAuUGQLWFvO99QH2NcRAgMnIAw4jd8sF0BCCXrkD3CmxUEg7wvytJ3_x8eOMUf_qitefQNesCKl_DsxSQYcT46goBq7uir7LQkgPV6GW2uHjZ0oLjWov_yRamU4POtBEyEVhAdB4wkaH4WoeTL5105en0oqwYFqOhBqDry7AjUldiIMlrWB0YIokdugPN3pWs6trsaWwgT-eoaiiPKnFzyB8yYZSE9rUNPspoEKWp-ya-iVfhoprdlWpWKeQENOgnvfxkpVjuNV4euIRuIXZD3ct5t3xeHR_IkegKbh9A' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6a0ee3c0-216d-4b03-bef6-5d8d401ca65f/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTIzMjU2NzIsImV4cCI6MTc5MjQxMjA3MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.hdbMZdZ6taZlm37wh0xNfAneYYew5onu8GRAd3wuylcfcRBkqDpcDKcKCSeb6IsjvCyqGLag90jmdWklAh-BtyO3znGga0x0T9c4KCsOz14GbRMBk1n2myUMIa2WKA0FNVc6dWCNGejTvPcJPhzMM7ucqvJ8bcb9s_0WjcyhoMdNyCmk11EcDfhnIYaUKqURyGLmLhFUOxjqax0pGegW56nGOSPyp93teZu0ryeMLgWkoPBxfEVyvJOOHxHoJgLaj1OqCkZt8YhSIOvqVkbfrl12BCZi7kHSXGAiO5Hy03E2NAuv30Vy0AvdMV_Sfuc-jmsjS_Ik80aIz9gPYdmPCA' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,9 +7,10 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_D3CB8F31EB7D' \
+--header 'traceid: TraceID_9BF6FA6ADB44' \
 --data-raw '{
     "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
     "BuildFromProductsRequest": {
         "@type": "BuildFromProductsRequestAir",
         "ProductCriteriaAir": [
@@ -19,18 +20,48 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
                 "SpecificFlightCriteria": [
                     {
                         "@type": "SpecificFlightCriteria",
-                        "carrier": "FZ",
-                        "flightNumber": "570",
+                        "carrier": "QR",
+                        "flightNumber": "659",
                         "from": "CMB",
-                        "to": "DXB",
-                        "departureDate": "2026-09-16",
+                        "to": "DOH",
+                        "departureDate": "2026-10-20",
                         "segmentSequence": 1,
-                        "departureTime": "02:05:00",
-                        "arrivalDate": "2026-09-16",
-                        "arrivalTime": "05:10:00",
+                        "departureTime": "04:35:00",
+                        "arrivalDate": "2026-10-20",
+                        "arrivalTime": "06:55:00",
                         "cabin": "Economy",
-                        "classOfService": "T",
-                        "AvailabilitySourceCode": "Q"
+                        "classOfService": "N",
+                        "ContentSource": "NDC"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "4993",
+                        "from": "DOH",
+                        "to": "KUL",
+                        "departureDate": "2026-10-20",
+                        "segmentSequence": 2,
+                        "departureTime": "08:30:00",
+                        "arrivalDate": "2026-10-20",
+                        "arrivalTime": "21:25:00",
+                        "cabin": "Economy",
+                        "classOfService": "N",
+                        "ContentSource": "NDC"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "4980",
+                        "from": "KUL",
+                        "to": "MEL",
+                        "departureDate": "2026-10-20",
+                        "segmentSequence": 3,
+                        "departureTime": "22:25:00",
+                        "arrivalDate": "2026-10-21",
+                        "arrivalTime": "09:20:00",
+                        "cabin": "Economy",
+                        "classOfService": "N",
+                        "ContentSource": "NDC"
                     }
                 ]
             }
@@ -47,7 +78,8 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
             "@type": "PricingModifiersAir",
             "Brand": {
                 "@type": "Brand",
-                "name": "Standard"
+                "name": "ECONOMY CLASSIC",
+                "BrandRef": "QRb1"
             }
         }
     }

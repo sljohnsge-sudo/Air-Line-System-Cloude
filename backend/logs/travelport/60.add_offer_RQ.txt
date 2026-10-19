@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6feecd0b-7992-4517-9f84-be0a0630c992/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAyMzY3MjQsImV4cCI6MTc5MDMyMzEyNCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.szenH7-U596ama2duy6Tnr7LRetyhOa9-uGV06rOwImlxjU7PIsYhR5PZstq7bYsJCGLnGaZ4J8JwTkn7OxwEXJ3j_fNklC-g_9CimUGS2hdWLLI6NxLZ0qhHHKNAAXwvMsCujyAVBcAUNr23wMRUqRLE2qxH_OaTYRO9GTMGUSal4NZUcAA9n43aoyxWcw3ysPTv8QM5cu_KdIM6Vb_D19b2fDOYuD_OGpOSZO2Vjs_DrdtVT5lMomO4cnZpY5FS3kCHXIuC12awQNM_jyo-MEmSF7JKr3OlFsRgfj0YGi1N9Da4geGtJIllYco6qNXOFtUxm-YUnpnPGJ117Sh3w' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/6040b111-6f14-40b2-ab38-2db899b20f81/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTIzMjU2NzIsImV4cCI6MTc5MjQxMjA3MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.hdbMZdZ6taZlm37wh0xNfAneYYew5onu8GRAd3wuylcfcRBkqDpcDKcKCSeb6IsjvCyqGLag90jmdWklAh-BtyO3znGga0x0T9c4KCsOz14GbRMBk1n2myUMIa2WKA0FNVc6dWCNGejTvPcJPhzMM7ucqvJ8bcb9s_0WjcyhoMdNyCmk11EcDfhnIYaUKqURyGLmLhFUOxjqax0pGegW56nGOSPyp93teZu0ryeMLgWkoPBxfEVyvJOOHxHoJgLaj1OqCkZt8YhSIOvqVkbfrl12BCZi7kHSXGAiO5Hy03E2NAuv30Vy0AvdMV_Sfuc-jmsjS_Ik80aIz9gPYdmPCA' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,118 +7,46 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_6FAE6157A5D1' \
+--header 'traceid: TraceID_099EE6104945' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "651",
-                        "from": "CMB",
-                        "to": "DXB",
-                        "departureDate": "2026-12-15",
-                        "segmentSequence": 1,
-                        "departureTime": "09:55:00",
-                        "arrivalDate": "2026-12-15",
-                        "arrivalTime": "12:55:00",
-                        "cabin": "Economy",
-                        "classOfService": "T",
-                        "ContentSource": "NDC"
-                    }
-                ]
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "8e40131e-2d13-404c-8e6b-947455b531a4"
+                }
             },
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 2,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "5",
-                        "from": "DXB",
-                        "to": "LHR",
-                        "departureDate": "2026-12-15",
-                        "segmentSequence": 1,
-                        "departureTime": "16:05:00",
-                        "arrivalDate": "2026-12-15",
-                        "arrivalTime": "20:00:00",
-                        "cabin": "Economy",
-                        "classOfService": "T",
-                        "ContentSource": "NDC"
-                    }
-                ]
-            },
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 3,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "4",
-                        "from": "LHR",
-                        "to": "DXB",
-                        "departureDate": "2026-12-22",
-                        "segmentSequence": 1,
-                        "departureTime": "20:20:00",
-                        "arrivalDate": "2026-12-23",
-                        "arrivalTime": "07:20:00",
-                        "cabin": "Economy",
-                        "classOfService": "U",
-                        "ContentSource": "NDC"
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "QR_CPO0"
+                        }
                     },
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "EK",
-                        "flightNumber": "652",
-                        "from": "DXB",
-                        "to": "CMB",
-                        "departureDate": "2026-12-23",
-                        "segmentSequence": 2,
-                        "departureTime": "09:40:00",
-                        "arrivalDate": "2026-12-23",
-                        "arrivalTime": "18:25:00",
-                        "cabin": "Economy",
-                        "classOfService": "U",
-                        "ContentSource": "NDC"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 1,
-                "passengerTypeCode": "INF"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 10,
-                "passengerTypeCode": "CNN"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "Standard"
-            }
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "QRp7"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "QR_CPO1"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "QRp4"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'
