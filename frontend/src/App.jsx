@@ -174,6 +174,11 @@ const getTomorrow = () => {
   return d.toISOString().split('T')[0];
 };
 
+// ── Today's date helper (YYYY-MM-DD) — used as the upper bound on Date of
+// Birth pickers, which otherwise have no limit and let a future year be
+// selected with no warning until the backend rejects it ─────────────────────
+const getToday = () => new Date().toISOString().split('T')[0];
+
 // ── Dynamic Airport Search Autocomplete ─────────────────────────────────────
 // ── Custom calendar grid, used by the search form's date popovers ──────────
 // Native <input type="date"> + showPicker() was tried for the auto-advance
@@ -2118,6 +2123,11 @@ export default function App() {
       }
       if (!/^[A-Za-z0-9]{5,20}$/.test(t.passport_number.trim())) {
         setBookingError(`Passenger ${i + 1} passport number looks invalid — it should be 5–20 letters/numbers only, no spaces or symbols.`);
+        setActivePassengerIdx(i);
+        return;
+      }
+      if (t.date_of_birth && new Date(t.date_of_birth) > new Date()) {
+        setBookingError(`Passenger ${i + 1}'s date of birth can't be in the future — please check the year.`);
         setActivePassengerIdx(i);
         return;
       }
@@ -7097,7 +7107,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     <div className="form-grid-2">
                       <div className="form-group">
                         <label className="form-label">Date of Birth *</label>
-                        <input type="date" className="form-input" required value={t.dateOfBirth} onChange={e => setField('dateOfBirth', e.target.value)} />
+                        <input type="date" className="form-input" required max={getToday()} value={t.dateOfBirth} onChange={e => setField('dateOfBirth', e.target.value)} />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Gender *</label>
@@ -7114,7 +7124,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       </div>
                       <div className="form-group">
                         <label className="form-label">Passport Expiry *</label>
-                        <input type="date" className="form-input" required value={t.passportExpiry} onChange={e => setField('passportExpiry', e.target.value)} />
+                        <input type="date" className="form-input" required min={getTomorrow()} value={t.passportExpiry} onChange={e => setField('passportExpiry', e.target.value)} />
                       </div>
                     </div>
                     <div className="form-grid-2">
@@ -7245,7 +7255,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">Date of Birth *</label>
-                    <input type="date" className="form-input" required value={travelers[activePassengerIdx]?.date_of_birth || ''} onChange={e => handleTravelerChange('date_of_birth', e.target.value)} />
+                    <input type="date" className="form-input" required max={getToday()} value={travelers[activePassengerIdx]?.date_of_birth || ''} onChange={e => handleTravelerChange('date_of_birth', e.target.value)} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Gender *</label>
@@ -7262,7 +7272,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                   <div className="form-group">
                     <label className="form-label">Passport Expiry *</label>
-                    <input type="date" className="form-input" required value={travelers[activePassengerIdx]?.passport_expiry || ''} onChange={e => handleTravelerChange('passport_expiry', e.target.value)} />
+                    <input type="date" className="form-input" required min={getTomorrow()} value={travelers[activePassengerIdx]?.passport_expiry || ''} onChange={e => handleTravelerChange('passport_expiry', e.target.value)} />
                   </div>
                 </div>
                 <div className="form-grid-2">
