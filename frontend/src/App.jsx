@@ -1464,6 +1464,16 @@ export default function App() {
   const [activePassengerIdx, setActivePassengerIdx] = useState(0);
   const [showExtraTravelerFields, setShowExtraTravelerFields] = useState(false);
   const [bookingError, setBookingError] = useState('');
+  // Per-passenger, per-field validation messages -- { [passengerIdx]: { fieldName: message } }
+  // -- shown right under the offending input itself, not just as one generic
+  // banner at the top the customer has to go hunting to match to a field.
+  const [passengerFieldErrors, setPassengerFieldErrors] = useState({});
+  const passengerFieldError = (idx, field) => passengerFieldErrors[idx]?.[field];
+  const renderFieldError = (idx, field) => {
+    const msg = passengerFieldError(idx, field);
+    return msg ? <div style={{ color: '#dc2626', fontSize: '0.72rem', marginTop: '0.3rem' }}>{msg}</div> : null;
+  };
+  const fieldErrorStyle = (idx, field) => passengerFieldError(idx, field) ? { borderColor: '#dc2626' } : undefined;
 
   // Issued ticket (Step 10 popup)
   const [issuedTicket, setIssuedTicket] = useState(null);
@@ -2105,48 +2115,49 @@ export default function App() {
   const handlePassengerNext = async (e) => {
     e.preventDefault();
     const required = ['first_name', 'last_name', 'date_of_birth', 'passport_number', 'passport_expiry', 'passport_issue_country', 'email', 'phone'];
+    // Collects every problem across every passenger in one pass (rather than
+    // stopping at the first) so each gets shown right under its own field —
+    // the customer fixes everything they can see at once instead of
+    // resubmitting repeatedly to discover the next issue one at a time.
+    const errors = {};
+    let firstErrorIdx = null;
+    const addError = (idx, field, msg) => {
+      if (!errors[idx]) errors[idx] = {};
+      errors[idx][field] = msg;
+      if (firstErrorIdx === null) firstErrorIdx = idx;
+    };
+
     for (let i = 0; i < travelers.length; i++) {
       const t = travelers[i];
       for (const f of required) {
-        if (!t[f]) {
-          setBookingError(`Please fill in Passenger ${i + 1} details: ${f.replace(/_/g, ' ')}`);
-          setActivePassengerIdx(i);
-          return;
-        }
-        if (f === 'first_name' || f === 'last_name') {
-          if (t[f].trim().length < 2) {
-            setBookingError(`Passenger ${i + 1} ${f.replace(/_/g, ' ')} must be at least 2 characters.`);
-            setActivePassengerIdx(i);
-            return;
-          }
-        }
+        if (!t[f]) addError(i, f, 'Required.');
       }
-      if (!/^[A-Za-z0-9]{5,20}$/.test(t.passport_number.trim())) {
-        setBookingError(`Passenger ${i + 1} passport number looks invalid — it should be 5–20 letters/numbers only, no spaces or symbols.`);
-        setActivePassengerIdx(i);
-        return;
+      if (t.first_name && t.first_name.trim().length < 2) addError(i, 'first_name', 'Must be at least 2 characters.');
+      if (t.last_name && t.last_name.trim().length < 2) addError(i, 'last_name', 'Must be at least 2 characters.');
+      if (t.passport_number && !/^[A-Za-z0-9]{5,20}$/.test(t.passport_number.trim())) {
+        addError(i, 'passport_number', 'Should be 5–20 letters/numbers only, no spaces or symbols.');
       }
       if (t.date_of_birth && new Date(t.date_of_birth) > new Date()) {
-        setBookingError(`Passenger ${i + 1}'s date of birth can't be in the future — please check the year.`);
-        setActivePassengerIdx(i);
-        return;
+        addError(i, 'date_of_birth', "Can't be in the future — please check the year.");
       }
       if (t.passport_expiry && new Date(t.passport_expiry) <= new Date()) {
-        setBookingError(`Passenger ${i + 1}'s passport has expired (or expires today). Please use a passport valid beyond the travel date.`);
-        setActivePassengerIdx(i);
-        return;
+        addError(i, 'passport_expiry', 'Passport has expired (or expires today) — use one valid beyond the travel date.');
       }
-      if (!/^\S+@\S+\.\S+$/.test(t.email.trim())) {
-        setBookingError(`Passenger ${i + 1} email address looks invalid.`);
-        setActivePassengerIdx(i);
-        return;
+      if (t.email && !/^\S+@\S+\.\S+$/.test(t.email.trim())) {
+        addError(i, 'email', 'Email address looks invalid.');
       }
-      if (t.phone.replace(/\D/g, '').length < 7) {
-        setBookingError(`Passenger ${i + 1} phone number looks too short — please include the full mobile number.`);
-        setActivePassengerIdx(i);
-        return;
+      if (t.phone && t.phone.replace(/\D/g, '').length < 7) {
+        addError(i, 'phone', 'Looks too short — please include the full mobile number.');
       }
     }
+
+    if (firstErrorIdx !== null) {
+      setPassengerFieldErrors(errors);
+      setBookingError(`Please fix the highlighted field${Object.values(errors).some(e => Object.keys(e).length > 1) || Object.keys(errors).length > 1 ? 's' : ''} below.`);
+      setActivePassengerIdx(firstErrorIdx);
+      return;
+    }
+    setPassengerFieldErrors({});
     setBookingError('');
     setBookingStep('seats_loading');
 
@@ -7245,17 +7256,20 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">First Name *</label>
-                    <input type="text" className="form-input" required placeholder="John" value={travelers[activePassengerIdx]?.first_name || ''} onChange={e => handleTravelerChange('first_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                    <input type="text" className="form-input" required placeholder="John" style={fieldErrorStyle(activePassengerIdx, 'first_name')} value={travelers[activePassengerIdx]?.first_name || ''} onChange={e => handleTravelerChange('first_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                    {renderFieldError(activePassengerIdx, 'first_name')}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Last Name *</label>
-                    <input type="text" className="form-input" required placeholder="Doe" value={travelers[activePassengerIdx]?.last_name || ''} onChange={e => handleTravelerChange('last_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                    <input type="text" className="form-input" required placeholder="Doe" style={fieldErrorStyle(activePassengerIdx, 'last_name')} value={travelers[activePassengerIdx]?.last_name || ''} onChange={e => handleTravelerChange('last_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                    {renderFieldError(activePassengerIdx, 'last_name')}
                   </div>
                 </div>
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">Date of Birth *</label>
-                    <input type="date" className="form-input" required max={getToday()} value={travelers[activePassengerIdx]?.date_of_birth || ''} onChange={e => handleTravelerChange('date_of_birth', e.target.value)} />
+                    <input type="date" className="form-input" required max={getToday()} style={fieldErrorStyle(activePassengerIdx, 'date_of_birth')} value={travelers[activePassengerIdx]?.date_of_birth || ''} onChange={e => handleTravelerChange('date_of_birth', e.target.value)} />
+                    {renderFieldError(activePassengerIdx, 'date_of_birth')}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Gender *</label>
@@ -7268,11 +7282,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">Passport Number *</label>
-                    <input type="text" className="form-input" required placeholder="N1234567" value={travelers[activePassengerIdx]?.passport_number || ''} onChange={e => handleTravelerChange('passport_number', e.target.value)} />
+                    <input type="text" className="form-input" required placeholder="N1234567" style={fieldErrorStyle(activePassengerIdx, 'passport_number')} value={travelers[activePassengerIdx]?.passport_number || ''} onChange={e => handleTravelerChange('passport_number', e.target.value)} />
+                    {renderFieldError(activePassengerIdx, 'passport_number')}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Passport Expiry *</label>
-                    <input type="date" className="form-input" required min={getTomorrow()} value={travelers[activePassengerIdx]?.passport_expiry || ''} onChange={e => handleTravelerChange('passport_expiry', e.target.value)} />
+                    <input type="date" className="form-input" required min={getTomorrow()} style={fieldErrorStyle(activePassengerIdx, 'passport_expiry')} value={travelers[activePassengerIdx]?.passport_expiry || ''} onChange={e => handleTravelerChange('passport_expiry', e.target.value)} />
+                    {renderFieldError(activePassengerIdx, 'passport_expiry')}
                   </div>
                 </div>
                 <div className="form-grid-2">
@@ -7287,12 +7303,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                   <div className="form-group">
                     <label className="form-label">Passport Issue Country *</label>
-                    <select className="form-select" required value={travelers[activePassengerIdx]?.passport_issue_country || ''} onChange={e => handleTravelerChange('passport_issue_country', e.target.value)}>
+                    <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'passport_issue_country')} value={travelers[activePassengerIdx]?.passport_issue_country || ''} onChange={e => handleTravelerChange('passport_issue_country', e.target.value)}>
                       <option value="">-- Select issue country --</option>
                       {NATIONALITIES.map(n => (
                         <option key={n.code} value={n.code}>{n.name}</option>
                       ))}
                     </select>
+                    {renderFieldError(activePassengerIdx, 'passport_issue_country')}
                   </div>
                 </div>
                 <div className="form-grid-2">
@@ -7314,15 +7331,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         className="form-input"
                         required
                         placeholder="771234567"
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, ...fieldErrorStyle(activePassengerIdx, 'phone') }}
                         value={splitPhone(travelers[activePassengerIdx]?.phone).local}
                         onChange={e => handleTravelerPhoneLocalChange(e.target.value)}
                       />
                     </div>
+                    {renderFieldError(activePassengerIdx, 'phone')}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Email Address *</label>
-                    <input type="email" className="form-input" required placeholder="john@example.com" value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
+                    <input type="email" className="form-input" required placeholder="john@example.com" style={fieldErrorStyle(activePassengerIdx, 'email')} value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
+                    {renderFieldError(activePassengerIdx, 'email')}
                   </div>
                 </div>
 
