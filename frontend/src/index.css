@@ -2292,6 +2292,10 @@ body {
     margin: 0;   /* zero margin suppresses browser's title/URL header & footer */
   }
 
+  html {
+    font-size: 13px !important;   /* shrinks all rem-based sizing ~19%; reliable cross-browser */
+  }
+
   html, body {
     background: #fff !important;
     margin: 0 !important;
@@ -2345,7 +2349,6 @@ body {
     background: #fff !important;
     color: #1e293b !important;
     overflow: visible !important;
-    zoom: 0.88 !important;         /* scale down ~12% so content fits one A4 page */
   }
 
   /* ── Tighten ticket body padding and section spacing for one-page fit ── */
@@ -2361,6 +2364,20 @@ body {
   .ticket-ref-grid {
     margin-bottom: 0.8rem !important;
     padding: 0.6rem 0.9rem !important;
+  }
+
+  .ticket-main-cols {
+    gap: 1rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .ticket-pax-list {
+    gap: 0.4rem !important;
+    margin-bottom: 0.6rem !important;
+  }
+
+  .ticket-notices {
+    padding-top: 0.6rem !important;
   }
 
   /* ── Force background colors and images to print ── */

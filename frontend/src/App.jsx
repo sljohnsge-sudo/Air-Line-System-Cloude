@@ -8352,14 +8352,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
 
               {/* Grid: Left Section (Customer details + Itinerary) / Right Section (QR code + payment breakdown) */}
-              <div style={{ display: 'flex', gap: '2rem', marginBottom: '2rem' }}>
+              <div className="ticket-main-cols" style={{ display: 'flex', gap: '2rem', marginBottom: '2rem' }}>
                 <div style={{ flex: 1.6 }}>
                   
                   {/* Passenger Information — all travelers */}
                   <h3 style={{ fontSize: '0.9rem', color: '#c3122e', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Passenger Information ({displayTravelers.length} {displayTravelers.length === 1 ? 'Passenger' : 'Passengers'})
                   </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.75rem' }}>
+                  <div className="ticket-pax-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.75rem' }}>
                     {displayTravelers.map((t, pIdx) => {
                       const paxTypeLabel = t.passenger_type === 'CNN' ? 'Child' : t.passenger_type === 'INF' ? 'Infant' : t.passenger_type === 'STU' ? 'Student' : 'Adult';
                       const paxIcon = t.passenger_type === 'CNN' ? '🧒' : t.passenger_type === 'INF' ? '👶' : t.passenger_type === 'STU' ? '🎓' : '🧑';
@@ -8618,7 +8618,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
 
               {/* Important Notices */}
-              <div style={{ borderTop: '2px solid #cbd5e1', paddingTop: '1.25rem', fontSize: '0.68rem', color: '#64748b', lineHeight: '1.4' }}>
+              <div className="ticket-notices" style={{ borderTop: '2px solid #cbd5e1', paddingTop: '1.25rem', fontSize: '0.68rem', color: '#64748b', lineHeight: '1.4' }}>
                 <h4 style={{ color: '#1e293b', fontWeight: '700', margin: '0 0 0.4rem 0', textTransform: 'uppercase' }}>
                   Important Travel Information
                 </h4>
