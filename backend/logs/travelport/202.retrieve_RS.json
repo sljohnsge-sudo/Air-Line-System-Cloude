@@ -2,55 +2,93 @@
     "ReservationResponse": {
         "@type": "ReservationResponse",
         "Reservation": {
-            "@type": "Reservation",
+            "@type": "ReservationDetail",
             "Identifier": {
-                "authority": "Travelport",
-                "value": "5e10451e-ac47-496a-9c7a-f0081f7aea06"
+                "authority": "SQ",
+                "value": "fcfd06f8-f894-4d05-aecd-4c6e3be8c9d9"
             },
             "Offer": [
                 {
                     "@type": "Offer",
                     "id": "offer_1",
                     "Identifier": {
-                        "authority": "Travelport",
-                        "value": "606510ef-193e-4594-ac42-68515748fbbf"
+                        "authority": "SQ",
+                        "value": "NTJKRk1RfFNRNjE4NTJKRk1RMDBfQUlSLTEtMi0zLTR8U1F8U1E2MTg1MkpGTVEwMHxwcm9kdWN0XzJfczMtU0VHMyxzNC1TRUc0OnByb2R1Y3RfMV9zMS1TRUcxLHMyLVNFRzJ8QURUOlBBWDJ8U3RhdHVzOlVTRUQgTlRBQw=="
                     },
-                    "ContentSource": "GDS",
+                    "ContentSource": "NDC",
                     "Product": [
                         {
                             "@type": "ProductAir",
+                            "totalDuration": "PT14H55M",
                             "id": "product_1",
                             "Identifier": {
-                                "authority": "Travelport",
-                                "value": "7a4c32dc-165b-4486-ba70-51fe09e0fa25"
+                                "authority": "SQ",
+                                "value": "09efdaf9-2073-43d0-a913-9df7bf1b76b3"
                             },
                             "FlightSegment": [
                                 {
                                     "@type": "FlightSegment",
-                                    "id": "FlightSegment_01",
+                                    "id": "s1",
                                     "sequence": 1,
+                                    "connectionDuration": "PT3H40M",
                                     "Flight": {
                                         "@type": "Flight",
-                                        "duration": "PT2H50M",
-                                        "carrier": "AI",
-                                        "number": "2275",
-                                        "equipment": "32N",
-                                        "id": "Flight_01",
+                                        "duration": "PT4H",
+                                        "carrier": "SQ",
+                                        "number": "469",
+                                        "operatingCarrier": "SQ",
+                                        "operatingCarrierName": "SINGAPORE AIRLINES",
+                                        "equipment": "787",
+                                        "id": "seg1",
                                         "Identifier": {
-                                            "authority": "Travelport",
-                                            "value": "e7d5fc74-2e30-4e34-9c8d-41aa6c88977d"
+                                            "authority": "SQ",
+                                            "value": "24cc60c8-8d9d-4eeb-8471-8ea8b1ea0dca"
                                         },
                                         "Departure": {
-                                            "@type": "Departure",
+                                            "@type": "DepartureDetail",
                                             "location": "CMB",
-                                            "date": "2027-08-01",
-                                            "time": "16:00:00"
+                                            "date": "2026-10-20",
+                                            "time": "00:50:00"
                                         },
                                         "Arrival": {
-                                            "@type": "Arrival",
-                                            "location": "BOM",
-                                            "date": "2027-08-01",
-                                            "time": "18:40:00"
+                                            "@type": "ArrivalDetail",
+                                            "terminal": "0",
+                                            "location": "SIN",
+                                            "date": "2026-10-20",
+                                            "time": "07:20:00"
+                                        }
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "s2",
+                                    "sequence": 2,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT7H15M",
+                                        "carrier": "SQ",
+                                        "number": "8514",
+                                        "operatingCarrier": "TR",
+                                        "operatingCarrierName": "SCOOT",
+                                        "equipment": "789",
+                                        "id": "seg2",
+                                        "Identifier": {
+                                            "authority": "SQ",
+                                            "value": "e89b0523-f568-4280-9bcc-0d20dcffb8d8"
+                                        },
+                                        "Departure": {
+                                            "@type": "DepartureDetail",
+                                            "terminal": "1",
+                                            "location": "SIN",
+                                            "date": "2026-10-20",
+                                            "time": "11:00:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "ArrivalDetail",
+                                            "terminal": "2",
+                                            "location": "MEL",
+                                            "date": "2026-10-20",
+                                            "time": "21:15:00"
                                         }
                                     }
                                 }
@@ -64,46 +102,13 @@
                                         {
                                             "@type": "FlightProduct",
                                             "segmentSequence": [
-                                                1
+                                                1,
+                                                2
                                             ],
                                             "classOfService": "K",
                                             "cabin": "Economy",
-                                            "fareBasisCode": "KL2YXSCM",
-                                            "fareType": "PublicFare"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "@type": "PassengerFlight",
-                                    "passengerQuantity": 1,
-                                    "passengerTypeCode": "INF",
-                                    "FlightProduct": [
-                                        {
-                                            "@type": "FlightProduct",
-                                            "segmentSequence": [
-                                                1
-                                            ],
-                                            "classOfService": "K",
-                                            "cabin": "Economy",
-                                            "fareBasisCode": "KL2YXSCM/IN",
-                                            "fareType": "PublicFare"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "@type": "PassengerFlight",
-                                    "passengerQuantity": 1,
-                                    "passengerTypeCode": "CHD",
-                                    "FlightProduct": [
-                                        {
-                                            "@type": "FlightProduct",
-                                            "segmentSequence": [
-                                                1
-                                            ],
-                                            "classOfService": "K",
-                                            "cabin": "Economy",
-                                            "fareBasisCode": "KL2YXSCM",
-                                            "fareType": "PublicFare"
+                                            "fareBasisCode": "KV6LKR",
+                                            "fareType": "AirlinePrivateFare"
                                         }
                                     ]
                                 }
@@ -111,38 +116,76 @@
                         },
                         {
                             "@type": "ProductAir",
+                            "totalDuration": "P1DT9H35M",
                             "id": "product_2",
                             "Identifier": {
-                                "authority": "Travelport",
-                                "value": "b0502a75-e9e0-4e6c-bad9-9fd780fead48"
+                                "authority": "SQ",
+                                "value": "4b19d6d2-75ca-4b57-89b6-414d0d8f0e64"
                             },
                             "FlightSegment": [
                                 {
                                     "@type": "FlightSegment",
-                                    "id": "FlightSegment_02",
-                                    "sequence": 2,
+                                    "id": "s3",
+                                    "sequence": 3,
+                                    "connectionDuration": "PT21H55M",
                                     "Flight": {
                                         "@type": "Flight",
-                                        "duration": "PT2H35M",
-                                        "carrier": "AI",
-                                        "number": "2276",
-                                        "equipment": "32N",
-                                        "id": "Flight_02",
+                                        "duration": "PT7H50M",
+                                        "carrier": "SQ",
+                                        "number": "208",
+                                        "operatingCarrier": "SQ",
+                                        "operatingCarrierName": "SINGAPORE AIRLINES",
+                                        "equipment": "359",
+                                        "id": "seg3",
                                         "Identifier": {
-                                            "authority": "Travelport",
-                                            "value": "243873e6-8029-4692-9df9-1a01b8a979a8"
+                                            "authority": "SQ",
+                                            "value": "655a9385-38ee-476c-8db2-b49f401b6399"
                                         },
                                         "Departure": {
-                                            "@type": "Departure",
-                                            "location": "BOM",
-                                            "date": "2027-08-09",
-                                            "time": "12:25:00"
+                                            "@type": "DepartureDetail",
+                                            "terminal": "2",
+                                            "location": "MEL",
+                                            "date": "2026-10-27",
+                                            "time": "19:25:00"
                                         },
                                         "Arrival": {
-                                            "@type": "Arrival",
+                                            "@type": "ArrivalDetail",
+                                            "terminal": "0",
+                                            "location": "SIN",
+                                            "date": "2026-10-28",
+                                            "time": "00:15:00"
+                                        }
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "s4",
+                                    "sequence": 4,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT3H50M",
+                                        "carrier": "SQ",
+                                        "number": "468",
+                                        "operatingCarrier": "SQ",
+                                        "operatingCarrierName": "SINGAPORE AIRLINES",
+                                        "equipment": "787",
+                                        "id": "seg4",
+                                        "Identifier": {
+                                            "authority": "SQ",
+                                            "value": "fafaed78-899a-4e30-b4e9-11c2a2354c36"
+                                        },
+                                        "Departure": {
+                                            "@type": "DepartureDetail",
+                                            "terminal": "2",
+                                            "location": "SIN",
+                                            "date": "2026-10-28",
+                                            "time": "22:10:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "ArrivalDetail",
                                             "location": "CMB",
-                                            "date": "2027-08-09",
-                                            "time": "15:00:00"
+                                            "date": "2026-10-28",
+                                            "time": "23:30:00"
                                         }
                                     }
                                 }
@@ -156,46 +199,17 @@
                                         {
                                             "@type": "FlightProduct",
                                             "segmentSequence": [
-                                                2
+                                                3,
+                                                4
                                             ],
                                             "classOfService": "K",
                                             "cabin": "Economy",
-                                            "fareBasisCode": "KL2YXSCM",
-                                            "fareType": "PublicFare"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "@type": "PassengerFlight",
-                                    "passengerQuantity": 1,
-                                    "passengerTypeCode": "INF",
-                                    "FlightProduct": [
-                                        {
-                                            "@type": "FlightProduct",
-                                            "segmentSequence": [
-                                                2
-                                            ],
-                                            "classOfService": "K",
-                                            "cabin": "Economy",
-                                            "fareBasisCode": "KL2YXSCM/IN",
-                                            "fareType": "PublicFare"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "@type": "PassengerFlight",
-                                    "passengerQuantity": 1,
-                                    "passengerTypeCode": "CHD",
-                                    "FlightProduct": [
-                                        {
-                                            "@type": "FlightProduct",
-                                            "segmentSequence": [
-                                                2
-                                            ],
-                                            "classOfService": "K",
-                                            "cabin": "Economy",
-                                            "fareBasisCode": "KL2YXSCM",
-                                            "fareType": "PublicFare"
+                                            "fareBasisCode": "K16LKR",
+                                            "fareType": "AirlinePrivateFare",
+                                            "Brand": {
+                                                "@type": "Brand",
+                                                "name": "Economy Lite"
+                                            }
                                         }
                                     ]
                                 }
@@ -204,14 +218,14 @@
                     ],
                     "Price": {
                         "@type": "PriceDetail",
-                        "id": "PriceDetail_1",
                         "CurrencyCode": {
+                            "decimalPlace": 0,
                             "value": "LKR"
                         },
-                        "Base": 310700,
-                        "TotalTaxes": 94026,
+                        "Base": 235400,
+                        "TotalTaxes": 63418,
                         "TotalFees": 0,
-                        "TotalPrice": 404726,
+                        "TotalPrice": 298818,
                         "PriceBreakdown": [
                             {
                                 "@type": "PriceBreakdownAir",
@@ -220,240 +234,67 @@
                                 "Amount": {
                                     "@type": "Amount",
                                     "CurrencyCode": {
-                                        "decimalPlace": 2,
-                                        "value": "USD"
-                                    },
-                                    "Base": 433.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_1"
-                                ]
-                            },
-                            {
-                                "@type": "PriceBreakdownAir",
-                                "quantity": 1,
-                                "requestedPassengerType": "ADT",
-                                "Amount": {
-                                    "@type": "Amount",
-                                    "currencySource": "Charged",
-                                    "approximateInd": true,
-                                    "CurrencyCode": {
                                         "decimalPlace": 0,
                                         "value": "LKR"
                                     },
-                                    "Base": 147500,
+                                    "Base": 235400,
                                     "Taxes": {
                                         "@type": "TaxesDetail",
-                                        "TotalTaxes": 46441,
+                                        "TotalTaxes": 63418,
                                         "Tax": [
                                             {
-                                                "currencyCode": "LKR",
                                                 "taxCode": "LK",
-                                                "value": 20436
+                                                "value": 20144
                                             },
                                             {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "IN",
-                                                "value": 3688
+                                                "taxCode": "L7",
+                                                "value": 1572
                                             },
                                             {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "P2",
-                                                "value": 4823
+                                                "taxCode": "SG",
+                                                "value": 6284
                                             },
                                             {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "YQ",
-                                                "value": 16350
+                                                "taxCode": "AU",
+                                                "value": 16286
                                             },
                                             {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "YR",
-                                                "value": 1144
+                                                "taxCode": "WG",
+                                                "value": 2443
+                                            },
+                                            {
+                                                "taxCode": "WY",
+                                                "value": 16689
                                             }
                                         ]
                                     },
-                                    "Total": 193941
-                                },
-                                "FiledAmount": {
-                                    "currencyCode": "USD",
-                                    "decimalPlace": 2,
-                                    "value": 433.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_1"
-                                ],
-                                "FareCalculation": "CMB AI BOM 216.50KL2YXSCM AI CMB 216.50KL2YXSCM NUC433.00END ROE1.0"
-                            },
-                            {
-                                "@type": "PriceBreakdownAir",
-                                "quantity": 1,
-                                "requestedPassengerType": "INF",
-                                "Amount": {
-                                    "@type": "Amount",
-                                    "CurrencyCode": {
-                                        "decimalPlace": 2,
-                                        "value": "USD"
-                                    },
-                                    "Base": 46.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_2"
-                                ]
-                            },
-                            {
-                                "@type": "PriceBreakdownAir",
-                                "quantity": 1,
-                                "requestedPassengerType": "INF",
-                                "Amount": {
-                                    "@type": "Amount",
-                                    "currencySource": "Charged",
-                                    "approximateInd": true,
-                                    "CurrencyCode": {
-                                        "decimalPlace": 0,
-                                        "value": "LKR"
-                                    },
-                                    "Base": 15700,
-                                    "Taxes": {
-                                        "@type": "TaxesDetail",
-                                        "TotalTaxes": 1144,
-                                        "Tax": [
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "YR",
-                                                "value": 1144
-                                            }
-                                        ]
-                                    },
-                                    "Total": 16844
-                                },
-                                "FiledAmount": {
-                                    "currencyCode": "USD",
-                                    "decimalPlace": 2,
-                                    "value": 46.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_2"
-                                ],
-                                "FareCalculation": "CMB AI BOM 23.00KL2YXSCM/IN AI CMB 23.00KL2YXSCM/IN NUC46.00END ROE1.0"
-                            },
-                            {
-                                "@type": "PriceBreakdownAir",
-                                "quantity": 1,
-                                "requestedPassengerType": "CHD",
-                                "Amount": {
-                                    "@type": "Amount",
-                                    "CurrencyCode": {
-                                        "decimalPlace": 2,
-                                        "value": "USD"
-                                    },
-                                    "Base": 433.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_3"
-                                ]
-                            },
-                            {
-                                "@type": "PriceBreakdownAir",
-                                "quantity": 1,
-                                "requestedPassengerType": "CHD",
-                                "Amount": {
-                                    "@type": "Amount",
-                                    "currencySource": "Charged",
-                                    "approximateInd": true,
-                                    "CurrencyCode": {
-                                        "decimalPlace": 0,
-                                        "value": "LKR"
-                                    },
-                                    "Base": 147500,
-                                    "Taxes": {
-                                        "@type": "TaxesDetail",
-                                        "TotalTaxes": 46441,
-                                        "Tax": [
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "LK",
-                                                "value": 20436
-                                            },
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "IN",
-                                                "value": 3688
-                                            },
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "P2",
-                                                "value": 4823
-                                            },
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "YQ",
-                                                "value": 16350
-                                            },
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "YR",
-                                                "value": 1144
-                                            }
-                                        ]
-                                    },
-                                    "Total": 193941
-                                },
-                                "FiledAmount": {
-                                    "currencyCode": "USD",
-                                    "decimalPlace": 2,
-                                    "value": 433.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_3"
-                                ],
-                                "FareCalculation": "CMB AI BOM 216.50KL2YXSCM AI CMB 216.50KL2YXSCM NUC433.00END ROE1.0"
+                                    "Total": 298818
+                                }
                             }
                         ]
                     },
                     "TermsAndConditionsFull": [
                         {
                             "@type": "TermsAndConditionsFullAir",
-                            "Identifier": {
-                                "authority": "Travelport",
-                                "value": "c8a9f051-1072-4b13-afe4-b6035d09e224"
-                            },
-                            "ExpiryDate": "2026-09-17T18:29:00Z",
                             "BaggageAllowance": [
                                 {
                                     "@type": "BaggageAllowanceDetail",
                                     "passengerTypeCodes": [
                                         "ADT"
                                     ],
-                                    "SegmentSequenceList": [
-                                        1
+                                    "baggageType": "FirstCheckedBag",
+                                    "ProductRef": [
+                                        "product_1"
                                     ],
-                                    "Text": [
-                                        "30K"
-                                    ]
-                                },
-                                {
-                                    "@type": "BaggageAllowanceDetail",
-                                    "passengerTypeCodes": [
-                                        "INF"
+                                    "BaggageItem": [
+                                        {
+                                            "@type": "BaggageItem",
+                                            "includedInOfferPrice": "No"
+                                        }
                                     ],
                                     "SegmentSequenceList": [
-                                        1
-                                    ],
-                                    "Text": [
-                                        "10K"
-                                    ]
-                                },
-                                {
-                                    "@type": "BaggageAllowanceDetail",
-                                    "passengerTypeCodes": [
-                                        "CHD"
-                                    ],
-                                    "SegmentSequenceList": [
-                                        1
-                                    ],
-                                    "Text": [
-                                        "30K"
+                                        1,
+                                        2
                                     ]
                                 },
                                 {
@@ -461,109 +302,269 @@
                                     "passengerTypeCodes": [
                                         "ADT"
                                     ],
-                                    "SegmentSequenceList": [
-                                        2
+                                    "baggageType": "FirstCheckedBag",
+                                    "ProductRef": [
+                                        "product_2"
                                     ],
-                                    "Text": [
-                                        "30K"
+                                    "BaggageItem": [
+                                        {
+                                            "@type": "BaggageItem",
+                                            "includedInOfferPrice": "No"
+                                        }
+                                    ],
+                                    "SegmentSequenceList": [
+                                        3,
+                                        4
                                     ]
                                 },
                                 {
                                     "@type": "BaggageAllowanceDetail",
                                     "passengerTypeCodes": [
-                                        "INF"
+                                        "ADT"
+                                    ],
+                                    "baggageType": "CarryOn",
+                                    "ProductRef": [
+                                        "product_2"
+                                    ],
+                                    "BaggageItem": [
+                                        {
+                                            "@type": "BaggageItem",
+                                            "quantity": 0,
+                                            "includedInOfferPrice": "No",
+                                            "soldByPieceInd": true,
+                                            "BaggageFee": {
+                                                "code": "LKR",
+                                                "value": 0
+                                            }
+                                        }
                                     ],
                                     "SegmentSequenceList": [
-                                        2
+                                        3,
+                                        4
                                     ],
                                     "Text": [
-                                        "10K"
+                                        "0PC"
                                     ]
-                                },
+                                }
+                            ],
+                            "FareRuleInfo": [
                                 {
-                                    "@type": "BaggageAllowanceDetail",
-                                    "passengerTypeCodes": [
-                                        "CHD"
+                                    "@type": "FareRuleInfoText",
+                                    "flightsRefs": [
+                                        "s1",
+                                        "s2",
+                                        "s3",
+                                        "s4"
                                     ],
-                                    "SegmentSequenceList": [
-                                        2
-                                    ],
-                                    "Text": [
-                                        "30K"
+                                    "ruleNumber": "749",
+                                    "TextFareRule": [
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Change not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Change not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Reissue not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT No Show Refund not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT No Show Refund not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Reissue not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT Prior To Departure Refund not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT No Show Refund not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT No Show Refund not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Reissue not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Reissue not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT Prior To Departure Refund not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT Prior To Departure Refund not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT Prior To Departure Refund not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT Prior To Departure Reissue not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT After Departure Reissue not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT Prior To Departure Reissue not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT Prior To Departure Reissue not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT Prior To Departure Reissue not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT Prior To Departure Change not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT Prior To Departure Change not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT Prior To Departure Change not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Change not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT Prior To Departure Change not permitted before departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT After Departure Reissue not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Change not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT After Departure Reissue not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT After Departure Reissue not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT After Departure Refund not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT After Departure Refund not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT After Departure Refund not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT After Departure Refund not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT No Show Refund not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT No Show Refund not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT No Show Refund not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "ADT No Show Refund not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Change not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT After Departure Change not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Change not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT After Departure Change not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Change not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT After Departure Change not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Change not permitted after departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT After Departure Change not permitted after departure:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Reissue not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Reissue not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Reissue not permitted before departure no show:Not Allowed"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "ADT No Show Reissue not permitted before departure no show:Not Allowed"
+                                        }
                                     ]
                                 }
                             ],
                             "ValidatingAirline": [
                                 {
                                     "@type": "ValidatingAirline",
-                                    "ValidatingAirline": "AI"
+                                    "ValidatingAirline": "SQ"
                                 }
                             ],
-                            "TicketingAgency": [
+                            "Penalties": [
                                 {
-                                    "@type": "TicketingAgency",
-                                    "Code": "7F3C"
-                                }
-                            ],
-                            "PaymentTimeLimit": "2027-08-01T18:29:00Z",
-                            "PricingAgency": [
-                                {
-                                    "@type": "PricingAgency",
-                                    "Code": "7F3C"
-                                }
-                            ],
-                            "FareGuaranteePolicy": [
-                                {
-                                    "@type": "FareGuaranteePolicy",
-                                    "passengerTypeCodes": [
-                                        "INF",
-                                        "ADT",
-                                        "CHD"
-                                    ],
-                                    "Code": {
-                                        "value": "G"
-                                    }
-                                }
-                            ]
-                        },
-                        {
-                            "@type": "TermsAndConditionsFullAir",
-                            "Restriction": [
-                                {
-                                    "value": "NON-END/CHANGE"
-                                },
-                                {
-                                    "value": "CANCELLATION/NO-SHOW"
-                                },
-                                {
-                                    "value": "PENALTY MAY APPLY"
-                                },
-                                {
-                                    "value": "AS PER FARE RULES"
-                                },
-                                {
-                                    "value": "NON-END/CHANGE"
-                                },
-                                {
-                                    "value": "CANCELLATION/NO-SHOW"
-                                },
-                                {
-                                    "value": "PENALTY MAY APPLY"
-                                },
-                                {
-                                    "value": "AS PER FARE RULES"
-                                },
-                                {
-                                    "value": "NON-END/CHANGE"
-                                },
-                                {
-                                    "value": "CANCELLATION/NO-SHOW"
-                                },
-                                {
-                                    "value": "PENALTY MAY APPLY"
-                                },
-                                {
-                                    "value": "AS PER FARE RULES"
+                                    "@type": "Penalties",
+                                    "PassengerTypeCodes": [
+                                        "ADT"
+                                    ]
                                 }
                             ]
                         }
@@ -573,192 +574,181 @@
             "Traveler": [
                 {
                     "@type": "Traveler",
-                    "birthDate": "1986-03-22",
-                    "gender": "Female",
+                    "birthDate": "2000-04-04",
+                    "gender": "Male",
                     "passengerTypeCode": "ADT",
                     "id": "travelerRefId_1",
+                    "TravelerRef": "travelerRefId_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "47cee990-c4fd-463b-9dea-561576607637"
+                        "value": "QURUfFBBWDJ8UHJlZml4Ok1SO0dpdmVuOkRTRDtTdXJuYW1lOkRTRA=="
                     },
                     "PersonName": {
                         "@type": "PersonName",
-                        "Given": "CHAMILA MRS",
-                        "Surname": "RATNAYAKE"
+                        "Prefix": "MR",
+                        "Given": "DSD",
+                        "Surname": "DSD"
                     },
                     "Telephone": [
                         {
-                            "@type": "TelephoneDetail",
+                            "@type": "Telephone",
                             "countryAccessCode": "94",
-                            "phoneNumber": "775566778",
+                            "phoneNumber": "77772333",
                             "id": "telephone_1",
-                            "cityCode": "CMB",
                             "role": "Mobile"
                         }
                     ],
                     "Email": [
                         {
-                            "emailType": "TO",
-                            "value": "chamila.r@example.com"
-                        },
-                        {
-                            "emailType": "TO",
-                            "value": "chamila.r@example.com"
-                        },
-                        {
-                            "emailType": "TO",
-                            "value": "chamila.r@example.com"
+                            "id": "email_1",
+                            "value": "AA@GMAIL.COM"
                         }
                     ],
                     "TravelDocument": [
                         {
-                            "@type": "TravelDocumentDetail",
-                            "docNumber": "N7789900",
+                            "@type": "TravelDocument",
+                            "docNumber": "N213233",
                             "docType": "Passport",
-                            "expireDate": "2031-10-01",
+                            "expireDate": "2026-12-31",
                             "issueCountry": "LK",
-                            "birthDate": "1986-03-22",
-                            "Gender": "Female",
-                            "Nationality": "LK",
-                            "PersonName": {
-                                "@type": "PersonName",
-                                "Given": "CHAMILA",
-                                "Surname": "RATNAYAKE"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "@type": "Traveler",
-                    "birthDate": "2025-06-15",
-                    "gender": "Female",
-                    "passengerTypeCode": "INF",
-                    "id": "travelerRefId_2",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "57589861-b9a4-4879-be82-b49340be7f78"
-                    },
-                    "PersonName": {
-                        "@type": "PersonName",
-                        "Given": "AMAYA MISS",
-                        "Surname": "RATNAYAKE"
-                    },
-                    "Telephone": [
-                        {
-                            "@type": "TelephoneDetail",
-                            "countryAccessCode": "94",
-                            "phoneNumber": "775566778",
-                            "id": "telephone_1",
-                            "cityCode": "CMB",
-                            "role": "Mobile"
-                        }
-                    ],
-                    "TravelDocument": [
-                        {
-                            "@type": "TravelDocumentDetail",
-                            "docNumber": "N9901122",
-                            "docType": "Passport",
-                            "expireDate": "2031-10-01",
-                            "issueCountry": "LK",
-                            "birthDate": "2025-06-15",
-                            "Gender": "Female",
-                            "Nationality": "LK",
-                            "PersonName": {
-                                "@type": "PersonName",
-                                "Given": "AMAYA",
-                                "Surname": "RATNAYAKE"
-                            }
-                        }
-                    ],
-                    "Comments": {
-                        "@type": "Comments",
-                        "Comment": [
-                            {
-                                "id": "comment_1",
-                                "value": "15JUN25"
-                            }
-                        ]
-                    }
-                },
-                {
-                    "@type": "Traveler",
-                    "birthDate": "2016-06-10",
-                    "gender": "Male",
-                    "passengerTypeCode": "CHD",
-                    "id": "travelerRefId_3",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "16bf27dd-8b5a-4182-b87e-1c121014e407"
-                    },
-                    "PersonName": {
-                        "@type": "PersonName",
-                        "Given": "YOHAN MSTR",
-                        "Surname": "RATNAYAKE"
-                    },
-                    "Telephone": [
-                        {
-                            "@type": "TelephoneDetail",
-                            "countryAccessCode": "94",
-                            "phoneNumber": "775566778",
-                            "id": "telephone_1",
-                            "cityCode": "CMB",
-                            "role": "Mobile"
-                        }
-                    ],
-                    "TravelDocument": [
-                        {
-                            "@type": "TravelDocumentDetail",
-                            "docNumber": "N8890011",
-                            "docType": "Passport",
-                            "expireDate": "2031-10-01",
-                            "issueCountry": "LK",
-                            "birthDate": "2016-06-10",
+                            "birthDate": "2000-04-04",
                             "Gender": "Male",
                             "Nationality": "LK",
                             "PersonName": {
                                 "@type": "PersonName",
-                                "Given": "YOHAN",
-                                "Surname": "RATNAYAKE"
+                                "Given": "DSD",
+                                "Surname": "DSD"
                             }
                         }
-                    ],
-                    "Comments": {
-                        "@type": "Comments",
-                        "Comment": [
-                            {
-                                "id": "comment_2",
-                                "value": "P-CNN DOB10JUN16"
-                            }
-                        ]
+                    ]
+                }
+            ],
+            "FormOfPayment": [
+                {
+                    "@type": "FormOfPaymentCash",
+                    "id": "formOfPayment_1",
+                    "Identifier": {
+                        "authority": "SQ",
+                        "value": "0a99f70e-9c67-4fc6-995c-5b0a72ff0e57"
                     }
                 }
             ],
-            "TravelerProduct": [
+            "Payment": [
                 {
-                    "@type": "TravelerProduct",
-                    "id": "travelerProduct_1",
-                    "TravelerRef": "travelerRefId_1",
-                    "OfferRef": "offer_1"
-                },
-                {
-                    "@type": "TravelerProduct",
-                    "id": "travelerProduct_2",
-                    "TravelerRef": "travelerRefId_2",
-                    "OfferRef": "offer_1"
-                },
-                {
-                    "@type": "TravelerProduct",
-                    "id": "travelerProduct_3",
-                    "TravelerRef": "travelerRefId_3",
-                    "OfferRef": "offer_1"
+                    "@type": "Payment",
+                    "id": "payment_1",
+                    "Identifier": {
+                        "authority": "SQ",
+                        "value": "OTk1ZjQ2Y2EtZjViMy00OWRmLWJkMDktZjdlN2E3OTdkM2I0fDpJTlZ8U3RhdHVzOlVTRUQgTlRBQw=="
+                    },
+                    "Amount": {
+                        "code": "LKR",
+                        "value": 298818
+                    },
+                    "FormOfPaymentIdentifier": {
+                        "FormOfPaymentRef": "formOfPayment_1",
+                        "Identifier": {
+                            "authority": "SQ",
+                            "value": "0a99f70e-9c67-4fc6-995c-5b0a72ff0e57"
+                        }
+                    },
+                    "OfferIdentifier": [
+                        {
+                            "offerRef": "offer_1",
+                            "Identifier": {
+                                "authority": "SQ",
+                                "value": "NTJKRk1RfFNRNjE4NTJKRk1RMDBfQUlSLTEtMi0zLTR8U1F8U1E2MTg1MkpGTVEwMHxwcm9kdWN0XzJfczMtU0VHMyxzNC1TRUc0OnByb2R1Y3RfMV9zMS1TRUcxLHMyLVNFRzJ8QURUOlBBWDJ8U3RhdHVzOlVTRUQgTlRBQw=="
+                            }
+                        }
+                    ]
                 }
             ],
             "Receipt": [
                 {
                     "@type": "ReceiptConfirmation",
+                    "id": "receipt_1",
+                    "OfferRef": [
+                        "offer_1"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAir",
+                            "StatusAir": [
+                                {
+                                    "flightRefs": [
+                                        "seg1",
+                                        "seg2",
+                                        "seg3",
+                                        "seg4"
+                                    ],
+                                    "code": "HK",
+                                    "value": "Confirmed"
+                                }
+                            ]
+                        },
+                        "Locator": {
+                            "source": "SQ",
+                            "sourceContext": "VendorLocator",
+                            "value": "52JFMQ"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "id": "receipt_2",
+                    "OfferRef": [
+                        "offer_1"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "Locator": {
+                            "source": "SQ",
+                            "sourceContext": "OrderId",
+                            "value": "SQ61852JFMQ00"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptPayment",
+                    "dateTime": "2026-10-19T05:19:00Z",
+                    "id": "receipt_3",
+                    "Identifier": {
+                        "authority": "SQ",
+                        "value": "NzM3YjA5MjgtNjBjMS00MzU5LTg0NjktMDJjY2JmNzZlZGZmfFN0YXR1czpVU0VEIE5UQUN8RG9jdW1lbnRMaXN0OjYxODI0NzcwMjgyNTYs"
+                    },
+                    "OfferRef": [
+                        "offer_1"
+                    ],
+                    "Document": [
+                        {
+                            "@type": "DocumentTicket",
+                            "contentSource": "NDC",
+                            "Number": "6182477028256",
+                            "TravelerIdentifierRef": {
+                                "id": "travelerRefId_1",
+                                "value": "travelerRefId_1"
+                            },
+                            "Amount": {
+                                "@type": "Amount",
+                                "CurrencyCode": {
+                                    "decimalPlace": 0,
+                                    "value": "LKR"
+                                },
+                                "Total": 298818
+                            }
+                        }
+                    ],
+                    "PaymentIdentifier": {
+                        "id": "paymentIdentifier_1",
+                        "PaymentRef": "payment_1"
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "ce8a97b3-9113-470b-a449-9bc231696818"
+                        "value": "805d4ff4-fc55-4310-96c3-1e6a4cf6cae2"
                     },
                     "Confirmation": {
                         "@type": "ConfirmationHold",
@@ -767,8 +757,10 @@
                             "StatusAir": [
                                 {
                                     "flightRefs": [
-                                        "Flight_01",
-                                        "Flight_02"
+                                        "seg1",
+                                        "seg2",
+                                        "seg3",
+                                        "seg4"
                                     ],
                                     "code": "HK",
                                     "value": "Confirmed"
@@ -777,22 +769,8 @@
                         },
                         "Locator": {
                             "source": "1G",
-                            "creationDate": "2026-09-17",
-                            "value": "HN5D8P"
-                        }
-                    }
-                },
-                {
-                    "@type": "ReceiptConfirmation",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "0b44cde8-e397-4bff-9624-3517a2515e59"
-                    },
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "Locator": {
-                            "source": "1A",
-                            "value": "DPBYKK"
+                            "creationDate": "2026-10-19",
+                            "value": "HNDR1V"
                         }
                     }
                 }
@@ -800,105 +778,64 @@
             "ReservationComment": [
                 {
                     "@type": "ReservationComment",
-                    "commentSource": "Supplier",
                     "shareWith": "Agency",
-                    "shareWithSupplier": [
-                        "1A"
-                    ],
                     "id": "RSRVComment_1",
                     "Comment": [
                         {
-                            "id": "VeiComment_2",
-                            "name": "Vendor Remarks",
-                            "value": "ADTK1GTOAI BY 01OCT 1408 CMB TIME ZONE OTHERWISE WILL BE XLD"
-                        }
-                    ]
-                },
-                {
-                    "@type": "ReservationComment",
-                    "commentSource": "Supplier",
-                    "shareWith": "Agency",
-                    "shareWithSupplier": [
-                        "AI"
-                    ],
-                    "id": "RSRVComment_2",
-                    "Comment": [
-                        {
-                            "id": "VeiComment_1",
-                            "name": "Vendor Remarks",
-                            "value": "MISSING SSR CTCM MOBILE OR SSR CTCE EMAIL OR SSR CTCR NON-CONSENT FOR AI"
+                            "value": "* PNR CONTAINS NDC AIR SEGMENTS-SERVICE VIA SMARTPOINT NDC APP *"
                         }
                     ]
                 }
             ],
-            "SpecialService": [
+            "PrimaryContact": [
                 {
-                    "@type": "SpecialService",
-                    "id": "SpecialService_1",
+                    "@type": "PrimaryContact",
+                    "id": "primaryContact_1",
                     "Identifier": {
-                        "authority": "Travelport",
-                        "value": "b8e4e50d-c8a6-4c10-84bb-d426dec97eab"
+                        "authority": "SQ",
+                        "value": "ZTljN2M2ZmItYTFlZS00MDcxLWE4MDUtZmEyNTg4OGM2OGVkfFN0YXR1czpVU0VEIE5UQUM="
                     },
-                    "AppliesTo": {
-                        "@type": "AppliesToOfferProductSegment",
-                        "OfferIdentifier": {
-                            "offerRef": "offer_1"
-                        },
-                        "ProductIdentifier": {
-                            "productRef": "product_1"
-                        },
-                        "SegmentSequenceList": [
-                            1
-                        ]
-                    },
-                    "Status": {
-                        "value": "Confirmed"
+                    "Email": {
+                        "id": "email_1",
+                        "value": "AA@GMAIL.COM"
                     },
                     "TravelerIdentifier": {
-                        "TravelerRef": "travelerRefId_1",
                         "Identifier": {
                             "authority": "Travelport",
-                            "value": "47cee990-c4fd-463b-9dea-561576607637"
+                            "value": "QURUfFBBWDJ8UHJlZml4Ok1SO0dpdmVuOkRTRDtTdXJuYW1lOkRTRA=="
                         }
-                    },
-                    "Quantity": 1,
-                    "FreeText": "RATNAYAKE/AMAYA MISS 15JUN25",
-                    "SSRCode": "INFT"
+                    }
                 },
                 {
-                    "@type": "SpecialService",
-                    "id": "SpecialService_2",
+                    "@type": "PrimaryContact",
+                    "id": "primaryContact_2",
                     "Identifier": {
-                        "authority": "Travelport",
-                        "value": "84ad9637-be54-4eff-85f6-75e6ffb6cb82"
+                        "authority": "SQ",
+                        "value": "MzI4Yjk0ZmQtNzBkMi00NTQ5LTk5MzAtZTQ1NDk3YmU1ZDhjfFN0YXR1czpVU0VEIE5UQUM="
                     },
-                    "AppliesTo": {
-                        "@type": "AppliesToOfferProductSegment",
-                        "OfferIdentifier": {
-                            "offerRef": "offer_1"
-                        },
-                        "ProductIdentifier": {
-                            "productRef": "product_2"
-                        },
-                        "SegmentSequenceList": [
-                            2
-                        ]
-                    },
-                    "Status": {
-                        "value": "Confirmed"
+                    "Telephone": {
+                        "@type": "Telephone",
+                        "countryAccessCode": "94",
+                        "phoneNumber": "77772333",
+                        "id": "telephone_1"
                     },
                     "TravelerIdentifier": {
-                        "TravelerRef": "travelerRefId_1",
                         "Identifier": {
                             "authority": "Travelport",
-                            "value": "47cee990-c4fd-463b-9dea-561576607637"
+                            "value": "QURUfFBBWDJ8UHJlZml4Ok1SO0dpdmVuOkRTRDtTdXJuYW1lOkRTRA=="
                         }
-                    },
-                    "Quantity": 1,
-                    "FreeText": "RATNAYAKE/AMAYA MISS 15JUN25",
-                    "SSRCode": "INFT"
+                    }
                 }
             ],
+            "TravelAgency": {
+                "@type": "TravelAgencyDetail",
+                "Email": [
+                    {
+                        "id": "email_1",
+                        "value": "AA@GMAIL.COM"
+                    }
+                ]
+            },
             "ReservationDisplaySequence": {
                 "@type": "ReservationDisplaySequence",
                 "DisplaySequence": [
@@ -913,8 +850,113 @@
                         "@type": "DisplaySequence",
                         "displaySequence": 2,
                         "OfferRef": "offer_1",
-                        "ProductRef": "product_2",
+                        "ProductRef": "product_1",
                         "Sequence": 2
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 3,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2",
+                        "Sequence": 3
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 4,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2",
+                        "Sequence": 4
+                    }
+                ]
+            },
+            "Accounting": {
+                "@type": "Accounting",
+                "dataType": "DOCI",
+                "id": "Accounting_1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "c37de094-02fd-418b-8ed8-6f964d12b62e"
+                },
+                "NameValuePair": [
+                    {
+                        "id": "ActComment_1",
+                        "name": "FT",
+                        "value": "#TAS01#REFSQ/52JFMQ/LKR/NDC"
+                    },
+                    {
+                        "id": "ActComment_2",
+                        "name": "FT",
+                        "value": "#TAS01#OIDSQ/SQ61852JFMQ00/LKR/NDC"
+                    },
+                    {
+                        "id": "ActComment_3",
+                        "name": "FT",
+                        "value": "#TAS01#P01ADT/235400.00/63418.00/298818.00"
+                    },
+                    {
+                        "id": "ActComment_4",
+                        "name": "FT",
+                        "value": "#TAS01#P01ADT/LK20144.00/L71572.00/SG6284.00/AU16286.00/WG2443.00/WY16689.00"
+                    },
+                    {
+                        "id": "ActComment_5",
+                        "name": "FT",
+                        "value": "#TAS01#P01ADT/FARETYPE/AIRLINEPRIVATEFARE"
+                    },
+                    {
+                        "id": "ActComment_6",
+                        "name": "FT",
+                        "value": "#TAS01#S01FLTSQ469/K/20OCT2026/CMBSIN/00500720"
+                    },
+                    {
+                        "id": "ActComment_7",
+                        "name": "FT",
+                        "value": "#TAS01#S02FLTSQ8514/K/20OCT2026/SINMEL/11002115"
+                    },
+                    {
+                        "id": "ActComment_8",
+                        "name": "FT",
+                        "value": "#TAS01#S03FLTSQ208/K/27OCT2026/MELSIN/19250015"
+                    },
+                    {
+                        "id": "ActComment_9",
+                        "name": "FT",
+                        "value": "#TAS01#S04FLTSQ468/K/28OCT2026/SINCMB/22102330"
+                    },
+                    {
+                        "id": "ActComment_10",
+                        "name": "FT",
+                        "value": "#TAS01#TOT298818.00"
+                    },
+                    {
+                        "id": "ActComment_11",
+                        "name": "FT",
+                        "value": "#TAS01#FAREBASIS/KV6LKR/S01-02/ADT"
+                    },
+                    {
+                        "id": "ActComment_12",
+                        "name": "FT",
+                        "value": "#TAS01#FAREBASIS/K16LKR/S03-04/ADT"
+                    },
+                    {
+                        "id": "ActComment_13",
+                        "name": "FT",
+                        "value": "#TAS01#RESERVATION CONFIRMED 19OCT26 0518Z"
+                    },
+                    {
+                        "id": "ActComment_14",
+                        "name": "FT",
+                        "value": "#TAS01#TICKET TIME LIMIT 19OCT26 1820Z"
+                    },
+                    {
+                        "id": "ActComment_15",
+                        "name": "FT",
+                        "value": "#TAS01#TKT/P01/S01-04/6182477028256"
+                    },
+                    {
+                        "id": "ActComment_16",
+                        "name": "FT",
+                        "value": "#TAS01#FOPCA/298818.00/19OCT26 0519Z"
                     }
                 ]
             }

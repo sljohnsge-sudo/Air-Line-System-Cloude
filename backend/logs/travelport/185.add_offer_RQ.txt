@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/e99960db-7384-45e4-8988-7758acfd1b76/offers/buildfromproducts' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk1Mzk2NTYsImV4cCI6MTc4OTYyNjA1NiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.dn_0K91e2dWCB317nyG_I6PvennakfdJlqYsSqqaMYeVm0VuQeu-lyyJhSl-YJQCaEDVuRHe90bVze1gLOpgk4-U2yl3EHGTTXUEM9KdD8rs8gm9KrRlkzNGRD10J6CrycVXOn0xh7ezgVUaOeZNmv68UyUa_nUoQMroos8YXJ2tvGKBHyQZ7wUIyGixD7lU8BuMOaFjOLClFKO9O5M3wCxrt3_JpJev67iYauDpe1RWvvc24u67DZDpKwXhLzBh6UOPK_qzinTG9eDI74q2_kWPSjsI__kh09OxaN9ZwZciFtATA3Q0smYEQZZHBV06M2-zsYFCXDnwdRtA9JLeFA' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/7a1caac7-7c02-4d57-b9d3-58e302704571/offers/buildfromcatalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTIzMjU2NzIsImV4cCI6MTc5MjQxMjA3MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.hdbMZdZ6taZlm37wh0xNfAneYYew5onu8GRAd3wuylcfcRBkqDpcDKcKCSeb6IsjvCyqGLag90jmdWklAh-BtyO3znGga0x0T9c4KCsOz14GbRMBk1n2myUMIa2WKA0FNVc6dWCNGejTvPcJPhzMM7ucqvJ8bcb9s_0WjcyhoMdNyCmk11EcDfhnIYaUKqURyGLmLhFUOxjqax0pGegW56nGOSPyp93teZu0ryeMLgWkoPBxfEVyvJOOHxHoJgLaj1OqCkZt8YhSIOvqVkbfrl12BCZi7kHSXGAiO5Hy03E2NAuv30Vy0AvdMV_Sfuc-jmsjS_Ik80aIz9gPYdmPCA' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,119 +7,46 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_0AD7CDBC22C9' \
+--header 'traceid: TraceID_EEC8C061A8DA' \
 --data-raw '{
-    "@type": "OfferQueryBuildFromProducts",
-    "validateInventoryInd": true,
-    "BuildFromProductsRequest": {
-        "@type": "BuildFromProductsRequestAir",
-        "ProductCriteriaAir": [
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 1,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "QR",
-                        "flightNumber": "665",
-                        "from": "CMB",
-                        "to": "DOH",
-                        "departureDate": "2027-03-15",
-                        "segmentSequence": 1,
-                        "departureTime": "10:15:00",
-                        "arrivalDate": "2027-03-15",
-                        "arrivalTime": "12:35:00",
-                        "cabin": "Economy",
-                        "classOfService": "S",
-                        "ContentSource": "NDC"
-                    }
-                ]
+    "OfferQueryBuildFromCatalogProductOfferings": {
+        "BuildFromCatalogProductOfferingsRequest": {
+            "@type": "BuildFromCatalogProductOfferingsRequestAir",
+            "CatalogProductOfferingsIdentifier": {
+                "Identifier": {
+                    "value": "0b2afca3-3d84-4918-bca4-b463fa96a7b4"
+                }
             },
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 2,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "QR",
-                        "flightNumber": "1002",
-                        "from": "DOH",
-                        "to": "DXB",
-                        "departureDate": "2027-03-16",
-                        "segmentSequence": 1,
-                        "departureTime": "01:30:00",
-                        "arrivalDate": "2027-03-16",
-                        "arrivalTime": "03:50:00",
-                        "cabin": "Economy",
-                        "classOfService": "S",
-                        "ContentSource": "NDC"
-                    }
-                ]
-            },
-            {
-                "@type": "ProductCriteriaAir",
-                "sequence": 3,
-                "SpecificFlightCriteria": [
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "QR",
-                        "flightNumber": "1019",
-                        "from": "DXB",
-                        "to": "DOH",
-                        "departureDate": "2027-03-25",
-                        "segmentSequence": 1,
-                        "departureTime": "22:50:00",
-                        "arrivalDate": "2027-03-25",
-                        "arrivalTime": "23:05:00",
-                        "cabin": "Economy",
-                        "classOfService": "L",
-                        "ContentSource": "NDC"
+            "CatalogProductOfferingSelection": [
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "SQ_CPO0"
+                        }
                     },
-                    {
-                        "@type": "SpecificFlightCriteria",
-                        "carrier": "QR",
-                        "flightNumber": "660",
-                        "from": "DOH",
-                        "to": "CMB",
-                        "departureDate": "2027-03-26",
-                        "segmentSequence": 2,
-                        "departureTime": "02:30:00",
-                        "arrivalDate": "2027-03-26",
-                        "arrivalTime": "09:45:00",
-                        "cabin": "Economy",
-                        "classOfService": "L",
-                        "ContentSource": "NDC"
-                    }
-                ]
-            }
-        ],
-        "PassengerCriteria": [
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "ADT"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 1,
-                "passengerTypeCode": "INF"
-            },
-            {
-                "@type": "PassengerCriteria",
-                "number": 1,
-                "age": 25,
-                "passengerTypeCode": "CHD"
-            }
-        ],
-        "PricingModifiersAir": {
-            "@type": "PricingModifiersAir",
-            "Brand": {
-                "@type": "Brand",
-                "name": "ECONOMY CONVENIENCE",
-                "BrandRef": "QRb1"
-            }
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "SQp0"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "CatalogProductOfferingIdentifier": {
+                        "Identifier": {
+                            "value": "SQ_CPO1"
+                        }
+                    },
+                    "ProductIdentifier": [
+                        {
+                            "Identifier": {
+                                "value": "SQp8"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }'

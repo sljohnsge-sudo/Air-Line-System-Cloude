@@ -1,0 +1,29 @@
+curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
+--header 'accept: */*' \
+--header 'hmac: 9883c13078aa3082289ce1ed01e19a0bc1eafea1fc7989d88d3c92f66c7f07bc' \
+--header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
+--header 'content-type: application/json' \
+--data-raw '{
+    "version": "1.04",
+    "msgId": "1b27c11b-2d91-4436-a5ca-c4bf5e56b9cb",
+    "operation": "PAYMENT_INIT",
+    "requestDate": "2026-10-19 10:38:37",
+    "validateOnly": false,
+    "requestData": {
+        "clientId": "14008400",
+        "clientIdHash": "",
+        "transactionType": "PURCHASE",
+        "transactionAmount": {
+            "paymentAmount": 12927000,
+            "currency": "LKR"
+        },
+        "redirect": {
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX1-rLw4O1v88kM-1z9wgyZwHTPVP6-5rM1RFXPC24peBl7pUrhr68TuRnke512s3Z3aGwrBSn5dLDTVFceV0WKF5CK7r37lOgnZhCdRjW-RzYWcsFWRqURHpxhui0mF83VIiYuk8kpmZM-7cO6_Et1bkkD8diwWIghx0h1UaVxrbL51O1VjHGDfn7ZFz0eJBWPy4yOd5MhasZZUiIxxtPHqdyzYCewDaRNTSfYQWkaYAkW5nbYRmFm1S?locator=HNDR08",
+            "returnMethod": "GET",
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX1-rLw4O1v88kM-1z9wgyZwHTPVP6-5rM1RFXPC24peBl7pUrhr68TuRnke512s3Z3aGwrBSn5dLDTVFceV0WKF5CK7r37lOgnZhCdRjW-RzYWcsFWRqURHpxhui0mF83VIiYuk8kpmZM-7cO6_Et1bkkD8diwWIghx0h1UaVxrbL51O1VjHGDfn7ZFz0eJBWPy4yOd5MhasZZUiIxxtPHqdyzYCewDaRNTSfYQWkaYAkW5nbYRmFm1S?locator=HNDR08&payment=cancelled"
+        },
+        "useReliability": true,
+        "clientRef": "HNDR08",
+        "comment": "George Steuart Travel - HNDR08"
+    }
+}'

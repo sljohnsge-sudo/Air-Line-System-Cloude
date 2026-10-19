@@ -1,0 +1,281 @@
+{
+    "OfferListResponse": {
+        "@type": "OfferListResponse",
+        "transactionId": "c9f1c1dc616c40af44fa42dfb5b41aee",
+        "traceId": "TraceID_CE0929823C77",
+        "OfferID": [
+            {
+                "@type": "Offer",
+                "id": "o0",
+                "ContentSource": "GDS",
+                "Product": [
+                    {
+                        "@type": "ProductAir",
+                        "totalDuration": "PT9H40M",
+                        "id": "p0",
+                        "FlightSegment": [
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s1",
+                                "sequence": 1,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 5190,
+                                    "duration": "PT9H40M",
+                                    "carrier": "JQ",
+                                    "number": "6",
+                                    "operatingCarrier": "JQ",
+                                    "operatingCarrierName": "Jetstar Airways Pty Limited",
+                                    "equipment": "788",
+                                    "id": "f1",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "terminal": "1",
+                                        "location": "CMB",
+                                        "date": "2026-10-20",
+                                        "time": "19:50:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "2",
+                                        "location": "MEL",
+                                        "date": "2026-10-21",
+                                        "time": "11:00:00"
+                                    },
+                                    "AvailabilitySourceCode": "A"
+                                }
+                            }
+                        ],
+                        "PassengerFlight": [
+                            {
+                                "@type": "PassengerFlight",
+                                "passengerQuantity": 1,
+                                "passengerTypeCode": "ADT",
+                                "FlightProduct": [
+                                    {
+                                        "@type": "FlightProduct",
+                                        "segmentSequence": [
+                                            1
+                                        ],
+                                        "classOfService": "H",
+                                        "cabin": "Economy",
+                                        "fareBasisCode": "HHOW2",
+                                        "fareType": "PublicFare",
+                                        "fareTypeCode": "SIP"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "Price": {
+                    "@type": "PriceDetail",
+                    "id": "price0",
+                    "CurrencyCode": {
+                        "decimalPlace": 0,
+                        "value": "LKR"
+                    },
+                    "Base": 102600,
+                    "TotalTaxes": 26670,
+                    "TotalFees": 0,
+                    "TotalPrice": 129270,
+                    "PriceBreakdown": [
+                        {
+                            "@type": "PriceBreakdownAir",
+                            "quantity": 1,
+                            "requestedPassengerType": "ADT",
+                            "Amount": {
+                                "@type": "Amount",
+                                "CurrencyCode": {
+                                    "decimalPlace": 0,
+                                    "value": "LKR"
+                                },
+                                "Base": 102600,
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "TotalTaxes": 26670,
+                                    "Tax": [
+                                        {
+                                            "taxCode": "LK",
+                                            "description": "EMBARKATION TAX",
+                                            "value": 20436
+                                        },
+                                        {
+                                            "taxCode": "WY",
+                                            "description": "PASSENGER SERVICES CHARGE ARRIVAL INTERNATIONAL",
+                                            "value": 6234
+                                        }
+                                    ]
+                                },
+                                "Fees": {
+                                    "@type": "FeesDetail",
+                                    "TotalFees": 0
+                                },
+                                "Total": 129270
+                            },
+                            "FiledAmount": {
+                                "currencyCode": "USD",
+                                "decimalPlace": 2,
+                                "value": 301
+                            },
+                            "FareCalculation": "CMB JQ MEL 300.86HHOW2 NUC300.86END ROE1.0"
+                        }
+                    ]
+                },
+                "TermsAndConditionsFull": [
+                    {
+                        "@type": "TermsAndConditionsFullAir",
+                        "ExpiryDate": "2026-10-20T17:50:00Z",
+                        "BaggageAllowance": [
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/JQ",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "FirstCheckedBag",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByWeightInd": true,
+                                        "Measurement": [
+                                            {
+                                                "measurementType": "Weight",
+                                                "unit": "Kilograms",
+                                                "value": 20
+                                            }
+                                        ],
+                                        "Text": "CHGS MAY APPLY IF BAGS EXCEED TTL WT ALLOWANCE"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1
+                                ],
+                                "Text": [
+                                    "20K"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO41LI/105LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            }
+                        ],
+                        "Restriction": [
+                            {
+                                "value": "CARRIER RESTRICTIONS APPLY"
+                            },
+                            {
+                                "value": "PENALTIES APPLY"
+                            }
+                        ],
+                        "ValidatingAirline": [
+                            {
+                                "@type": "ValidatingAirline",
+                                "ValidatingAirline": "HR"
+                            }
+                        ],
+                        "TicketingAgency": [
+                            {
+                                "@type": "TicketingAgency",
+                                "Code": "7F3C"
+                            }
+                        ],
+                        "PaymentTimeLimit": "2026-10-20T17:50:00Z",
+                        "Penalties": [
+                            {
+                                "@type": "Penalties",
+                                "Change": [
+                                    {
+                                        "@type": "ChangePermitted",
+                                        "penaltyTypes": [
+                                            "AfterDeparture"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyPercent",
+                                                "Percent": 100
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "Cancel": [
+                                    {
+                                        "@type": "CancelPermitted",
+                                        "penaltyTypes": [
+                                            "NoShow"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyPercent",
+                                                "Percent": 100
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "@type": "CancelPermitted",
+                                        "penaltyTypes": [
+                                            "Anytime"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyPercent",
+                                                "Percent": 100
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "PassengerTypeCodes": [
+                                    "ADT"
+                                ]
+                            }
+                        ],
+                        "FareGuaranteePolicy": [
+                            {
+                                "@type": "FareGuaranteePolicy",
+                                "Code": {
+                                    "value": "G"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "Identifier": {
+            "value": "2c3a153e-5609-463f-ac54-aa072004b1e6_PC"
+        }
+    }
+}
