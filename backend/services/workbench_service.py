@@ -541,13 +541,36 @@ def confirm_price(raw_offering: dict) -> str:
         logger.info("Confirming price via AirPrice (NDC/LCC offer, reference payload)...")
 
     # AirPrice is not workbench-scoped, so no session_id.
-    result = _api_post_with_retry(url, payload, session_id=None)
-
-    errors = (
-        result.get("OfferListResponse", {}).get("Result", {}).get("Error", []) or
-        result.get("Result", {}).get("Error", [])
-    )
-    if errors:
+    # Travelport can return HTTP 200 with a TEMPORARY embedded error (SourceCode
+    # 2599 "COMMUNICATION ERROR. RETRY") — the same transient GDS blip handled
+    # in search_service.py. Retry up to 3 times on TEMPORARY only; every other
+    # error (NO AVAILABILITY, 0 Avail Closed, etc.) fails immediately.
+    # confirm_price() runs before any workbench or PNR exists, so retrying it
+    # cannot produce duplicate bookings or tickets.
+    _max_price_retries = 3
+    for _price_attempt in range(1, _max_price_retries + 1):
+        result = _api_post_with_retry(url, payload, session_id=None)
+        errors = (
+            result.get("OfferListResponse", {}).get("Result", {}).get("Error", []) or
+            result.get("Result", {}).get("Error", [])
+        )
+        if not errors:
+            break
+        temporary = [e for e in errors if e.get("category") == "TEMPORARY"]
+        if temporary:
+            logger.warning(
+                f"[AirPrice attempt {_price_attempt}/{_max_price_retries}] "
+                f"Travelport TEMPORARY error [{temporary[0].get('SourceCode')}]: "
+                f"{temporary[0].get('Message')} — retrying."
+            )
+            if _price_attempt < _max_price_retries:
+                time.sleep(1.5)
+                continue
+            raise ValueError(
+                f"Travelport AirPrice temporarily unavailable "
+                f"({temporary[0].get('Message', 'COMMUNICATION ERROR')}) "
+                f"after {_max_price_retries} attempts. Please try again."
+            )
         raise ValueError(f"Travelport AirPrice failed: {errors[0].get('Message')}")
 
     # Confirmed live: the AirPrice response does NOT carry a "transactionId"
