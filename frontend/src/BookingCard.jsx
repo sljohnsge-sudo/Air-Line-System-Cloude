@@ -29,6 +29,13 @@ const cleanPassengerName = (name) => {
 };
 
 export default function BookingCard({ booking: b, onViewTicket, onCancelBooking, onRequestCancellation }) {
+  // For round-trip bookings the DB stores the RETURN leg's arrival (origin airport) as
+  // arrival_airport.  The raw_ticket_json legs array (merged in by _hydrate_bookings) has
+  // the correct outbound destination in legs[0].arrival_airport — prefer that when available.
+  const displayArrival = (b.legs && b.legs.length > 1)
+    ? b.legs[0].arrival_airport
+    : b.arrival_airport;
+
   return (
     <div className={`boarding-pass glass-panel ${b.status === 'Cancelled' ? 'cancelled-pass' : ''} animate-fade`}>
       <div className="pass-row header-row">
@@ -41,7 +48,7 @@ export default function BookingCard({ booking: b, onViewTicket, onCancelBooking,
       <div className="pass-row route-row">
         <div className="route-endpoint"><span className="route-city">{b.departure_airport}</span><span className="route-label">DEPARTURE</span></div>
         <div className="route-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
-        <div className="route-endpoint"><span className="route-city">{b.arrival_airport}</span><span className="route-label">ARRIVAL</span></div>
+        <div className="route-endpoint"><span className="route-city">{displayArrival}</span><span className="route-label">ARRIVAL</span></div>
       </div>
       <div className="pass-details-grid">
         <div className="detail-item"><span className="detail-label">PASSENGER</span><span className="detail-val">{cleanPassengerName(b.passenger_name)}</span></div>
