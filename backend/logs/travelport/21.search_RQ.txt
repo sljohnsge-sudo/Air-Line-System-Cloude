@@ -1,5 +1,5 @@
 curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE5NTIwNzEsImV4cCI6MTc5MjAzODQ3MSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.oUxL0RM4g-cm1UTJ9Zzejxkh-KszweTh-G-mWL7nhjEAtpat4fOhpuSLWduwU-P58PGcaBaiAzXQ9rKvIZv79q2cHwZ4ewHU6QkR7dGzRZqlSfP1fEVpWd8Q5a7HSQ1JsGC8rihfowLkpJ0REC4qtPOxY7FCv0DrniYUl9VMPxnnuHTV6aj_noVftnNhe_qVvGW8uknqmN1fvGSPUt5keIkQHVDhNI1tWUkT4ijIaJHYX71SRREvagm7iwReri1sU863xNlGOlJF5y7h36rZoVZkPGVTaCnYpTWwdCipPyI8Zspe96P86bR2Yr8Koz4-2bLaaPy6znLmzDhj-Qaybg' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTIzOTIwNzUsImV4cCI6MTc5MjQ3ODQ3NSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.sQI_2xW-SthdtfHfMR3Pb6erKQdy2ts5JE164pVxhZuse5Lp0HUzb6oVzWRO1vrrrW5iCV9TJWUFCT6U93T5SHK3bUHuSyWdKoKZJPE82jPJ6cHjWrjTYsX73E3BPH6JwpqytuzZJKTQxnYarhQiGuz2U4iYpFkypK9dJGb32S2DU2xcAK1e-_vSZPh5NnGbmdrAr22PLCutlUVQSsnAOZZVdbbgmeuKpsBopq3fYk68vAYMsP4mHW5Iu8BmOR3TL3qXTA-3pXnQkiOXV0jrvkx01VJkvm5oMyJZMiLCxtkElkHGX7znfN5zg1giPvHLqg8wb0OBr11SasMw7YSbLg' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,7 +7,7 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/c
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_8F6F96062650' \
+--header 'traceid: TraceID_40E1B9E343FC' \
 --header 'fareindicator: true' \
 --data-raw '{
     "@type": "CatalogProductOfferingsQueryRequest",
@@ -30,14 +30,18 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/c
         "SearchCriteriaFlight": [
             {
                 "@type": "SearchCriteriaFlight",
-                "departureDate": "2026-10-15",
+                "departureDate": "2026-10-20",
                 "From": {
                     "value": "CMB"
                 },
                 "To": {
-                    "value": "SIN"
+                    "value": "DXB"
                 }
             }
-        ]
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "currencyCode": "LKR"
+        }
     }
 }'

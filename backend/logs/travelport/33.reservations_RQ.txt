@@ -1,0 +1,123 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/hotel/book/reservations' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTIzOTI0NDQsImV4cCI6MTc5MjQ3ODg0NCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.P23EnGUYkTCacUF2UwFqQ2tXHKjWADjjghWLDvGDRrjQHzawA-vbpJkkXrBMaUXET5hZhr8pWCLNn-Wlw2I2H27cVBR_mBCFt3c-k643eLAQYNA_AXTyy_t1KpCMblRIu8Fntra-z12fQhxAFv2YgAcP0Zq7LmeWWYlRx4TQOz6Z-9OV4tpH6kTDsTlE0JrbQZ20lQC5zyneajkPWgPReXjlGaTdCAtdwOa5lyP1sXkxY5Y_MuLXDT183o7sOTgOXoeltMzEvGxiM9c72-zSAjVekwyB4IjkIVnN9DX4w3zF8TKeUZe49U3WdzXH5vW4e-eNFhKyxx9pWE5Y-bf8TA' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'tvp-pcc-core: 7F3C_1G' \
+--header 'traceid: TraceID_686114DD54D0' \
+--header 'tvp-correlation-id: b77259f2-e3d3-4a18-aa0f-db28c4cd30f8' \
+--data-raw '{
+    "ReservationDetail": {
+        "@type": "Reservation",
+        "Offer": [
+            {
+                "@type": "Offer",
+                "Product": [
+                    {
+                        "@type": "ProductHospitality",
+                        "bookingCode": "A00REGA",
+                        "Quantity": 1,
+                        "guests": 1,
+                        "PropertyKey": {
+                            "@type": "PropertyKey",
+                            "chainCode": "FP",
+                            "propertyCode": "22792"
+                        },
+                        "DateRange": {
+                            "start": "2026-10-20",
+                            "end": "2026-10-21"
+                        }
+                    }
+                ],
+                "Price": {
+                    "@type": "PriceDetail",
+                    "CurrencyCode": {
+                        "value": "AED"
+                    },
+                    "Base": 445.0,
+                    "TotalTaxes": 115.13,
+                    "TotalPrice": 560.13
+                },
+                "Identifier": {
+                    "authority": "TVPT"
+                }
+            }
+        ],
+        "Traveler": [
+            {
+                "@type": "Traveler",
+                "PersonName": {
+                    "@type": "PersonNameDetail",
+                    "Given": "teat",
+                    "Surname": "user "
+                },
+                "Telephone": [
+                    {
+                        "@type": "TelephoneDetail",
+                        "countryAccessCode": null,
+                        "areaCityCode": null,
+                        "phoneNumber": "0777777777"
+                    }
+                ],
+                "Email": [
+                    {
+                        "value": "aaa@gmail.com"
+                    }
+                ]
+            }
+        ],
+        "Payment": [
+            {
+                "@type": "Payment",
+                "Amount": {
+                    "code": "AED",
+                    "value": 560.13
+                },
+                "guaranteeInd": true,
+                "depositInd": false
+            }
+        ],
+        "FormOfPayment": [
+            {
+                "@type": "FormOfPaymentPaymentCard",
+                "PaymentCard": {
+                    "@type": "PaymentCardDetail",
+                    "expireDate": "1226",
+                    "CardType": "Credit",
+                    "CardCode": "VI",
+                    "CardHolderName": "Test and Test",
+                    "CardNumber": {
+                        "@type": "CardNumber",
+                        "PlainText": "4564456445644564"
+                    },
+                    "SeriesCode": {
+                        "@type": "SeriesCode",
+                        "PlainText": "582"
+                    },
+                    "PersonName": {
+                        "@type": "PersonNameDetail",
+                        "Given": "Test",
+                        "Surname": "and Test"
+                    },
+                    "Address": {
+                        "@type": "AddressDetail",
+                        "AddressLine": [
+                            ""
+                        ],
+                        "City": "",
+                        "Country": {
+                            "value": "LK"
+                        },
+                        "PostalCode": ""
+                    }
+                }
+            }
+        ],
+        "TravelAgency": {
+            "AgencyPCC": {
+                "agencyCode": "7F3C"
+            }
+        }
+    }
+}'

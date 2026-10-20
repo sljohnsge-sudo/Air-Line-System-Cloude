@@ -1,0 +1,24 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/ticket/tickets/getbylocator' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTIzOTIwNzUsImV4cCI6MTc5MjQ3ODQ3NSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.sQI_2xW-SthdtfHfMR3Pb6erKQdy2ts5JE164pVxhZuse5Lp0HUzb6oVzWRO1vrrrW5iCV9TJWUFCT6U93T5SHK3bUHuSyWdKoKZJPE82jPJ6cHjWrjTYsX73E3BPH6JwpqytuzZJKTQxnYarhQiGuz2U4iYpFkypK9dJGb32S2DU2xcAK1e-_vSZPh5NnGbmdrAr22PLCutlUVQSsnAOZZVdbbgmeuKpsBopq3fYk68vAYMsP4mHW5Iu8BmOR3TL3qXTA-3pXnQkiOXV0jrvkx01VJkvm5oMyJZMiLCxtkElkHGX7znfN5zg1giPvHLqg8wb0OBr11SasMw7YSbLg' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_758E0C4D5FDE' \
+--data-raw '{
+    "@type": "TicketQueryGetByLocator",
+    "detailViewInd": true,
+    "Locator": {
+        "value": "HNDRF9",
+        "locatorType": "Locator"
+    },
+    "TicketNumber": [
+        {
+            "value": "1572135081677",
+            "contentSource": "NDC"
+        }
+    ]
+}'
