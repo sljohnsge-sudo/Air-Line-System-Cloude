@@ -1,8 +1,8 @@
 {
     "OfferListResponse": {
         "@type": "OfferListResponse",
-        "transactionId": "64a5c4edef7e5f474f9ce6c749ad89bf",
-        "traceId": "TraceID_E7B22E2DCECE",
+        "transactionId": "50d89f95a0e17cd57b7ceef78134d306",
+        "traceId": "TraceID_6C90407D1F28",
         "OfferID": [
             {
                 "@type": "Offer",
@@ -11,35 +11,67 @@
                 "Product": [
                     {
                         "@type": "ProductAir",
-                        "totalDuration": "PT4H40M",
+                        "totalDuration": "PT12H50M",
                         "id": "p0",
                         "FlightSegment": [
                             {
                                 "@type": "FlightSegment",
                                 "id": "s1",
                                 "sequence": 1,
+                                "connectionDuration": "PT1H20M",
+                                "boundFlightsInd": true,
                                 "Flight": {
                                     "@type": "FlightDetail",
-                                    "distance": 2043,
-                                    "duration": "PT4H40M",
-                                    "carrier": "FZ",
-                                    "number": "580",
-                                    "operatingCarrier": "FZ",
-                                    "operatingCarrierName": "flydubai",
-                                    "equipment": "73H",
+                                    "distance": 1709,
+                                    "duration": "PT4H10M",
+                                    "carrier": "UL",
+                                    "number": "308",
+                                    "operatingCarrier": "UL",
+                                    "operatingCarrierName": "SriLankan Airlines",
+                                    "equipment": "332",
                                     "id": "f1",
                                     "Departure": {
                                         "@type": "DepartureDetail",
                                         "location": "CMB",
-                                        "date": "2026-09-30",
-                                        "time": "09:10:00"
+                                        "date": "2026-10-22",
+                                        "time": "12:15:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "3",
+                                        "location": "SIN",
+                                        "date": "2026-10-22",
+                                        "time": "18:55:00"
+                                    },
+                                    "AvailabilitySourceCode": "S"
+                                }
+                            },
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s2",
+                                "sequence": 2,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 3750,
+                                    "duration": "PT7H20M",
+                                    "carrier": "UL",
+                                    "number": "3378",
+                                    "operatingCarrierName": "QANTAS AIRWAYS LIMITED",
+                                    "equipment": "333",
+                                    "id": "f2",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "terminal": "1",
+                                        "location": "SIN",
+                                        "date": "2026-10-22",
+                                        "time": "20:15:00"
                                     },
                                     "Arrival": {
                                         "@type": "ArrivalDetail",
                                         "terminal": "2",
-                                        "location": "DXB",
-                                        "date": "2026-09-30",
-                                        "time": "12:20:00"
+                                        "location": "MEL",
+                                        "date": "2026-10-23",
+                                        "time": "06:35:00"
                                     },
                                     "AvailabilitySourceCode": "S"
                                 }
@@ -54,13 +86,104 @@
                                     {
                                         "@type": "FlightProduct",
                                         "segmentSequence": [
-                                            1
+                                            1,
+                                            2
                                         ],
-                                        "classOfService": "T",
+                                        "classOfService": "S",
                                         "cabin": "Economy",
-                                        "fareBasisCode": "TOLP7LK1",
+                                        "fareBasisCode": "S3MQSLK",
                                         "fareType": "PublicFare",
-                                        "fareTypeCode": "XOX"
+                                        "fareTypeCode": "XEX"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "@type": "ProductAir",
+                        "totalDuration": "PT23H35M",
+                        "id": "p1",
+                        "FlightSegment": [
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s3",
+                                "sequence": 1,
+                                "connectionDuration": "PT11H35M",
+                                "boundFlightsInd": true,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 3750,
+                                    "duration": "PT8H10M",
+                                    "carrier": "UL",
+                                    "number": "3373",
+                                    "operatingCarrierName": "QANTAS AIRWAYS LIMITED",
+                                    "equipment": "789",
+                                    "id": "f3",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "terminal": "2",
+                                        "location": "MEL",
+                                        "date": "2026-10-30",
+                                        "time": "16:55:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "1",
+                                        "location": "SIN",
+                                        "date": "2026-10-30",
+                                        "time": "22:05:00"
+                                    },
+                                    "AvailabilitySourceCode": "S"
+                                }
+                            },
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s4",
+                                "sequence": 2,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 1709,
+                                    "duration": "PT3H50M",
+                                    "carrier": "UL",
+                                    "number": "307",
+                                    "operatingCarrier": "UL",
+                                    "operatingCarrierName": "SriLankan Airlines",
+                                    "equipment": "320",
+                                    "id": "f4",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "terminal": "3",
+                                        "location": "SIN",
+                                        "date": "2026-10-31",
+                                        "time": "09:40:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "location": "CMB",
+                                        "date": "2026-10-31",
+                                        "time": "11:00:00"
+                                    },
+                                    "AvailabilitySourceCode": "S"
+                                }
+                            }
+                        ],
+                        "PassengerFlight": [
+                            {
+                                "@type": "PassengerFlight",
+                                "passengerQuantity": 1,
+                                "passengerTypeCode": "ADT",
+                                "FlightProduct": [
+                                    {
+                                        "@type": "FlightProduct",
+                                        "segmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "classOfService": "S",
+                                        "cabin": "Economy",
+                                        "fareBasisCode": "S3MQSLK",
+                                        "fareType": "PublicFare",
+                                        "fareTypeCode": "XEX"
                                     }
                                 ]
                             }
@@ -74,10 +197,10 @@
                         "decimalPlace": 0,
                         "value": "LKR"
                     },
-                    "Base": 44300,
-                    "TotalTaxes": 23900,
+                    "Base": 224500,
+                    "TotalTaxes": 162351,
                     "TotalFees": 0,
-                    "TotalPrice": 68200,
+                    "TotalPrice": 386851,
                     "PriceBreakdown": [
                         {
                             "@type": "PriceBreakdownAir",
@@ -89,10 +212,10 @@
                                     "decimalPlace": 0,
                                     "value": "LKR"
                                 },
-                                "Base": 44300,
+                                "Base": 224500,
                                 "Taxes": {
                                     "@type": "TaxesDetail",
-                                    "TotalTaxes": 23900,
+                                    "TotalTaxes": 162351,
                                     "Tax": [
                                         {
                                             "taxCode": "LK",
@@ -100,13 +223,33 @@
                                             "value": 20436
                                         },
                                         {
-                                            "taxCode": "ZR",
-                                            "description": "INTERNATIONAL ADVANCED PASSENGER INFORMATION FEE ARRIVALS",
-                                            "value": 464
+                                            "taxCode": "L7",
+                                            "description": "AIRPORT DEVELOPMENT LEVY",
+                                            "value": 1596
                                         },
                                         {
-                                            "taxCode": "YR",
-                                            "value": 3000
+                                            "taxCode": "SG",
+                                            "description": "PASSENGER SERVICE AND SECURITY FEE PSSF",
+                                            "value": 6380
+                                        },
+                                        {
+                                            "taxCode": "AU",
+                                            "description": "PASSENGER MOVEMENT CHARGE  PMC",
+                                            "value": 16776
+                                        },
+                                        {
+                                            "taxCode": "WG",
+                                            "description": "SAFETY AND SECURITY CHARGE  DEPARTURE",
+                                            "value": 2517
+                                        },
+                                        {
+                                            "taxCode": "WY",
+                                            "description": "PASSENGER SERVICES CHARGE ARRIVAL INTERNATIONAL",
+                                            "value": 12468
+                                        },
+                                        {
+                                            "taxCode": "YQ",
+                                            "value": 102178
                                         }
                                     ]
                                 },
@@ -114,25 +257,26 @@
                                     "@type": "FeesDetail",
                                     "TotalFees": 0
                                 },
-                                "Total": 68200
+                                "Total": 386851
                             },
                             "FiledAmount": {
                                 "currencyCode": "USD",
                                 "decimalPlace": 2,
-                                "value": 130
+                                "value": 659
                             },
-                            "FareCalculation": "CMB FZ DXB Q4.08 126.00TOLP7LK1 NUC130.08END ROE1.0"
+                            "FareCalculation": "CMB UL X/SIN UL MEL Q CMBSIN2.00 327.50S3MQSLK UL X/SIN UL CMB Q SINCMB2.00 327.50S3MQSLK NUC659.00END ROE1.0"
                         }
                     ]
                 },
                 "TermsAndConditionsFull": [
                     {
                         "@type": "TermsAndConditionsFullAir",
-                        "ExpiryDate": "2026-09-30T07:10:00Z",
+                        "secureFlightPassengerDataRequiredInd": true,
+                        "ExpiryDate": "2026-10-22T10:15:00Z",
                         "BaggageAllowance": [
                             {
                                 "@type": "BaggageAllowanceDetail",
-                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/FZ",
+                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/UL",
                                 "passengerTypeCodes": [
                                     "ADT"
                                 ],
@@ -156,7 +300,41 @@
                                     }
                                 ],
                                 "SegmentSequenceList": [
-                                    1
+                                    1,
+                                    2
+                                ],
+                                "Text": [
+                                    "30K"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/UL",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "FirstCheckedBag",
+                                "ProductRef": [
+                                    "p1"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByWeightInd": true,
+                                        "Measurement": [
+                                            {
+                                                "measurementType": "Weight",
+                                                "unit": "Kilograms",
+                                                "value": 30
+                                            }
+                                        ],
+                                        "Text": "CHGS MAY APPLY IF BAGS EXCEED TTL WT ALLOWANCE"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1,
+                                    2
                                 ],
                                 "Text": [
                                     "30K"
@@ -191,23 +369,110 @@
                                 "Text": [
                                     "1P"
                                 ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO45LI/115LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    2
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p1"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO45LI/115LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p1"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO45LI/115LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    2
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
                             }
                         ],
                         "Restriction": [
                             {
-                                "value": "NON-END"
+                                "value": "VALID ON UL ONLY"
                             },
                             {
-                                "value": "NO RFND WITHIN 24HRS"
-                            },
-                            {
-                                "value": "CTC TA FOR CHNGS"
+                                "value": "CHANGE FEE MAY APPLY"
                             }
                         ],
                         "ValidatingAirline": [
                             {
                                 "@type": "ValidatingAirline",
-                                "ValidatingAirline": "FZ"
+                                "ValidatingAirline": "UL"
                             }
                         ],
                         "TicketingAgency": [
@@ -216,7 +481,7 @@
                                 "Code": "7F3C"
                             }
                         ],
-                        "PaymentTimeLimit": "2026-09-30T07:10:00Z",
+                        "PaymentTimeLimit": "2026-10-22T10:15:00Z",
                         "Penalties": [
                             {
                                 "@type": "Penalties",
@@ -231,7 +496,9 @@
                                             {
                                                 "@type": "PenaltyAmount",
                                                 "Amount": {
-                                                    "value": 0
+                                                    "code": "LKR",
+                                                    "minorUnit": 0,
+                                                    "value": 51100
                                                 }
                                             }
                                         ]
@@ -250,7 +517,7 @@
                                                 "Amount": {
                                                     "code": "LKR",
                                                     "minorUnit": 0,
-                                                    "value": 18800
+                                                    "value": 93700
                                                 }
                                             }
                                         ]
@@ -274,7 +541,7 @@
             }
         ],
         "Identifier": {
-            "value": "0a0a8646-23d7-4fb6-9741-7a3e695dad91_PC"
+            "value": "4377928b-fe9c-4389-993f-5d2b13d30753_PC"
         }
     }
 }

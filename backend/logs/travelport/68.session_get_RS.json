@@ -5,7 +5,7 @@
             "@type": "Reservation",
             "Identifier": {
                 "authority": "Travelport",
-                "value": "ce0beba4-b28d-4792-b6a8-f3df4b6a32d9"
+                "value": "4535b4f8-ecd0-415e-a5ff-3aa0432091e3"
             },
             "Offer": [
                 {
@@ -13,7 +13,7 @@
                     "id": "offer_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "f54a528a-eea9-42c0-b449-6fc87025f160"
+                        "value": "3cb125b9-3044-4f04-a1d9-81517ac2040d"
                     },
                     "ContentSource": "GDS",
                     "Product": [
@@ -22,35 +22,68 @@
                             "id": "product_1",
                             "Identifier": {
                                 "authority": "Travelport",
-                                "value": "1e125766-193d-4bc0-ac03-515505a44b5c"
+                                "value": "7854bfac-8638-4ab5-a11d-45e45110cbba"
                             },
                             "FlightSegment": [
                                 {
                                     "@type": "FlightSegment",
                                     "id": "FlightSegment_01",
                                     "sequence": 1,
+                                    "connectionDuration": "PT1H20M",
+                                    "boundFlightsInd": true,
                                     "Flight": {
                                         "@type": "Flight",
-                                        "duration": "PT4H40M",
-                                        "carrier": "FZ",
-                                        "number": "580",
-                                        "equipment": "73H",
+                                        "duration": "PT4H10M",
+                                        "carrier": "UL",
+                                        "number": "308",
+                                        "equipment": "332",
                                         "id": "Flight_01",
                                         "Identifier": {
                                             "authority": "Travelport",
-                                            "value": "f113b4b0-ba83-4084-a532-5bbe8116590e"
+                                            "value": "ccc36dd8-085c-4891-a480-4b2f195ca1dd"
                                         },
                                         "Departure": {
                                             "@type": "Departure",
                                             "location": "CMB",
-                                            "date": "2026-09-16",
-                                            "time": "09:10:00"
+                                            "date": "2026-10-22",
+                                            "time": "12:15:00"
                                         },
                                         "Arrival": {
                                             "@type": "Arrival",
-                                            "location": "DXB",
-                                            "date": "2026-09-16",
-                                            "time": "12:20:00"
+                                            "location": "SIN",
+                                            "date": "2026-10-22",
+                                            "time": "18:55:00"
+                                        }
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_02",
+                                    "sequence": 2,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT7H20M",
+                                        "carrier": "UL",
+                                        "number": "3378",
+                                        "operatingCarrier": "QF",
+                                        "operatingCarrierName": "QANTAS AIRWAYS LIMITED",
+                                        "equipment": "333",
+                                        "id": "Flight_02",
+                                        "Identifier": {
+                                            "authority": "Travelport",
+                                            "value": "180cb864-1002-426b-b958-9157c3fd60fd"
+                                        },
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "SIN",
+                                            "date": "2026-10-22",
+                                            "time": "20:15:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "MEL",
+                                            "date": "2026-10-23",
+                                            "time": "06:35:00"
                                         }
                                     }
                                 }
@@ -64,9 +97,100 @@
                                         {
                                             "@type": "FlightProduct",
                                             "segmentSequence": [
-                                                1
+                                                1,
+                                                2
                                             ],
-                                            "classOfService": "T",
+                                            "classOfService": "S",
+                                            "cabin": "Economy"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "@type": "ProductAir",
+                            "id": "product_2",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "df370b67-3a73-48e9-b01f-a614cae160a5"
+                            },
+                            "FlightSegment": [
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_03",
+                                    "sequence": 3,
+                                    "connectionDuration": "PT11H35M",
+                                    "boundFlightsInd": true,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT8H10M",
+                                        "carrier": "UL",
+                                        "number": "3373",
+                                        "operatingCarrier": "QF",
+                                        "operatingCarrierName": "QANTAS AIRWAYS LIMITED",
+                                        "equipment": "789",
+                                        "id": "Flight_03",
+                                        "Identifier": {
+                                            "authority": "Travelport",
+                                            "value": "a154d8d7-09d1-4365-91d8-cca2a3fc0766"
+                                        },
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "MEL",
+                                            "date": "2026-10-30",
+                                            "time": "16:55:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "SIN",
+                                            "date": "2026-10-30",
+                                            "time": "22:05:00"
+                                        }
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_04",
+                                    "sequence": 4,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT3H50M",
+                                        "carrier": "UL",
+                                        "number": "307",
+                                        "equipment": "320",
+                                        "id": "Flight_04",
+                                        "Identifier": {
+                                            "authority": "Travelport",
+                                            "value": "cc0953af-9c7f-41fe-ab54-26e7ee04610a"
+                                        },
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "SIN",
+                                            "date": "2026-10-31",
+                                            "time": "09:40:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "CMB",
+                                            "date": "2026-10-31",
+                                            "time": "11:00:00"
+                                        }
+                                    }
+                                }
+                            ],
+                            "PassengerFlight": [
+                                {
+                                    "@type": "PassengerFlight",
+                                    "passengerQuantity": 1,
+                                    "passengerTypeCode": "ADT",
+                                    "FlightProduct": [
+                                        {
+                                            "@type": "FlightProduct",
+                                            "segmentSequence": [
+                                                3,
+                                                4
+                                            ],
+                                            "classOfService": "S",
                                             "cabin": "Economy"
                                         }
                                     ]
@@ -80,10 +204,10 @@
                         "CurrencyCode": {
                             "value": "LKR"
                         },
-                        "Base": 44300,
-                        "TotalTaxes": 23900,
+                        "Base": 224500,
+                        "TotalTaxes": 162351,
                         "TotalFees": 0,
-                        "TotalPrice": 68200,
+                        "TotalPrice": 386851,
                         "PriceBreakdown": [
                             {
                                 "@type": "PriceBreakdownAir",
@@ -95,7 +219,7 @@
                                         "decimalPlace": 2,
                                         "value": "USD"
                                     },
-                                    "Base": 130.0
+                                    "Base": 659.0
                                 },
                                 "TravelerRefs": [
                                     "travelerRefId_1"
@@ -113,10 +237,10 @@
                                         "decimalPlace": 0,
                                         "value": "LKR"
                                     },
-                                    "Base": 44300,
+                                    "Base": 224500,
                                     "Taxes": {
                                         "@type": "TaxesDetail",
-                                        "TotalTaxes": 23900,
+                                        "TotalTaxes": 162351,
                                         "Tax": [
                                             {
                                                 "currencyCode": "LKR",
@@ -125,78 +249,117 @@
                                             },
                                             {
                                                 "currencyCode": "LKR",
-                                                "taxCode": "ZR",
-                                                "value": 464
+                                                "taxCode": "L7",
+                                                "value": 1596
                                             },
                                             {
                                                 "currencyCode": "LKR",
-                                                "taxCode": "YR",
-                                                "value": 3000
+                                                "taxCode": "SG",
+                                                "value": 6380
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "AU",
+                                                "value": 16776
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "WG",
+                                                "value": 2517
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "WY",
+                                                "value": 12468
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "YQ",
+                                                "value": 102178
                                             }
                                         ]
                                     },
-                                    "Total": 68200
+                                    "Total": 386851
                                 },
                                 "FiledAmount": {
                                     "currencyCode": "USD",
                                     "decimalPlace": 2,
-                                    "value": 130.0
+                                    "value": 659.0
                                 },
                                 "TravelerRefs": [
                                     "travelerRefId_1"
                                 ],
-                                "FareCalculation": "CMB FZ DXB Q4.08 126.00TOLP7LK1 NUC130.08END ROE1.0"
+                                "FareCalculation": "CMB UL X/SIN UL MEL Q CMBSIN2.00 327.50S3MQSLK UL X/SIN UL CMB Q SINCMB2.00 327.50S3MQSLK NUC659.00END ROE1.0"
                             }
                         ]
-                    }
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAir",
+                            "secureFlightPassengerDataRequiredInd": true
+                        }
+                    ]
                 }
             ],
             "Traveler": [
                 {
                     "@type": "Traveler",
-                    "birthDate": "2026-09-07",
+                    "birthDate": "2025-12-01",
                     "gender": "Male",
                     "passengerTypeCode": "ADT",
                     "id": "travelerRefId_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "2b2ca733-4469-4025-b208-8a55c4690902"
+                        "value": "feb87f49-dd35-485e-87ea-d0fb6ad4addd"
                     },
                     "PersonName": {
                         "@type": "PersonName",
-                        "Given": "JJJ MR",
-                        "Surname": "DDD"
+                        "Given": "JOHN MR",
+                        "Surname": "DOE"
                     },
                     "Telephone": [
                         {
                             "@type": "TelephoneDetail",
                             "countryAccessCode": "94",
-                            "phoneNumber": "2434244",
+                            "phoneNumber": "744343434",
                             "id": "telephone_1",
                             "cityCode": "CMB",
                             "role": "Mobile"
+                        },
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "areaCityCode": "11",
+                            "phoneNumber": "7792400",
+                            "id": "telephone_2",
+                            "cityCode": "CMB",
+                            "role": "Other"
                         }
                     ],
                     "Email": [
                         {
+                            "emailType": "FROM",
+                            "value": "ticketing@gstravels.lk"
+                        },
+                        {
                             "emailType": "TO",
-                            "value": "aaaa@gmail.com"
+                            "value": "abc@gmail.com"
                         }
                     ],
                     "TravelDocument": [
                         {
                             "@type": "TravelDocumentDetail",
-                            "docNumber": "N31233",
+                            "docNumber": "N2323233",
                             "docType": "Passport",
-                            "expireDate": "2026-09-16",
+                            "expireDate": "2027-03-31",
                             "issueCountry": "LK",
-                            "birthDate": "2026-09-07",
+                            "birthDate": "2025-12-01",
                             "Gender": "Male",
                             "Nationality": "LK",
                             "PersonName": {
                                 "@type": "PersonName",
-                                "Given": "JJJ",
-                                "Surname": "DDD"
+                                "Given": "JOHN",
+                                "Surname": "DOE"
                             }
                         }
                     ]
@@ -209,7 +372,7 @@
                     "FormOfPaymentRef": "formOfPayment_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "ce0beba4-b28d-4792-b6a8-f3df4b6a32d9"
+                        "value": "4535b4f8-ecd0-415e-a5ff-3aa0432091e3"
                     }
                 }
             ],
@@ -218,7 +381,7 @@
                     "@type": "ReceiptConfirmation",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "396a0792-ba6e-4103-afa0-eb9527c25c11"
+                        "value": "59ec32fe-054b-4ff2-8a37-e47f48e871a6"
                     },
                     "Confirmation": {
                         "@type": "ConfirmationHold",
@@ -227,7 +390,10 @@
                             "StatusAir": [
                                 {
                                     "flightRefs": [
-                                        "Flight_01"
+                                        "Flight_01",
+                                        "Flight_02",
+                                        "Flight_03",
+                                        "Flight_04"
                                     ],
                                     "code": "HK",
                                     "value": "Confirmed"
@@ -236,8 +402,8 @@
                         },
                         "Locator": {
                             "source": "1G",
-                            "creationDate": "2026-09-15",
-                            "value": "HN4N7H"
+                            "creationDate": "2026-10-20",
+                            "value": "HNF1BX"
                         }
                     }
                 },
@@ -245,17 +411,90 @@
                     "@type": "ReceiptConfirmation",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "059fadf0-22c4-4c5e-90b6-a83ee99d4dea"
+                        "value": "b18eee06-7947-406b-a1d8-7b774a096243"
                     },
                     "Confirmation": {
                         "@type": "ConfirmationHold",
                         "Locator": {
-                            "source": "FZ",
-                            "value": "PKSB8J"
+                            "source": "1A",
+                            "value": "55K38Q"
                         }
                     }
                 }
             ],
+            "ReservationComment": [
+                {
+                    "@type": "ReservationComment",
+                    "commentSource": "Supplier",
+                    "shareWith": "Agency",
+                    "shareWithSupplier": [
+                        "1A"
+                    ],
+                    "id": "RSRVComment_1",
+                    "Comment": [
+                        {
+                            "id": "VeiComment_2",
+                            "name": "Vendor Remarks",
+                            "value": "ADTK1GTOUL BY 20OCT 1344 CMB TIME ZONE OTHERWISE WILL BE XLD"
+                        }
+                    ]
+                },
+                {
+                    "@type": "ReservationComment",
+                    "commentSource": "Supplier",
+                    "shareWith": "Agency",
+                    "shareWithSupplier": [
+                        "UL"
+                    ],
+                    "id": "RSRVComment_2",
+                    "Comment": [
+                        {
+                            "id": "VeiComment_1",
+                            "name": "Vendor Remarks",
+                            "value": "MISSING SSR CTCM MOBILE OR SSR CTCE EMAIL OR SSR CTCR NON-CONSENT FOR UL"
+                        }
+                    ]
+                }
+            ],
+            "TravelAgency": {
+                "@type": "TravelAgencyDetail",
+                "id": "travelAgency_1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "e46efad0-8182-4998-b76f-1b118122757c"
+                },
+                "Telephone": [
+                    {
+                        "@type": "TelephoneDetail",
+                        "countryAccessCode": "94",
+                        "areaCityCode": "11",
+                        "phoneNumber": "7792400",
+                        "id": "telephone_1",
+                        "cityCode": "CMB"
+                    }
+                ],
+                "Address": [
+                    {
+                        "@type": "Address",
+                        "id": "address_1",
+                        "role": "Business",
+                        "AddressLine": [
+                            "Ground Floor, 439 Galle Rd"
+                        ],
+                        "City": "Colombo",
+                        "Country": {
+                            "name": "LK"
+                        },
+                        "PostalCode": "00300"
+                    }
+                ],
+                "Email": [
+                    {
+                        "id": "email_1",
+                        "value": "ticketing@gstravels.lk"
+                    }
+                ]
+            },
             "ReservationDisplaySequence": {
                 "@type": "ReservationDisplaySequence",
                 "DisplaySequence": [
@@ -265,6 +504,27 @@
                         "OfferRef": "offer_1",
                         "ProductRef": "product_1",
                         "Sequence": 1
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 2,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_1",
+                        "Sequence": 2
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 3,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2",
+                        "Sequence": 3
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 4,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2",
+                        "Sequence": 4
                     }
                 ]
             }

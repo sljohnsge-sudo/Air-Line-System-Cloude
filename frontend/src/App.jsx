@@ -189,22 +189,9 @@ const getToday = () => new Date().toISOString().split('T')[0];
 // no-ops. A plain React-controlled popover (same pattern as the Travelers/
 // Cabin Class popovers, which have never had this problem) sidesteps that
 // restriction entirely, since opening/closing it is just component state.
-function MiniCalendar({ value, minDate, onSelect }) {
-  const parseDate = (s) => {
-    if (!s) return null;
-    const d = new Date(`${s}T00:00:00`);
-    return isNaN(d.getTime()) ? null : d;
-  };
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const initial = parseDate(value) || parseDate(minDate) || today;
-
-  const [viewYear, setViewYear] = useState(initial.getFullYear());
-  const [viewMonth, setViewMonth] = useState(initial.getMonth());
-
-  const minD = parseDate(minDate);
+// ── Single-month grid used by DateRangeCalendar below ───────────────────────
+function _CalendarMonthGrid({ viewYear, viewMonth, minD, departureValue, returnValue, onPick }) {
   const fmt = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-
   const firstOfMonth = new Date(viewYear, viewMonth, 1);
   const startWeekday = firstOfMonth.getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -214,20 +201,9 @@ function MiniCalendar({ value, minDate, onSelect }) {
   for (let i = 0; i < startWeekday; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
-  const goPrevMonth = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else { setViewMonth(m => m - 1); }
-  };
-  const goNextMonth = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); } else { setViewMonth(m => m + 1); }
-  };
-
   return (
-    <div style={{ width: '280px', fontFamily: 'var(--font-body)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-        <button type="button" onClick={goPrevMonth} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
-        <span style={{ fontWeight: '700', color: '#1e293b', fontSize: '0.9rem' }}>{monthLabel}</span>
-        <button type="button" onClick={goNextMonth} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
-      </div>
+    <div style={{ width: '240px' }}>
+      <div style={{ textAlign: 'center', fontWeight: '700', color: '#1e293b', fontSize: '0.9rem', marginBottom: '0.75rem' }}>{monthLabel}</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '4px' }}>
         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
           <div key={i} style={{ textAlign: 'center', fontSize: '0.68rem', fontWeight: '700', color: '#94a3b8' }}>{d}</div>
@@ -239,18 +215,21 @@ function MiniCalendar({ value, minDate, onSelect }) {
           const dateStr = fmt(viewYear, viewMonth, d);
           const cellDate = new Date(viewYear, viewMonth, d);
           const isDisabled = minD && cellDate < minD;
-          const isSelected = value === dateStr;
+          const isDeparture = departureValue === dateStr;
+          const isReturn = returnValue === dateStr;
+          const isSelected = isDeparture || isReturn;
+          const inRange = departureValue && returnValue && dateStr > departureValue && dateStr < returnValue;
           return (
             <button
               key={idx}
               type="button"
               disabled={isDisabled}
-              onClick={() => onSelect(dateStr)}
+              onClick={() => onPick(dateStr)}
               style={{
                 padding: '0.45rem 0',
-                borderRadius: '6px',
+                borderRadius: inRange ? 0 : '6px',
                 border: 'none',
-                background: isSelected ? '#245d38' : 'transparent',
+                background: isSelected ? '#245d38' : (inRange ? 'rgba(36, 93, 56, 0.12)' : 'transparent'),
                 color: isDisabled ? '#cbd5e1' : (isSelected ? 'white' : '#1e293b'),
                 fontWeight: isSelected ? '700' : '500',
                 fontSize: '0.85rem',
@@ -267,12 +246,94 @@ function MiniCalendar({ value, minDate, onSelect }) {
   );
 }
 
+// ── Dual-month date-range picker for the search hero's single combined date
+// field — replaces the old two-separate-popovers (Departure/Return) flow
+// with one shared calendar showing the current month and the next one side
+// by side, same as a typical flight-search date range picker. One-way trips
+// only ever set the departure date (clicking any valid day closes it
+// immediately); round trips pick departure first, then return.
+function DateRangeCalendar({ departureValue, returnValue, minDate, roundTrip, onSelectDeparture, onSelectReturn, onClose }) {
+  const parseDate = (s) => {
+    if (!s) return null;
+    const d = new Date(`${s}T00:00:00`);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const initial = parseDate(departureValue) || parseDate(minDate) || today;
+
+  const [viewYear, setViewYear] = useState(initial.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initial.getMonth());
+  const minD = parseDate(minDate);
+
+  const goPrevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else { setViewMonth(m => m - 1); }
+  };
+  const goNextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); } else { setViewMonth(m => m + 1); }
+  };
+  let nextViewYear = viewYear, nextViewMonth = viewMonth + 1;
+  if (nextViewMonth > 11) { nextViewMonth = 0; nextViewYear += 1; }
+
+  const handlePick = (dateStr) => {
+    if (!roundTrip) {
+      onSelectDeparture(dateStr);
+      onClose();
+      return;
+    }
+    const haveCompleteRange = departureValue && returnValue;
+    if (!departureValue || haveCompleteRange) {
+      // Fresh start (or re-picking after a complete range was already set).
+      onSelectDeparture(dateStr);
+      return;
+    }
+    // Departure is set, return isn't — this click completes (or restarts) the range.
+    if (dateStr < departureValue) {
+      onSelectDeparture(dateStr);
+      return;
+    }
+    onSelectReturn(dateStr);
+    onClose();
+  };
+
+  return (
+    <div style={{ fontFamily: 'var(--font-body)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <button type="button" onClick={goPrevMonth} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>‹</button>
+        <_CalendarMonthGrid viewYear={viewYear} viewMonth={viewMonth} minD={minD} departureValue={departureValue} returnValue={roundTrip ? returnValue : null} onPick={handlePick} />
+        {roundTrip && (
+          <_CalendarMonthGrid viewYear={nextViewYear} viewMonth={nextViewMonth} minD={minD} departureValue={departureValue} returnValue={returnValue} onPick={handlePick} />
+        )}
+        <button type="button" onClick={goNextMonth} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid #cbd5e1', background: 'white', color: '#475569', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>›</button>
+      </div>
+      {roundTrip && (
+        <div style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: '#64748b', textAlign: 'center' }}>
+          {!departureValue ? 'Select your departure date' : !returnValue ? 'Now select your return date' : `${formatDisplayDate(departureValue)} – ${formatDisplayDate(returnValue)}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Human-readable date display for the search form's date buttons ─────────
 const formatDisplayDate = (iso) => {
   if (!iso) return '';
   const d = new Date(`${iso}T00:00:00`);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// ── Combined "21 Oct – 28 Oct 2026" label for the single date-range field ──
+const formatDateRangeDisplay = (departure, returnD, roundTrip) => {
+  if (!departure) return '';
+  if (!roundTrip || !returnD) return formatDisplayDate(departure);
+  const d1 = new Date(`${departure}T00:00:00`);
+  const d2 = new Date(`${returnD}T00:00:00`);
+  const sameYear = d1.getFullYear() === d2.getFullYear();
+  const short = (d) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  return sameYear
+    ? `${short(d1)} – ${formatDisplayDate(returnD)}`
+    : `${formatDisplayDate(departure)} – ${formatDisplayDate(returnD)}`;
 };
 
 // ── Interleave GDS/NDC results so neither source dominates a long stretch ──
@@ -1397,7 +1458,6 @@ export default function App() {
   // (browsers gate it behind "transient user activation" that a still-
   // closing native popup doesn't reliably hand off to the next call).
   const [showDeparturePicker, setShowDeparturePicker] = useState(false);
-  const [showReturnPicker, setShowReturnPicker] = useState(false);
   // On mobile the results search bar collapses to a compact one-line summary
   // (so results are visible without scrolling past the whole form) — tap it
   // to expand back to the full editable form. Desktop always shows the full
@@ -3131,9 +3191,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           the same as when Book Flights was its own separate page. */}
       {activeTab === 'book' && showSearchForm && (
         <div className="tab-content animate-fade">
-          <section className="search-section glass-panel">
-            <h2 className="section-title">Find Your Flight</h2>
-            
+          <section className="search-section glass-panel flight-hero">
+            <div className="flight-hero-header">
+              <h2 className="flight-hero-title">Find your next flight<span className="flight-hero-dot">.</span></h2>
+              <p className="flight-hero-subtitle">Live fares straight from the GDS — booked and ticketed instantly, no middleman.</p>
+            </div>
+
             <div className="search-type-tabs">
               <button type="button" className={`search-type-tab ${searchType === 'oneway' ? 'active' : ''}`} onClick={() => setSearchType('oneway')}>One Way</button>
               <button type="button" className={`search-type-tab ${searchType === 'roundtrip' ? 'active' : ''}`} onClick={() => setSearchType('roundtrip')}>Round Trip</button>
@@ -3142,7 +3205,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
             <form onSubmit={handleSearch} className="search-form">
               {searchType === 'multicity' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.25rem' }}>
+                <div className="flight-hero-multicity-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.25rem' }}>
                   {multiCityLegs.map((leg, index) => (
                     <div key={index} className="form-row multi-city-row" style={{ flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', minWidth: '80px' }}>
@@ -3234,31 +3297,53 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               ) : (
                 <>
                   <div className="form-row" style={{ flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
-                    <AirportSearchSelect
-                      value={searchOrigin}
-                      onChange={(val) => {
-                        setSearchOrigin(val);
-                        if (val && searchDest) setShowDeparturePicker(true);
-                      }}
-                      label="From (Origin)"
-                      placeholder="Search origin city/airport..."
-                    />
+                    <div className="flight-hero-field-clearable" style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
+                      <svg className="flight-hero-field-icon flight-hero-pin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                      <AirportSearchSelect
+                        value={searchOrigin}
+                        onChange={(val) => {
+                          setSearchOrigin(val);
+                          if (val && searchDest) setShowDeparturePicker(true);
+                        }}
+                        label="From (Origin)"
+                        placeholder="Search origin city/airport..."
+                      />
+                      {searchOrigin && (
+                        <button
+                          type="button"
+                          className="flight-hero-clear-btn"
+                          onClick={() => setSearchOrigin('')}
+                          aria-label="Clear origin"
+                        >✕</button>
+                      )}
+                    </div>
                     <div className="search-divider" style={{ alignSelf: 'center', marginTop: '1.2rem' }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 7h12M20 7l-4-4M20 7l-4 4M16 17H4M4 17l4 4M4 17l4-4"/></svg>
                     </div>
-                    <AirportSearchSelect
-                      value={searchDest}
-                      onChange={(val) => {
-                        setSearchDest(val);
-                        if (val && searchOrigin) setShowDeparturePicker(true);
-                      }}
-                      label="To (Destination)"
-                      placeholder="Search destination city/airport..."
-                    />
+                    <div className="flight-hero-field-clearable" style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
+                      <svg className="flight-hero-field-icon flight-hero-pin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 6-9 13-9 13s-9-7-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                      <AirportSearchSelect
+                        value={searchDest}
+                        onChange={(val) => {
+                          setSearchDest(val);
+                          if (val && searchOrigin) setShowDeparturePicker(true);
+                        }}
+                        label="To (Destination)"
+                        placeholder="Search destination city/airport..."
+                      />
+                      {searchDest && (
+                        <button
+                          type="button"
+                          className="flight-hero-clear-btn"
+                          onClick={() => setSearchDest('')}
+                          aria-label="Clear destination"
+                        >✕</button>
+                      )}
+                    </div>
                   </div>
                   <div className="form-row" style={{ flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
-                    <div className="form-group" style={{ flex: 1, minWidth: '160px', position: 'relative' }}>
-                      <label className="form-label">Departure Date</label>
+                    <div className="form-group" style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+                      <label className="form-label">{searchType === 'roundtrip' ? 'Travel Dates' : 'Departure Date'}</label>
                       <button
                         type="button"
                         className="form-input text-left"
@@ -3271,8 +3356,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         }}
                         onClick={() => setShowDeparturePicker(!showDeparturePicker)}
                       >
-                        <span>{searchDate ? formatDisplayDate(searchDate) : 'Select date'}</span>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showDeparturePicker ? 'rotate(180deg)' : 'none' }}>
+                        <svg className="flight-hero-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <span>{searchDate ? formatDateRangeDisplay(searchDate, returnDate, searchType === 'roundtrip') : 'Select date'}</span>
+                        <svg className="flight-hero-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showDeparturePicker ? 'rotate(180deg)' : 'none' }}>
                           <path d="M6 9l6 6 6-6" />
                         </svg>
                       </button>
@@ -3280,62 +3366,25 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         <>
                           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: 'transparent' }} onClick={() => setShowDeparturePicker(false)} />
                           <div style={{ position: 'absolute', top: '100%', left: 0, backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', border: '1px solid #cbd5e1', padding: '1.25rem', zIndex: 1000, marginTop: '0.5rem' }}>
-                            <MiniCalendar
-                              value={searchDate}
+                            <DateRangeCalendar
+                              departureValue={searchDate}
+                              returnValue={returnDate}
                               minDate={getTomorrow()}
-                              onSelect={(d) => {
+                              roundTrip={searchType === 'roundtrip'}
+                              onSelectDeparture={(d) => {
                                 setSearchDate(d);
-                                if (returnDate && returnDate < d) setReturnDate(d);
+                                if (returnDate && returnDate < d) setReturnDate('');
+                              }}
+                              onSelectReturn={(d) => setReturnDate(d)}
+                              onClose={() => {
                                 setShowDeparturePicker(false);
-                                if (searchType === 'roundtrip') {
-                                  setShowReturnPicker(true);
-                                } else {
-                                  setShowTravelersPopover(true);
-                                }
+                                setShowTravelersPopover(true);
                               }}
                             />
                           </div>
                         </>
                       )}
                     </div>
-                    {searchType === 'roundtrip' && (
-                      <div className="form-group" style={{ flex: 1, minWidth: '160px', position: 'relative' }}>
-                        <label className="form-label">Return Date</label>
-                        <button
-                          type="button"
-                          className="form-input text-left"
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-                            background: 'white', textAlign: 'left', cursor: 'pointer', padding: '0.625rem 0.75rem',
-                            border: '1.5px solid var(--border-color)', borderRadius: '6px', fontWeight: '600',
-                            color: returnDate ? 'var(--text-primary)' : '#94a3b8', minHeight: '42px',
-                            fontFamily: 'var(--font-body)', outline: 'none',
-                          }}
-                          onClick={() => setShowReturnPicker(!showReturnPicker)}
-                        >
-                          <span>{returnDate ? formatDisplayDate(returnDate) : 'Select date'}</span>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showReturnPicker ? 'rotate(180deg)' : 'none' }}>
-                            <path d="M6 9l6 6 6-6" />
-                          </svg>
-                        </button>
-                        {showReturnPicker && (
-                          <>
-                            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: 'transparent' }} onClick={() => setShowReturnPicker(false)} />
-                            <div style={{ position: 'absolute', top: '100%', left: 0, backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', border: '1px solid #cbd5e1', padding: '1.25rem', zIndex: 1000, marginTop: '0.5rem' }}>
-                              <MiniCalendar
-                                value={returnDate}
-                                minDate={searchDate || getTomorrow()}
-                                onSelect={(d) => {
-                                  setReturnDate(d);
-                                  setShowReturnPicker(false);
-                                  setShowTravelersPopover(true);
-                                }}
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </>
               )}
@@ -3366,10 +3415,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     }}
                     onClick={() => setShowTravelersPopover(!showTravelersPopover)}
                   >
+                    <svg className="flight-hero-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     <span>
                       {adultCount + childCount + infantCount + studentCount} Traveler{(adultCount + childCount + infantCount + studentCount) > 1 ? 's' : ''}
                     </span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showTravelersPopover ? 'rotate(180deg)' : 'none' }}>
+                    <svg className="flight-hero-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showTravelersPopover ? 'rotate(180deg)' : 'none' }}>
                       <path d="M6 9l6 6 6-6" />
                     </svg>
                   </button>
@@ -3637,10 +3687,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     }}
                     onClick={() => setShowCabinPopover(!showCabinPopover)}
                   >
+                    <svg className="flight-hero-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 22l1.5-5L19 4l1 1-12.5 13.5L3 22"/><path d="M15 9l4-4"/></svg>
                     <span>
                       {cabinPref === 'PremiumEconomy' ? 'Premium Economy' : cabinPref === 'All' ? 'All Cabin Classes' : cabinPref}
                     </span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showCabinPopover ? 'rotate(180deg)' : 'none' }}>
+                    <svg className="flight-hero-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '8px', color: '#64748b', transition: 'transform 0.2s', transform: showCabinPopover ? 'rotate(180deg)' : 'none' }}>
                       <path d="M6 9l6 6 6-6" />
                     </svg>
                   </button>
@@ -3660,7 +3711,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           position: 'absolute',
                           top: '100%',
                           left: 0,
-                          width: '260px',
+                          width: '320px',
                           backgroundColor: 'white',
                           borderRadius: '12px',
                           boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',

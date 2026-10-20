@@ -1429,10 +1429,91 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
     except Exception as e:
         logger.warning(f"Loyalty points award failed for {locator_code} (non-fatal): {e}")
 
+    # Push this ticketed booking to the George Steuart ERP as a Sales
+    # Invoice (see services/erp_sync_service.py) — best-effort, same as
+    # loyalty points above. The ticket is already real on Travelport by
+    # this point, so an ERP/network hiccup here must never surface as a
+    # booking failure to the customer; failures are recorded for the
+    # /api/admin/erp-sync backfill/retry endpoints instead of being retried
+    # inline.
+    if services.erp_configured():
+        try:
+            invoice_name = services.push_booking_to_erp(saved)
+            database.mark_erp_synced(locator_code, invoice_name)
+        except Exception as e:
+            logger.warning(f"ERP sync failed for {locator_code} (non-fatal): {e}")
+            try:
+                database.mark_erp_sync_failed(locator_code, str(e))
+            except Exception as db_err:
+                logger.error(f"Could not record ERP sync failure for {locator_code}: {db_err}")
+
     return {
         "success": True,
         "ticket": ticket,
         "cached_id": saved.get("id")
+    }
+
+
+# ── ERP Sync (George Steuart ERP, erp-dev.gsoptimize.lk) ───────────────────────
+# Manual counterpart to the automatic push in _issue_and_save_ticket above, for
+# the two cases that need one: a booking whose automatic push failed (network
+# blip, ERP down) and anything ticketed before ERP_API_KEY/SECRET were ever
+# configured. Both admin-only; neither ever touches Travelport.
+
+@app.get("/api/admin/erp-sync/status")
+def erp_sync_status(admin: dict = Depends(auth.get_current_admin)):
+    """Lists ticketed bookings not yet pushed to the ERP, for the admin's
+    ERP Sync screen to show as a worklist."""
+    pending = database.get_bookings_pending_erp_sync()
+    return {
+        "configured": services.erp_configured(),
+        "pending_count": len(pending),
+        "pending": pending,
+    }
+
+
+@app.post("/api/admin/erp-sync/{locator_code}")
+def erp_sync_one(locator_code: str, admin: dict = Depends(auth.get_current_admin)):
+    """Retries (or does for the first time) the ERP push for one booking."""
+    if not services.erp_configured():
+        raise HTTPException(status_code=503, detail="ERP_API_KEY / ERP_API_SECRET are not configured.")
+    locator_code = locator_code.upper().strip()
+    booking = database.get_booking_by_locator(locator_code)
+    if not booking:
+        raise HTTPException(status_code=404, detail=f"No booking found for locator {locator_code}.")
+    try:
+        invoice_name = services.push_booking_to_erp(booking)
+        database.mark_erp_synced(locator_code, invoice_name)
+        return {"success": True, "invoice_name": invoice_name}
+    except Exception as e:
+        database.mark_erp_sync_failed(locator_code, str(e))
+        raise HTTPException(status_code=502, detail=f"ERP sync failed: {e}")
+
+
+@app.post("/api/admin/erp-sync/backfill")
+def erp_sync_backfill(admin: dict = Depends(auth.get_current_admin)):
+    """One-time (or re-run anytime) sweep: pushes every ticketed booking
+    that has never been synced to the ERP. Keeps going past individual
+    failures so one bad record doesn't block the rest; reports a per-locator
+    result list."""
+    if not services.erp_configured():
+        raise HTTPException(status_code=503, detail="ERP_API_KEY / ERP_API_SECRET are not configured.")
+    pending = database.get_bookings_pending_erp_sync()
+    results = []
+    for booking in pending:
+        locator = booking.get("locator_code")
+        try:
+            invoice_name = services.push_booking_to_erp(booking)
+            database.mark_erp_synced(locator, invoice_name)
+            results.append({"locator_code": locator, "success": True, "invoice_name": invoice_name})
+        except Exception as e:
+            database.mark_erp_sync_failed(locator, str(e))
+            results.append({"locator_code": locator, "success": False, "error": str(e)})
+    return {
+        "attempted": len(results),
+        "succeeded": sum(1 for r in results if r["success"]),
+        "failed": sum(1 for r in results if not r["success"]),
+        "results": results,
     }
 
 
@@ -1521,7 +1602,22 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
 
     _attach_traveler_details(ticket, travelers)
     ticket["customer_id"] = customer_id
-    database.save_booking(ticket)
+    saved = database.save_booking(ticket)
+
+    # NDC Instant Pay books, pays, and tickets in one Travelport commit, so
+    # unlike the GDS/regular-NDC flow it never passes through
+    # _issue_and_save_ticket — this is the only other place a booking
+    # actually becomes "Ticketed", so it needs the same best-effort ERP push.
+    if services.erp_configured():
+        try:
+            invoice_name = services.push_booking_to_erp(saved)
+            database.mark_erp_synced(locator, invoice_name)
+        except Exception as e:
+            logger.warning(f"ERP sync failed for {locator} (non-fatal): {e}")
+            try:
+                database.mark_erp_sync_failed(locator, str(e))
+            except Exception as db_err:
+                logger.error(f"Could not record ERP sync failure for {locator}: {db_err}")
 
     for _, number in ip["ticket_numbers"]:
         try:

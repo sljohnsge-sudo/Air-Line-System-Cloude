@@ -1,47 +1,85 @@
 {
     "OfferListResponse": {
         "@type": "OfferListResponse",
-        "transactionId": "1939881a099f7eb9eb155b91f649ba20",
-        "traceId": "TraceID_209A6CB9BBA4",
+        "transactionId": "212f92ae95cdd2648f754a088974e3da",
+        "traceId": "TraceID_01EFFBBCA3B1",
         "OfferID": [
             {
                 "@type": "Offer",
                 "id": "o0",
-                "ContentSource": "GDS",
+                "Identifier": {
+                    "authority": "QR",
+                    "value": "MUgyUVJaX1FFS1VHREs0QlJCTVNQOUUzQlZRR0haMFVRUDh8MUgyUVJaX1FFS1VHREs0QlJCTVNQOUUzQlZRR0haMFVRUDh8MjAyNi0xMC0yMFQwNTo1NzoyOFp8QURUOjFIMlFSWl9RRUtVR0RLNEJSQk1TUDlFM0JWUUdIWjBVUVA4LTF8UVJ8cDBfczEtU0VHMixzMi1TRUc1fEFEVDpQQVgxfEN1cnJlbmN5Q29kZTpMS1I="
+                },
+                "ContentSource": "NDC",
                 "Product": [
                     {
                         "@type": "ProductAir",
-                        "totalDuration": "PT4H40M",
+                        "totalDuration": "PT8H35M",
                         "id": "p0",
                         "FlightSegment": [
                             {
                                 "@type": "FlightSegment",
                                 "id": "s1",
                                 "sequence": 1,
+                                "connectionDuration": "PT2H25M",
                                 "Flight": {
                                     "@type": "FlightDetail",
-                                    "distance": 2061,
-                                    "duration": "PT4H40M",
-                                    "carrier": "EY",
-                                    "number": "395",
-                                    "operatingCarrier": "EY",
-                                    "operatingCarrierName": "Etihad Airways",
-                                    "equipment": "321",
+                                    "stops": 0,
+                                    "duration": "PT4H50M",
+                                    "carrier": "QR",
+                                    "number": "659",
+                                    "operatingCarrier": "QR",
+                                    "operatingCarrierName": "QATAR AIRWAYS",
+                                    "equipment": "788",
                                     "id": "f1",
+                                    "Identifier": {
+                                        "value": "SEG2"
+                                    },
                                     "Departure": {
                                         "@type": "DepartureDetail",
                                         "location": "CMB",
-                                        "date": "2026-11-03",
-                                        "time": "04:00:00"
+                                        "date": "2026-10-21",
+                                        "time": "04:35:00"
                                     },
                                     "Arrival": {
                                         "@type": "ArrivalDetail",
-                                        "terminal": "A",
-                                        "location": "AUH",
-                                        "date": "2026-11-03",
-                                        "time": "07:10:00"
+                                        "location": "DOH",
+                                        "date": "2026-10-21",
+                                        "time": "06:55:00"
+                                    }
+                                }
+                            },
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s2",
+                                "sequence": 2,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "stops": 0,
+                                    "duration": "PT1H20M",
+                                    "carrier": "QR",
+                                    "number": "1022",
+                                    "operatingCarrier": "QR",
+                                    "operatingCarrierName": "QATAR AIRWAYS",
+                                    "equipment": "77L",
+                                    "id": "f2",
+                                    "Identifier": {
+                                        "value": "SEG5"
                                     },
-                                    "AvailabilitySourceCode": "S"
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "location": "DOH",
+                                        "date": "2026-10-21",
+                                        "time": "09:20:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "1",
+                                        "location": "DXB",
+                                        "date": "2026-10-21",
+                                        "time": "11:40:00"
+                                    }
                                 }
                             }
                         ],
@@ -50,17 +88,24 @@
                                 "@type": "PassengerFlight",
                                 "passengerQuantity": 1,
                                 "passengerTypeCode": "ADT",
+                                "requestedPassengerTypeCodes": [
+                                    "ADT"
+                                ],
                                 "FlightProduct": [
                                     {
                                         "@type": "FlightProduct",
                                         "segmentSequence": [
-                                            1
+                                            1,
+                                            2
                                         ],
-                                        "classOfService": "E",
+                                        "classOfService": "O",
                                         "cabin": "Economy",
-                                        "fareBasisCode": "EN200V66",
+                                        "fareBasisCode": "OJLKP0RI",
                                         "fareType": "PublicFare",
-                                        "fareTypeCode": "ERS"
+                                        "Brand": {
+                                            "@type": "Brand",
+                                            "BrandRef": "b0"
+                                        }
                                     }
                                 ]
                             }
@@ -69,15 +114,14 @@
                 ],
                 "Price": {
                     "@type": "PriceDetail",
-                    "id": "price0",
                     "CurrencyCode": {
                         "decimalPlace": 0,
                         "value": "LKR"
                     },
-                    "Base": 39200,
-                    "TotalTaxes": 20900,
+                    "Base": 19500,
+                    "TotalTaxes": 40478,
                     "TotalFees": 0,
-                    "TotalPrice": 60100,
+                    "TotalPrice": 59978,
                     "PriceBreakdown": [
                         {
                             "@type": "PriceBreakdownAir",
@@ -86,23 +130,40 @@
                             "Amount": {
                                 "@type": "Amount",
                                 "CurrencyCode": {
-                                    "decimalPlace": 0,
                                     "value": "LKR"
                                 },
-                                "Base": 39200,
+                                "Base": 19500,
                                 "Taxes": {
                                     "@type": "TaxesDetail",
-                                    "TotalTaxes": 20900,
+                                    "TotalTaxes": 40478,
                                     "Tax": [
                                         {
+                                            "taxCode": "YR",
+                                            "value": 7386
+                                        },
+                                        {
                                             "taxCode": "LK",
-                                            "description": "EMBARKATION TAX",
-                                            "value": 20436
+                                            "value": 20144
+                                        },
+                                        {
+                                            "taxCode": "G4",
+                                            "value": 5532
+                                        },
+                                        {
+                                            "taxCode": "PZ",
+                                            "value": 504
+                                        },
+                                        {
+                                            "taxCode": "QA",
+                                            "value": 5532
+                                        },
+                                        {
+                                            "taxCode": "R9",
+                                            "value": 922
                                         },
                                         {
                                             "taxCode": "ZR",
-                                            "description": "INTERNATIONAL ADVANCED PASSENGER INFORMATION FEE ARRIVALS",
-                                            "value": 464
+                                            "value": 458
                                         }
                                     ]
                                 },
@@ -110,25 +171,24 @@
                                     "@type": "FeesDetail",
                                     "TotalFees": 0
                                 },
-                                "Total": 60100
+                                "Total": 59978
                             },
-                            "FiledAmount": {
-                                "currencyCode": "USD",
-                                "decimalPlace": 2,
-                                "value": 115
-                            },
-                            "FareCalculation": "CMB EY AUH 115.00EN200V66 NUC115.00END ROE1.0"
+                            "TravelerIdentifierRef": {
+                                "ages": [
+                                    25
+                                ]
+                            }
                         }
                     ]
                 },
                 "TermsAndConditionsFull": [
                     {
                         "@type": "TermsAndConditionsFullAir",
-                        "ExpiryDate": "2026-11-03T02:00:00Z",
+                        "secureFlightPassengerDataRequiredInd": true,
+                        "ExpiryDate": "2026-10-20T05:57:28Z",
                         "BaggageAllowance": [
                             {
                                 "@type": "BaggageAllowanceDetail",
-                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/EY",
                                 "passengerTypeCodes": [
                                     "ADT"
                                 ],
@@ -147,12 +207,12 @@
                                                 "unit": "Kilograms",
                                                 "value": 25
                                             }
-                                        ],
-                                        "Text": "CHGS MAY APPLY IF BAGS EXCEED TTL WT ALLOWANCE"
+                                        ]
                                     }
                                 ],
                                 "SegmentSequenceList": [
-                                    1
+                                    1,
+                                    2
                                 ],
                                 "Text": [
                                     "25K"
@@ -173,57 +233,138 @@
                                         "quantity": 1,
                                         "includedInOfferPrice": "Yes",
                                         "soldByPieceInd": true,
-                                        "BaggageFee": {
-                                            "code": "LKR",
-                                            "approximateInd": true,
-                                            "value": 0
-                                        },
-                                        "Text": "UPTO15LB/7KG AND UPTO45LI/115LCM"
+                                        "Measurement": [
+                                            {
+                                                "measurementType": "Weight",
+                                                "unit": "Kilograms",
+                                                "value": 7
+                                            }
+                                        ],
+                                        "Text": "1 piece, 7kg total"
                                     }
                                 ],
                                 "SegmentSequenceList": [
-                                    1
+                                    1,
+                                    2
                                 ],
                                 "Text": [
-                                    "1P"
+                                    "1PC",
+                                    "07K"
                                 ]
-                            }
-                        ],
-                        "Restriction": [
-                            {
-                                "value": "NON ENDO/ NONREF"
                             }
                         ],
                         "ValidatingAirline": [
                             {
                                 "@type": "ValidatingAirline",
-                                "ValidatingAirline": "EY"
+                                "ValidatingAirline": "QR"
                             }
                         ],
-                        "TicketingAgency": [
-                            {
-                                "@type": "TicketingAgency",
-                                "Code": "7F3C"
-                            }
-                        ],
-                        "PaymentTimeLimit": "2026-11-03T02:00:00Z",
+                        "PaymentTimeLimit": "2026-10-20T07:27:00Z",
                         "Penalties": [
                             {
                                 "@type": "Penalties",
                                 "Change": [
                                     {
+                                        "@type": "ChangeNotPermitted",
+                                        "penaltyTypes": [],
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ]
+                                    },
+                                    {
                                         "@type": "ChangePermitted",
                                         "penaltyTypes": [
-                                            "Anytime"
+                                            "BeforeDeparture",
+                                            "ExchangeRequired"
                                         ],
-                                        "PenaltyAppliesTo": "PerTicket",
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ],
                                         "Penalty": [
                                             {
                                                 "@type": "PenaltyAmount",
                                                 "Amount": {
                                                     "code": "LKR",
-                                                    "minorUnit": 0,
-                                                    "value": 27300
+                                                    "value": 26900
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "@type": "ChangePermitted",
+                                        "penaltyTypes": [
+                                            "BeforeDeparture",
+                                            "NoShow",
+                                            "ExchangeRequired"
+                                        ],
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "value": 26900
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "@type": "ChangePermitted",
+                                        "penaltyTypes": [
+                                            "AfterDeparture",
+                                            "ExchangeRequired"
+                                        ],
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "value": 26900
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "@type": "ChangePermitted",
+                                        "penaltyTypes": [
+                                            "AfterDeparture",
+                                            "NoShow",
+                                            "ExchangeRequired"
+                                        ],
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "value": 26900
                                                 }
                                             }
                                         ]
@@ -233,13 +374,90 @@
                                     {
                                         "@type": "CancelPermitted",
                                         "penaltyTypes": [
-                                            "Anytime"
+                                            "BeforeDeparture"
                                         ],
-                                        "PenaltyAppliesTo": "PerTicket",
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ],
                                         "Penalty": [
                                             {
-                                                "@type": "PenaltyPercent",
-                                                "Percent": 100
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "value": 47100
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "@type": "CancelPermitted",
+                                        "penaltyTypes": [
+                                            "BeforeDeparture",
+                                            "NoShow"
+                                        ],
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "value": 47100
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "@type": "CancelPermitted",
+                                        "penaltyTypes": [
+                                            "AfterDeparture"
+                                        ],
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "value": 47100
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "@type": "CancelPermitted",
+                                        "penaltyTypes": [
+                                            "AfterDeparture",
+                                            "NoShow"
+                                        ],
+                                        "ProductRefs": [
+                                            "p0"
+                                        ],
+                                        "SegmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "value": 47100
+                                                }
                                             }
                                         ]
                                     }
@@ -248,21 +466,77 @@
                                     "ADT"
                                 ]
                             }
-                        ],
-                        "FareGuaranteePolicy": [
-                            {
-                                "@type": "FareGuaranteePolicy",
-                                "Code": {
-                                    "value": "G"
-                                }
-                            }
                         ]
                     }
                 ]
             }
         ],
         "Identifier": {
-            "value": "cbf1c436-8316-4d88-93c9-235a6a8c7abf_PC"
-        }
+            "value": "8f900392-02f7-4eac-a668-d2dfa165b6ae_PC"
+        },
+        "ReferenceList": [
+            {
+                "@type": "ReferenceListBrand",
+                "Brand": [
+                    {
+                        "@type": "Brand",
+                        "name": "ECONOMY CLASSIC",
+                        "id": "b0",
+                        "BrandAttribute": [
+                            {
+                                "@type": "BrandAttribute",
+                                "classification": "CarryOn",
+                                "inclusion": "Included",
+                                "groupCode": "BG"
+                            },
+                            {
+                                "@type": "BrandAttribute",
+                                "classification": "Rebooking",
+                                "inclusion": "Chargeable",
+                                "groupCode": "BF"
+                            },
+                            {
+                                "@type": "BrandAttribute",
+                                "classification": "SeatAssignment",
+                                "inclusion": "Chargeable",
+                                "groupCode": "SA"
+                            },
+                            {
+                                "@type": "BrandAttribute",
+                                "classification": "CheckedBag",
+                                "inclusion": "Included",
+                                "groupCode": "BG"
+                            },
+                            {
+                                "@type": "BrandAttribute",
+                                "classification": "Refund",
+                                "inclusion": "Chargeable",
+                                "groupCode": "BF"
+                            }
+                        ],
+                        "AdditionalBrandAttribute": [
+                            {
+                                "@type": "AdditionalBrandAttribute",
+                                "groupCode": "BF",
+                                "Classification": "Mileage Accrual",
+                                "Inclusion": "Included"
+                            },
+                            {
+                                "@type": "AdditionalBrandAttribute",
+                                "groupCode": "UP",
+                                "Classification": "Upgrades",
+                                "Inclusion": "Included"
+                            },
+                            {
+                                "@type": "AdditionalBrandAttribute",
+                                "groupCode": "LG",
+                                "Classification": "Lounge Access",
+                                "Inclusion": "Chargeable"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     }
 }

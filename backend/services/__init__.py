@@ -15,6 +15,7 @@ from .email_service import send_visa_consultation_email, send_provider_failure_e
 from .amadeus_aggregator import search_amadeus_flights
 from .amadeus_booking_proxy import confirm_booking as confirm_amadeus_booking, issue_ticket as issue_amadeus_ticket, lookup_booking as lookup_amadeus_booking, AmadeusBookingError
 from .customer_oauth_service import is_configured as oauth_is_configured, make_state as oauth_make_state, verify_state as oauth_verify_state, build_authorize_url as oauth_build_authorize_url, exchange_code_for_profile as oauth_exchange_code_for_profile, OAuthNotConfigured, OAuthExchangeError
+from .erp_sync_service import push_booking_to_erp, erp_configured, ErpSyncError
 
 __all__ = [
     "get_access_token", "get_auth_headers", "invalidate_token", "flow_trace_id", "start_flow_trace_id", "end_flow_trace_id",
@@ -28,4 +29,5 @@ __all__ = [
     "send_visa_consultation_email", "send_provider_failure_email",
     "search_amadeus_flights",
     "confirm_amadeus_booking", "issue_amadeus_ticket", "lookup_amadeus_booking", "AmadeusBookingError",
+    "push_booking_to_erp", "erp_configured", "ErpSyncError",
 ]

@@ -229,6 +229,22 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         cursor.execute("CREATE INDEX idx_bookings_passenger_email ON bookings(passenger_email)")
 
+    # bookings.erp_* — tracks whether this booking has been pushed to the
+    # George Steuart ERP (erp-dev.gsoptimize.lk) as a Sales Invoice under the
+    # "Online Booking" company (see services/erp_sync_service.py). Tracked
+    # locally rather than via a custom field on the ERP side so a push is
+    # idempotent purely from our own data — erp_invoice_name set means
+    # "already synced, skip it" for both the automatic post-issuance sync
+    # and the manual backfill/retry endpoint.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='bookings' AND COLUMN_NAME='erp_invoice_name'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE bookings ADD COLUMN erp_invoice_name VARCHAR(140) NULL AFTER fare_source")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN erp_synced_at DATETIME NULL AFTER erp_invoice_name")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN erp_sync_error VARCHAR(500) NULL AFTER erp_synced_at")
+
     # ── Loyalty Program ──────────────────────────────────────────────────────
     # Single-row config table (same pattern as pricing_settings) — points
     # accrual rate per currency (fares are LKR or USD, never blended) and the
@@ -866,6 +882,53 @@ def save_booking(ticket: dict) -> dict:
     finally:
         cursor.close()
         conn.close()
+
+
+def mark_erp_synced(locator_code: str, invoice_name: str) -> None:
+    """Records a successful push to the ERP (see services/erp_sync_service.py)
+    so later syncs/backfills skip this booking instead of double-invoicing it."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE bookings SET erp_invoice_name=%s, erp_synced_at=NOW(), erp_sync_error=NULL WHERE locator_code=%s",
+            (invoice_name, locator_code),
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def mark_erp_sync_failed(locator_code: str, error: str) -> None:
+    """Records a failed ERP push attempt (error only, erp_invoice_name stays
+    NULL) so the booking is still picked up by the next backfill/retry."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE bookings SET erp_sync_error=%s WHERE locator_code=%s",
+            (error[:500], locator_code),
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_bookings_pending_erp_sync() -> list[dict]:
+    """Ticketed bookings never successfully pushed to the ERP yet — the
+    backfill/retry endpoint's worklist. Excludes anything already synced
+    (erp_invoice_name set), regardless of past erp_sync_error."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM bookings WHERE status='Ticketed' AND erp_invoice_name IS NULL ORDER BY booking_date ASC"
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return _hydrate_bookings(rows)
 
 
 def _hydrate_bookings(rows: list[dict]) -> list[dict]:

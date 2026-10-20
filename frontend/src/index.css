@@ -2429,3 +2429,269 @@ body {
 }
 
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Flight Search Hero (Book Flights landing only) — scoped to .flight-hero so
+   none of this touches .search-section/.glass-panel/.section-title/.form-row/
+   .form-input etc. elsewhere (Hotels, Packages, Visa, Admin, AirportSearchSelect
+   in AdminPortal, ...), which all reuse those same shared classes. Declared
+   after their base rules and uses !important only where it must win over
+   inline styles on the date/travelers/cabin picker buttons (unavoidable
+   without editing those buttons directly) — never affects anything outside
+   this scope.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.flight-hero {
+  background: linear-gradient(180deg, #eef2f7 0%, #f8fafc 100%);
+  border: 1px solid #e3e8ef;
+  border-top: 1px solid #e3e8ef;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: 2.5rem 2.5rem 2.25rem;
+}
+
+@media (max-width: 640px) {
+  .flight-hero {
+    padding: 1.75rem 1.25rem 1.5rem;
+  }
+}
+
+.flight-hero-header {
+  margin-bottom: 1.5rem;
+}
+
+.flight-hero-title {
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 3vw, 2.35rem);
+  font-weight: 700;
+  color: var(--gs-dark);
+  line-height: 1.15;
+  margin-bottom: 0.4rem;
+}
+
+.flight-hero-dot {
+  color: var(--gs-crimson);
+}
+
+.flight-hero-subtitle {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* Lighter, airier trip-type toggle — was a solid navy pill bar */
+.flight-hero .search-type-tabs {
+  display: inline-flex;
+  background-color: transparent;
+  padding: 0 0 1.1rem;
+  border-bottom: 1px solid #e3e8ef;
+  border-radius: 0;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.flight-hero .search-type-tab {
+  background-color: transparent;
+  color: var(--text-secondary);
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+}
+
+.flight-hero .search-type-tab.active {
+  background-color: var(--gs-crimson-glow);
+  color: var(--gs-crimson-dark);
+  box-shadow: none;
+}
+
+.flight-hero .search-type-tab:not(.active) {
+  background-color: transparent;
+}
+
+.flight-hero .search-type-tab:not(.active):hover {
+  background-color: #eef2f7;
+  color: var(--gs-dark);
+}
+
+/* The actual input area becomes one true single-line bar (Kayak-style),
+   without touching any of the inputs' underlying logic or handlers.
+   .form-row (and the multi-city legs' own flex container) are collapsed
+   with display:contents so every field becomes a direct flex item of
+   .search-form itself — this is pure layout, nothing is removed from the
+   DOM or loses its state/handlers. Multi-city's per-leg rows are NOT
+   .form-row (they use .multi-city-row), so they're unaffected and keep
+   stacking normally underneath. */
+.flight-hero .search-form {
+  background: #ffffff;
+  border: 1px solid #e3e8ef;
+  border-radius: var(--radius-full);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+  padding: 0.4rem 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+@media (max-width: 900px) {
+  .flight-hero .search-form {
+    border-radius: var(--radius-lg);
+  }
+}
+
+.flight-hero .search-form > .form-row {
+  display: contents;
+}
+
+.flight-hero .search-form .flight-hero-multicity-wrap {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+.flight-hero .search-form .form-group,
+.flight-hero .search-form .autocomplete-container {
+  margin-bottom: 0;
+}
+
+/* Field labels (FROM (ORIGIN), DEPARTURE DATE, ...) are hidden — the
+   selected value (or the input's own placeholder) carries the meaning,
+   same as the reference design's label-free chips. */
+.flight-hero .search-form .form-label {
+  display: none;
+}
+
+.flight-hero .search-form .form-input {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 0.5rem 0.45rem !important;
+  min-height: auto !important;
+  background: transparent !important;
+  font-weight: 600 !important;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  transition: background-color var(--transition-fast);
+}
+
+.flight-hero .search-form .form-input:hover {
+  background: #f8fafc !important;
+}
+
+.flight-hero .search-form .form-input:focus {
+  box-shadow: none !important;
+}
+
+.flight-hero .search-form .form-input svg.flight-hero-field-icon {
+  flex-shrink: 0;
+  color: var(--gs-crimson);
+  width: 13px !important;
+  height: 13px !important;
+}
+
+.flight-hero .search-form .form-input svg.flight-hero-chevron {
+  width: 11px !important;
+  height: 11px !important;
+  margin-left: 2px !important;
+}
+
+/* Origin/Destination use AirportSearchSelect's own plain <input>, which
+   can't take a sibling icon inside itself without touching that shared
+   component — so the pin icon and clear button are absolutely positioned
+   over it from the wrapping .flight-hero-field-clearable div instead. */
+.flight-hero .search-form .flight-hero-field-clearable .form-input {
+  padding-left: 1.6rem !important;
+  padding-right: 1.2rem !important;
+  border-radius: 6px !important;
+}
+
+.flight-hero .search-form .flight-hero-field-clearable:hover .form-input {
+  background: #f8fafc !important;
+}
+
+.flight-hero-pin-icon {
+  position: absolute;
+  left: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gs-crimson);
+  pointer-events: none;
+  width: 13px !important;
+  height: 13px !important;
+}
+
+/* Divider line between each segment of the single bar. */
+.flight-hero .search-form > .form-group:not(:first-child),
+.flight-hero .search-form > .autocomplete-container:not(:first-child),
+.flight-hero .search-form > .flight-hero-field-clearable:not(:first-child) {
+  border-left: 1px solid #e3e8ef;
+  padding-left: 0.75rem;
+}
+
+.flight-hero .search-form .search-divider {
+  align-self: center !important;
+  margin-top: 0 !important;
+}
+
+.flight-hero .search-form .search-divider svg {
+  background: #eef2f7;
+  border-radius: 50%;
+  padding: 6px;
+  width: 24px;
+  height: 24px;
+  color: var(--gs-crimson);
+  transition: background-color var(--transition-fast);
+}
+
+.flight-hero .search-form .search-divider:hover svg {
+  background: var(--gs-crimson-glow);
+}
+
+.flight-hero .search-buttons {
+  margin: 0 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .flight-hero .search-buttons {
+    margin-left: 0;
+    width: 100%;
+  }
+  .flight-hero .search-buttons .btn-primary {
+    width: 100%;
+  }
+}
+
+.flight-hero .search-buttons .btn-primary {
+  border-radius: 9999px;
+  padding: 0.65rem 1.65rem;
+  font-size: 0.85rem;
+}
+
+/* Clear ("×") button on the origin/destination chips */
+.flight-hero-clear-btn {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 17px;
+  height: 17px;
+  border: none;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.55rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.flight-hero-clear-btn:hover {
+  background: var(--gs-crimson);
+  color: #ffffff;
+}
