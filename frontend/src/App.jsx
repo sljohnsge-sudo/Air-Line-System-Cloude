@@ -595,14 +595,14 @@ function ItineraryRow({ leg, label }) {
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               {leg.segments.slice(0, -1).map((seg, i) => (
                 <React.Fragment key={i}>
-                  <div style={{ flex: 1, borderTop: '2px dotted #cbd5e1', minWidth: 0 }} />
+                  <div style={{ flex: 1, height: 0, borderTop: '2px dotted #cbd5e1' }} />
                   <div style={{ textAlign: 'center', padding: '0 6px', flexShrink: 0 }}>
                     <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--gs-crimson)', fontFamily: 'monospace', letterSpacing: '0.04em' }}>{seg.arrival_airport}</div>
                     <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500' }}>{seg.arrival_time?.split('T')[0] || seg.arrival_time?.split(' ')[0] || ''}</div>
                   </div>
                 </React.Fragment>
               ))}
-              <div style={{ flex: 1, borderTop: '2px dotted #cbd5e1', minWidth: 0 }} />
+              <div style={{ flex: 1, height: 0, borderTop: '2px dotted #cbd5e1' }} />
             </div>
             {leg.duration && <div className="rc-duration">{leg.duration.replace('PT','').replace('H','h ').replace('M','m')}</div>}
           </div>
