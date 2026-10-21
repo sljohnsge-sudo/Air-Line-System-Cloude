@@ -195,7 +195,7 @@ function _CalendarMonthGrid({ viewYear, viewMonth, minD, departureValue, returnV
   const firstOfMonth = new Date(viewYear, viewMonth, 1);
   const startWeekday = firstOfMonth.getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const monthLabel = firstOfMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const monthLabel = firstOfMonth.toLocaleString('en-US', { month: 'long' });
 
   const cells = [];
   for (let i = 0; i < startWeekday; i++) cells.push(null);
@@ -320,20 +320,15 @@ const formatDisplayDate = (iso) => {
   if (!iso) return '';
   const d = new Date(`${iso}T00:00:00`);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+  return `${weekday} ${d.getMonth() + 1}/${d.getDate()}`;
 };
 
-// ── Combined "21 Oct – 28 Oct 2026" label for the single date-range field ──
+// ── Combined "21 Oct – 28 Oct" label for the single date-range field ──
 const formatDateRangeDisplay = (departure, returnD, roundTrip) => {
   if (!departure) return '';
   if (!roundTrip || !returnD) return formatDisplayDate(departure);
-  const d1 = new Date(`${departure}T00:00:00`);
-  const d2 = new Date(`${returnD}T00:00:00`);
-  const sameYear = d1.getFullYear() === d2.getFullYear();
-  const short = (d) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-  return sameYear
-    ? `${short(d1)} – ${formatDisplayDate(returnD)}`
-    : `${formatDisplayDate(departure)} – ${formatDisplayDate(returnD)}`;
+  return `${formatDisplayDate(departure)} – ${formatDisplayDate(returnD)}`;
 };
 
 // ── Interleave GDS/NDC results so neither source dominates a long stretch ──
@@ -1448,6 +1443,7 @@ export default function App() {
   const [showCabinPopover, setShowCabinPopover] = useState(false);
   const [showResultsPopover, setShowResultsPopover] = useState(false);
   const [showTripTypePopover, setShowTripTypePopover] = useState(false);
+  const [showResultsDatePicker, setShowResultsDatePicker] = useState(false);
   // Auto-advance popovers for the main search form: once origin+destination
   // are both picked, the departure date calendar opens itself; picking a
   // departure date opens the return date calendar (round trip) or the
@@ -1484,6 +1480,7 @@ export default function App() {
   const [showSearchForm, setShowSearchForm] = useState(true);
   const [searchError, setSearchError] = useState('');
   const [expandedFareIds, setExpandedFareIds] = useState({});
+  const [expandedSegmentIds, setExpandedSegmentIds] = useState({});
   const [selectedCabins, setSelectedCabins] = useState({});
 
   // Results page filter state
@@ -1491,9 +1488,14 @@ export default function App() {
   const [filterStops, setFilterStops] = useState('any'); // 'any' | '0' | '1+'
   const [filterCabin, setFilterCabin] = useState('any');
   const [filterTimeOfDay, setFilterTimeOfDay] = useState('any'); // 'any' | 'morning' | 'afternoon' | 'evening'
+  const [filterArrivalTimeOfDay, setFilterArrivalTimeOfDay] = useState('any'); // 'any' | 'morning' | 'afternoon' | 'evening'
   const [filterAirlines, setFilterAirlines] = useState([]); // array of selected airline names
   const [filterLayover, setFilterLayover] = useState('any'); // 'any' | 'short' | 'medium' | 'long' — longest connection layover on the itinerary
   const [sortBy, setSortBy] = useState('price'); // 'price' | 'duration' | 'departure'
+  // Collapsed by default — each sidebar filter section expands on click
+  // (keyed by group name: 'airlines' | 'layover' | 'cabin' | 'departure' | 'arrival').
+  const [expandedFilterGroups, setExpandedFilterGroups] = useState({});
+  const toggleFilterGroup = (key) => setExpandedFilterGroups(prev => ({ ...prev, [key]: !prev[key] }));
   const [airlineSortMode, setAirlineSortMode] = useState('cheapest'); // 'cheapest' | 'fastest' — orders the Airlines filter list
 
   // Selected flight (Step 3)
@@ -1553,7 +1555,17 @@ export default function App() {
   // Workbench and seat map states
   const [workbenchId, setWorkbenchId] = useState(null);
   const [offerId, setOfferId] = useState(null);
-  const [seatMap, setSeatMap] = useState(null);
+  // seatMaps holds one seat map per flight leg (Travelport returns one per
+  // leg on a round trip — index 0 = outbound, index 1 = return; see
+  // services/workbench_service.py's parse_seat_map_response). activeSeatLeg
+  // picks which one is currently shown/selectable; `seatMap` below stays a
+  // plain derived value so the large existing seat-grid JSX (which reads
+  // seatMap.columns/rows throughout) didn't need to change at all.
+  const [seatMaps, setSeatMaps] = useState([]);
+  const [activeSeatLeg, setActiveSeatLeg] = useState(0);
+  const seatMap = seatMaps[activeSeatLeg] || null;
+  // Each entry also carries leg_index so one passenger can hold a different
+  // seat on the outbound vs. the return leg without the two colliding.
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [ancillaries, setAncillaries] = useState([]);
   const [selectedAncillaries, setSelectedAncillaries] = useState([]);
@@ -1981,6 +1993,7 @@ export default function App() {
       // otherwise picking "Business" on the form silently showed every cabin.
       setFilterCabin(cabinPref && cabinPref !== 'All' ? cabinPref : 'any');
       setFilterTimeOfDay('any');
+      setFilterArrivalTimeOfDay('any');
       setFilterAirlines([]);
       setFilterLayover('any');
       setSortBy('price');
@@ -2246,13 +2259,18 @@ export default function App() {
       const hasAncillaries = data.ancillaries_available && data.ancillaries?.length > 0;
 
       if (data.seat_map_available === false || !data.seat_map) {
-        setSeatMap(null);
+        setSeatMaps([]);
+        setActiveSeatLeg(0);
         // Travelport confirmed no seat map for this airline/flight — skip
         // seat step, go straight to ancillaries (if any) or review.
         showNotification('ℹ️ Seat selection is not supported by this airline via GDS. Proceeding to the next step.', 'info');
         setBookingStep(hasAncillaries ? 'ancillaries' : 'review');
       } else {
-        setSeatMap(data.seat_map);
+        // data.seat_maps is one entry per leg (outbound[, return]) — fall
+        // back to the single data.seat_map if an older response shape ever
+        // omits the plural field, so this never regresses to no seat map.
+        setSeatMaps(data.seat_maps && data.seat_maps.length > 0 ? data.seat_maps : [data.seat_map]);
+        setActiveSeatLeg(0);
         setBookingStep('seats');
       }
 
@@ -2438,7 +2456,8 @@ export default function App() {
     setBookingError('');
     setWorkbenchId(null);
     setOfferId(null);
-    setSeatMap(null);
+    setSeatMaps([]);
+    setActiveSeatLeg(0);
     setSelectedSeats([]);
     setAncillaries([]);
     setSelectedAncillaries([]);
@@ -2577,7 +2596,11 @@ export default function App() {
         }
         return;
       }
-      setSeatMap(result);
+      // Amadeus only ever supplies one segment's seat map here — out of
+      // scope for round-trip return-leg selection, which is Travelport-only
+      // per this change (see services/workbench_service.py).
+      setSeatMaps([result]);
+      setActiveSeatLeg(0);
       setBookingStep('seats');
     } catch (err) {
       if (fetchedAncillaries.length > 0) {
@@ -2752,8 +2775,10 @@ export default function App() {
     const positionLabel = columnPosition === 'Window' ? 'Window Seat' : columnPosition === 'Aisle' ? 'Aisle Seat' : columnPosition === 'Center' ? 'Middle Seat' : null;
     const positionLetter = columnPosition === 'Window' ? 'W' : columnPosition === 'Aisle' ? 'A' : columnPosition === 'Center' ? 'M' : null;
     
-    // Check if selected by ANY passenger
-    const selectedByP = selectedSeats.find(s => s.seat_number === seat.seat_number);
+    // Check if selected by ANY passenger ON THIS LEG — scoped by leg_index
+    // so the same seat number on the outbound and return flights (a common
+    // coincidence, not the same physical seat) never collide.
+    const selectedByP = selectedSeats.find(s => s.seat_number === seat.seat_number && s.leg_index === activeSeatLeg);
     const isSelectedByActive = selectedByP && selectedByP.passenger_idx === activePassengerIdx;
     const isSelectedByOther = selectedByP && selectedByP.passenger_idx !== activePassengerIdx;
 
@@ -2800,13 +2825,17 @@ export default function App() {
         return;
       }
 
-      // If active passenger already has this seat selected, click deselects it
+      // If active passenger already has this seat selected (on this leg),
+      // click deselects it — only that leg's entry, so a seat already
+      // chosen on the other leg is left untouched.
       if (isSelectedByActive) {
-        setSelectedSeats(prev => prev.filter(s => s.passenger_idx !== activePassengerIdx));
+        setSelectedSeats(prev => prev.filter(s => !(s.passenger_idx === activePassengerIdx && s.leg_index === activeSeatLeg)));
       } else {
-        // Select seat for active passenger (replaces current seat if they have one)
+        // Select seat for active passenger on the current leg (replaces
+        // their existing seat on THIS leg only, if they had one).
         const newSelection = {
           passenger_idx: activePassengerIdx,
+          leg_index: activeSeatLeg,
           seat_number: seat.seat_number,
           price: seat.price || 0.0,
           currency: seat.currency || 'LKR',
@@ -2814,17 +2843,20 @@ export default function App() {
         };
 
         setSelectedSeats(prev => {
-          const filtered = prev.filter(s => s.passenger_idx !== activePassengerIdx);
+          const filtered = prev.filter(s => !(s.passenger_idx === activePassengerIdx && s.leg_index === activeSeatLeg));
           return [...filtered, newSelection];
         });
 
-        // Automatically advance to the next passenger if there is one without a seat
+        // Automatically advance to the next passenger who doesn't yet have a
+        // seat ON THIS LEG (so switching to the return leg correctly offers
+        // every passenger again, even though they're all "done" on outbound).
         setTimeout(() => {
-          const nextIndex = travelers.findIndex((t, i) => i > activePassengerIdx && !selectedSeats.some(s => s.passenger_idx === i));
+          const noSeatOnLeg = (i) => !selectedSeats.some(s => s.passenger_idx === i && s.leg_index === activeSeatLeg);
+          const nextIndex = travelers.findIndex((t, i) => i > activePassengerIdx && noSeatOnLeg(i));
           if (nextIndex !== -1) {
             setActivePassengerIdx(nextIndex);
           } else {
-            const firstIndex = travelers.findIndex((t, i) => !selectedSeats.some(s => s.passenger_idx === i) && i !== activePassengerIdx);
+            const firstIndex = travelers.findIndex((t, i) => noSeatOnLeg(i) && i !== activePassengerIdx);
             if (firstIndex !== -1) {
               setActivePassengerIdx(firstIndex);
             }
@@ -3923,7 +3955,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           if (filterStops === '1+' && (f.stops || 0) === 0) return false;
           if (filterCabin !== 'any' && !(f.fare_options || []).some(fo => fo.cabin_class === filterCabin)) return false;
 
-          // Time of day filter
+          // Time of day filter (departure)
           if (filterTimeOfDay !== 'any') {
             const depTime = f.departure_time?.split('T')[1] || f.departure_time?.split(' ')[1] || '';
             if (depTime) {
@@ -3931,6 +3963,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               if (filterTimeOfDay === 'morning' && hour >= 12) return false;
               if (filterTimeOfDay === 'afternoon' && (hour < 12 || hour >= 18)) return false;
               if (filterTimeOfDay === 'evening' && hour < 18) return false;
+            }
+          }
+
+          // Time of day filter (arrival)
+          if (filterArrivalTimeOfDay !== 'any') {
+            const arrTime = f.arrival_time?.split('T')[1] || f.arrival_time?.split(' ')[1] || '';
+            if (arrTime) {
+              const hour = parseInt(arrTime.split(':')[0]);
+              if (filterArrivalTimeOfDay === 'morning' && hour >= 12) return false;
+              if (filterArrivalTimeOfDay === 'afternoon' && (hour < 12 || hour >= 18)) return false;
+              if (filterArrivalTimeOfDay === 'evening' && hour < 18) return false;
             }
           }
 
@@ -4070,23 +4113,38 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                 </div>
                 <div className="rsb-divider" />
-                <div className="rsb-field rsb-field-sm">
+                <div className="rsb-field" style={{ position: 'relative', flex: '0 1 170px' }} onClick={() => setShowResultsDatePicker(!showResultsDatePicker)}>
                   <div style={{ flex: 1 }}>
-                    <div className="rsb-label">DATE</div>
-                    <input type="date" className="rsb-input" min={getTomorrow()} value={searchDate} onChange={e => setSearchDate(e.target.value)} required />
-                  </div>
-                </div>
-                {searchType === 'roundtrip' && (
-                  <>
-                    <div className="rsb-divider" />
-                    <div className="rsb-field rsb-field-sm">
-                      <div style={{ flex: 1 }}>
-                        <div className="rsb-label">RETURN</div>
-                        <input type="date" className="rsb-input" min={searchDate || getTomorrow()} value={returnDate} onChange={e => setReturnDate(e.target.value)} required />
-                      </div>
+                    <div className="rsb-label">{searchType === 'roundtrip' ? 'DATES' : 'DATE'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span className="rsb-input" style={{ whiteSpace: 'nowrap' }}>
+                        {searchDate ? formatDateRangeDisplay(searchDate, returnDate, searchType === 'roundtrip') : 'Select date'}
+                      </span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '4px', color: '#64748b', flexShrink: 0, transition: 'transform 0.2s', transform: showResultsDatePicker ? 'rotate(180deg)' : 'none' }}>
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
                     </div>
-                  </>
-                )}
+                  </div>
+                  {showResultsDatePicker && (
+                    <>
+                      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999, background: 'transparent' }} onClick={(e) => { e.stopPropagation(); setShowResultsDatePicker(false); }} />
+                      <div style={{ position: 'absolute', top: '100%', left: 0, backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', border: '1px solid #cbd5e1', padding: '1.25rem', zIndex: 1000, marginTop: '0.5rem', cursor: 'default' }} onClick={(e) => e.stopPropagation()}>
+                        <DateRangeCalendar
+                          departureValue={searchDate}
+                          returnValue={returnDate}
+                          minDate={getTomorrow()}
+                          roundTrip={searchType === 'roundtrip'}
+                          onSelectDeparture={(d) => {
+                            setSearchDate(d);
+                            if (returnDate && returnDate < d) setReturnDate('');
+                          }}
+                          onSelectReturn={(d) => setReturnDate(d)}
+                          onClose={() => setShowResultsDatePicker(false)}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
                 <div className="rsb-field" style={{ flex: '0 1 200px', position: 'relative', cursor: 'pointer' }} onClick={() => setShowResultsPopover(!showResultsPopover)}>
                   <div style={{ flex: 1 }}>
                     <div className="rsb-label">TRAVELERS & CLASS</div>
@@ -4516,109 +4574,191 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </form>
             </div>
 
-            {/* ── Body: sidebar + results (offset for fixed search bar) ── */}
-            <div className="results-page-content" style={{ paddingTop: `${headerHeight + topbarHeight}px` }}>
+            {/* ── Body: sidebar + results (offset for fixed search bar) ──
+                Only topbarHeight belongs here: .header is position:sticky
+                (it already occupies real space in normal flow, so this
+                element naturally starts right after it) — adding
+                headerHeight again on top of that double-counted it and
+                left a blank gap the size of the header above the results.
+                .results-topbar is the only one of the two that's actually
+                position:fixed (removed from flow), so it's the only one
+                this padding needs to clear. The extra 5mm is deliberate
+                breathing room between the search bar and the results. */}
+            <div className="results-page-content" style={{ paddingTop: `calc(${topbarHeight}px + 5mm)` }}>
 
               {/* Filter Sidebar (detailed price range + all options) */}
               <aside className="results-sidebar" style={{ top: `${67 + 66}px`, height: `calc(100vh - ${67 + 66}px)` }}>
                 <div className="sidebar-header">Refine Results</div>
 
-                {/* Sort Group */}
+                {/* Sort Group — collapsed by default */}
                 <div className="filter-group">
-                  <div className="filter-group-title">Sort By</div>
-                  {[['price','Lowest Price'],['departure','Earliest Departure'],['duration','Shortest Duration']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${sortBy === val ? 'active' : ''}`}>
-                      <input type="radio" name="sort" value={val} checked={sortBy === val} onChange={() => setSortBy(val)} />
-                      {lbl}
-                    </label>
-                  ))}
-                </div>
-
-                {/* Dynamic Airlines Group */}
-                {uniqueAirlines.length > 0 && (
-                  <div className="filter-group">
-                    <div className="filter-group-title">Airlines</div>
-                    <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', margin: '0.4rem 0 0.6rem' }}>
-                      {[['cheapest', 'Cheapest'], ['fastest', 'Fastest']].map(([val, lbl]) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setAirlineSortMode(val)}
-                          style={{
-                            flex: 1, padding: '0.4rem 0', fontSize: '0.75rem', fontWeight: '700',
-                            border: 'none', cursor: 'pointer',
-                            background: airlineSortMode === val ? 'var(--gs-crimson)' : '#fff',
-                            color: airlineSortMode === val ? '#fff' : 'var(--text-secondary)'
-                          }}
-                        >
+                  <button type="button" className="filter-group-toggle" onClick={() => toggleFilterGroup('sort')}>
+                    <span className="filter-group-title" style={{ marginBottom: 0 }}>Sort By</span>
+                    <svg className={`filter-group-chevron ${expandedFilterGroups.sort ? 'expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {expandedFilterGroups.sort && (
+                    <div className="filter-group-body">
+                      {[['price','Lowest Price'],['departure','Earliest Departure'],['duration','Shortest Duration']].map(([val,lbl]) => (
+                        <label key={val} className={`filter-radio-row ${sortBy === val ? 'active' : ''}`}>
+                          <input type="radio" name="sort" value={val} checked={sortBy === val} onChange={() => setSortBy(val)} />
                           {lbl}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      {sortedAirlineStats.map(({ name, count, cheapestPrice, currency }) => (
-                        <label key={name} className="filter-radio-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <input
-                              type="checkbox"
-                              checked={filterAirlines.includes(name)}
-                              onChange={() => handleAirlineCheckboxChange(name)}
-                              style={{ accentColor: 'var(--gs-crimson)', width: '13px', height: '13px', cursor: 'pointer' }}
-                            />
-                            {name} <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{count}</span>
-                          </span>
-                          <span style={{ color: 'var(--text-secondary)', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                            {currency} {Math.round(cheapestPrice).toLocaleString()}
-                          </span>
                         </label>
                       ))}
                     </div>
+                  )}
+                </div>
+
+                {/* Dynamic Airlines Group — collapsed by default */}
+                {uniqueAirlines.length > 0 && (
+                  <div className="filter-group">
+                    <button type="button" className="filter-group-toggle" onClick={() => toggleFilterGroup('airlines')}>
+                      <span className="filter-group-title" style={{ marginBottom: 0 }}>Airlines</span>
+                      <svg className={`filter-group-chevron ${expandedFilterGroups.airlines ? 'expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+                    {expandedFilterGroups.airlines && (
+                      <div className="filter-group-body">
+                        <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', margin: '0.4rem 0 0.6rem' }}>
+                          {[['cheapest', 'Cheapest'], ['fastest', 'Fastest']].map(([val, lbl]) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => setAirlineSortMode(val)}
+                              style={{
+                                flex: 1, padding: '0.4rem 0', fontSize: '0.75rem', fontWeight: '700',
+                                border: 'none', cursor: 'pointer',
+                                background: airlineSortMode === val ? 'var(--gs-crimson)' : '#fff',
+                                color: airlineSortMode === val ? '#fff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              {lbl}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          {sortedAirlineStats.map(({ name, count, cheapestPrice, currency }) => (
+                            <label key={name} className="filter-radio-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={filterAirlines.includes(name)}
+                                  onChange={() => handleAirlineCheckboxChange(name)}
+                                  style={{ accentColor: 'var(--gs-crimson)', width: '13px', height: '13px', cursor: 'pointer' }}
+                                />
+                                {name} <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{count}</span>
+                              </span>
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                {currency} {Math.round(cheapestPrice).toLocaleString()}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* Stops Group */}
+                {/* Stops Group — collapsed by default */}
                 <div className="filter-group">
-                  <div className="filter-group-title">Stops</div>
-                  {[['any','Any'],['0','Non-stop only'],['1+','1+ Stop']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${filterStops === val ? 'active' : ''}`}>
-                      <input type="radio" name="stops" value={val} checked={filterStops === val} onChange={() => setFilterStops(val)} />
-                      {lbl}
-                    </label>
-                  ))}
+                  <button type="button" className="filter-group-toggle" onClick={() => toggleFilterGroup('stops')}>
+                    <span className="filter-group-title" style={{ marginBottom: 0 }}>Stops</span>
+                    <svg className={`filter-group-chevron ${expandedFilterGroups.stops ? 'expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {expandedFilterGroups.stops && (
+                    <div className="filter-group-body">
+                      {[['any','Any'],['0','Non-stop only'],['1+','1+ Stop']].map(([val,lbl]) => (
+                        <label key={val} className={`filter-radio-row ${filterStops === val ? 'active' : ''}`}>
+                          <input type="radio" name="stops" value={val} checked={filterStops === val} onChange={() => setFilterStops(val)} />
+                          {lbl}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Connection Layover Group */}
+                {/* Connection Layover Group — collapsed by default */}
                 <div className="filter-group">
-                  <div className="filter-group-title">Connection Layover</div>
-                  {[['any','Any'],['short','Short (under 2h)'],['medium','Medium (2h – 5h)'],['long','Long (5h+)']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${filterLayover === val ? 'active' : ''}`}>
-                      <input type="radio" name="layover" value={val} checked={filterLayover === val} onChange={() => setFilterLayover(val)} />
-                      {lbl}
-                    </label>
-                  ))}
+                  <button type="button" className="filter-group-toggle" onClick={() => toggleFilterGroup('layover')}>
+                    <span className="filter-group-title" style={{ marginBottom: 0 }}>Connection Layover</span>
+                    <svg className={`filter-group-chevron ${expandedFilterGroups.layover ? 'expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {expandedFilterGroups.layover && (
+                    <div className="filter-group-body">
+                      {[['any','Any'],['short','Short (under 2h)'],['medium','Medium (2h – 5h)'],['long','Long (5h+)']].map(([val,lbl]) => (
+                        <label key={val} className={`filter-radio-row ${filterLayover === val ? 'active' : ''}`}>
+                          <input type="radio" name="layover" value={val} checked={filterLayover === val} onChange={() => setFilterLayover(val)} />
+                          {lbl}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Cabin Class Group */}
+                {/* Cabin Class Group — collapsed by default */}
                 <div className="filter-group">
-                  <div className="filter-group-title">Cabin Class</div>
-                  {[['any','All Classes'],['Economy','Economy'],['PremiumEconomy','Premium Economy'],['Business','Business'],['First','First Class']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${filterCabin === val ? 'active' : ''}`}>
-                      <input type="radio" name="cabin" value={val} checked={filterCabin === val} onChange={() => setFilterCabin(val)} />
-                      {lbl}
-                    </label>
-                  ))}
+                  <button type="button" className="filter-group-toggle" onClick={() => toggleFilterGroup('cabin')}>
+                    <span className="filter-group-title" style={{ marginBottom: 0 }}>Cabin Class</span>
+                    <svg className={`filter-group-chevron ${expandedFilterGroups.cabin ? 'expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {expandedFilterGroups.cabin && (
+                    <div className="filter-group-body">
+                      {[['any','All Classes'],['Economy','Economy'],['PremiumEconomy','Premium Economy'],['Business','Business'],['First','First Class']].map(([val,lbl]) => (
+                        <label key={val} className={`filter-radio-row ${filterCabin === val ? 'active' : ''}`}>
+                          <input type="radio" name="cabin" value={val} checked={filterCabin === val} onChange={() => setFilterCabin(val)} />
+                          {lbl}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-
-                {/* Time of Day Group */}
+                {/* Departure Time Group — collapsed by default */}
                 <div className="filter-group">
-                  <div className="filter-group-title">Departure Time</div>
-                  {[['any','Any Time'],['morning','Morning (before 12 PM)'],['afternoon','Afternoon (12 PM - 6 PM)'],['evening','Evening (after 6 PM)']].map(([val,lbl]) => (
-                    <label key={val} className={`filter-radio-row ${filterTimeOfDay === val ? 'active' : ''}`}>
-                      <input type="radio" name="time" value={val} checked={filterTimeOfDay === val} onChange={() => setFilterTimeOfDay(val)} />
-                      {lbl}
-                    </label>
-                  ))}
+                  <button type="button" className="filter-group-toggle" onClick={() => toggleFilterGroup('departure')}>
+                    <span className="filter-group-title" style={{ marginBottom: 0 }}>Departure Time</span>
+                    <svg className={`filter-group-chevron ${expandedFilterGroups.departure ? 'expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {expandedFilterGroups.departure && (
+                    <div className="filter-group-body">
+                      {[['any','Any Time'],['morning','Morning (before 12 PM)'],['afternoon','Afternoon (12 PM - 6 PM)'],['evening','Evening (after 6 PM)']].map(([val,lbl]) => (
+                        <label key={val} className={`filter-radio-row ${filterTimeOfDay === val ? 'active' : ''}`}>
+                          <input type="radio" name="time" value={val} checked={filterTimeOfDay === val} onChange={() => setFilterTimeOfDay(val)} />
+                          {lbl}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Arrival Time Group (new) — collapsed by default */}
+                <div className="filter-group">
+                  <button type="button" className="filter-group-toggle" onClick={() => toggleFilterGroup('arrival')}>
+                    <span className="filter-group-title" style={{ marginBottom: 0 }}>Arrival Time</span>
+                    <svg className={`filter-group-chevron ${expandedFilterGroups.arrival ? 'expanded' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {expandedFilterGroups.arrival && (
+                    <div className="filter-group-body">
+                      {[['any','Any Time'],['morning','Morning (before 12 PM)'],['afternoon','Afternoon (12 PM - 6 PM)'],['evening','Evening (after 6 PM)']].map(([val,lbl]) => (
+                        <label key={val} className={`filter-radio-row ${filterArrivalTimeOfDay === val ? 'active' : ''}`}>
+                          <input type="radio" name="arrival-time" value={val} checked={filterArrivalTimeOfDay === val} onChange={() => setFilterArrivalTimeOfDay(val)} />
+                          {lbl}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Max Price Group */}
@@ -4639,7 +4779,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 )}
 
                 <button className="filter-reset-btn filter-reset-all"
-                  onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterLayover('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); setSortBy('price'); }}>
+                  onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterLayover('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterArrivalTimeOfDay('any'); setFilterAirlines([]); setSortBy('price'); }}>
                   Reset All Filters
                 </button>
               </aside>
@@ -4729,7 +4869,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     ) : (
                       <p>No flights match your filters.<br />
                         <button className="filter-reset-btn" style={{ marginTop: '0.5rem' }}
-                          onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterLayover('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterAirlines([]); }}>
+                          onClick={() => { setFilterMaxPrice(null); setFilterStops('any'); setFilterLayover('any'); setFilterCabin('any'); setFilterTimeOfDay('any'); setFilterArrivalTimeOfDay('any'); setFilterAirlines([]); }}>
                           Clear all filters
                         </button>
                       </p>
@@ -4739,6 +4879,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                 {!loadingFlights && displayed.map((flight, idx) => {
                   const isFareExpanded = !!expandedFareIds[flight.offer_id || idx];
+                  const isSegmentExpanded = !!expandedSegmentIds[flight.offer_id || idx];
                   const totalPax = adultCount + childCount + infantCount + studentCount;
 
                   const fId = flight.offer_id || idx;
@@ -4856,11 +4997,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         </div>
 
                         {flight.legs && flight.legs.length >= 2 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', flex: 1, paddingTop: '0.9rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', flex: 1, paddingTop: '0.6rem' }}>
                             {[...flight.legs]
                               .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
                               .map((leg, lIdx) => (
-                                <div key={lIdx} style={lIdx === 0 ? { position: 'relative' } : { position: 'relative', borderTop: '1px dashed #e2e8f0', paddingTop: '1.5rem' }}>
+                                <div key={lIdx} style={lIdx === 0 ? { position: 'relative' } : { position: 'relative', borderTop: '1px dashed #e2e8f0', paddingTop: '0.8rem' }}>
                                   <ItineraryRow leg={leg} label={flight.legs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`} />
                                 </div>
                               ))}
@@ -4958,37 +5099,57 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         </div>
                       </div>
 
-                      {/* ── Flight Segment Timeline — always visible, no toggle ── */}
-                      <div style={{ borderTop: '1px solid #e2e8f0', background: '#fafbfc', padding: '1.25rem', width: '100%', boxSizing: 'border-box' }}>
-                        {flight.legs && flight.legs.length >= 2 ? (
-                          [...flight.legs]
-                            .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
-                            .map((leg, lIdx, sortedLegs) => {
-                              if (!leg.segments || leg.segments.length === 0) return null;
-                              const legLabel = sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`;
-                              return (
-                                <div key={lIdx} style={{ marginBottom: lIdx === sortedLegs.length - 1 ? 0 : '1.25rem' }}>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
-                                    <h4 style={{ margin: 0, fontSize: '0.82rem', color: '#1e293b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{legLabel} — Flight Segment Timeline</h4>
-                                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>
-                                      Total Duration: {leg.duration?.replace('PT','').replace('H','h ').replace('M','m')}
-                                    </span>
-                                  </div>
-                                  <SegmentTimeline segments={leg.segments} terminalConnections={terminalConnectionsData} />
-                                </div>
-                              );
-                            })
-                        ) : flight.segments && flight.segments.length > 0 ? (
-                          <>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
-                              <h4 style={{ margin: 0, fontSize: '0.82rem', color: '#1e293b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Flight Segment Timeline</h4>
-                              <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>
-                                Total Duration: {flight.duration?.replace('PT','').replace('H','h ').replace('M','m')}
+                      {/* ── Flight Segment Information — collapsed by default, click to expand ── */}
+                      <div style={{ borderTop: '1px solid #e2e8f0', background: '#fafbfc', width: '100%', boxSizing: 'border-box' }}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedSegmentIds(prev => ({ ...prev, [fId]: !prev[fId] }))}
+                          style={{
+                            display: 'flex', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap',
+                            justifyContent: 'space-between', alignItems: 'center', gap: '0.3rem',
+                            padding: '0.4rem 0.8rem', background: 'transparent', border: 'none', cursor: 'pointer',
+                            textAlign: 'left', outline: 'none', font: 'inherit',
+                          }}
+                        >
+                          <h4 style={{ margin: 0, fontSize: '0.62rem', color: '#1e293b', fontWeight: '600' }}>Flight Segment Information</h4>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            {flight.duration && (
+                              <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: '600' }}>
+                                Total Duration: {flight.duration.replace('PT', '').replace('H', 'h ').replace('M', 'm')}
                               </span>
-                            </div>
-                            <SegmentTimeline segments={flight.segments} terminalConnections={terminalConnectionsData} />
-                          </>
-                        ) : null}
+                            )}
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: '#64748b', flexShrink: 0, transition: 'transform 0.2s', transform: isSegmentExpanded ? 'rotate(180deg)' : 'none' }}>
+                              <path d="M6 9l6 6 6-6" />
+                            </svg>
+                          </span>
+                        </button>
+                        {isSegmentExpanded && (
+                          <div style={{ padding: '0 0.9rem 0.9rem', borderTop: '1px solid #e2e8f0' }}>
+                            {flight.legs && flight.legs.length >= 2 ? (
+                              [...flight.legs]
+                                .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
+                                .map((leg, lIdx, sortedLegs) => {
+                                  if (!leg.segments || leg.segments.length === 0) return null;
+                                  const legLabel = sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`;
+                                  return (
+                                    <div key={lIdx} style={{ marginTop: '0.9rem', marginBottom: lIdx === sortedLegs.length - 1 ? 0 : '0.9rem' }}>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                                        <h5 style={{ margin: 0, fontSize: '0.78rem', color: '#1e293b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{legLabel}</h5>
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>
+                                          Total Duration: {leg.duration?.replace('PT','').replace('H','h ').replace('M','m')}
+                                        </span>
+                                      </div>
+                                      <SegmentTimeline segments={leg.segments} terminalConnections={terminalConnectionsData} />
+                                    </div>
+                                  );
+                                })
+                            ) : flight.segments && flight.segments.length > 0 ? (
+                              <div style={{ marginTop: '0.9rem' }}>
+                                <SegmentTimeline segments={flight.segments} terminalConnections={terminalConnectionsData} />
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
 
                       {/* ── Expandable Cabin Select and Fare Options ── */}
@@ -7509,6 +7670,40 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     this booking — the airline confirms the final seat assignment.
                   </div>
                 )}
+                {/* Leg switcher — only shown when Travelport returned a seat
+                    map for more than one flight (a round trip). Picking a
+                    seat doesn't reset when switching tabs; each leg keeps
+                    its own selections (see leg_index on selectedSeats). */}
+                {seatMaps.length > 1 && (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.9rem' }}>
+                    {seatMaps.map((_, legIdx) => {
+                      const leg = selectedFlight?.legs?.[legIdx];
+                      const routeLabel = leg?.departure_airport && leg?.arrival_airport ? `${leg.departure_airport} → ${leg.arrival_airport}` : null;
+                      const legName = legIdx === 0 ? 'Outbound' : legIdx === 1 ? 'Return' : `Leg ${legIdx + 1}`;
+                      const seatedCount = selectedSeats.filter(s => s.leg_index === legIdx).length;
+                      const isActive = activeSeatLeg === legIdx;
+                      return (
+                        <button
+                          key={legIdx}
+                          type="button"
+                          onClick={() => setActiveSeatLeg(legIdx)}
+                          style={{
+                            flex: 1, padding: '0.6rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
+                            border: '1.5px solid ' + (isActive ? 'var(--gs-crimson)' : 'var(--border-color)'),
+                            background: isActive ? 'var(--gs-crimson)' : '#fff',
+                            color: isActive ? '#fff' : 'var(--text-secondary)',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.15rem',
+                            fontFamily: 'var(--font-body)', transition: 'all 0.15s',
+                          }}
+                        >
+                          <span style={{ fontWeight: '800', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{legName} Flight</span>
+                          {routeLabel && <span style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: '600' }}>{routeLabel}</span>}
+                          <span style={{ fontSize: '0.68rem', opacity: 0.85 }}>{seatedCount}/{travelers.length} seated</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="seat-selector-container" style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', maxHeight: '55vh', overflow: 'hidden' }}>
                   
                   {/* Left Sidebar */}
@@ -7517,7 +7712,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       <h4 style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Passengers</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {travelers.map((t, idx) => {
-                          const assignedSeat = selectedSeats.find(s => s.passenger_idx === idx);
+                          // Scoped to the leg currently being picked, so the
+                          // list reflects this leg's progress — the other
+                          // leg's seat (if any) is shown as a small note below
+                          // instead, so it's never hidden, just de-emphasized.
+                          const assignedSeat = selectedSeats.find(s => s.passenger_idx === idx && s.leg_index === activeSeatLeg);
+                          const otherLegSeat = seatMaps.length > 1
+                            ? selectedSeats.find(s => s.passenger_idx === idx && s.leg_index !== activeSeatLeg)
+                            : null;
                           const isActive = activePassengerIdx === idx;
                           return (
                             <div
@@ -7540,11 +7742,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 Passenger {idx + 1}: {t.first_name} {t.last_name}
                               </div>
                               <div style={{ fontSize: '0.75rem', opacity: isActive ? 0.9 : 0.7, fontWeight: '500' }}>
-                                Seat: <span style={{ fontWeight: '700', color: isActive ? 'white' : 'var(--gs-crimson)' }}>{assignedSeat ? `${assignedSeat.seat_number} (${assignedSeat.type})` : 'Not Selected'}</span>
+                                {seatMaps.length > 1 ? (activeSeatLeg === 0 ? 'Outbound' : 'Return') : 'Seat'}: <span style={{ fontWeight: '700', color: isActive ? 'white' : 'var(--gs-crimson)' }}>{assignedSeat ? `${assignedSeat.seat_number} (${assignedSeat.type})` : 'Not Selected'}</span>
                               </div>
                               {assignedSeat && assignedSeat.price > 0 && (
                                 <div style={{ fontSize: '0.7rem', opacity: isActive ? 0.9 : 0.7, textAlign: 'right' }}>
                                   + {assignedSeat.currency} {assignedSeat.price.toLocaleString()}
+                                </div>
+                              )}
+                              {otherLegSeat && (
+                                <div style={{ fontSize: '0.68rem', opacity: isActive ? 0.85 : 0.65, fontStyle: 'italic' }}>
+                                  {activeSeatLeg === 0 ? 'Return' : 'Outbound'}: {otherLegSeat.seat_number} ({otherLegSeat.type})
                                 </div>
                               )}
                             </div>
@@ -7555,7 +7762,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                     {/* Dynamic Seat Brand & Fare Inclusion Guide */}
                     {(() => {
-                      const activeSeat = selectedSeats.find(s => s.passenger_idx === activePassengerIdx);
+                      const activeSeat = selectedSeats.find(s => s.passenger_idx === activePassengerIdx && s.leg_index === activeSeatLeg);
                       if (activeSeat) {
                         const isFree = activeSeat.price === 0;
                         return (
@@ -8097,16 +8304,20 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1rem', maxHeight: '280px', overflowY: 'auto' }}>
                   <h4 style={{ marginBottom: '1rem', color: 'var(--gs-dark)', fontSize: '0.95rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem' }}>Passenger Information</h4>
                   {travelers.map((t, idx) => {
-                    const assignedSeat = selectedSeats.find(s => s.passenger_idx === idx);
+                    // Show every leg's seat for this passenger (not just one) —
+                    // a round trip can have a different seat outbound vs. return.
+                    const passengerSeats = selectedSeats.filter(s => s.passenger_idx === idx);
                     return (
                       <div key={idx} style={{ marginBottom: idx < travelers.length - 1 ? '1.25rem' : '0', borderBottom: idx < travelers.length - 1 ? '1px dashed #e2e8f0' : 'none', paddingBottom: idx < travelers.length - 1 ? '1rem' : '0' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.3rem', marginBottom: '0.5rem' }}>
                           <div style={{ fontWeight: '700', fontSize: '0.82rem', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Passenger {idx + 1}</div>
-                          {assignedSeat && (
-                            <span style={{ fontSize: '0.75rem', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: '700' }}>
-                              Seat: {assignedSeat.seat_number} ({assignedSeat.type})
-                            </span>
-                          )}
+                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            {passengerSeats.map((s, sIdx) => (
+                              <span key={sIdx} style={{ fontSize: '0.75rem', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: '700' }}>
+                                {seatMaps.length > 1 ? (s.leg_index === 0 ? 'Outbound' : 'Return') + ': ' : 'Seat: '}{s.seat_number} ({s.type})
+                              </span>
+                            ))}
+                          </div>
                         </div>
                         <div className="form-grid-2" style={{ fontSize: '0.85rem', gap: '0.5rem 1rem' }}>
                           <div><span style={{ color: 'var(--text-muted)' }}>Name: </span><strong>{t.first_name} {t.last_name}</strong></div>

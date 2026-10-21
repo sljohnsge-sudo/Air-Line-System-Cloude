@@ -1805,6 +1805,15 @@ body {
   padding-bottom: 0.65rem;
   border-bottom: 2px solid var(--gs-crimson);
   margin-bottom: 0.65rem;
+  /* Same height as .results-count-bar (its row-for-row neighbor across the
+     sidebar/main split) and vertically centered within it, so both start
+     and end at the same line instead of the shorter text label floating
+     above where the taller count bar extends to. */
+  height: 45px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 
 .filter-group {
@@ -1819,6 +1828,40 @@ body {
   letter-spacing: 0.07em;
   color: var(--gs-dark);
   margin-bottom: 0.4rem;
+}
+
+/* Collapsible filter section header (Airlines, Connection Layover, Cabin
+   Class, Departure/Arrival Time) — collapsed by default, click to expand. */
+.filter-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.filter-group-toggle:hover .filter-group-title {
+  color: var(--gs-crimson);
+}
+
+.filter-group-chevron {
+  flex-shrink: 0;
+  color: #64748b;
+  transition: transform 0.2s;
+  margin-left: 0.4rem;
+}
+
+.filter-group-chevron.expanded {
+  transform: rotate(180deg);
+}
+
+.filter-group-body {
+  margin-top: 0.5rem;
 }
 
 .filter-radio-row {
@@ -1896,8 +1939,17 @@ body {
 /* ── Main Results Column ─────────────────────────────── */
 .results-main {
   flex: 1;
-  padding: 1rem 1.25rem 2rem;
+  /* Top padding matches .results-sidebar's (1.25rem) so both columns'
+     content starts on the exact same line. */
+  padding: 1.25rem 1.25rem 2rem;
   min-width: 0;
+  /* Same sticky + fixed-height + own-scroll recipe as .results-sidebar, so
+     the two columns always match height and each scrolls independently
+     instead of the whole page scrolling past a much-shorter sidebar. */
+  position: sticky;
+  top: 130px;
+  height: calc(100vh - 130px);
+  overflow-y: auto;
 }
 
 .results-count-bar {
@@ -1937,8 +1989,8 @@ body {
   align-items: stretch;
   background: white;
   border: 1px solid #e5eaf0;
-  border-radius: 12px;
-  margin-bottom: 0.75rem;
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
   overflow: hidden;
   transition: box-shadow 0.2s, transform 0.15s, border-color 0.15s;
 }
@@ -1954,33 +2006,33 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  padding: 1rem 1rem;
+  gap: 0.25rem;
+  padding: 0.6rem 0.75rem;
   border-right: 1px solid #f0f2f5;
-  min-width: 105px;
+  min-width: 95px;
   text-align: center;
   background: #fafbfc;
 }
 
 .rc-airline-logo {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--gs-crimson);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 1rem;
   font-weight: 800;
   box-shadow: 0 2px 8px rgba(195,18,46,0.3);
 }
 
 .rc-airline-name {
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 700;
   color: #2d3748;
   white-space: normal;
@@ -2020,18 +2072,18 @@ body {
   min-width: 0;
   display: flex;
   align-items: center;
-  padding: 1rem 1.5rem;
-  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  gap: 0.4rem;
 }
 
 .rc-endpoint {
   text-align: left;
-  min-width: 72px;
+  min-width: 64px;
 }
 .rc-endpoint-right { text-align: right; }
 
 .rc-time {
-  font-size: 1.6rem;
+  font-size: 1.2rem;
   font-weight: 800;
   color: #1a1a1a;
   font-family: var(--font-heading);
@@ -2039,16 +2091,16 @@ body {
 }
 
 .rc-airport {
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--gs-crimson);
   font-family: monospace;
   letter-spacing: 0.05em;
-  margin: 0.1rem 0;
+  margin: 0.05rem 0;
 }
 
 .rc-date {
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   color: #94a3b8;
   font-weight: 500;
 }
@@ -2058,8 +2110,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 0 0.75rem;
+  gap: 2px;
+  padding: 0 0.6rem;
   position: relative;
 }
 
@@ -2071,14 +2123,14 @@ body {
 }
 
 .rc-duration {
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   color: #64748b;
   font-weight: 600;
   white-space: nowrap;
   background: #f8fafc;
-  padding: 0.1rem 0.4rem;
+  padding: 0.08rem 0.35rem;
   border-radius: 4px;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 /* Details column */
@@ -2087,10 +2139,10 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  padding: 1rem 0.75rem;
+  gap: 0.3rem;
+  padding: 0.6rem 0.75rem;
   border-left: 1px solid #f0f2f5;
-  min-width: 108px;
+  min-width: 100px;
   text-align: center;
 }
 
@@ -2117,16 +2169,16 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1rem 1.25rem;
+  padding: 0.6rem 1rem;
   border-left: 1px solid #f0f2f5;
   background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
-  min-width: 145px;
+  min-width: 130px;
   text-align: center;
-  gap: 0.15rem;
+  gap: 0.1rem;
 }
 
 .rc-currency {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 700;
   color: #94a3b8;
   text-transform: uppercase;
@@ -2134,7 +2186,7 @@ body {
 }
 
 .rc-price {
-  font-size: 1.8rem;
+  font-size: 1.4rem;
   font-weight: 800;
   color: var(--gs-crimson);
   line-height: 1;
@@ -2142,9 +2194,9 @@ body {
 }
 
 .rc-per-pax {
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   color: #94a3b8;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem;
   font-weight: 500;
 }
 
@@ -2152,9 +2204,9 @@ body {
   background: var(--gs-crimson);
   color: white;
   border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1.25rem;
-  font-size: 0.85rem;
+  border-radius: 7px;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
   width: 100%;

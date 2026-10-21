@@ -269,8 +269,13 @@ class BookingInitiateRequest(BaseModel):
 
 
 class SelectedSeat(BaseModel):
-    """Traveler seat selection choice."""
+    """Traveler seat selection choice. leg_index distinguishes an outbound
+    vs. return seat on a round trip (0 = outbound/first leg, 1 = return) —
+    Travelport returns a separate seat map per leg (see
+    services/workbench_service.py's parse_seat_map_response), and a
+    passenger can pick a different seat on each."""
     passenger_idx: int
+    leg_index: int = 0
     seat_number: str
     price: float
     currency: str = "LKR"
@@ -1124,8 +1129,15 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
 
         _backfill_terminals(ticket, _segments_of_offering(raw_offering))
 
-        # Apply local seat assignments and seat pricing to ticket summary
-        seat_numbers = [s.seat_number for s in selected_seats]
+        # Apply local seat assignments and seat pricing to ticket summary.
+        # On a round trip each selection also carries which leg it's for
+        # (0=outbound, 1=return) — label the two apart once there's more
+        # than one leg in play, otherwise keep the plain one-way format.
+        has_multiple_legs = len({s.leg_index for s in selected_seats}) > 1
+        if has_multiple_legs:
+            seat_numbers = [f"{'Outbound' if s.leg_index == 0 else 'Return'}: {s.seat_number}" for s in selected_seats]
+        else:
+            seat_numbers = [s.seat_number for s in selected_seats]
         seat_charges = sum([s.price for s in selected_seats])
 
         if seat_numbers:
@@ -1586,7 +1598,11 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
     # customer's picks are recorded locally and folded into the receipt total.
     selected_seats = selected_seats or []
     selected_ancillaries = selected_ancillaries or []
-    seat_numbers = [s.seat_number for s in selected_seats]
+    has_multiple_legs = len({s.leg_index for s in selected_seats}) > 1
+    if has_multiple_legs:
+        seat_numbers = [f"{'Outbound' if s.leg_index == 0 else 'Return'}: {s.seat_number}" for s in selected_seats]
+    else:
+        seat_numbers = [s.seat_number for s in selected_seats]
     seat_charges = sum(s.price for s in selected_seats)
     ancillary_names = [a.name for a in selected_ancillaries]
     ancillary_charges = sum(a.price for a in selected_ancillaries)
