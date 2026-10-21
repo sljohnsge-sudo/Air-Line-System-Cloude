@@ -2107,6 +2107,7 @@ body {
 
 .rc-path {
   flex: 1;
+  min-width: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2122,6 +2123,82 @@ body {
   border-radius: 2px;
 }
 
+/* Full-width track for the animated plane (used by the multi-airport
+   breakdown and the simple non-stop row alike — see RcFlightPath). */
+.rc-path-track {
+  position: relative;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, #e2e8f0, var(--gs-crimson) 50%, #e2e8f0);
+  border-radius: 2px;
+  overflow: visible;
+}
+
+/* Plane glides from the departure side to the arrival side of the track,
+   nose pointed the way it's travelling the whole time (90deg = level,
+   pointing right) — tilting a bit further up while "taking off" and a bit
+   further down while "landing", then loops. The icon's own artwork faces
+   up at 0deg, hence the 90deg base rotation to face right instead of
+   sliding along sideways. */
+.rc-plane-icon {
+  position: absolute;
+  top: 50%;
+  left: 2%;
+  color: var(--gs-crimson);
+  transform: translateY(-50%) rotate(65deg) scale(0.8);
+  opacity: 0;
+  animation: rc-plane-journey 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes rc-plane-journey {
+  0%   { left: 2%;  opacity: 0; transform: translateY(-50%) rotate(65deg) scale(0.8); }
+  10%  { opacity: 1; transform: translateY(-50%) rotate(65deg) scale(0.95); }
+  22%  { transform: translateY(-50%) rotate(90deg) scale(1); }
+  78%  { left: 92%; transform: translateY(-50%) rotate(90deg) scale(1); opacity: 1; }
+  90%  { transform: translateY(-50%) rotate(115deg) scale(0.9); }
+  100% { left: 97%; opacity: 0; transform: translateY(-50%) rotate(115deg) scale(0.75); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rc-plane-icon { animation: none; left: 50%; opacity: 1; transform: translateY(-50%) rotate(90deg); }
+}
+
+/* Relay variant (connecting flights) — same look as .rc-plane-icon, but the
+   animation-name/duration are set per instance via inline style (see
+   rcRelayAnimationStyle) so each segment's plane only plays during its own
+   slot in the shared relay cycle; idle otherwise (base state below). */
+.rc-relay-plane-icon {
+  position: absolute;
+  top: 50%;
+  left: 2%;
+  color: var(--gs-crimson);
+  opacity: 0;
+  transform: translateY(-50%) rotate(65deg) scale(0.8);
+  pointer-events: none;
+}
+
+/* Walking figure that crosses the connecting airport's dotted line during
+   its own slot, between the two planes it hands off between. */
+/* Custom silhouette (not an emoji) — a walking figure with a backpack,
+   pulling a rolling suitcase, drawn facing right to match the direction
+   it travels (see RcWalker's inline SVG). */
+.rc-relay-walker {
+  position: absolute;
+  top: calc(50% - 5px);
+  left: 50%;
+  color: #f59e0b;
+  opacity: 0;
+  transform: translateY(-102%);
+  pointer-events: none;
+  z-index: 2;
+  display: flex;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rc-relay-plane-icon, .rc-relay-walker { animation: none !important; opacity: 0; }
+}
+
 .rc-duration {
   font-size: 0.62rem;
   color: #64748b;
@@ -2131,6 +2208,110 @@ body {
   padding: 0.08rem 0.35rem;
   border-radius: 4px;
   margin-top: 1px;
+}
+
+/* Multi-airport connection breakdown (results-card itinerary row) — smaller
+   type than the plain non-stop row since there's more to fit per leg. */
+.rc-segment-flow {
+  --rc-mid-offset: 2.6rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.rc-segment-flow .rc-time { font-size: 0.88rem; }
+.rc-segment-flow .rc-airport { font-size: 0.7rem; }
+.rc-segment-flow .rc-date { font-size: 0.56rem; }
+.rc-segment-flow .rc-duration { font-size: 0.56rem; }
+
+.rc-mid-endpoint {
+  position: relative;
+  text-align: center;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+/* Dotted line in the same red as the solid flight-path lines, passing
+   behind the connecting airport so the route reads as one continuous
+   path: solid — dotted (at the airport) — solid. Lives on the endpoint
+   itself (not the text row below, which gets nudged down separately — see
+   .rc-mid-row) so it stays level with the solid lines on either side. */
+.rc-mid-endpoint::before {
+  content: '';
+  position: absolute;
+  top: calc(50% - 9px);
+  left: -0.5rem;
+  right: -0.5rem;
+  border-top: 2.5px dotted var(--gs-crimson);
+  opacity: 0.85;
+  z-index: 0;
+}
+
+/* Arrival time (left) — airport/date (center) — next departure time (right),
+   so the two times read as flanking the connecting airport instead of
+   stacking above it. Endpoints stack time/airport/date as three lines, so
+   their airport+date sit one line-height down from the top; this row's
+   time reads beside the airport code instead of above it (one line
+   shorter), so it's nudged down to bring its airport/date back in line
+   with the endpoints' airport/date — independently of the dotted line
+   above, which stays level with the solid lines. */
+.rc-mid-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: var(--rc-mid-offset);
+}
+
+.rc-mid-row > * {
+  position: relative;
+  z-index: 1;
+}
+
+.rc-mid-center {
+  min-width: 0;
+  background: #fff;
+  padding: 0 0.15rem;
+}
+
+.rc-mid-time {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #94a3b8;
+  font-family: var(--font-heading);
+  line-height: 1;
+  white-space: nowrap;
+  background: #fff;
+  padding: 0 0.15rem;
+}
+
+/* Connection layover — icon + compact duration, no label text */
+.rc-layover-badge {
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  color: #b45309;
+}
+
+.rc-layover-badge svg {
+  flex-shrink: 0;
+}
+
+.rc-layover-badge-time {
+  font-size: 0.6rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rc-layover-badge.short {
+  color: #b91c1c;
 }
 
 /* Details column */

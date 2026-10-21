@@ -571,7 +571,194 @@ const handleApiResponse = async (res, defaultError) => {
 // ── Itinerary Row: one leg's departure/arrival/duration strip ──────────────
 // Used once for a one-way result, and twice (Outbound/Return) for a merged
 // round-trip result card.
+const rcFmtTime = (iso) => iso?.split('T')[1]?.slice(0, 5) || iso?.split(' ')[1]?.slice(0, 5) || '--:--';
+const rcFmtDate = (iso) => iso?.split('T')[0] || iso?.split(' ')[0] || '';
+const rcFmtDuration = (iso) => iso ? iso.replace('PT', '').replace('H', 'h ').replace('M', 'm') : '';
+
+// ── Relay animation for connecting flights ──────────────────────────────
+// For a leg with a layover, the plane/walker animations take turns instead
+// of all playing at once: plane flies leg 1 → hides; a walking figure
+// crosses the connecting airport's dotted line → hides; plane flies leg 2;
+// and so on, all sharing one cycle so each hands off to the next. Built as
+// generated @keyframes (one per relay slot, for up to 4 segments — covers
+// nonstop through double-connection itineraries) because each slot needs
+// its own idle-then-active-then-idle window within a shared timeline,
+// which plain CSS animation-delay can't express on a single reused
+// keyframe. idle state = the element's own base CSS (opacity 0, parked at
+// its start position) — a keyframe that omits 0%/100% automatically
+// resolves to that base style, so only the active window is written here.
+const RC_PLANE_STOPS = [
+  [0.00, 'left: 2%; opacity: 0; transform: translateY(-50%) rotate(65deg) scale(0.8);'],
+  [0.08, 'left: 2%; opacity: 1; transform: translateY(-50%) rotate(65deg) scale(0.95);'],
+  [0.20, 'left: 4%; opacity: 1; transform: translateY(-50%) rotate(90deg) scale(1);'],
+  [0.80, 'left: 92%; opacity: 1; transform: translateY(-50%) rotate(90deg) scale(1);'],
+  [0.92, 'left: 95%; opacity: 1; transform: translateY(-50%) rotate(115deg) scale(0.9);'],
+  [1.00, 'left: 97%; opacity: 0; transform: translateY(-50%) rotate(115deg) scale(0.75);'],
+];
+
+// A single slow left-to-right walk across the connecting airport's dotted
+// line (not the full gap between the two flights, and not back-and-forth
+// pacing) — "you've landed here, there's a wait", conveyed as one
+// unhurried crossing of the dotted area, straight along it (no vertical
+// bob). Gets a bigger share of the cycle than each plane phase (see
+// RC_RELAY_WALK_WEIGHT) so it visibly moves slower than the flights.
+// Reaches the right end of the line and holds there (stopped, still
+// visible) before fading out, rather than fading away mid-stride.
+const RC_WALK_STOPS = [
+  [0.00, 0, 0], [0.06, 3, 1], [0.68, 78, 1], [0.95, 78, 1], [1.00, 78, 0],
+]; // [fraction within window, left%, opacity]
+
+function rcBuildPlaneKeyframes(name, startPct, endPct) {
+  const span = endPct - startPct;
+  const body = RC_PLANE_STOPS.map(([frac, decl]) => `  ${(startPct + frac * span).toFixed(3)}% { ${decl} }`).join('\n');
+  return `@keyframes ${name} {\n${body}\n}\n`;
+}
+
+function rcBuildWalkKeyframes(name, startPct, endPct) {
+  const span = endPct - startPct;
+  const body = RC_WALK_STOPS.map(([frac, leftPct, opacity]) =>
+    `  ${(startPct + frac * span).toFixed(3)}% { left: ${leftPct}%; opacity: ${opacity}; transform: translateY(-102%); }`
+  ).join('\n');
+  return `@keyframes ${name} {\n${body}\n}\n`;
+}
+
+// Seconds per weight-1 unit of the cycle. The walk phase is weighted
+// heavier than a plane phase (see rcRelayTotalWeight) so it visibly takes
+// its time, rather than all phases getting an equal, plane-paced slice.
+const RC_RELAY_SLOT_SECONDS = 1.8;
+const RC_RELAY_PLANE_WEIGHT = 1;
+const RC_RELAY_WALK_WEIGHT = 2.6;
+
+function rcRelayTotalWeight(n) {
+  return n * RC_RELAY_PLANE_WEIGHT + (n - 1) * RC_RELAY_WALK_WEIGHT;
+}
+
+function rcBuildRelayCSS(maxSegments) {
+  let css = '';
+  for (let n = 2; n <= maxSegments; n++) {
+    const totalWeight = rcRelayTotalWeight(n);
+    let cursor = 0;
+    for (let i = 0; i < n; i++) {
+      const start = (cursor / totalWeight) * 100;
+      cursor += RC_RELAY_PLANE_WEIGHT;
+      css += rcBuildPlaneKeyframes(`rc-relay-plane-${i}-of-${n}`, start, (cursor / totalWeight) * 100);
+      if (i < n - 1) {
+        const wStart = (cursor / totalWeight) * 100;
+        cursor += RC_RELAY_WALK_WEIGHT;
+        css += rcBuildWalkKeyframes(`rc-relay-walk-${i}-of-${n}`, wStart, (cursor / totalWeight) * 100);
+      }
+    }
+  }
+  return css;
+}
+
+// Computed once at module load (pure function of maxSegments, not of any
+// flight data) and injected as a single <style> tag before the results
+// list, rather than once per card.
+const RC_RELAY_ANIMATION_CSS = rcBuildRelayCSS(4);
+
+function rcRelayAnimationStyle(relayIndex, relayTotal, kind) {
+  const totalWeight = rcRelayTotalWeight(relayTotal);
+  return {
+    animationName: `rc-relay-${kind}-${relayIndex}-of-${relayTotal}`,
+    animationDuration: `${(totalWeight * RC_RELAY_SLOT_SECONDS).toFixed(2)}s`,
+    animationTimingFunction: 'linear',
+    animationIterationCount: 'infinite',
+  };
+}
+
+// Animated flight path: a single plane glides from the departure side to the
+// arrival side of the connector, tilting nose-up as it "takes off" and
+// nose-down as it "lands" (see .rc-plane-icon / @keyframes rc-plane-journey
+// in index.css), then loops — giving each leg/segment its own
+// departure→landing motion instead of a static icon. When relayIndex/
+// relayTotal are given (a connecting flight), the plane instead plays only
+// its turn in the shared relay cycle (see rcRelayAnimationStyle above),
+// staying hidden the rest of the time while the walker and the other
+// segment's plane take theirs.
+function RcFlightPath({ duration, relayIndex, relayTotal }) {
+  const isRelay = relayTotal >= 2;
+  return (
+    <div className="rc-path">
+      <div className="rc-path-track">
+        <svg
+          className={isRelay ? 'rc-relay-plane-icon' : 'rc-plane-icon'}
+          style={isRelay ? rcRelayAnimationStyle(relayIndex, relayTotal, 'plane') : undefined}
+          width="15" height="15" viewBox="0 0 24 24" fill="currentColor"
+        >
+          <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z"/>
+        </svg>
+      </div>
+      {duration && <div className="rc-duration">{duration}</div>}
+    </div>
+  );
+}
+
+// A small walking figure that crosses the connecting airport's dotted line
+// during its own slot in the relay cycle (see rcRelayAnimationStyle) —
+// invisible/parked the rest of the time.
+function RcWalker({ relayIndex, relayTotal }) {
+  return (
+    <span className="rc-relay-walker" style={rcRelayAnimationStyle(relayIndex, relayTotal, 'walk')} aria-hidden="true">
+      <svg width="30" height="20" viewBox="0 0 120 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Suitcase — light grey, pulled in close behind the trailing hand,
+            not off on its own, so the hand/handle/case read as one unit
+            (matching the reference pictogram) instead of a kite on a long
+            string. A darker strap line adds a bit of detail. */}
+        <circle cx="44" cy="60" r="4" fill="#cbd5e1" />
+        <circle cx="56" cy="60" r="4" fill="#cbd5e1" />
+        <rect x="36" y="32" width="26" height="28" rx="3" fill="#cbd5e1" />
+        <rect x="39" y="42" width="20" height="3" rx="1.5" fill="#94a3b8" />
+        <rect x="45" y="20" width="4" height="14" rx="2" fill="#cbd5e1" />
+        <rect x="44" y="18" width="10" height="4" rx="2" fill="#cbd5e1" />
+        {/* Short pull strap from trailing hand straight down to the handle */}
+        <line x1="58" y1="33" x2="49" y2="22" stroke="#cbd5e1" strokeWidth="4" strokeLinecap="round" />
+        {/* Back leg foot (shoe) */}
+        <ellipse cx="56" cy="64" rx="6" ry="3.5" fill="#334155" />
+        {/* Legs — trousers in light blue */}
+        <line x1="76" y1="42" x2="58" y2="62" stroke="#93c5fd" strokeWidth="7" strokeLinecap="round" />
+        <line x1="82" y1="42" x2="96" y2="62" stroke="#93c5fd" strokeWidth="7" strokeLinecap="round" />
+        {/* Front leg foot (shoe) */}
+        <ellipse cx="98" cy="64" rx="6" ry="3.5" fill="#334155" />
+        {/* Backpack straps over the shoulders */}
+        <path d="M70 20 Q73 28 72 38" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        {/* Backpack — blue */}
+        <rect x="64" y="18" width="16" height="22" rx="5" fill="#3b82f6" />
+        <rect x="68" y="23" width="8" height="5" rx="2" fill="#60a5fa" />
+        {/* Trailing hand */}
+        <circle cx="58" cy="33" r="4" fill="#fdba74" />
+        {/* Arms — shirt, red */}
+        <line x1="76" y1="24" x2="58" y2="33" stroke="#ef4444" strokeWidth="7" strokeLinecap="round" />
+        <line x1="84" y1="24" x2="98" y2="34" stroke="#ef4444" strokeWidth="7" strokeLinecap="round" />
+        {/* Leading hand */}
+        <circle cx="98" cy="34" r="4" fill="#fdba74" />
+        {/* Torso — shirt, red, tapered slightly at the waist for a more
+            human silhouette than a plain oval */}
+        <path d="M70 18 Q68 30 72 44 L88 44 Q92 30 90 18 Z" fill="#ef4444" />
+        {/* Neck */}
+        <rect x="80" y="14" width="6" height="6" fill="#fdba74" />
+        {/* Head — skin, light orange, with a simple dark hair tuft */}
+        <circle cx="83" cy="10" r="8" fill="#fdba74" />
+        <path d="M75 8 Q83 -2 91 8 Q91 3 83 2 Q75 3 75 8 Z" fill="#334155" />
+      </svg>
+    </span>
+  );
+}
+
+function RcEndpoint({ time, airport, terminal, date, align }) {
+  return (
+    <div className={`rc-endpoint${align === 'right' ? ' rc-endpoint-right' : ''}`}>
+      <div className="rc-time">{time}</div>
+      <div className="rc-airport">{airport}{terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> Terminal {terminal}</span>}</div>
+      <div className="rc-date">{date}</div>
+    </div>
+  );
+}
+
 function ItineraryRow({ leg, label }) {
+  const segments = leg.segments && leg.segments.length > 0 ? leg.segments : null;
+  const isConnecting = segments && segments.length > 1;
+
   return (
     <div className="rc-itinerary">
       {label && (
@@ -584,27 +771,88 @@ function ItineraryRow({ leg, label }) {
           {label}
         </div>
       )}
-      <div className="rc-endpoint">
-        <div className="rc-time">{leg.departure_time?.split('T')[1]?.slice(0,5) || leg.departure_time?.split(' ')[1]?.slice(0,5) || '--:--'}</div>
-        <div className="rc-airport">{leg.departure_airport}{leg.departure_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> Terminal {leg.departure_terminal}</span>}</div>
-        <div className="rc-date">{leg.departure_time?.split('T')[0] || leg.departure_time?.split(' ')[0] || ''}</div>
-      </div>
-      <div className="rc-path">
-        <div className="rc-path-line"></div>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--gs-crimson)"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z"/></svg>
-        <div className="rc-path-line"></div>
-        {leg.duration && <div className="rc-duration">{leg.duration.replace('PT','').replace('H','h ').replace('M','m')}</div>}
-        {leg.segments && leg.segments.length > 1 && (
-          <div style={{ fontSize: '0.65rem', color: '#b45309', fontWeight: '700', marginTop: '3px' }}>
-            via {leg.segments.slice(0, -1).map(s => s.arrival_airport).join(', ')}
-          </div>
-        )}
-      </div>
-      <div className="rc-endpoint rc-endpoint-right">
-        <div className="rc-time">{leg.arrival_time?.split('T')[1]?.slice(0,5) || leg.arrival_time?.split(' ')[1]?.slice(0,5) || '--:--'}</div>
-        <div className="rc-airport">{leg.arrival_airport}{leg.arrival_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> Terminal {leg.arrival_terminal}</span>}</div>
-        <div className="rc-date">{leg.arrival_time?.split('T')[0] || leg.arrival_time?.split(' ')[0] || ''}</div>
-      </div>
+      {isConnecting ? (
+        <div className="rc-segment-flow">
+          <RcEndpoint
+            time={rcFmtTime(segments[0].departure_time)}
+            airport={segments[0].departure_airport}
+            terminal={segments[0].departure_terminal}
+            date={rcFmtDate(segments[0].departure_time)}
+          />
+          {(() => {
+            // Relay keyframes are only generated up to 4 segments (see
+            // RC_RELAY_ANIMATION_CSS) — a rare 4+-stop itinerary just falls
+            // back to each plane animating independently instead of a
+            // sequenced relay.
+            const relayTotal = segments.length <= 4 ? segments.length : undefined;
+            return segments.map((seg, sIdx) => {
+            const isLast = sIdx === segments.length - 1;
+            const layoverMin = seg.layover_minutes;
+            return (
+              <React.Fragment key={sIdx}>
+                <RcFlightPath duration={rcFmtDuration(seg.duration)} relayIndex={sIdx} relayTotal={relayTotal} />
+                {isLast ? (
+                  <RcEndpoint
+                    time={rcFmtTime(seg.arrival_time)}
+                    airport={seg.arrival_airport}
+                    terminal={seg.arrival_terminal}
+                    date={rcFmtDate(seg.arrival_time)}
+                    align="right"
+                  />
+                ) : (
+                  <div className="rc-mid-endpoint">
+                    {relayTotal && <RcWalker relayIndex={sIdx} relayTotal={relayTotal} />}
+                    <div className="rc-mid-row">
+                      <span className="rc-mid-time rc-mid-time-left" title="Arrives">{rcFmtTime(seg.arrival_time)}</span>
+                      <div className="rc-mid-center">
+                        <div className="rc-airport">{seg.arrival_airport}{seg.arrival_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> T{seg.arrival_terminal}</span>}</div>
+                        <div className="rc-date">{rcFmtDate(seg.arrival_time)}</div>
+                      </div>
+                      <span className="rc-mid-time rc-mid-time-right" title="Departs">{rcFmtTime(segments[sIdx + 1]?.departure_time)}</span>
+                    </div>
+                    {layoverMin !== undefined && (
+                      <div
+                        className={`rc-layover-badge${layoverMin > 0 && layoverMin < 60 ? ' short' : ''}`}
+                        title={`Connection layover: ${Math.floor(layoverMin / 60)}h ${layoverMin % 60}m at ${seg.arrival_airport}`}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 12a8 8 0 0 1 14.5-4.5" />
+                          <path d="M20 12a8 8 0 0 1-14.5 4.5" />
+                          <g transform="translate(16.5,4) rotate(40) scale(0.4)" fill="currentColor" stroke="none">
+                            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z" />
+                          </g>
+                          <g transform="translate(7.5,20) rotate(-140) scale(0.4)" fill="currentColor" stroke="none">
+                            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z" />
+                          </g>
+                        </svg>
+                        <span className="rc-layover-badge-time">{Math.floor(layoverMin / 60)}h {layoverMin % 60}m</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </React.Fragment>
+            );
+            });
+          })()}
+        </div>
+      ) : (
+        <>
+          <RcEndpoint
+            time={rcFmtTime(leg.departure_time)}
+            airport={leg.departure_airport}
+            terminal={leg.departure_terminal}
+            date={rcFmtDate(leg.departure_time)}
+          />
+          <RcFlightPath duration={leg.duration ? rcFmtDuration(leg.duration) : null} />
+          <RcEndpoint
+            time={rcFmtTime(leg.arrival_time)}
+            airport={leg.arrival_airport}
+            terminal={leg.arrival_terminal}
+            date={rcFmtDate(leg.arrival_time)}
+            align="right"
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -1480,7 +1728,10 @@ export default function App() {
   const [showSearchForm, setShowSearchForm] = useState(true);
   const [searchError, setSearchError] = useState('');
   const [expandedFareIds, setExpandedFareIds] = useState({});
-  const [expandedSegmentIds, setExpandedSegmentIds] = useState({});
+  // "More Information" popup — holds the flight whose segment breakdown is
+  // being shown (null when closed). A single value (not a per-card map)
+  // since only one of these popups is ever open at a time.
+  const [segmentInfoModalFlight, setSegmentInfoModalFlight] = useState(null);
   const [selectedCabins, setSelectedCabins] = useState({});
 
   // Results page filter state
@@ -4877,9 +5128,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                 )}
 
+                {!loadingFlights && displayed.length > 0 && (
+                  <style dangerouslySetInnerHTML={{ __html: RC_RELAY_ANIMATION_CSS }} />
+                )}
                 {!loadingFlights && displayed.map((flight, idx) => {
                   const isFareExpanded = !!expandedFareIds[flight.offer_id || idx];
-                  const isSegmentExpanded = !!expandedSegmentIds[flight.offer_id || idx];
                   const totalPax = adultCount + childCount + infantCount + studentCount;
 
                   const fId = flight.offer_id || idx;
@@ -4908,6 +5161,18 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   const hasBreakdown = bdKeys.length > 0;
                   return (
                     <div key={idx} className="result-card animate-fade" style={{ flexDirection: 'column' }}>
+                      {/* Total Duration — top of the card, centered and prominent. */}
+                      {flight.duration && (
+                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '0.5rem 0.9rem 0' }}>
+                          <span style={{
+                            fontSize: '0.7rem', fontWeight: '800', color: '#1a1a1a',
+                            background: 'transparent', border: 'none', borderRadius: '999px',
+                            padding: '0.2rem 0.75rem', letterSpacing: '0.02em'
+                          }}>
+                            Total Duration: {flight.duration.replace('PT', '').replace('H', 'h ').replace('M', 'm')}
+                          </span>
+                        </div>
+                      )}
                       <div className="rc-top-row" style={{ display: 'flex', alignItems: 'stretch', width: '100%', flex: 1 }}>
                         <div className="rc-airline-col">
                           {/* Airline Logo: use Travelport URL if provided, else Google Flights CDN by IATA code */}
@@ -5010,32 +5275,29 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           <ItineraryRow leg={flight} />
                         )}
 
-                        <div className="rc-details-col" style={{ cursor: 'pointer' }} onClick={() => {
-                          const fId = flight.offer_id || idx;
-                          setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
-                        }}>
-                          <div className="rc-cabin-tag" style={{ background: '#f1f5f9', color: '#1e293b', fontWeight: '800' }}>
-                            {activeCabin === 'PremiumEconomy' ? 'Premium Economy' : activeCabin} Class
-                          </div>
-                          {flight.seats_remaining != null && (
-                            <div className="rc-seats" style={{ color: flight.seats_remaining < 5 ? '#c3122e' : '#0f766e', fontWeight: '700', marginTop: '4px' }}>
+                        {/* Cabin class + baggage moved into the Flight Segment Information
+                            bar below (shown as one horizontal line) — this column now only
+                            carries the seats-remaining badge, when Travelport provides one. */}
+                        {flight.seats_remaining != null && (
+                          <div className="rc-details-col" style={{ cursor: 'pointer' }} onClick={() => {
+                            const fId = flight.offer_id || idx;
+                            setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
+                          }}>
+                            <div className="rc-seats" style={{ color: flight.seats_remaining < 5 ? '#c3122e' : '#0f766e', fontWeight: '700' }}>
                               {flight.seats_remaining < 5 ? `Only ${flight.seats_remaining} left` : `${flight.seats_remaining} seats`}
                             </div>
-                          )}
-                          {selectedFareOption?.baggage_allowance?.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '6px' }}>
-                              {selectedFareOption.baggage_allowance.map((bag, bIdx) => (
-                                <div key={bIdx} style={{ fontSize: '0.68rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                  <span>🧳</span>
-                                  <span>{bag.type}: {bag.allowance}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         <div className="rc-price-col">
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                            <div style={{
+                              fontSize: '0.68rem', fontWeight: '800', color: '#245d38',
+                              background: 'transparent', border: '1.5px solid #245d38', borderRadius: '999px',
+                              padding: '0.2rem 0.7rem', letterSpacing: '0.02em', whiteSpace: 'nowrap'
+                            }}>
+                              {activeCabin === 'PremiumEconomy' ? 'Premium Economy' : activeCabin} Class
+                            </div>
                             <div style={{ textAlign: 'right' }}>
                               <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '600' }}>
                                 from {displayCurrency}
@@ -5099,57 +5361,42 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         </div>
                       </div>
 
-                      {/* ── Flight Segment Information — collapsed by default, click to expand ── */}
+                      {/* ── "More Information" — click opens the flight segment breakdown in a popup ── */}
                       <div style={{ borderTop: '1px solid #e2e8f0', background: '#fafbfc', width: '100%', boxSizing: 'border-box' }}>
                         <button
                           type="button"
-                          onClick={() => setExpandedSegmentIds(prev => ({ ...prev, [fId]: !prev[fId] }))}
+                          onClick={() => setSegmentInfoModalFlight(flight)}
                           style={{
                             display: 'flex', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap',
-                            justifyContent: 'space-between', alignItems: 'center', gap: '0.3rem',
+                            alignItems: 'center', gap: '0.5rem',
                             padding: '0.4rem 0.8rem', background: 'transparent', border: 'none', cursor: 'pointer',
                             textAlign: 'left', outline: 'none', font: 'inherit',
                           }}
                         >
-                          <h4 style={{ margin: 0, fontSize: '0.62rem', color: '#1e293b', fontWeight: '600' }}>Flight Segment Information</h4>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            {flight.duration && (
-                              <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: '600' }}>
-                                Total Duration: {flight.duration.replace('PT', '').replace('H', 'h ').replace('M', 'm')}
-                              </span>
-                            )}
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: '#64748b', flexShrink: 0, transition: 'transform 0.2s', transform: isSegmentExpanded ? 'rotate(180deg)' : 'none' }}>
-                              <path d="M6 9l6 6 6-6" />
+                          <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.62rem', color: '#1e293b', fontWeight: '600', flexShrink: 0 }}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="11" x2="12" y2="16" />
+                              <circle cx="12" cy="7.5" r="0.5" fill="currentColor" stroke="none" />
                             </svg>
+                            More Information
+                          </h4>
+                          {/* Cabin class + baggage — one horizontal line, centered in the bar */}
+                          <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.6rem', fontWeight: '800', color: '#1e293b',
+                              background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '999px',
+                              padding: '0.08rem 0.5rem', whiteSpace: 'nowrap'
+                            }}>
+                              {activeCabin === 'PremiumEconomy' ? 'Premium Economy' : activeCabin} Class
+                            </span>
+                            {selectedFareOption?.baggage_allowance?.map((bag, bIdx) => (
+                              <span key={bIdx} style={{ fontSize: '0.6rem', color: '#334155', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                🧳 {bag.type}: {bag.allowance}
+                              </span>
+                            ))}
                           </span>
                         </button>
-                        {isSegmentExpanded && (
-                          <div style={{ padding: '0 0.9rem 0.9rem', borderTop: '1px solid #e2e8f0' }}>
-                            {flight.legs && flight.legs.length >= 2 ? (
-                              [...flight.legs]
-                                .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
-                                .map((leg, lIdx, sortedLegs) => {
-                                  if (!leg.segments || leg.segments.length === 0) return null;
-                                  const legLabel = sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`;
-                                  return (
-                                    <div key={lIdx} style={{ marginTop: '0.9rem', marginBottom: lIdx === sortedLegs.length - 1 ? 0 : '0.9rem' }}>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
-                                        <h5 style={{ margin: 0, fontSize: '0.78rem', color: '#1e293b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{legLabel}</h5>
-                                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>
-                                          Total Duration: {leg.duration?.replace('PT','').replace('H','h ').replace('M','m')}
-                                        </span>
-                                      </div>
-                                      <SegmentTimeline segments={leg.segments} terminalConnections={terminalConnectionsData} />
-                                    </div>
-                                  );
-                                })
-                            ) : flight.segments && flight.segments.length > 0 ? (
-                              <div style={{ marginTop: '0.9rem' }}>
-                                <SegmentTimeline segments={flight.segments} terminalConnections={terminalConnectionsData} />
-                              </div>
-                            ) : null}
-                          </div>
-                        )}
                       </div>
 
                       {/* ── Expandable Cabin Select and Fare Options ── */}
@@ -5518,6 +5765,44 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   );
                 })}
               </main>
+              {/* "More Information" popup — the flight segment breakdown
+                  (per-leg time/airport/layover detail) for whichever card's
+                  "More Information" button was clicked. */}
+              {segmentInfoModalFlight && (
+                <div className="modal-overlay animate-fade-only" onClick={() => setSegmentInfoModalFlight(null)}>
+                  <div className="modal-content glass-panel animate-fade" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+                    <div className="modal-header">
+                      <h3>Flight Segment Information</h3>
+                      <button type="button" className="close-btn" onClick={() => setSegmentInfoModalFlight(null)}>×</button>
+                    </div>
+                    <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
+                      {segmentInfoModalFlight.legs && segmentInfoModalFlight.legs.length >= 2 ? (
+                        [...segmentInfoModalFlight.legs]
+                          .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
+                          .map((leg, lIdx, sortedLegs) => {
+                            if (!leg.segments || leg.segments.length === 0) return null;
+                            const legLabel = sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`;
+                            return (
+                              <div key={lIdx} style={{ marginTop: lIdx === 0 ? 0 : '1.5rem' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                                  <h5 style={{ margin: 0, fontSize: '0.78rem', color: '#1e293b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{legLabel}</h5>
+                                  <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>
+                                    Total Duration: {leg.duration?.replace('PT', '').replace('H', 'h ').replace('M', 'm')}
+                                  </span>
+                                </div>
+                                <SegmentTimeline segments={leg.segments} terminalConnections={terminalConnectionsData} />
+                              </div>
+                            );
+                          })
+                      ) : segmentInfoModalFlight.segments && segmentInfoModalFlight.segments.length > 0 ? (
+                        <SegmentTimeline segments={segmentInfoModalFlight.segments} terminalConnections={terminalConnectionsData} />
+                      ) : (
+                        <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No segment information available for this flight.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
