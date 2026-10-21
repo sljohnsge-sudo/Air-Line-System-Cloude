@@ -1,60 +1,18 @@
 {
     "TravelerListResponse": {
         "@type": "TravelerListResponse",
-        "ReferenceList": [
-            {
-                "@type": "ReferenceListTraveler",
-                "Traveler": [
-                    {
-                        "@type": "Traveler",
-                        "birthDate": "2026-09-01",
-                        "gender": "Male",
-                        "passengerTypeCode": "ADT",
-                        "age": 0,
-                        "id": "travelerRefId_1",
-                        "Identifier": {
-                            "value": "ed5795f6-7873-4134-9cd5-d926b234c0c3"
-                        },
-                        "PersonName": {
-                            "@type": "PersonNameDetail",
-                            "Prefix": "MR",
-                            "Given": "GGF",
-                            "Surname": "GFG"
-                        },
-                        "Telephone": [
-                            {
-                                "@type": "Telephone",
-                                "countryAccessCode": "94",
-                                "phoneNumber": "7721323",
-                                "id": "1",
-                                "role": "Mobile"
-                            }
-                        ],
-                        "Email": [
-                            {
-                                "value": "aaa@gmail.com"
-                            }
-                        ],
-                        "TravelDocument": [
-                            {
-                                "@type": "TravelDocumentDetail",
-                                "docNumber": "N123233",
-                                "docType": "Passport",
-                                "expireDate": "2026-10-31",
-                                "issueCountry": "LK",
-                                "birthDate": "2026-09-01",
-                                "Gender": "Male",
-                                "Nationality": "LK",
-                                "PersonName": {
-                                    "@type": "PersonNameDetail",
-                                    "Given": "GGF",
-                                    "Surname": "GFG"
-                                }
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
+        "Result": {
+            "@type": "Result",
+            "Error": [
+                {
+                    "@type": "ErrorDetail",
+                    "category": "PROCESS",
+                    "StatusCode": 200,
+                    "Message": "TRANSACTION CANNOT BE PROCESSED WHILST PREVIOUS TRANSACTION IS IN PROGRESS. RETRY",
+                    "SourceID": "1G",
+                    "SourceCode": "4423"
+                }
+            ]
+        }
     }
 }
