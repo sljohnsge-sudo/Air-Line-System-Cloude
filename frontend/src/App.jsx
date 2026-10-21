@@ -53,7 +53,7 @@ const AIRPORTS = [
   { code: 'SIN', name: 'Singapore (SIN)' },
   { code: 'JFK', name: 'New York JFK (JFK)' },
   { code: 'LAX', name: 'Los Angeles (LAX)' },
-  { code: 'ORD', name: 'Chicago O\'Hare (ORD)' },
+  { code: 'ORD', name: "Chicago O'Hare (ORD)" },
   { code: 'SFO', name: 'San Francisco (SFO)' },
   { code: 'ATL', name: 'Atlanta (ATL)' },
   { code: 'BOM', name: 'Mumbai (BOM)' },
@@ -71,7 +71,98 @@ const AIRPORTS = [
   { code: 'ICN', name: 'Seoul Incheon (ICN)' },
   { code: 'MIA', name: 'Miami (MIA)' },
   { code: 'MCO', name: 'Orlando (MCO)' },
+  { code: 'MEL', name: 'Melbourne (MEL)' },
+  { code: 'SGN', name: 'Ho Chi Minh City (SGN)' },
+  { code: 'HAN', name: 'Hanoi (HAN)' },
+  { code: 'PER', name: 'Perth (PER)' },
+  { code: 'BNE', name: 'Brisbane (BNE)' },
+  { code: 'ADL', name: 'Adelaide (ADL)' },
+  { code: 'AKL', name: 'Auckland (AKL)' },
+  { code: 'HKG', name: 'Hong Kong (HKG)' },
+  { code: 'PEK', name: 'Beijing (PEK)' },
+  { code: 'PVG', name: 'Shanghai (PVG)' },
+  { code: 'CAN', name: 'Guangzhou (CAN)' },
+  { code: 'MNL', name: 'Manila (MNL)' },
+  { code: 'CGK', name: 'Jakarta (CGK)' },
+  { code: 'SUB', name: 'Surabaya (SUB)' },
+  { code: 'RGN', name: 'Yangon (RGN)' },
+  { code: 'DAC', name: 'Dhaka (DAC)' },
+  { code: 'KTM', name: 'Kathmandu (KTM)' },
+  { code: 'MAA', name: 'Chennai (MAA)' },
+  { code: 'HYD', name: 'Hyderabad (HYD)' },
+  { code: 'BLR', name: 'Bengaluru (BLR)' },
+  { code: 'CCU', name: 'Kolkata (CCU)' },
+  { code: 'GOI', name: 'Goa (GOI)' },
+  { code: 'AMD', name: 'Ahmedabad (AMD)' },
+  { code: 'MLE', name: 'Malé (MLE)' },
+  { code: 'TRV', name: 'Thiruvananthapuram (TRV)' },
+  { code: 'COK', name: 'Kochi (COK)' },
+  { code: 'GRU', name: 'São Paulo (GRU)' },
+  { code: 'EZE', name: 'Buenos Aires (EZE)' },
+  { code: 'LIM', name: 'Lima (LIM)' },
+  { code: 'BOG', name: 'Bogotá (BOG)' },
+  { code: 'JNB', name: 'Johannesburg (JNB)' },
+  { code: 'CPT', name: 'Cape Town (CPT)' },
+  { code: 'NBO', name: 'Nairobi (NBO)' },
+  { code: 'CAI', name: 'Cairo (CAI)' },
+  { code: 'ADD', name: 'Addis Ababa (ADD)' },
+  { code: 'LOS', name: 'Lagos (LOS)' },
+  { code: 'ABV', name: 'Abuja (ABV)' },
+  { code: 'ACC', name: 'Accra (ACC)' },
+  { code: 'YYZ', name: 'Toronto (YYZ)' },
+  { code: 'YVR', name: 'Vancouver (YVR)' },
+  { code: 'YUL', name: 'Montreal (YUL)' },
+  { code: 'MEX', name: 'Mexico City (MEX)' },
+  { code: 'GIG', name: 'Rio de Janeiro (GIG)' },
+  { code: 'MAD', name: 'Madrid (MAD)' },
+  { code: 'BCN', name: 'Barcelona (BCN)' },
+  { code: 'MUC', name: 'Munich (MUC)' },
+  { code: 'ZUR', name: 'Zurich (ZUR)' },
+  { code: 'VIE', name: 'Vienna (VIE)' },
+  { code: 'BRU', name: 'Brussels (BRU)' },
+  { code: 'CPH', name: 'Copenhagen (CPH)' },
+  { code: 'ARN', name: 'Stockholm (ARN)' },
+  { code: 'OSL', name: 'Oslo (OSL)' },
+  { code: 'HEL', name: 'Helsinki (HEL)' },
+  { code: 'LIS', name: 'Lisbon (LIS)' },
+  { code: 'DUB', name: 'Dublin (DUB)' },
+  { code: 'MAN', name: 'Manchester (MAN)' },
+  { code: 'FCO', name: 'Rome (FCO)' },
+  { code: 'MXP', name: 'Milan (MXP)' },
+  { code: 'ATH', name: 'Athens (ATH)' },
+  { code: 'PRG', name: 'Prague (PRG)' },
+  { code: 'WAW', name: 'Warsaw (WAW)' },
+  { code: 'BUD', name: 'Budapest (BUD)' },
+  { code: 'OTP', name: 'Bucharest (OTP)' },
+  { code: 'SOF', name: 'Sofia (SOF)' },
+  { code: 'SVO', name: 'Moscow (SVO)' },
+  { code: 'LED', name: 'St. Petersburg (LED)' },
+  { code: 'AUH', name: 'Abu Dhabi (AUH)' },
+  { code: 'BAH', name: 'Bahrain (BAH)' },
+  { code: 'KWI', name: 'Kuwait City (KWI)' },
+  { code: 'AMM', name: 'Amman (AMM)' },
+  { code: 'BEY', name: 'Beirut (BEY)' },
+  { code: 'TLV', name: 'Tel Aviv (TLV)' },
+  { code: 'MCT', name: 'Muscat (MCT)' },
+  { code: 'RUH', name: 'Riyadh (RUH)' },
+  { code: 'JED', name: 'Jeddah (JED)' },
+  { code: 'DAM', name: 'Damascus (DAM)' },
+  { code: 'THR', name: 'Tehran (THR)' },
+  { code: 'KHI', name: 'Karachi (KHI)' },
+  { code: 'LHE', name: 'Lahore (LHE)' },
+  { code: 'ISB', name: 'Islamabad (ISB)' },
+  { code: 'TAS', name: 'Tashkent (TAS)' },
+  { code: 'ALA', name: 'Almaty (ALA)' },
+  { code: 'GYD', name: 'Baku (GYD)' },
+  { code: 'TBS', name: 'Tbilisi (TBS)' },
+  { code: 'EVN', name: 'Yerevan (EVN)' },
 ];
+
+// Quick city-name lookup: "CMB" → "Colombo"
+const AIRPORT_CITY_MAP = Object.fromEntries(
+  AIRPORTS.map(a => [a.code, a.name.replace(/\s*\([A-Z]{3}\)$/, '')])
+);
+const getAirportCity = code => AIRPORT_CITY_MAP[code] || '';
 
 // ── Trending Destinations (display only) ───────────────────────────────────
 const trendingDestinations = [
@@ -568,12 +659,32 @@ const handleApiResponse = async (res, defaultError) => {
   return data;
 };
 
+// Pin icon used in endpoint and connecting-stop labels
+const PinIcon = () => (
+  <svg width="11" height="14" viewBox="0 0 24 30" fill="var(--gs-crimson)" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '2px' }}>
+    <path d="M12 0C7.589 0 4 3.589 4 8c0 5.535 7.092 13.988 7.395 14.354a.75.75 0 0 0 1.21 0C12.908 21.988 20 13.535 20 8c0-4.411-3.589-8-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+  </svg>
+);
+
+// Airplane icon used in path segments
+const PlaneIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gs-crimson)">
+    <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z"/>
+  </svg>
+);
+
 // ── Itinerary Row: one leg's departure/arrival/duration strip ──────────────
 // Used once for a one-way result, and twice (Outbound/Return) for a merged
 // round-trip result card.
 function ItineraryRow({ leg, label }) {
+  const fmtTime = dt => dt?.split('T')[1]?.slice(0,5) || dt?.split(' ')[1]?.slice(0,5) || '--:--';
+  const fmtDate = dt => dt?.split('T')[0] || dt?.split(' ')[0] || '';
+  const fmtDur  = d  => d?.replace('PT','').replace('H','h ').replace('M','m') || '';
+
+  const isConnecting = leg.segments && leg.segments.length > 1;
+
   return (
-    <div className="rc-itinerary">
+    <div className="rc-itinerary" style={{ alignItems: 'flex-start' }}>
       {label && (
         <div style={{
           position: 'absolute', top: '-0.6rem', left: '0.75rem',
@@ -584,49 +695,102 @@ function ItineraryRow({ leg, label }) {
           {label}
         </div>
       )}
-      <div className="rc-endpoint">
-        <div className="rc-time">{leg.departure_time?.split('T')[1]?.slice(0,5) || leg.departure_time?.split(' ')[1]?.slice(0,5) || '--:--'}</div>
-        <div className="rc-airport">{leg.departure_airport}{leg.departure_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> Terminal {leg.departure_terminal}</span>}</div>
-        <div className="rc-date">{leg.departure_time?.split('T')[0] || leg.departure_time?.split(' ')[0] || ''}</div>
-      </div>
-      <div className="rc-path">
-        {leg.segments && leg.segments.length > 1 ? (
-          <div style={{ width: '100%', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              {leg.segments.slice(0, -1).map((seg, i) => {
-                const nextSeg = leg.segments[i + 1];
-                const arrTime = seg.arrival_time?.split('T')[1]?.slice(0,5) || seg.arrival_time?.split(' ')[1]?.slice(0,5) || '';
-                const depTime = nextSeg?.departure_time?.split('T')[1]?.slice(0,5) || nextSeg?.departure_time?.split(' ')[1]?.slice(0,5) || '';
-                const arrDate = seg.arrival_time?.split('T')[0] || seg.arrival_time?.split(' ')[0] || '';
-                return (
-                  <React.Fragment key={i}>
-                    <div style={{ flex: 1, height: 0, borderTop: '2px dotted #cbd5e1' }} />
-                    <div style={{ textAlign: 'center', padding: '0 6px', flexShrink: 0 }}>
-                      {arrTime && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500' }}>{arrTime}</div>}
-                      <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--gs-crimson)', fontFamily: 'monospace', letterSpacing: '0.04em' }}>{seg.arrival_airport}</div>
-                      {depTime && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500' }}>{depTime}</div>}
-                      {arrDate && <div style={{ fontSize: '0.55rem', color: '#cbd5e1', fontWeight: '500' }}>{arrDate}</div>}
-                    </div>
-                  </React.Fragment>
-                );
-              })}
-              <div style={{ flex: 1, height: 0, borderTop: '2px dotted #cbd5e1' }} />
-            </div>
-            {leg.duration && <div className="rc-duration">{leg.duration.replace('PT','').replace('H','h ').replace('M','m')}</div>}
+
+      {/* ── Departure endpoint ── */}
+      <div className="rc-endpoint" style={{ minWidth: 72 }}>
+        <div className="rc-time">{fmtTime(leg.departure_time)}</div>
+        <div className="rc-date">{fmtDate(leg.departure_time)}</div>
+        <div className="rc-airport" style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: '0.2rem' }}>
+          <PinIcon />
+          {leg.departure_airport}
+          {leg.departure_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> T{leg.departure_terminal}</span>}
+        </div>
+        {getAirportCity(leg.departure_airport) && (
+          <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500', marginTop: '1px', maxWidth: 90, lineHeight: 1.2 }}>
+            {getAirportCity(leg.departure_airport)}
           </div>
-        ) : (
-          <>
-            <div className="rc-path-line"></div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--gs-crimson)"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z"/></svg>
-            <div className="rc-path-line"></div>
-            {leg.duration && <div className="rc-duration">{leg.duration.replace('PT','').replace('H','h ').replace('M','m')}</div>}
-          </>
         )}
       </div>
-      <div className="rc-endpoint rc-endpoint-right">
-        <div className="rc-time">{leg.arrival_time?.split('T')[1]?.slice(0,5) || leg.arrival_time?.split(' ')[1]?.slice(0,5) || '--:--'}</div>
-        <div className="rc-airport">{leg.arrival_airport}{leg.arrival_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> Terminal {leg.arrival_terminal}</span>}</div>
-        <div className="rc-date">{leg.arrival_time?.split('T')[0] || leg.arrival_time?.split(' ')[0] || ''}</div>
+
+      {isConnecting ? (
+        /* ── Multi-segment connecting flight ── */
+        <>
+          {leg.segments.map((seg, i) => {
+            const nextSeg = leg.segments[i + 1];
+            const layoverMins = seg.layover_minutes;
+            const isShortLayover = layoverMins > 0 && layoverMins < 60;
+            return (
+              <React.Fragment key={i}>
+                {/* Path segment */}
+                <div style={{ flex: 1, minWidth: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '0.55rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                    <div className="rc-path-line" style={{ flex: 1 }} />
+                    <PlaneIcon />
+                    <div className="rc-path-line" style={{ flex: 1 }} />
+                  </div>
+                  {seg.duration && <div className="rc-duration" style={{ marginTop: 3 }}>{fmtDur(seg.duration)}</div>}
+                </div>
+
+                {/* Connecting stop (not rendered after the final segment) */}
+                {nextSeg && (
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    textAlign: 'center', flexShrink: 0, padding: '0 6px',
+                  }}>
+                    <div className="rc-time" style={{ fontSize: '1.05rem' }}>{fmtTime(nextSeg.departure_time)}</div>
+                    <div className="rc-date">{fmtDate(nextSeg.departure_time)}</div>
+                    <div className="rc-airport" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, marginTop: '0.2rem' }}>
+                      <PinIcon />
+                      {seg.arrival_airport}
+                    </div>
+                    {getAirportCity(seg.arrival_airport) && (
+                      <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500', marginTop: '1px', maxWidth: 100, lineHeight: 1.2 }}>
+                        {getAirportCity(seg.arrival_airport)}
+                      </div>
+                    )}
+                    {layoverMins > 0 && (
+                      <div style={{
+                        marginTop: '5px', fontSize: '0.62rem', fontWeight: '700', borderRadius: '10px',
+                        padding: '0.15rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '3px',
+                        background: isShortLayover ? '#fef2f2' : '#fffbeb',
+                        color: isShortLayover ? '#b91c1c' : '#b45309',
+                        border: isShortLayover ? '1px solid #fca5a5' : '1px solid #fde68a',
+                        whiteSpace: 'nowrap',
+                        className: isShortLayover ? 'layover-warning-blink' : undefined,
+                      }}>
+                        🕐 {Math.floor(layoverMins / 60)}h {layoverMins % 60}m
+                      </div>
+                    )}
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </>
+      ) : (
+        /* ── Direct flight path ── */
+        <div className="rc-path">
+          <div className="rc-path-line"></div>
+          <PlaneIcon />
+          <div className="rc-path-line"></div>
+          {leg.duration && <div className="rc-duration">{fmtDur(leg.duration)}</div>}
+        </div>
+      )}
+
+      {/* ── Arrival endpoint ── */}
+      <div className="rc-endpoint rc-endpoint-right" style={{ minWidth: 72 }}>
+        <div className="rc-time">{fmtTime(leg.arrival_time)}</div>
+        <div className="rc-date">{fmtDate(leg.arrival_time)}</div>
+        <div className="rc-airport" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, marginTop: '0.2rem' }}>
+          <PinIcon />
+          {leg.arrival_airport}
+          {leg.arrival_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> T{leg.arrival_terminal}</span>}
+        </div>
+        {getAirportCity(leg.arrival_airport) && (
+          <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500', marginTop: '1px', lineHeight: 1.2 }}>
+            {getAirportCity(leg.arrival_airport)}
+          </div>
+        )}
       </div>
     </div>
   );
