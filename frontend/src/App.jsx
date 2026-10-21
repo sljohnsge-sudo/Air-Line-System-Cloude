@@ -701,7 +701,7 @@ function RcWalker({ relayIndex, relayTotal }) {
   return (
     <span className="rc-relay-walker" style={rcRelayAnimationStyle(relayIndex, relayTotal, 'walk')} aria-hidden="true">
       {/* viewBox 0 0 120 74 — extra 4px lets the shoe ellipses clear the bottom */}
-      <svg width="20" height="13" viewBox="0 0 120 74" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="28" height="18" viewBox="0 0 120 74" fill="none" xmlns="http://www.w3.org/2000/svg">
         {/* Suitcase being pulled (static) */}
         <circle cx="44" cy="61" r="4" fill="#cbd5e1" />
         <circle cx="56" cy="61" r="4" fill="#cbd5e1" />
