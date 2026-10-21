@@ -2185,11 +2185,12 @@ body {
    it travels (see RcWalker's inline SVG). */
 .rc-relay-walker {
   position: absolute;
-  top: calc(50% - 5px);
+  top: 50%;
   left: 50%;
   color: #f59e0b;
   opacity: 0;
-  transform: translateY(-102%);
+  /* centre walker so its feet land on the dotted line */
+  transform: translateX(-50%) translateY(-85%);
   pointer-events: none;
   z-index: 2;
   display: flex;
@@ -2227,6 +2228,22 @@ body {
 .rc-segment-flow .rc-date { font-size: 0.56rem; }
 .rc-segment-flow .rc-duration { font-size: 0.56rem; }
 
+/* In the connecting-flight row, collapse rc-path to 2 px so the track
+   sits at the row's vertical centre — same level as the dotted line in
+   rc-mid-endpoint.  The duration badge floats below the track. */
+.rc-segment-flow .rc-path {
+  height: 2px;
+  overflow: visible;
+  padding: 0;
+  gap: 0;
+}
+.rc-segment-flow .rc-path .rc-duration {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .rc-mid-endpoint {
   position: relative;
   text-align: center;
@@ -2242,9 +2259,10 @@ body {
 .rc-mid-endpoint::before {
   content: '';
   position: absolute;
-  top: calc(50% - 9px);
-  left: -0.5rem;
-  right: -0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  left: -1rem;
+  right: -1rem;
   border-top: 2.5px dotted var(--gs-crimson);
   opacity: 0.85;
   z-index: 0;
@@ -2265,7 +2283,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  margin-top: var(--rc-mid-offset);
+  margin-top: 0;
 }
 
 .rc-mid-row > * {
