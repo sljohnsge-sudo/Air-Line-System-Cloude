@@ -803,12 +803,17 @@ function ItineraryRow({ leg, label }) {
                   <div className="rc-mid-endpoint">
                     {relayTotal && <RcWalker relayIndex={sIdx} relayTotal={relayTotal} />}
                     <div className="rc-mid-row">
-                      <span className="rc-mid-time rc-mid-time-left" title="Arrives">{rcFmtTime(seg.arrival_time)}</span>
+                      <div className="rc-mid-side rc-mid-side-left">
+                        <div className="rc-date">{rcFmtDate(seg.arrival_time)}</div>
+                        <span className="rc-mid-time" title="Arrives">{rcFmtTime(seg.arrival_time)}</span>
+                      </div>
                       <div className="rc-mid-center">
                         <div className="rc-airport">{seg.arrival_airport}{seg.arrival_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> T{seg.arrival_terminal}</span>}</div>
-                        <div className="rc-date">{rcFmtDate(seg.arrival_time)}</div>
                       </div>
-                      <span className="rc-mid-time rc-mid-time-right" title="Departs">{rcFmtTime(segments[sIdx + 1]?.departure_time)}</span>
+                      <div className="rc-mid-side rc-mid-side-right">
+                        <div className="rc-date">{rcFmtDate(segments[sIdx + 1]?.departure_time)}</div>
+                        <span className="rc-mid-time" title="Departs">{rcFmtTime(segments[sIdx + 1]?.departure_time)}</span>
+                      </div>
                     </div>
                     {layoverMin !== undefined && (
                       <div
