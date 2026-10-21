@@ -483,7 +483,21 @@ def parse_baggage_allowance(terms: dict, prod_refs: list) -> list:
                 "type": display_type,
                 "allowance": " + ".join(items_desc)
             })
-    return parsed_bags
+
+    # Round-trip offers carry a separate BaggageAllowance entry per leg
+    # (each with its own ProductRef), and prod_refs spans every leg of the
+    # offer — so a type like "Carry-on Baggage" can legitimately match more
+    # than once above, once per leg. Collapse to one entry per type so the
+    # UI doesn't show the same baggage type twice; when the legs disagree
+    # (e.g. one leg's operating carrier didn't return structured data, just
+    # Travelport's literal "...DATA NOT AVAILABLE" placeholder text), prefer
+    # whichever entry actually has a real allowance over the placeholder.
+    deduped = {}
+    for bag in parsed_bags:
+        existing = deduped.get(bag["type"])
+        if existing is None or "NOT AVAILABLE" in existing["allowance"].upper():
+            deduped[bag["type"]] = bag
+    return list(deduped.values())
 
 
 def parse_penalties(terms: dict, prod_refs: list) -> tuple:
