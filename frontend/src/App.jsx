@@ -590,14 +590,29 @@ function ItineraryRow({ leg, label }) {
         <div className="rc-date">{leg.departure_time?.split('T')[0] || leg.departure_time?.split(' ')[0] || ''}</div>
       </div>
       <div className="rc-path">
-        <div className="rc-path-line"></div>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--gs-crimson)"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z"/></svg>
-        <div className="rc-path-line"></div>
-        {leg.duration && <div className="rc-duration">{leg.duration.replace('PT','').replace('H','h ').replace('M','m')}</div>}
-        {leg.segments && leg.segments.length > 1 && (
-          <div style={{ fontSize: '0.65rem', color: '#b45309', fontWeight: '700', marginTop: '3px' }}>
-            via {leg.segments.slice(0, -1).map(s => s.arrival_airport).join(', ')}
+        {leg.segments && leg.segments.length > 1 ? (
+          <div style={{ width: '100%', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+              {leg.segments.slice(0, -1).map((seg, i) => (
+                <React.Fragment key={i}>
+                  <div style={{ flex: 1, borderTop: '2px dotted #cbd5e1', minWidth: 0 }} />
+                  <div style={{ textAlign: 'center', padding: '0 6px', flexShrink: 0 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--gs-crimson)', fontFamily: 'monospace', letterSpacing: '0.04em' }}>{seg.arrival_airport}</div>
+                    <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500' }}>{seg.arrival_time?.split('T')[0] || seg.arrival_time?.split(' ')[0] || ''}</div>
+                  </div>
+                </React.Fragment>
+              ))}
+              <div style={{ flex: 1, borderTop: '2px dotted #cbd5e1', minWidth: 0 }} />
+            </div>
+            {leg.duration && <div className="rc-duration">{leg.duration.replace('PT','').replace('H','h ').replace('M','m')}</div>}
           </div>
+        ) : (
+          <>
+            <div className="rc-path-line"></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--gs-crimson)"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z"/></svg>
+            <div className="rc-path-line"></div>
+            {leg.duration && <div className="rc-duration">{leg.duration.replace('PT','').replace('H','h ').replace('M','m')}</div>}
+          </>
         )}
       </div>
       <div className="rc-endpoint rc-endpoint-right">
