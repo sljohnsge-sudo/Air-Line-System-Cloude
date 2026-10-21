@@ -700,44 +700,63 @@ function RcFlightPath({ duration, relayIndex, relayTotal }) {
 function RcWalker({ relayIndex, relayTotal }) {
   return (
     <span className="rc-relay-walker" style={rcRelayAnimationStyle(relayIndex, relayTotal, 'walk')} aria-hidden="true">
-      <svg width="30" height="20" viewBox="0 0 120 70" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Suitcase — light grey, pulled in close behind the trailing hand,
-            not off on its own, so the hand/handle/case read as one unit
-            (matching the reference pictogram) instead of a kite on a long
-            string. A darker strap line adds a bit of detail. */}
-        <circle cx="44" cy="60" r="4" fill="#cbd5e1" />
-        <circle cx="56" cy="60" r="4" fill="#cbd5e1" />
-        <rect x="36" y="32" width="26" height="28" rx="3" fill="#cbd5e1" />
-        <rect x="39" y="42" width="20" height="3" rx="1.5" fill="#94a3b8" />
-        <rect x="45" y="20" width="4" height="14" rx="2" fill="#cbd5e1" />
-        <rect x="44" y="18" width="10" height="4" rx="2" fill="#cbd5e1" />
-        {/* Short pull strap from trailing hand straight down to the handle */}
-        <line x1="58" y1="33" x2="49" y2="22" stroke="#cbd5e1" strokeWidth="4" strokeLinecap="round" />
-        {/* Back leg foot (shoe) */}
-        <ellipse cx="56" cy="64" rx="6" ry="3.5" fill="#334155" />
-        {/* Legs — trousers in light blue */}
-        <line x1="76" y1="42" x2="58" y2="62" stroke="#93c5fd" strokeWidth="7" strokeLinecap="round" />
-        <line x1="82" y1="42" x2="96" y2="62" stroke="#93c5fd" strokeWidth="7" strokeLinecap="round" />
-        {/* Front leg foot (shoe) */}
-        <ellipse cx="98" cy="64" rx="6" ry="3.5" fill="#334155" />
-        {/* Backpack straps over the shoulders */}
+      {/* viewBox 0 0 120 74 — extra 4px lets the shoe ellipses clear the bottom */}
+      <svg width="20" height="13" viewBox="0 0 120 74" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Suitcase being pulled (static) */}
+        <circle cx="44" cy="61" r="4" fill="#cbd5e1" />
+        <circle cx="56" cy="61" r="4" fill="#cbd5e1" />
+        <rect x="36" y="33" width="26" height="28" rx="3" fill="#cbd5e1" />
+        <rect x="39" y="43" width="20" height="3" rx="1.5" fill="#94a3b8" />
+        <rect x="45" y="21" width="4" height="14" rx="2" fill="#cbd5e1" />
+        <rect x="44" y="19" width="10" height="4" rx="2" fill="#cbd5e1" />
+        <line x1="58" y1="34" x2="49" y2="23" stroke="#cbd5e1" strokeWidth="4" strokeLinecap="round" />
+
+        {/* Back leg — pivots from hip (79,44), starts forward, swings to back */}
+        <g>
+          <line x1="79" y1="44" x2="79" y2="68" stroke="#93c5fd" strokeWidth="7" strokeLinecap="round" />
+          <ellipse cx="79" cy="71" rx="6" ry="3" fill="#334155" />
+          <animateTransform attributeName="transform" type="rotate"
+            values="-24 79 44; 24 79 44; -24 79 44"
+            dur="0.44s" repeatCount="indefinite" />
+        </g>
+
+        {/* Front leg — opposite phase */}
+        <g>
+          <line x1="79" y1="44" x2="79" y2="68" stroke="#93c5fd" strokeWidth="7" strokeLinecap="round" />
+          <ellipse cx="79" cy="71" rx="6" ry="3" fill="#334155" />
+          <animateTransform attributeName="transform" type="rotate"
+            values="24 79 44; -24 79 44; 24 79 44"
+            dur="0.44s" repeatCount="indefinite" />
+        </g>
+
+        {/* Backpack */}
         <path d="M70 20 Q73 28 72 38" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-        {/* Backpack — blue */}
         <rect x="64" y="18" width="16" height="22" rx="5" fill="#3b82f6" />
         <rect x="68" y="23" width="8" height="5" rx="2" fill="#60a5fa" />
-        {/* Trailing hand */}
-        <circle cx="58" cy="33" r="4" fill="#fdba74" />
-        {/* Arms — shirt, red */}
-        <line x1="76" y1="24" x2="58" y2="33" stroke="#ef4444" strokeWidth="7" strokeLinecap="round" />
-        <line x1="84" y1="24" x2="98" y2="34" stroke="#ef4444" strokeWidth="7" strokeLinecap="round" />
-        {/* Leading hand */}
-        <circle cx="98" cy="34" r="4" fill="#fdba74" />
-        {/* Torso — shirt, red, tapered slightly at the waist for a more
-            human silhouette than a plain oval */}
+
+        {/* Back arm — pivots from shoulder (79,25), swings opposite to back leg */}
+        <g>
+          <line x1="79" y1="25" x2="79" y2="41" stroke="#ef4444" strokeWidth="6" strokeLinecap="round" />
+          <circle cx="79" cy="43" r="4" fill="#fdba74" />
+          <animateTransform attributeName="transform" type="rotate"
+            values="24 79 25; -24 79 25; 24 79 25"
+            dur="0.44s" repeatCount="indefinite" />
+        </g>
+
+        {/* Front arm — opposite phase */}
+        <g>
+          <line x1="79" y1="25" x2="79" y2="41" stroke="#ef4444" strokeWidth="6" strokeLinecap="round" />
+          <circle cx="79" cy="43" r="4" fill="#fdba74" />
+          <animateTransform attributeName="transform" type="rotate"
+            values="-24 79 25; 24 79 25; -24 79 25"
+            dur="0.44s" repeatCount="indefinite" />
+        </g>
+
+        {/* Torso (on top of arms/legs) */}
         <path d="M70 18 Q68 30 72 44 L88 44 Q92 30 90 18 Z" fill="#ef4444" />
         {/* Neck */}
         <rect x="80" y="14" width="6" height="6" fill="#fdba74" />
-        {/* Head — skin, light orange, with a simple dark hair tuft */}
+        {/* Head with hair tuft */}
         <circle cx="83" cy="10" r="8" fill="#fdba74" />
         <path d="M75 8 Q83 -2 91 8 Q91 3 83 2 Q75 3 75 8 Z" fill="#334155" />
       </svg>
