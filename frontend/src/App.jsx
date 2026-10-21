@@ -684,7 +684,7 @@ function ItineraryRow({ leg, label }) {
   const isConnecting = leg.segments && leg.segments.length > 1;
 
   return (
-    <div className="rc-itinerary" style={{ alignItems: 'flex-start' }}>
+    <div className="rc-itinerary">
       {label && (
         <div style={{
           position: 'absolute', top: '-0.6rem', left: '0.75rem',
@@ -722,7 +722,7 @@ function ItineraryRow({ leg, label }) {
             return (
               <React.Fragment key={i}>
                 {/* Path segment */}
-                <div style={{ flex: 1, minWidth: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '0.55rem' }}>
+                <div style={{ flex: 1, minWidth: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                     <div className="rc-path-line" style={{ flex: 1 }} />
                     <PlaneIcon />
