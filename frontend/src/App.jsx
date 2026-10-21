@@ -593,15 +593,23 @@ function ItineraryRow({ leg, label }) {
         {leg.segments && leg.segments.length > 1 ? (
           <div style={{ width: '100%', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              {leg.segments.slice(0, -1).map((seg, i) => (
-                <React.Fragment key={i}>
-                  <div style={{ flex: 1, height: 0, borderTop: '2px dotted #cbd5e1' }} />
-                  <div style={{ textAlign: 'center', padding: '0 6px', flexShrink: 0 }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--gs-crimson)', fontFamily: 'monospace', letterSpacing: '0.04em' }}>{seg.arrival_airport}</div>
-                    <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500' }}>{seg.arrival_time?.split('T')[0] || seg.arrival_time?.split(' ')[0] || ''}</div>
-                  </div>
-                </React.Fragment>
-              ))}
+              {leg.segments.slice(0, -1).map((seg, i) => {
+                const nextSeg = leg.segments[i + 1];
+                const arrTime = seg.arrival_time?.split('T')[1]?.slice(0,5) || seg.arrival_time?.split(' ')[1]?.slice(0,5) || '';
+                const depTime = nextSeg?.departure_time?.split('T')[1]?.slice(0,5) || nextSeg?.departure_time?.split(' ')[1]?.slice(0,5) || '';
+                const arrDate = seg.arrival_time?.split('T')[0] || seg.arrival_time?.split(' ')[0] || '';
+                return (
+                  <React.Fragment key={i}>
+                    <div style={{ flex: 1, height: 0, borderTop: '2px dotted #cbd5e1' }} />
+                    <div style={{ textAlign: 'center', padding: '0 6px', flexShrink: 0 }}>
+                      {arrTime && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500' }}>{arrTime}</div>}
+                      <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--gs-crimson)', fontFamily: 'monospace', letterSpacing: '0.04em' }}>{seg.arrival_airport}</div>
+                      {depTime && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '500' }}>{depTime}</div>}
+                      {arrDate && <div style={{ fontSize: '0.55rem', color: '#cbd5e1', fontWeight: '500' }}>{arrDate}</div>}
+                    </div>
+                  </React.Fragment>
+                );
+              })}
               <div style={{ flex: 1, height: 0, borderTop: '2px dotted #cbd5e1' }} />
             </div>
             {leg.duration && <div className="rc-duration">{leg.duration.replace('PT','').replace('H','h ').replace('M','m')}</div>}
@@ -5011,17 +5019,35 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           )}
                         </div>
 
-                        {flight.legs && flight.legs.length >= 2 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', flex: 1, paddingTop: '0.6rem' }}>
-                            {[...flight.legs]
-                              .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
-                              .map((leg, lIdx) => (
-                                <div key={lIdx} style={lIdx === 0 ? { position: 'relative' } : { position: 'relative', borderTop: '1px dashed #e2e8f0', paddingTop: '0.8rem' }}>
-                                  <ItineraryRow leg={leg} label={flight.legs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`} />
-                                </div>
-                              ))}
-                          </div>
-                        ) : (
+                        {flight.legs && flight.legs.length >= 2 ? (() => {
+                          const sortedLegs = [...flight.legs].sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''));
+                          const isRoundTrip = sortedLegs[0].departure_airport === sortedLegs[sortedLegs.length - 1].arrival_airport;
+                          if (isRoundTrip) {
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', flex: 1, paddingTop: '0.6rem' }}>
+                                {sortedLegs.map((leg, lIdx) => (
+                                  <div key={lIdx} style={lIdx === 0 ? { position: 'relative' } : { position: 'relative', borderTop: '1px dashed #e2e8f0', paddingTop: '0.8rem' }}>
+                                    <ItineraryRow leg={leg} label={sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`} />
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+                          const first = sortedLegs[0];
+                          const last = sortedLegs[sortedLegs.length - 1];
+                          return (
+                            <ItineraryRow leg={{
+                              departure_airport: first.departure_airport,
+                              departure_time: first.departure_time,
+                              departure_terminal: first.departure_terminal,
+                              arrival_airport: last.arrival_airport,
+                              arrival_time: last.arrival_time,
+                              arrival_terminal: last.arrival_terminal,
+                              duration: flight.duration,
+                              segments: sortedLegs,
+                            }} />
+                          );
+                        })() : (
                           <ItineraryRow leg={flight} />
                         )}
 
