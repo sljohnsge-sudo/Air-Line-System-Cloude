@@ -540,21 +540,15 @@ def confirm_price(raw_offering: dict) -> str:
         url = TravelportEndpoints.AIRPRICE_REFERENCE
         logger.info("Confirming price via AirPrice (NDC/LCC offer, reference payload)...")
 
-    # AirPrice is not workbench-scoped, so no session_id. Travelport can
-    # return HTTP 200 with a genuine error embedded in Result.Error instead
-    # of a non-200 status -- the exact same "COMMUNICATION ERROR. RETRY"
-    # (SourceCode 2599, category TEMPORARY) already handled with retries in
-    # search_service.search_flights() shows up here too, but AirPrice is a
-    # single untracked pricing check called once before any workbench is
-    # created (see run_booking_flow/run_instant_pay_flow) -- nothing has
-    # been reserved or ticketed yet at this point, so retrying it plainly
-    # cannot create a duplicate PNR or ticket. Only Travelport's own
-    # self-flagged-safe-to-retry errors are retried here; anything else
-    # (e.g. "0 Avail Closed") still fails immediately on the first try.
-    RETRYABLE_SOURCE_CODES = {"2599", "9000"}
-    max_retries = 3
-    errors = []
-    for attempt in range(1, max_retries + 1):
+    # AirPrice is not workbench-scoped, so no session_id.
+    # Travelport can return HTTP 200 with a TEMPORARY embedded error (SourceCode
+    # 2599 "COMMUNICATION ERROR. RETRY") — the same transient GDS blip handled
+    # in search_service.py. Retry up to 3 times on TEMPORARY only; every other
+    # error (NO AVAILABILITY, 0 Avail Closed, etc.) fails immediately.
+    # confirm_price() runs before any workbench or PNR exists, so retrying it
+    # cannot produce duplicate bookings or tickets.
+    _max_price_retries = 3
+    for _price_attempt in range(1, _max_price_retries + 1):
         result = _api_post_with_retry(url, payload, session_id=None)
         errors = (
             result.get("OfferListResponse", {}).get("Result", {}).get("Error", []) or
@@ -562,21 +556,21 @@ def confirm_price(raw_offering: dict) -> str:
         )
         if not errors:
             break
-        retryable = [
-            e for e in errors
-            if e.get("category") == "TEMPORARY" or str(e.get("SourceCode")) in RETRYABLE_SOURCE_CODES
-        ]
-        if len(retryable) != len(errors) or attempt == max_retries:
-            # A non-retryable error is present, or we're out of attempts --
-            # stop and surface it below.
-            break
-        logger.warning(
-            f"[AirPrice attempt {attempt}/{max_retries}] Travelport retryable error "
-            f"[{errors[0].get('SourceCode')}]: {errors[0].get('Message')} -- retrying."
-        )
-        time.sleep(2)
-
-    if errors:
+        temporary = [e for e in errors if e.get("category") == "TEMPORARY"]
+        if temporary:
+            logger.warning(
+                f"[AirPrice attempt {_price_attempt}/{_max_price_retries}] "
+                f"Travelport TEMPORARY error [{temporary[0].get('SourceCode')}]: "
+                f"{temporary[0].get('Message')} — retrying."
+            )
+            if _price_attempt < _max_price_retries:
+                time.sleep(1.5)
+                continue
+            raise ValueError(
+                f"Travelport AirPrice temporarily unavailable "
+                f"({temporary[0].get('Message', 'COMMUNICATION ERROR')}) "
+                f"after {_max_price_retries} attempts. Please try again."
+            )
         raise ValueError(f"Travelport AirPrice failed: {errors[0].get('Message')}")
 
     # Confirmed live: the AirPrice response does NOT carry a "transactionId"

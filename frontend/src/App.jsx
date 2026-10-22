@@ -7454,10 +7454,63 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <p>No bookings found.</p>
                 </div>
               ) : (
-                <div className="bookings-grid">
-                  {myBookings.map((b) => (
-                    <BookingCard key={b.id} booking={b} onViewTicket={handleViewTicket} onCancelBooking={handleCancelBooking} />
-                  ))}
+                <div className="admin-bookings-table-wrap">
+                  <table className="admin-bookings-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Airline / Flight</th>
+                        <th>Route</th>
+                        <th>Passenger</th>
+                        <th>PNR</th>
+                        <th>Departure</th>
+                        <th>Class</th>
+                        <th>Status</th>
+                        <th>Fare</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myBookings.map((b, idx) => {
+                        const depAirport = b.departure_airport;
+                        const arrAirport = (b.legs && b.legs.length > 1) ? b.legs[0].arrival_airport : b.arrival_airport;
+                        const depDate = b.departure_time?.split(' ')[0] || b.departure_time?.split('T')[0] || '—';
+                        const depTime = b.departure_time?.split(' ')[1]?.slice(0,5) || b.departure_time?.split('T')[1]?.slice(0,5) || '';
+                        const statusCls = b.status === 'Ticketed' ? 'ticketed' : b.status === 'Cancelled' ? 'cancelled' : 'confirmed';
+                        return (
+                          <tr key={b.id} className={`abt-row abt-row--${statusCls}`} onClick={() => handleViewTicket(b)}>
+                            <td className="abt-num">{idx + 1}</td>
+                            <td className="abt-airline">
+                              <span className="abt-airline-name">{b.airline}</span>
+                              <span className="abt-flight-badge">{b.flight_number}</span>
+                            </td>
+                            <td className="abt-route">
+                              <span className="abt-iata">{depAirport}</span>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flex: '0 0 auto', color: '#c3122e' }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                              <span className="abt-iata">{arrAirport}</span>
+                            </td>
+                            <td className="abt-pax">{b.passenger_name?.replace(/^(MR|MRS|MS|MISS|DR)\s*/i,'') || '—'}</td>
+                            <td className="abt-pnr">{b.locator_code}</td>
+                            <td className="abt-dep">
+                              <span className="abt-date">{depDate}</span>
+                              {depTime && <span className="abt-time">{depTime}</span>}
+                            </td>
+                            <td className="abt-class">{b.cabin_class || '—'}</td>
+                            <td className="abt-status">
+                              <span className={`abt-badge abt-badge--${statusCls}`}>{b.status}</span>
+                            </td>
+                            <td className="abt-fare">{b.currency} {b.total_fare?.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                            <td className="abt-actions" onClick={e => e.stopPropagation()}>
+                              <button className="btn btn-secondary btn-sm" onClick={() => handleViewTicket(b)}>📋 View</button>
+                              {b.status !== 'Cancelled' && (
+                                <button className="btn btn-danger btn-sm" onClick={() => handleCancelBooking(b.locator_code)}>✕</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </section>
@@ -8959,14 +9012,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
 
               {/* Grid: Left Section (Customer details + Itinerary) / Right Section (QR code + payment breakdown) */}
-              <div style={{ display: 'flex', gap: '2rem', marginBottom: '2rem' }}>
+              <div className="ticket-main-cols" style={{ display: 'flex', gap: '2rem', marginBottom: '2rem' }}>
                 <div style={{ flex: 1.6 }}>
                   
                   {/* Passenger Information — all travelers */}
                   <h3 style={{ fontSize: '0.9rem', color: '#c3122e', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Passenger Information ({displayTravelers.length} {displayTravelers.length === 1 ? 'Passenger' : 'Passengers'})
                   </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.75rem' }}>
+                  <div className="ticket-pax-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.75rem' }}>
                     {displayTravelers.map((t, pIdx) => {
                       const paxTypeLabel = t.passenger_type === 'CNN' ? 'Child' : t.passenger_type === 'INF' ? 'Infant' : t.passenger_type === 'STU' ? 'Student' : 'Adult';
                       const paxIcon = t.passenger_type === 'CNN' ? '🧒' : t.passenger_type === 'INF' ? '👶' : t.passenger_type === 'STU' ? '🎓' : '🧑';
@@ -9227,7 +9280,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               </div>
 
               {/* Important Notices */}
-              <div style={{ borderTop: '2px solid #cbd5e1', paddingTop: '1.25rem', fontSize: '0.68rem', color: '#64748b', lineHeight: '1.4' }}>
+              <div className="ticket-notices" style={{ borderTop: '2px solid #cbd5e1', paddingTop: '1.25rem', fontSize: '0.68rem', color: '#64748b', lineHeight: '1.4' }}>
                 <h4 style={{ color: '#1e293b', fontWeight: '700', margin: '0 0 0.4rem 0', textTransform: 'uppercase' }}>
                   Important Travel Information
                 </h4>

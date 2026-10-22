@@ -396,7 +396,13 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                 ticket["airline"] = first_leg["airline"]
                 ticket["airline_code"] = first_leg["airline_code"]
                 ticket["departure_airport"] = first_leg["departure_airport"]
-                ticket["arrival_airport"] = last_leg["arrival_airport"]
+                # Use the outbound leg's destination, not the last leg's.
+                # For a round trip (CMB→SIN, SIN→CMB) last_leg["arrival_airport"]
+                # would be CMB again — the correct display destination is the first
+                # leg's final stop (SIN).  One-way and multi-city are unaffected
+                # because first_leg == last_leg or the first leg already ends at the
+                # true destination.
+                ticket["arrival_airport"] = first_leg["arrival_airport"]
                 ticket["departure_time"] = first_leg["departure_time"]
                 ticket["arrival_time"] = last_leg["arrival_time"]
                 ticket["duration"] = first_leg["duration"]

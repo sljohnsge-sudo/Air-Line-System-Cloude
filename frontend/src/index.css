@@ -2559,7 +2559,11 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 12mm;
+    margin: 0;   /* zero margin suppresses browser's title/URL header & footer */
+  }
+
+  html {
+    font-size: 13px !important;   /* shrinks all rem-based sizing ~19%; reliable cross-browser */
   }
 
   html, body {
@@ -2608,13 +2612,42 @@ body {
     max-width: 100% !important;
     width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 7mm 9mm !important;   /* page margin (browser no longer provides one) */
     border: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     background: #fff !important;
     color: #1e293b !important;
     overflow: visible !important;
+  }
+
+  /* ── Tighten ticket body padding and section spacing for one-page fit ── */
+  .ticket-receipt-body {
+    padding: 0.75rem 1rem !important;
+  }
+
+  .ticket-header-row {
+    padding-bottom: 0.6rem !important;
+    margin-bottom: 0.8rem !important;
+  }
+
+  .ticket-ref-grid {
+    margin-bottom: 0.8rem !important;
+    padding: 0.6rem 0.9rem !important;
+  }
+
+  .ticket-main-cols {
+    gap: 1rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .ticket-pax-list {
+    gap: 0.4rem !important;
+    margin-bottom: 0.6rem !important;
+  }
+
+  .ticket-notices {
+    padding-top: 0.6rem !important;
   }
 
   /* ── Force background colors and images to print ── */
@@ -2952,4 +2985,175 @@ body {
 .flight-hero-clear-btn:hover {
   background: var(--gs-crimson);
   color: #ffffff;
+/* ── Admin Bookings List Table ── */
+.admin-bookings-table-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+}
+
+.admin-bookings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.admin-bookings-table thead tr {
+  background: #f8fafc;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.admin-bookings-table th {
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.abt-row {
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.abt-row:hover {
+  background: #f8fafc;
+}
+
+.abt-row:last-child {
+  border-bottom: none;
+}
+
+.abt-row--cancelled {
+  opacity: 0.55;
+}
+
+.admin-bookings-table td {
+  padding: 0.6rem 0.85rem;
+  vertical-align: middle;
+}
+
+.abt-num {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  width: 32px;
+}
+
+.abt-airline {
+  white-space: nowrap;
+}
+
+.abt-airline-name {
+  display: block;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.abt-flight-badge {
+  display: inline-block;
+  margin-top: 2px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.abt-route {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.abt-iata {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
+.abt-pax {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.abt-pnr {
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--gs-crimson);
+  white-space: nowrap;
+}
+
+.abt-dep {
+  white-space: nowrap;
+}
+
+.abt-date {
+  display: block;
+  font-weight: 600;
+}
+
+.abt-time {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.abt-class {
+  white-space: nowrap;
+  color: #475569;
+}
+
+.abt-status {
+  white-space: nowrap;
+}
+
+.abt-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.abt-badge--ticketed  { background: #d1fae5; color: #065f46; }
+.abt-badge--confirmed { background: #dbeafe; color: #1e40af; }
+.abt-badge--cancelled { background: #fee2e2; color: #991b1b; }
+
+.abt-fare {
+  font-weight: 700;
+  color: var(--gs-crimson);
+  white-space: nowrap;
+}
+
+.abt-actions {
+  white-space: nowrap;
+}
+
+.abt-actions .btn {
+  font-size: 0.72rem;
+  padding: 0.25rem 0.55rem;
+}
+
+@media (max-width: 768px) {
+  .admin-bookings-table th:nth-child(7),
+  .admin-bookings-table td.abt-class,
+  .admin-bookings-table th:nth-child(6),
+  .admin-bookings-table td.abt-dep {
+    display: none;
+  }
 }
