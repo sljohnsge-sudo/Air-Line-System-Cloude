@@ -537,6 +537,8 @@ def issue_ticket(locator_code: str) -> dict:
     issued_ticket_number = None
     ticket_issuance_diagnostic = None
     found_tickets: list = []
+    found_emds: list = []
+    extra_offers: list = []
 
     try:
         # ── Step 1: Create post-commit workbench from locator ─────────────────
@@ -605,15 +607,43 @@ def issue_ticket(locator_code: str) -> dict:
                 )
         logger.info(f"Step 1: Offer local id = {offer_local_id}, UUID = {offer_uuid}")
 
-        # Extract total fare from offer for Payment step
+        # Extract total fare from offer for Payment step. A PNR with paid
+        # seats/extras booked (add_seats_and_extras_to_pnr) carries one extra
+        # Offer per item ("an_o1", "an_o2"...) next to the air "offer_1" —
+        # pay for ALL of them in this one Payment so the commit issues the
+        # ticket AND the EMDs together (confirmed live 2026-10-22, PNR
+        # HNFNCM: ticket + 2 EMDs from one Issuance=Ticket commit).
         total_fare = 0.0
         currency_code = "USD"
+        extra_offers: list = []
         try:
             offers = reservation.get("Offer", [])
             if offers:
                 price = offers[0].get("Price", {})
                 total_fare = float(price.get("TotalPrice", 0.0))
                 currency_code = price.get("CurrencyCode", {}).get("value", "USD")
+            # Safety lock: only pay Travelport for seat/extra offers the
+            # customer was actually charged for at /confirm (addon_results
+            # status confirmed/pending, matched by offer id). Anything else on
+            # the PNR is left unpaid, so the agency never pays the airline
+            # for an item the customer didn't pay us for.
+            cached_for_addons = database.get_booking_by_locator(locator_code) or {}
+            addon_results = cached_for_addons.get("addon_results") or {}
+            charged_offer_ids = {
+                i.get("offer_id") for i in (addon_results.get("seats") or []) + (addon_results.get("extras") or [])
+                if i.get("offer_id") and i.get("status") in ("confirmed", "pending")
+            }
+            for o in offers[1:]:
+                o_price = float(o.get("Price", {}).get("TotalPrice", 0.0) or 0.0)
+                if not (o.get("id") and o.get("Identifier", {}).get("value") and o_price):
+                    continue
+                if o.get("id") not in charged_offer_ids:
+                    logger.warning(f"Step 1: NOT paying for offer {o.get('id')} ({o_price}) — not charged to the customer")
+                    continue
+                extra_offers.append(o)
+                total_fare += o_price
+            if extra_offers:
+                logger.info(f"Step 1: Also paying for {len(extra_offers)} seat/extra offer(s): {[o.get('id') for o in extra_offers]}")
         except Exception:
             pass
 
@@ -781,7 +811,12 @@ def issue_ticket(locator_code: str) -> dict:
         }
 
         if offer_identifier_block:
-            payment_payload["Payment"]["OfferIdentifier"] = [offer_identifier_block]
+            payment_payload["Payment"]["OfferIdentifier"] = [offer_identifier_block] + [
+                {"id": o["id"], "offerRef": o["id"], "Identifier": {
+                    "authority": o["Identifier"].get("authority") or "Travelport",
+                    "value": o["Identifier"]["value"]}}
+                for o in extra_offers
+            ]
         if traveler_refs:
             payment_payload["Payment"]["TravelerIdentifierRef"] = traveler_refs
 
@@ -825,6 +860,26 @@ def issue_ticket(locator_code: str) -> dict:
         )
         issued_tickets = res4.get("Ticket", []) if res4 else commit_result.get("Ticket", [])
         found_tickets: list[tuple[str, str]] = []  # [(passengerTypeCode, number), ...]
+
+        # EMDs for paid seats/extras come back as DocumentEMD next to the
+        # DocumentTicket, each with its own amount and description.
+        ref_ptc_map = {t["id"]: t["passengerTypeCode"] for t in traveler_refs}
+        for receipt in (res4.get("Receipt", []) if res4 else []):
+            for doc in receipt.get("Document", []) or []:
+                if doc.get("@type") != "DocumentEMD" or not doc.get("Number"):
+                    continue
+                if any(e["number"] == doc["Number"] for e in found_emds):
+                    continue
+                tref = doc.get("TravelerIdentifierRef", {}) or {}
+                found_emds.append({
+                    "number": doc["Number"],
+                    "description": (doc.get("EMDDescription") or {}).get("value"),
+                    "amount": (doc.get("Amount") or {}).get("Total"),
+                    "currency": currency_code,
+                    "passenger_type": tref.get("passengerTypeCode") or ref_ptc_map.get(tref.get("id")) or "ADT",
+                })
+        if found_emds:
+            logger.info(f"Step 4: EMD(s) issued — {[e['number'] for e in found_emds]}")
         if issued_tickets:
             issued_ticket_number = issued_tickets[0].get("number")
             if issued_ticket_number:
@@ -934,6 +989,10 @@ def issue_ticket(locator_code: str) -> dict:
         ticket["ticket_number"] = issued_ticket_number
         ticket["status"] = "Ticketed"
         ticket["ticket_numbers"] = [{"passenger_type": ptc, "number": num} for ptc, num in found_tickets]
+    ticket["emd_numbers"] = found_emds
+    # Seat/extra offers that were paid for here but came back without an
+    # EMD — never shown as complete; the caller flags these for the admin.
+    ticket["emd_expected"] = len(extra_offers)
 
     # Surface the Ticket Retrieve fallback's diagnostic (a real Travelport
     # error message, e.g. "DOCUMENT HISTORY NOT FOUND FOR REQUESTED

@@ -288,6 +288,24 @@ class SelectedSeat(BaseModel):
     flight_number: Optional[str] = None
 
 
+def _offering_is_gds(raw_offering: dict) -> bool:
+    """True when every leg of the selected offer is GDS content — the same
+    all-legs rule confirm_booking uses to set fare_source."""
+    if "outbound" in raw_offering and "inbound" in raw_offering:
+        legs = [raw_offering["outbound"], raw_offering["inbound"]]
+    elif "legs" in raw_offering:
+        legs = raw_offering["legs"]
+    else:
+        legs = [raw_offering]
+    return all(leg.get("fare_source") == "GDS" for leg in legs)
+
+
+# Phase 1 books paid seats and extras for GDS only (Travelport: NDC seats must
+# be booked inside the initial booking and NDC extras need Ancillary Price
+# first — Phase 2). Shown instead of a seat map/extras list for other fares.
+NON_GDS_ADDONS_NOTE = "Seat and extras selection isn't available online for this fare yet. You can request them from the airline after booking."
+
+
 def _format_seat_numbers(selected_seats: List[SelectedSeat]) -> List[str]:
     """One display entry per seat selection for ticket["seat_number"]:
     plain "14A" for a single-flight booking, otherwise "Departure AI282:
@@ -311,6 +329,11 @@ class SelectedAncillary(BaseModel):
     price: float
     currency: str = "LKR"
     service_type: Optional[str] = None
+    # Identify the item again in a fresh Ancillary Shop on the PNR (ids like
+    # "anc_off1" are only valid in the workbench that returned them).
+    airline_name: Optional[str] = None
+    segment_numbers: List[int] = []
+    catalog_offering_id: Optional[str] = None
 
 
 class BookingConfirmRequest(BaseModel):
@@ -975,6 +998,16 @@ def initiate_booking(request: BookingInitiateRequest):
     raw_offering = request.raw_offering
     travelers = [t.model_dump() for t in request.travelers]
     workbench_id = None
+    if not _offering_is_gds(raw_offering):
+        # Not bookable with Travelport in Phase 1 — offering seats/extras the
+        # customer would pay for but the airline never receives is exactly
+        # the display-only gap this replaced.
+        return {
+            "workbench_id": None, "offer_id": None,
+            "seat_map": None, "seat_maps": [], "seat_map_available": False,
+            "ancillaries": [], "ancillaries_available": False,
+            "addons_note": NON_GDS_ADDONS_NOTE,
+        }
     # One TraceId for every Travelport call in this initiate flow (create
     # workbench -> add offer -> seat map -> discard) — see auth_service.py.
     trace_token = services.start_flow_trace_id()
@@ -1151,23 +1184,48 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
 
         _backfill_terminals(ticket, _segments_of_offering(raw_offering))
 
-        # Apply local seat assignments and seat pricing to ticket summary.
-        seat_numbers = _format_seat_numbers(selected_seats)
-        seat_charges = sum([s.price for s in selected_seats])
+        # Book the chosen seats/extras on the new PNR (Travelport only allows
+        # GDS paid seats and extras on an existing booking). Only what the
+        # airline CONFIRMS is recorded and charged, at Travelport's live price
+        # — never the price the browser sent. Paid for (EMD) at ticketing.
+        selected_ancillaries = request.selected_ancillaries
+        addon_results = {"seats": [], "extras": []}
+        if selected_seats or selected_ancillaries:
+            if ticket["fare_source"] == "GDS":
+                try:
+                    addon_results = services.add_seats_and_extras_to_pnr(
+                        locator_code, travelers,
+                        [s.model_dump() for s in selected_seats],
+                        [a.model_dump() for a in selected_ancillaries],
+                    )
+                except Exception as e:
+                    logger.error(f"Seats/extras for {locator_code} could not be added: {e}")
+                    addon_results = {
+                        "seats": [{**s.model_dump(), "status": "failed", "reason": str(e)} for s in selected_seats],
+                        "extras": [{**a.model_dump(), "status": "failed", "reason": str(e)} for a in selected_ancillaries],
+                    }
+            else:
+                addon_results = {
+                    "seats": [{**s.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for s in selected_seats],
+                    "extras": [{**a.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for a in selected_ancillaries],
+                }
+        # "pending" = on the PNR, requested from the airline: it is paid for
+        # (EMD) at ticketing like a confirmed one, so it is charged too.
+        confirmed_seats = [s for s in addon_results["seats"] if s["status"] in ("confirmed", "pending")]
+        confirmed_extras = [a for a in addon_results["extras"] if a["status"] in ("confirmed", "pending")]
+        ticket["addon_results"] = addon_results
 
+        seat_numbers = _format_seat_numbers([SelectedSeat(**{k: v for k, v in s.items() if k in SelectedSeat.model_fields}) for s in confirmed_seats])
+        seat_charges = sum(s["price"] for s in confirmed_seats)
         if seat_numbers:
             ticket["seat_number"] = ", ".join(seat_numbers)
 
-        # Apply local ancillary (baggage/meal) selections and pricing —
-        # same display-only pattern as seats: Travelport is not sent a
-        # separate ancillary-add call, the charge is folded into total_fare
-        # and listed on the receipt.
-        selected_ancillaries = request.selected_ancillaries
-        ancillary_names = [a.name for a in selected_ancillaries]
-        ancillary_charges = sum([a.price for a in selected_ancillaries])
-
-        if ancillary_names:
-            ticket["ancillaries"] = [a.model_dump() for a in selected_ancillaries]
+        ancillary_charges = sum(a["price"] for a in confirmed_extras)
+        if confirmed_extras:
+            ticket["ancillaries"] = [
+                {k: a.get(k) for k in ("passenger_idx", "name", "price", "currency", "service_type", "offer_id", "refundable", "status")}
+                for a in confirmed_extras
+            ]
 
         seat_charges += ancillary_charges
 
@@ -1403,9 +1461,14 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         for key in ("seat_charge", "seat_number", "ancillaries", "ancillary_charge",
                      "email", "phone", "date_of_birth", "gender",
                      "nationality", "passport_expiry", "offer_id", "payment_method", "customer_id",
-                     "offer_local_id", "offer_uuid", "offer_authority"):
+                     "offer_local_id", "offer_uuid", "offer_authority", "addon_results"):
             if existing.get(key) not in (None, "", []):
                 ticket.setdefault(key, existing.get(key))
+        # Seats are now really on the PNR, so the live retrieve returns one
+        # (only the first, as "20C"). The per-flight label /confirm saved
+        # ("Departure UL225: 20C, Return UL226: 4A") is the complete one.
+        if existing.get("seat_number"):
+            ticket["seat_number"] = existing["seat_number"]
         # NDC bookings: retrieve_reservation() doesn't return Offer[] for NDC
         # PNRs on a later, separate GET (confirmed live — only the original
         # commit response has it), so flight/segment fields already default
@@ -1447,6 +1510,23 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         if existing.get("fare_source"):
             ticket["fare_source"] = existing["fare_source"]
         _backfill_terminals(ticket, _cached_segments(existing))
+
+    # Paid seats/extras are issued as EMDs in the same commit as the ticket.
+    # If the ticket came out but fewer EMDs than paid seat/extra offers did,
+    # the booking is flagged and staff are alerted — never shown as complete.
+    emd_missing = (ticket.get("emd_expected") or 0) - len(ticket.get("emd_numbers") or [])
+    ticket["emd_status"] = "pending" if (ticket.get("ticket_number") and emd_missing > 0) else (
+        "issued" if ticket.get("emd_numbers") else None)
+    if ticket["emd_status"] == "pending":
+        txn_ref = payment_result.get("txn_reference") if payment_result else None
+        try:
+            _notify_stuck_booking(
+                locator_code,
+                f"Ticket {ticket.get('ticket_number')} issued, but {emd_missing} paid seat/extra EMD(s) were not issued by Travelport",
+                txn_ref,
+            )
+        except Exception as notify_err:
+            logger.error(f"Failed to send EMD-pending notification for {locator_code} (non-fatal): {notify_err}")
 
     saved = database.save_booking(ticket)
 
@@ -1614,24 +1694,17 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
     if not ticket.get("total_fare"):
         ticket["total_fare"], ticket["currency"] = ip["total_fare"], ip["currency"]
 
-    # Same display-only pattern as the GDS confirm flow: Travelport's NDC
-    # Instant Pay commit has no seat/ancillary-add step of its own, so the
-    # customer's picks are recorded locally and folded into the receipt total.
-    selected_seats = selected_seats or []
-    selected_ancillaries = selected_ancillaries or []
-    seat_numbers = _format_seat_numbers(selected_seats)
-    seat_charges = sum(s.price for s in selected_seats)
-    ancillary_names = [a.name for a in selected_ancillaries]
-    ancillary_charges = sum(a.price for a in selected_ancillaries)
-    if seat_numbers:
-        ticket["seat_number"] = ", ".join(seat_numbers)
-    if ancillary_names:
-        ticket["ancillaries"] = [a.model_dump() for a in selected_ancillaries]
-    extra_charges = seat_charges + ancillary_charges
-    if extra_charges:
-        ticket["total_fare"] = (ticket.get("total_fare") or 0) + extra_charges
-    ticket["seat_charge"] = seat_charges
-    ticket["ancillary_charge"] = ancillary_charges
+    # Travelport's Ancillary and EMD Guide: "The NDC Instant Pay workflow ...
+    # does not support booking ancillaries." Seats/extras are therefore never
+    # offered for these fares (see /bookings/initiate), and anything sent
+    # anyway is NOT recorded or charged — it was never booked with the airline.
+    if selected_seats or selected_ancillaries:
+        logger.warning(
+            f"{locator}: ignoring {len(selected_seats or [])} seat(s) and "
+            f"{len(selected_ancillaries or [])} extra(s) — not bookable in NDC Instant Pay"
+        )
+    ticket["seat_charge"] = 0.0
+    ticket["ancillary_charge"] = 0.0
 
     _attach_traveler_details(ticket, travelers)
     ticket["customer_id"] = customer_id

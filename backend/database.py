@@ -245,6 +245,17 @@ def init_db():
         cursor.execute("ALTER TABLE bookings ADD COLUMN erp_synced_at DATETIME NULL AFTER erp_invoice_name")
         cursor.execute("ALTER TABLE bookings ADD COLUMN erp_sync_error VARCHAR(500) NULL AFTER erp_synced_at")
 
+    # seat_number was VARCHAR(10): enough for "14A", but multi-flight seat
+    # labels ("Departure UL225: 20C, Return UL226: 4A") were silently cut
+    # off (MySQL here runs without STRICT mode, so no error was raised).
+    cursor.execute("""
+        SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='bookings' AND COLUMN_NAME='seat_number'
+    """, (MYSQL_DATABASE,))
+    row = cursor.fetchone()
+    if row and row[0] is not None and row[0] < 255:
+        cursor.execute("ALTER TABLE bookings MODIFY COLUMN seat_number VARCHAR(255)")
+
     # ── Loyalty Program ──────────────────────────────────────────────────────
     # Single-row config table (same pattern as pricing_settings) — points
     # accrual rate per currency (fares are LKR or USD, never blended) and the

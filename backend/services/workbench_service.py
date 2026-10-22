@@ -1563,8 +1563,8 @@ def parse_ancillary_response(result: dict) -> list[dict]:
         for offering in flight_group.get("CatalogOffering", []) or []:
             catalog_offering_id = offering.get("id")
             price_detail = offering.get("Price", {})
-            price = float(price_detail.get("TotalPrice", 0) or 0)
-            price, _ = apply_markup(price, pricing_settings, "ancillary")
+            supplier_price = float(price_detail.get("TotalPrice", 0) or 0)
+            price, _ = apply_markup(supplier_price, pricing_settings, "ancillary")
             currency = price_detail.get("CurrencyCode", {}).get("value", "LKR")
             # TermsAndConditionsAncillary.Refundability: "Refundable" /
             # "NonRefundable", or absent when the airline doesn't say —
@@ -1629,6 +1629,7 @@ def parse_ancillary_response(result: dict) -> list[dict]:
                         "segment_numbers": segment_numbers,
                         "refundable": refundable,
                         "price": price,
+                        "supplier_price": supplier_price,
                         "currency": currency,
                     })
 
@@ -1733,15 +1734,11 @@ def book_ancillary_offer(workbench_id: str, ancillary: dict, quantity: int = 1) 
           e.g. "travelerRefId_1" — NOT the same value as catalog_offerings_id;
           conflating the two was the original bug).
 
-    NOTE: even with these corrected identifiers, Travelport still returns a
-    business-logic error ("NO MATCHING SSR SEGMENT") for every GDS carrier/
-    route tested — confirmed NOT caused by request shape (ruled out: airline,
-    departure date, seat-map ordering, AirPrice/unpriced-segment conversion —
-    the latter also uncovered a reproducible Travelport-side 500 on their own
-    buildfromunpricedsegments + Ancillary Shop combination). This needs
-    Travelport support to resolve; do not re-guess at identifier combinations
-    without new evidence from them — see the dated findings in
-    TRAVELPORT_ANCILLARY_BOOK_SUPPORT_NOTES (support request draft).
+    Must be sent on a POST-COMMIT workbench (an existing PNR). The earlier
+    "NO MATCHING SSR SEGMENT" error came from booking in the initial booking
+    workbench, which Travelport's Ancillary and EMD Guide says is not
+    supported for GDS or NDC. Confirmed live 2026-10-22 on PNR HNFNCM: the
+    same payload on a buildfromlocator workbench returns offer "an_o1".
     """
     logger.info(f"Booking ancillary (catalog_offering_id={ancillary.get('catalog_offering_id')}) on workbench {workbench_id}...")
 
@@ -1764,6 +1761,250 @@ def book_ancillary_offer(workbench_id: str, ancillary: dict, quantity: int = 1) 
     }
     result = _api_post_with_retry(url, payload, session_id=workbench_id)
     _raise_if_error(result, "Ancillary Book")
+    return result
+
+
+def _norm_flight_no(carrier: str | None, number: str | None = None) -> str:
+    """"UL0225", ("UL", "0225") and "UL225" are the same flight."""
+    text = f"{carrier or ''}{number or ''}".upper().replace(" ", "")
+    return re.sub(r"^([A-Z0-9]{2})0+(?=\d)", r"\1", text)
+
+
+def _match_traveler_refs(workbench_travelers: list, travelers: list) -> dict:
+    """passenger_idx (order the customer entered them) -> workbench Traveler.
+    Travelport stores Given with the title appended ("TEST MR") and we add
+    travelers sorted by passenger type, so match by name, not position."""
+    mapping, used = {}, set()
+    for idx, t in enumerate(travelers):
+        first = (t.get("first_name") or "").strip().upper()
+        last = (t.get("last_name") or "").strip().upper()
+        for wt in workbench_travelers:
+            if wt.get("id") in used:
+                continue
+            name = wt.get("PersonName") or {}
+            if (name.get("Surname") or "").upper() == last and (name.get("Given") or "").upper().startswith(first):
+                mapping[idx] = wt
+                used.add(wt.get("id"))
+                break
+    return mapping
+
+
+def _ancillary_offer_statuses(commit_result: dict) -> dict:
+    """offer id -> "confirmed" | "pending" for every seat/extra offer the
+    commit put on the PNR. Confirmed live 2026-10-22 (PNR HNFNFL): the
+    add-on commit carries no ancillary receipts; the per-item status is in
+    TravelerProduct[].ConfirmationStatusEnum (seat "Confirmed", baggage
+    "Pending" = requested, airline not yet answered — its EMD was still
+    issued at ticketing). An offer on the PNR with no status counts as
+    pending, never as confirmed."""
+    res = commit_result.get("Reservation") or commit_result.get("ReservationResponse", {}).get("Reservation", {}) or {}
+    statuses = {o.get("id"): "pending" for o in res.get("Offer", []) or []
+                if o.get("id") and not (o.get("id") or "").startswith("offer")}
+    for tp in res.get("TravelerProduct", []) or []:
+        ref = tp.get("OfferRef")
+        if ref in statuses:
+            value = (tp.get("ConfirmationStatusEnum") or "").lower()
+            if value == "confirmed":
+                statuses[ref] = "confirmed"
+            elif value and value != "pending":
+                statuses[ref] = value  # e.g. "rejected" — reported, never charged
+    return statuses
+
+
+def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_seats: list, selected_ancillaries: list) -> dict:
+    """
+    Book the customer's chosen seats and extras on an EXISTING GDS PNR, per
+    Travelport's Seats Guide and Ancillary and EMD Guide: GDS paid seats and
+    all non-seat ancillaries can only be booked on an existing reservation,
+    in a post-commit workbench, then committed. Payment and EMD issuance
+    happen later in the ticketing workbench (issue_ticket pays every offer).
+
+    Seat map and ancillary shop are re-run on this workbench, so seat
+    availability and prices are Travelport's live values at booking time —
+    the prices the browser sent are never trusted. Each item comes back as
+    "confirmed" (with Travelport's own offer id and price) or "failed" (with
+    Travelport's reason); nothing is reported as booked unless the commit
+    receipt says Confirmed.
+
+    selected_seats: dicts with passenger_idx, leg_index, seat_number,
+        flight_number (optional), direction (optional).
+    selected_ancillaries: dicts with passenger_idx, name, airline_name,
+        segment_numbers (and optionally catalog_offering_id).
+    """
+    seats_out = [{**s, "status": "failed", "reason": None} for s in selected_seats]
+    extras_out = [{**a, "status": "failed", "reason": None} for a in selected_ancillaries]
+    result = {"seats": seats_out, "extras": extras_out}
+    if not seats_out and not extras_out:
+        return result
+
+    pricing_settings = get_pricing_settings()
+    wb_result = _api_post(TravelportEndpoints.create_workbench_from_locator(locator_code), {})
+    reservation = (
+        wb_result.get("ReservationResponse", {}).get("Reservation", {})
+        or wb_result.get("ReservationWorkbench", {})
+        or wb_result
+    )
+    workbench_id = reservation.get("Identifier", {}).get("value") or wb_result.get("id")
+    if not workbench_id:
+        raise ValueError("Travelport did not return a workbench for the booking")
+
+    air_offer = next((o for o in reservation.get("Offer", []) or [] if (o.get("id") or "").startswith("offer")), None)
+    air_offer_uuid = (air_offer or {}).get("Identifier", {}).get("value")
+    traveler_map = _match_traveler_refs(reservation.get("Traveler", []) or [], travelers)
+    booked = []   # (out_item, kind, offer_id) for everything Travelport accepted
+
+    def _offer_from_book_response(resp: dict) -> dict:
+        return ((resp.get("OfferListResponse") or {}).get("OfferID") or [{}])[0]
+
+    try:
+        # ── Seats: one Seat Book request per flight, all travelers in it ──
+        if seats_out:
+            sm_raw = _api_post_with_retry(
+                f"{TravelportConfig.base_path()}/air/search/seat/catalogofferingsancillaries/seatavailabilities",
+                {"CatalogOfferingsQuerySeatAvailability": {"SeatAvailabilityOfferings": {
+                    "@type": "SeatAvailabilityOfferingsBuildFromReservationWorkbench",
+                    "BuildFromReservationWorkbench": {
+                        "ReservationIdentifier": {"Identifier": {"value": workbench_id, "authority": "Travelport"}},
+                        **({"OfferIdentifier": {"Identifier": {"value": air_offer_uuid, "authority": "Travelport"}}} if air_offer_uuid else {}),
+                    }}}},
+                session_id=workbench_id,
+            )
+            smr = sm_raw.get("CatalogOfferingsAncillaryListResponse", {}) or {}
+            seat_list_identifier = smr.get("Identifier") or {}
+            groups = smr.get("CatalogOfferingsID", []) or []
+            flight_order = []
+            for g in groups:
+                f = (g.get("Flight") or [{}])[0]
+                key = _norm_flight_no(f.get("carrier"), f.get("number"))
+                if key not in flight_order:
+                    flight_order.append(key)
+
+            by_flight: dict = {}
+            for item in seats_out:
+                wt = traveler_map.get(item.get("passenger_idx"))
+                if not wt:
+                    item["reason"] = "Passenger not found on the booking"
+                    continue
+                want = _norm_flight_no(item.get("flight_number")) if item.get("flight_number") else (
+                    flight_order[item.get("leg_index", 0)] if item.get("leg_index", 0) < len(flight_order) else None)
+                group = next((g for g in groups
+                              if _norm_flight_no((g.get("Flight") or [{}])[0].get("carrier"), (g.get("Flight") or [{}])[0].get("number")) == want
+                              and any(r.get("id") == wt.get("id") for r in g.get("TravelerIdentifierRef", []) or [])), None)
+                if not group:
+                    item["reason"] = "Seat map for this flight is no longer available"
+                    continue
+                offering, product = None, None
+                for co in group.get("CatalogOffering", []) or []:
+                    for po in co.get("ProductOptions", []) or []:
+                        for p in po.get("Product", []) or []:
+                            for sa in p.get("SeatAvailability", []) or []:
+                                if sa.get("seatAvailabilityStatus") == "Available" and item["seat_number"] in (sa.get("value") or []):
+                                    offering, product = co, p
+                if not offering:
+                    item["reason"] = f"Seat {item['seat_number']} is no longer available"
+                    continue
+                tref = next(r for r in group["TravelerIdentifierRef"] if r.get("id") == wt.get("id"))
+                supplier_price = float(offering.get("Price", {}).get("TotalPrice", 0) or 0)
+                item["currency"] = offering.get("Price", {}).get("CurrencyCode", {}).get("value") or item.get("currency")
+                item["supplier_price"] = supplier_price
+                item["price"] = apply_markup(supplier_price, pricing_settings, "seat")[0] if supplier_price else 0.0
+                by_flight.setdefault(want, []).append((item, {
+                    "@type": "BuildAncillaryOffersFromCatalogOfferingsAirSeat",
+                    # Confirmed live: the seat-map RESPONSE Identifier goes here;
+                    # the group's own Identifier is rejected with 8527.
+                    "CatalogOfferingsIdentifier": {"id": group.get("id"), "Identifier": {
+                        "value": seat_list_identifier.get("value"), "authority": "Travelport"}},
+                    "CatalogOfferingIdentifier": {"id": offering.get("id"),
+                                                  **({"Identifier": offering["Identifier"]} if offering.get("Identifier") else {})},
+                    "ProductIdentifier": {"id": product.get("id")},
+                    # id alone is rejected (4151 TRAVELER REFERENCE ID IS NOT VALID)
+                    "TravelerIdentifierRef": {"id": tref.get("id"), "value": tref.get("value")},
+                    "SeatAssignment": item["seat_number"],
+                }))
+
+            for flight, entries in by_flight.items():
+                body = {"OfferQueryBuildAncillaryOffersFromCatalogOfferings": {
+                    "@type": "OfferQueryBuildAncillaryOffersFromCatalogOfferings",
+                    "BuildAncillaryOffersFromCatalogOfferings": [payload for _, payload in entries]}}
+                try:
+                    resp = _api_post_with_retry(
+                        f"{TravelportConfig.base_path()}/air/book/airoffer/reservationworkbench/{workbench_id}/offers/buildancillaryoffersfromcatalogofferings",
+                        body, session_id=workbench_id)
+                    _raise_if_error(resp, "Seat Book")
+                    offers = (resp.get("OfferListResponse") or {}).get("OfferID") or []
+                    for item, _ in entries:
+                        seat_offer = next((o for o in offers if any(
+                            ((p.get("Ancillary") or {}).get("SeatAssignment") or {}).get("Seat") == item["seat_number"]
+                            for p in o.get("Product", []) or [])), offers[0] if len(offers) == 1 else None)
+                        if seat_offer:
+                            booked.append((item, "seat", seat_offer.get("id")))
+                        else:
+                            item["reason"] = "Travelport did not return an offer for this seat"
+                except Exception as e:
+                    for item, _ in entries:
+                        item["reason"] = str(e)
+
+        # ── Extras: re-shop on this workbench, book each chosen item ──
+        if extras_out:
+            shop = get_ancillary_offers(workbench_id, air_offer_uuid)
+            for item in extras_out:
+                wt = traveler_map.get(item.get("passenger_idx"))
+                if not wt:
+                    item["reason"] = "Passenger not found on the booking"
+                    continue
+                match = next((s for s in shop
+                              if s.get("traveler_identifier_ref") == wt.get("id")
+                              and s.get("airline_name") == item.get("airline_name")
+                              and list(s.get("segment_numbers") or []) == list(item.get("segment_numbers") or [])), None)
+                if not match:
+                    item["reason"] = "This extra is no longer offered by the airline"
+                    continue
+                try:
+                    resp = book_ancillary_offer(workbench_id, match)
+                    offer = _offer_from_book_response(resp)
+                    supplier_price = float(offer.get("Price", {}).get("TotalPrice", match.get("supplier_price") or 0) or 0)
+                    item["currency"] = offer.get("Price", {}).get("CurrencyCode", {}).get("value") or match.get("currency")
+                    item["supplier_price"] = supplier_price
+                    item["price"] = apply_markup(supplier_price, pricing_settings, "ancillary")[0] if supplier_price else 0.0
+                    item["refundable"] = match.get("refundable")
+                    booked.append((item, "extra", offer.get("id")))
+                except Exception as e:
+                    item["reason"] = str(e)
+
+        if not booked:
+            discard_workbench(workbench_id)
+            return result
+
+        commit = _api_post(f"{TravelportConfig.base_path()}/air/book/reservation/reservations/{workbench_id}", "", session_id=workbench_id)
+    except Exception as e:
+        logger.error(f"Adding seats/extras to {locator_code} failed: {e}")
+        try:
+            discard_workbench(workbench_id)
+        except Exception:
+            pass
+        for item in seats_out + extras_out:
+            if item["status"] != "confirmed":
+                item["reason"] = item.get("reason") or f"Could not add to booking: {e}"
+        return result
+
+    statuses = _ancillary_offer_statuses(commit)
+    commit_errors = [e.get("Message") for e in (
+        (commit.get("Result") or {}).get("Error", []) +
+        ((commit.get("ReservationResponse") or {}).get("Result") or {}).get("Error", []))]
+    for item, kind, offer_id in booked:
+        status = statuses.get(offer_id)
+        if status in ("confirmed", "pending"):
+            # On the PNR — paid for (and its EMD issued) at ticketing.
+            item["status"] = status
+            item["offer_id"] = offer_id
+            item["reason"] = None if status == "confirmed" else "Requested from the airline — awaiting their confirmation"
+        else:
+            item["reason"] = (f"Airline status: {status}" if status else None) or \
+                "; ".join(m for m in commit_errors if m) or "Not added to the booking by the airline"
+    logger.info(
+        f"Seats/extras on {locator_code}: " + ", ".join(
+            f"{i.get('seat_number') or i.get('name')}={i['status']}" for i in seats_out + extras_out)
+    )
     return result
 
 

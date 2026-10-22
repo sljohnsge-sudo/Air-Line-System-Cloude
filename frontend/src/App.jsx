@@ -1935,6 +1935,11 @@ export default function App() {
   // Departure / Return switch on the Extras step (round trips only) —
   // index into selectedFlight.legs.
   const [activeAncillaryLeg, setActiveAncillaryLeg] = useState(0);
+  // PNR held while the customer reviews which seats/extras the airline
+  // did / didn't confirm, before paying (bookingStep 'addons_result').
+  const [addonReviewTicket, setAddonReviewTicket] = useState(null);
+  // Shown when seats/extras can't be booked online for this fare.
+  const [addonsNote, setAddonsNote] = useState('');
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -2623,6 +2628,7 @@ export default function App() {
       setAncillaries(data.ancillaries || []);
       setActiveAncillaryLeg(0);
       setSelectedAncillaries([]);
+      setAddonsNote(data.addons_note || '');
       const hasAncillaries = data.ancillaries_available && data.ancillaries?.length > 0;
 
       if (data.seat_map_available === false || !data.seat_map) {
@@ -2630,7 +2636,7 @@ export default function App() {
         setActiveSeatLeg(0);
         // Travelport confirmed no seat map for this airline/flight — skip
         // seat step, go straight to ancillaries (if any) or review.
-        showNotification('ℹ️ Seat selection is not supported by this airline via GDS. Proceeding to the next step.', 'info');
+        showNotification(`ℹ️ ${data.addons_note || 'Seat selection is not supported by this airline via GDS.'} Proceeding to the next step.`, 'info');
         setBookingStep(hasAncillaries ? 'ancillaries' : 'review');
       } else {
         // data.seat_maps is one entry per leg (outbound[, return]) — fall
@@ -2768,6 +2774,33 @@ export default function App() {
       const data = await handleApiResponse(res, 'Booking failed');
       const pnrTicket = data.ticket; // PNR confirmed on Travelport — not yet ticketed
 
+      // Seats/extras are booked with the airline right after the PNR. If any
+      // came back as anything other than "confirmed" (requested-only, or not
+      // available), stop here and show the customer exactly what the airline
+      // returned (and the resulting total) before any payment.
+      const addons = pnrTicket.addon_results || { seats: [], extras: [] };
+      const notConfirmed = [...(addons.seats || []), ...(addons.extras || [])].filter(i => i.status !== 'confirmed');
+      if (notConfirmed.length > 0) {
+        setAddonReviewTicket(pnrTicket);
+        setBookingStep('addons_result');
+        return;
+      }
+      await proceedToPayment(pnrTicket);
+    } catch (err) {
+      const errMsg = err.message || String(err);
+      setBookingError(errMsg);
+      setBookingStep('payment');
+      showNotification(errMsg, 'error');
+    } finally {
+      confirmBookingInFlightRef.current = false;
+    }
+  };
+
+  // Payment + ticketing for a PNR that's already confirmed on Travelport.
+  // pnrTicket.total_fare already includes only the seats/extras the airline
+  // confirmed, at Travelport's own price.
+  const proceedToPayment = async (pnrTicket) => {
+    {
       if (paymentMethod === 'card') {
         // Redirect to PayCorp's hosted payment page — card details are
         // entered there, never on this site. On return, the mount-time
@@ -2801,14 +2834,20 @@ export default function App() {
       setIssuedTicket(issueData.ticket);
       setBookingStep('ticket');
       showNotification('🎉 Ticket issued successfully!', 'success');
+    }
+  };
 
+  // "Continue to payment" on the seats/extras result step.
+  const continueAfterAddonReview = async () => {
+    if (!addonReviewTicket) return;
+    setBookingStep('processing');
+    try {
+      await proceedToPayment(addonReviewTicket);
     } catch (err) {
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
-      setBookingStep('payment');
+      setBookingStep('addons_result');
       showNotification(errMsg, 'error');
-    } finally {
-      confirmBookingInFlightRef.current = false;
     }
   };
 
@@ -7642,6 +7681,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                  bookingStep === 'payment' ? 'Payment Details' :
                  bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
                  bookingStep === 'amadeus_processing' ? 'Confirming with Amadeus...' :
+                 bookingStep === 'addons_result' ? 'Seats & Extras — Airline Response' :
                  'Issuing Ticket...'}
               </h3>
               {bookingStep !== 'processing' && bookingStep !== 'amadeus_processing' && <button className="close-btn" onClick={closeBookingFlow}>×</button>}
@@ -8628,6 +8668,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                     // Saved onto the ticket/receipt as-is, so
                                     // carry the direction with the name.
                                     name: direction ? `${item.name} (${direction})` : item.name,
+                                    // Lets the backend find this same item again
+                                    // in a fresh Ancillary Shop on the PNR.
+                                    airline_name: item.airline_name,
+                                    segment_numbers: item.segment_numbers || [],
                                     price: item.price,
                                     currency: item.currency,
                                     service_type: item.service_type,
@@ -9066,6 +9110,50 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>Connecting to GDS workbench → Committing reservation PNR → Issuing ticket</p>
               </div>
             )}
+
+            {/* STEP: Seats/extras result — shown only when the airline did
+                NOT confirm everything the customer picked. Nothing below is
+                charged unless the airline confirmed it. */}
+            {bookingStep === 'addons_result' && addonReviewTicket && (() => {
+              const t = addonReviewTicket;
+              const res = t.addon_results || { seats: [], extras: [] };
+              const rows = [
+                ...(res.seats || []).map(s => ({ ...s, label: `Seat ${s.seat_number}${s.flight_number ? ` · ${s.direction ? s.direction + ' ' : ''}${s.flight_number}` : ''}` })),
+                ...(res.extras || []).map(a => ({ ...a, label: a.name })),
+              ];
+              const paxName = (idx) => { const p = travelers[idx]; return p ? `${p.first_name} ${p.last_name}` : `Passenger ${idx + 1}`; };
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="info-banner" style={{ fontSize: '0.82rem' }}>
+                    Your flight booking <strong>{t.locator_code}</strong> is confirmed. Here is what the airline returned for the seats and extras you chose. Items marked "Not available" are not charged; "Requested from airline" items are added to your booking and charged, and the airline confirms them.
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {rows.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.7rem 0.9rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: r.status === 'confirmed' ? '#f0fdf4' : '#fff7ed' }}>
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--gs-dark)' }}>{r.label}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            {paxName(r.passenger_idx)}{r.status === 'failed' && r.reason ? ` — ${r.reason}` : ''}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: '0.72rem', fontWeight: '800', color: r.status === 'confirmed' ? '#047857' : r.status === 'pending' ? '#1d4ed8' : '#b45309' }}>
+                            {r.status === 'confirmed' ? 'Confirmed by airline' : r.status === 'pending' ? 'Requested from airline' : 'Not available — not charged'}
+                          </div>
+                          {(r.status === 'confirmed' || r.status === 'pending') && (
+                            <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--gs-crimson)' }}>{r.currency || t.currency} {Number(r.price || 0).toLocaleString()}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>Total to pay: <span style={{ color: 'var(--gs-crimson)' }}>{t.currency} {Number(t.total_fare || 0).toLocaleString()}</span></div>
+                    <button type="button" className="btn btn-primary" onClick={continueAfterAddonReview}>Continue to payment →</button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -9151,6 +9239,25 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                 </div>
               </div>
+
+              {/* EMDs — Travelport's payment documents for paid seats/extras,
+                  issued in the same commit as the ticket. */}
+              {(issuedTicket.emd_numbers?.length > 0 || issuedTicket.emd_status === 'pending') && (
+                <div style={{ marginBottom: '1.5rem', padding: '0.75rem 1rem', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' }}>
+                  <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Seats &amp; Extras — EMD Numbers</div>
+                  {(issuedTicket.emd_numbers || []).map((e, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.8rem', padding: '0.2rem 0' }}>
+                      <span><strong style={{ fontFamily: 'monospace', color: '#0f766e' }}>{e.number}</strong> — {e.description || 'Seat / extra'}</span>
+                      {e.amount != null && <span style={{ color: '#475569' }}>{e.currency || issuedTicket.currency} {Number(e.amount).toLocaleString()}</span>}
+                    </div>
+                  ))}
+                  {issuedTicket.emd_status === 'pending' && (
+                    <div style={{ fontSize: '0.75rem', color: '#b45309', fontWeight: '700', marginTop: '0.3rem' }}>
+                      ⚠ Some seat/extra documents are still being issued by the airline. Our team has been notified and will contact you.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Grid: Left Section (Customer details + Itinerary) / Right Section (QR code + payment breakdown) */}
               <div style={{ display: 'flex', gap: '2rem', marginBottom: '2rem' }}>
