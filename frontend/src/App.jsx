@@ -575,6 +575,18 @@ const rcFmtTime = (iso) => iso?.split('T')[1]?.slice(0, 5) || iso?.split(' ')[1]
 const rcFmtDate = (iso) => iso?.split('T')[0] || iso?.split(' ')[0] || '';
 const rcFmtDuration = (iso) => iso ? iso.replace('PT', '').replace('H', 'h ').replace('M', 'm') : '';
 
+// "DD Mon" (e.g. "30 Oct") — used only for the connecting airport's
+// arrival/departure dates, which are tighter on space than the endpoints.
+const RC_MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const rcFmtDateShort = (iso) => {
+  const ymd = rcFmtDate(iso);
+  if (!ymd) return '';
+  const [, m, d] = ymd.split('-');
+  const monthIdx = parseInt(m, 10) - 1;
+  if (!d || monthIdx < 0 || monthIdx > 11) return ymd;
+  return `${parseInt(d, 10)} ${RC_MONTH_ABBR[monthIdx]}`;
+};
+
 // ── Relay animation for connecting flights ──────────────────────────────
 // For a leg with a layover, the plane/walker animations take turns instead
 // of all playing at once: plane flies leg 1 → hides; a walking figure
@@ -828,14 +840,14 @@ function ItineraryRow({ leg, label }) {
                     <div className="rc-mid-row">
                       <div className="rc-mid-side rc-mid-side-left">
                         <span className="rc-mid-time" title="Arrives">{rcFmtTime(seg.arrival_time)}</span>
-                        <div className="rc-date">{rcFmtDate(seg.arrival_time)}</div>
+                        <div className="rc-date">{rcFmtDateShort(seg.arrival_time)}</div>
                       </div>
                       <div className="rc-mid-center">
                         <div className="rc-airport">{seg.arrival_airport}{seg.arrival_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> T{seg.arrival_terminal}</span>}</div>
                       </div>
                       <div className="rc-mid-side rc-mid-side-right">
                         <span className="rc-mid-time" title="Departs">{rcFmtTime(segments[sIdx + 1]?.departure_time)}</span>
-                        <div className="rc-date">{rcFmtDate(segments[sIdx + 1]?.departure_time)}</div>
+                        <div className="rc-date">{rcFmtDateShort(segments[sIdx + 1]?.departure_time)}</div>
                       </div>
                     </div>
                     {layoverMin !== undefined && (
@@ -1848,6 +1860,7 @@ export default function App() {
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [ancillaries, setAncillaries] = useState([]);
   const [selectedAncillaries, setSelectedAncillaries] = useState([]);
+  const [activeAncillaryTab, setActiveAncillaryTab] = useState('Lounge');
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -8486,11 +8499,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         const code = (item.category_code || '').toUpperCase();
                         const ssr = (item.ssr_code || '').toUpperCase();
                         const text = `${item.name || ''} ${item.description || ''}`.toUpperCase();
+                        if (code === 'LG' || /LOUNGE/.test(text)) return 'Lounge';
                         if (code === 'ML' || ssr.endsWith('ML') || /MEAL|CATERING|SNACK|BEVERAGE/.test(text)) return 'Meal Preferences';
                         if (code === 'BG' || /BAG/.test(text)) return 'Extra Baggage';
                         return 'Other Services';
                       };
-                      const sections = { 'Extra Baggage': [], 'Meal Preferences': [], 'Other Services': [] };
+                      // Ordered Lounge / Meal Preferences / Extra Baggage / Other
+                      // so customers see the most sought-after extras first.
+                      const sections = { 'Lounge': [], 'Meal Preferences': [], 'Extra Baggage': [], 'Other Services': [] };
                       ancillaries.forEach(item => sections[classify(item)].push(item));
 
                       const renderItem = (item, i) => {
@@ -8554,25 +8570,53 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       const sectionNotes = {
                         'Meal Preferences': 'Meal preferences are not offered as a selectable extra by this airline for this flight. Any dietary requirement can still be noted with our support team after booking.',
                       };
-                      return Object.entries(sections).map(([label, items]) => {
-                        if (items.length === 0 && !sectionNotes[label]) return null;
-                        return (
-                          <div key={label}>
-                            <h5 style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              {label}
-                            </h5>
-                            {items.length === 0 ? (
+                      // Left-to-right menu bar: Lounge, Meal Preferences, Extra
+                      // Baggage, Other Services — pick one category at a time
+                      // instead of scrolling through every section stacked.
+                      const tabLabels = Object.keys(sections);
+                      const activeLabel = tabLabels.includes(activeAncillaryTab) ? activeAncillaryTab : tabLabels[0];
+                      const activeItems = sections[activeLabel] || [];
+                      return (
+                        <>
+                          <div style={{ display: 'flex', borderBottom: '2px solid var(--border-color)', marginBottom: '1rem' }}>
+                            {tabLabels.map(label => {
+                              const count = sections[label].length;
+                              const isActive = activeLabel === label;
+                              return (
+                                <div
+                                  key={label}
+                                  onClick={() => setActiveAncillaryTab(label)}
+                                  style={{
+                                    padding: '0.6rem 1rem',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem',
+                                    fontWeight: '700',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.04em',
+                                    color: isActive ? 'var(--gs-crimson)' : 'var(--text-secondary)',
+                                    borderBottom: '2px solid ' + (isActive ? 'var(--gs-crimson)' : 'transparent'),
+                                    marginBottom: '-2px',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {label}{count > 0 && <span style={{ marginLeft: '0.3rem', fontWeight: '500', opacity: 0.7 }}>({count})</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div>
+                            {activeItems.length === 0 ? (
                               <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', padding: '0.6rem 0.75rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                                {sectionNotes[label]}
+                                {sectionNotes[activeLabel] || `No ${activeLabel.toLowerCase()} available for this flight.`}
                               </div>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {items.map(renderItem)}
+                                {activeItems.map(renderItem)}
                               </div>
                             )}
                           </div>
-                        );
-                      });
+                        </>
+                      );
                     })()}
                     {ancillaries.length === 0 && (
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 0' }}>
@@ -9027,86 +9071,100 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     })}
                   </div>
 
-                  {/* Flight Itinerary */}
-                  <h3 style={{ fontSize: '0.9rem', color: '#c3122e', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Flight Itinerary & Segment Details
-                  </h3>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '700' }}>
-                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Flight / Carrier</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Departing</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Arriving</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Cabin / Seat</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Allowance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(issuedTicket.legs && issuedTicket.legs.length > 1
-                        ? issuedTicket.legs.flatMap(l => l.segments || [])
-                        : (issuedTicket.segments || [])
-                      ).length > 0 ? (
-                        (issuedTicket.legs && issuedTicket.legs.length > 1
-                          ? issuedTicket.legs.flatMap(l => l.segments || [])
-                          : issuedTicket.segments
-                        ).map((seg, sIdx) => (
-                          <tr key={sIdx} style={{ borderBottom: '1px solid #cbd5e1' }}>
-                            <td style={{ padding: '0.6rem 0.5rem', fontWeight: '600' }}>
-                              <span style={{ color: '#c3122e', fontWeight: '800' }}>{seg.carrier_name || seg.carrier}</span><br />
-                              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Flight: {seg.flight_number}</span>
-                            </td>
-                            <td style={{ padding: '0.6rem 0.5rem' }}>
-                              <strong style={{ fontSize: '0.85rem' }}>{seg.departure_airport}</strong>{seg.departure_terminal && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.departure_terminal})</span>}<br />
-                              <span>{seg.departure_time}</span>
-                            </td>
-                            <td style={{ padding: '0.6rem 0.5rem' }}>
-                              <strong style={{ fontSize: '0.85rem' }}>{seg.arrival_airport}</strong>{seg.arrival_terminal && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.arrival_terminal})</span>}<br />
-                              <span>{seg.arrival_time}</span>
-                            </td>
-                            <td style={{ padding: '0.6rem 0.5rem' }}>
-                              <strong>{issuedTicket.cabin_class || 'Economy'}</strong><br />
-                              <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '700' }}>
-                                {sIdx === 0 && issuedTicket.seat_number ? `Seat: ${issuedTicket.seat_number}` : '—'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '0.6rem 0.5rem', fontSize: '0.7rem', color: '#475569' }}>
-                              <span>Bag: {issuedTicket.baggage_allowance || '—'}</span><br />
-                              <span>Duration: {seg.duration?.replace('PT','').replace('H','h ').replace('M','m')}</span>
-                              {seg.layover_minutes !== undefined && (
-                                <div style={{ fontSize: '0.65rem', color: '#b45309', fontWeight: '700', marginTop: '2px' }}>
-                                  Layover: {Math.floor(seg.layover_minutes / 60)}h {seg.layover_minutes % 60}m at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
-                          <td style={{ padding: '0.6rem 0.5rem', fontWeight: '600' }}>
-                            <span style={{ color: '#c3122e', fontWeight: '800' }}>{issuedTicket.airline}</span><br />
-                            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Flight: {issuedTicket.flight_number}</span>
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem' }}>
-                            <strong style={{ fontSize: '0.85rem' }}>{issuedTicket.departure_airport}</strong>{issuedTicket.departure_terminal && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}> (Terminal {issuedTicket.departure_terminal})</span>}<br />
-                            <span>{issuedTicket.departure_time}</span>
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem' }}>
-                            <strong style={{ fontSize: '0.85rem' }}>{issuedTicket.arrival_airport}</strong>{issuedTicket.arrival_terminal && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}> (Terminal {issuedTicket.arrival_terminal})</span>}<br />
-                            <span>{issuedTicket.arrival_time}</span>
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem' }}>
-                            <strong>{issuedTicket.cabin_class}</strong><br />
-                            <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '700' }}>Seat: {issuedTicket.seat_number || 'Not assigned'}</span>
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem', fontSize: '0.7rem', color: '#475569' }}>
-                            <span>Bag: {issuedTicket.baggage_allowance || '—'}</span><br />
-                            <span>Fare Code: {issuedTicket.fare_basis || '—'}</span>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                  
+                  {/* Flight Itinerary — a separate labeled table per leg
+                      (Departure / Return) instead of one flat list, so it
+                      reads the same way the rest of the booking flow
+                      presents a round trip. */}
+                  {(() => {
+                    // Seats are stored as one combined string on the ticket
+                    // (see _merge_cached_ticket_fields / main.py's
+                    // confirm_booking) — "Outbound: 14A, Return: 22C" for a
+                    // round trip with a seat picked on each leg, or just
+                    // "14A" when there's only one leg. Pull out the seat
+                    // that belongs to a given leg label, if any.
+                    const seatForLeg = (legLabel) => {
+                      const raw = issuedTicket.seat_number;
+                      if (!raw) return null;
+                      const match = raw.match(new RegExp(`${legLabel}:\\s*([^,]+)`, 'i'));
+                      if (match) return match[1].trim();
+                      return raw.includes(':') ? null : raw; // unlabeled single-leg string
+                    };
+
+                    const renderLegTable = (title, segments, legSeat) => (
+                      <div key={title} style={{ marginBottom: '1.25rem' }}>
+                        <h3 style={{ fontSize: '0.9rem', color: '#c3122e', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {title}
+                        </h3>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '700' }}>
+                              <th style={{ padding: '0.5rem', textAlign: 'left' }}>Flight / Carrier</th>
+                              <th style={{ padding: '0.5rem', textAlign: 'left' }}>Departing</th>
+                              <th style={{ padding: '0.5rem', textAlign: 'left' }}>Arriving</th>
+                              <th style={{ padding: '0.5rem', textAlign: 'left' }}>Cabin / Seat</th>
+                              <th style={{ padding: '0.5rem', textAlign: 'left' }}>Allowance</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {segments.map((seg, sIdx) => (
+                              <tr key={sIdx} style={{ borderBottom: '1px solid #cbd5e1' }}>
+                                <td style={{ padding: '0.6rem 0.5rem', fontWeight: '600' }}>
+                                  <span style={{ color: '#c3122e', fontWeight: '800' }}>{seg.carrier_name || seg.carrier}</span><br />
+                                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Flight: {seg.flight_number}</span>
+                                </td>
+                                <td style={{ padding: '0.6rem 0.5rem' }}>
+                                  <strong style={{ fontSize: '0.85rem' }}>{seg.departure_airport}</strong>{seg.departure_terminal && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.departure_terminal})</span>}<br />
+                                  <span>{seg.departure_time}</span>
+                                </td>
+                                <td style={{ padding: '0.6rem 0.5rem' }}>
+                                  <strong style={{ fontSize: '0.85rem' }}>{seg.arrival_airport}</strong>{seg.arrival_terminal && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.arrival_terminal})</span>}<br />
+                                  <span>{seg.arrival_time}</span>
+                                </td>
+                                <td style={{ padding: '0.6rem 0.5rem' }}>
+                                  <strong>{issuedTicket.cabin_class || 'Economy'}</strong><br />
+                                  <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '700' }}>
+                                    {sIdx === 0 ? (legSeat ? `Seat: ${legSeat}` : 'Not assigned') : '—'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '0.6rem 0.5rem', fontSize: '0.7rem', color: '#475569' }}>
+                                  <span>Bag: {issuedTicket.baggage_allowance || '—'}</span><br />
+                                  <span>Duration: {seg.duration?.replace('PT','').replace('H','h ').replace('M','m')}</span>
+                                  {seg.layover_minutes !== undefined && (
+                                    <div style={{ fontSize: '0.65rem', color: '#b45309', fontWeight: '700', marginTop: '2px' }}>
+                                      Layover: {Math.floor(seg.layover_minutes / 60)}h {seg.layover_minutes % 60}m at {seg.arrival_airport}{seg.arrival_terminal && ` (Terminal ${seg.arrival_terminal})`}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+
+                    if (issuedTicket.legs && issuedTicket.legs.length > 1) {
+                      return issuedTicket.legs.map((leg, lIdx) => {
+                        const segs = leg.segments || [];
+                        if (segs.length === 0) return null;
+                        const label = issuedTicket.legs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`;
+                        return renderLegTable(`${label} Flight`, segs, seatForLeg(lIdx === 0 ? 'Outbound' : 'Return'));
+                      });
+                    }
+                    if (issuedTicket.segments && issuedTicket.segments.length > 0) {
+                      return renderLegTable('Flight Itinerary & Segment Details', issuedTicket.segments, seatForLeg('Outbound'));
+                    }
+                    // Fallback for a ticket shape with no segments/legs breakdown at all.
+                    return renderLegTable('Flight Itinerary & Segment Details', [{
+                      carrier_name: issuedTicket.airline,
+                      flight_number: issuedTicket.flight_number,
+                      departure_airport: issuedTicket.departure_airport,
+                      departure_terminal: issuedTicket.departure_terminal,
+                      departure_time: issuedTicket.departure_time,
+                      arrival_airport: issuedTicket.arrival_airport,
+                      arrival_terminal: issuedTicket.arrival_terminal,
+                      arrival_time: issuedTicket.arrival_time,
+                    }], issuedTicket.seat_number);
+                  })()}
                 </div>
 
                 {/* Right Side Panel: Fast Track QR Code + Payment Box */}

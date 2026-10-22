@@ -1,18 +1,429 @@
 {
     "ReservationResponse": {
         "@type": "ReservationResponse",
-        "Result": {
-            "@type": "Result",
-            "Error": [
+        "Reservation": {
+            "@type": "Reservation",
+            "Offer": [
                 {
-                    "@type": "ErrorDetail",
-                    "category": "VALIDATION",
-                    "StatusCode": 200,
-                    "Message": "FARE IS NOT AVAILABLE FOR INPUT CRITERIA",
-                    "SourceID": "1G",
-                    "SourceCode": "4110"
+                    "@type": "Offer",
+                    "id": "offer_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "3e30e314-80ef-4154-833a-4bc13a9e403a"
+                    },
+                    "ContentSource": "GDS",
+                    "Product": [
+                        {
+                            "@type": "ProductAir",
+                            "id": "product_1",
+                            "FlightSegment": [
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_01",
+                                    "sequence": 1,
+                                    "connectionDuration": "PT1H20M",
+                                    "boundFlightsInd": true,
+                                    "Flight": {
+                                        "@type": "FlightDetail",
+                                        "duration": "PT4H30M",
+                                        "carrier": "EY",
+                                        "number": "391",
+                                        "equipment": "320",
+                                        "id": "Flight_01",
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "CMB",
+                                            "date": "2026-10-22",
+                                            "time": "16:20:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "AUH",
+                                            "date": "2026-10-22",
+                                            "time": "19:20:00"
+                                        },
+                                        "AvailabilitySourceCode": "Q"
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_02",
+                                    "sequence": 2,
+                                    "Flight": {
+                                        "@type": "FlightDetail",
+                                        "duration": "PT13H10M",
+                                        "carrier": "EY",
+                                        "number": "460",
+                                        "equipment": "789",
+                                        "id": "Flight_02",
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "AUH",
+                                            "date": "2026-10-22",
+                                            "time": "20:40:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "MEL",
+                                            "date": "2026-10-23",
+                                            "time": "16:50:00"
+                                        },
+                                        "AvailabilitySourceCode": "Q"
+                                    }
+                                }
+                            ],
+                            "PassengerFlight": [
+                                {
+                                    "@type": "PassengerFlight",
+                                    "passengerQuantity": 1,
+                                    "passengerTypeCode": "ADT",
+                                    "FlightProduct": [
+                                        {
+                                            "@type": "FlightProduct",
+                                            "segmentSequence": [
+                                                1,
+                                                2
+                                            ],
+                                            "classOfService": "Q",
+                                            "cabin": "Economy"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "@type": "ProductAir",
+                            "id": "product_2",
+                            "FlightSegment": [
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_03",
+                                    "sequence": 3,
+                                    "connectionDuration": "PT1H5M",
+                                    "boundFlightsInd": true,
+                                    "Flight": {
+                                        "@type": "FlightDetail",
+                                        "duration": "PT13H50M",
+                                        "carrier": "EY",
+                                        "number": "461",
+                                        "equipment": "789",
+                                        "id": "Flight_03",
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "MEL",
+                                            "date": "2026-10-30",
+                                            "time": "18:20:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "AUH",
+                                            "date": "2026-10-31",
+                                            "time": "01:10:00"
+                                        },
+                                        "AvailabilitySourceCode": "S"
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_04",
+                                    "sequence": 4,
+                                    "Flight": {
+                                        "@type": "FlightDetail",
+                                        "duration": "PT4H25M",
+                                        "carrier": "EY",
+                                        "number": "392",
+                                        "equipment": "321",
+                                        "id": "Flight_04",
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "AUH",
+                                            "date": "2026-10-31",
+                                            "time": "02:15:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "CMB",
+                                            "date": "2026-10-31",
+                                            "time": "08:15:00"
+                                        },
+                                        "AvailabilitySourceCode": "S"
+                                    }
+                                }
+                            ],
+                            "PassengerFlight": [
+                                {
+                                    "@type": "PassengerFlight",
+                                    "passengerQuantity": 1,
+                                    "passengerTypeCode": "ADT",
+                                    "FlightProduct": [
+                                        {
+                                            "@type": "FlightProduct",
+                                            "segmentSequence": [
+                                                3,
+                                                4
+                                            ],
+                                            "classOfService": "E",
+                                            "cabin": "Economy"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "id": "PriceDetail_1",
+                        "CurrencyCode": {
+                            "value": "LKR"
+                        },
+                        "Base": 309300,
+                        "TotalTaxes": 70208,
+                        "TotalFees": 0,
+                        "TotalPrice": 379508,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAir",
+                                "quantity": 1,
+                                "requestedPassengerType": "ADT",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "currencySource": "Charged",
+                                    "approximateInd": true,
+                                    "CurrencyCode": {
+                                        "decimalPlace": 0,
+                                        "value": "LKR"
+                                    },
+                                    "Base": 309300,
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "TotalTaxes": 70208,
+                                        "Tax": [
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "LK",
+                                                "value": 20436
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "F6",
+                                                "value": 9274
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "ZR",
+                                                "value": 928
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "AU",
+                                                "value": 16776
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "WG",
+                                                "value": 2768
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "WY",
+                                                "value": 20026
+                                            }
+                                        ]
+                                    },
+                                    "Total": 379508
+                                },
+                                "FiledAmount": {
+                                    "currencyCode": "USD",
+                                    "decimalPlace": 2,
+                                    "value": 908.0
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAir",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "401657e2-11c3-418f-9c4e-77de7298ab07"
+                            }
+                        },
+                        {
+                            "@type": "TermsAndConditionsFullAir",
+                            "ExpiryDate": "2026-10-22T18:29:00Z",
+                            "PaymentTimeLimit": "2026-10-22T18:29:00Z"
+                        }
+                    ]
                 }
-            ]
+            ],
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "birthDate": "2000-10-01",
+                    "gender": "Male",
+                    "passengerTypeCode": "ADT",
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "0ed0e965-7312-4240-b82a-5f8cdebc229d"
+                    },
+                    "PersonName": {
+                        "@type": "PersonName",
+                        "Given": "JON MR",
+                        "Surname": "DOEN Q"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "777777",
+                            "id": "telephone_1",
+                            "cityCode": "CMB",
+                            "role": "Mobile"
+                        },
+                        {
+                            "@type": "TelephoneDetail",
+                            "countryAccessCode": "94",
+                            "areaCityCode": "11",
+                            "phoneNumber": "7792400",
+                            "id": "telephone_2",
+                            "cityCode": "CMB",
+                            "role": "Other"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "emailType": "FROM",
+                            "value": "ticketing@gstravels.lk"
+                        },
+                        {
+                            "emailType": "TO",
+                            "value": "aaa@gnail.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N2133333",
+                            "docType": "Passport",
+                            "expireDate": "2026-12-31",
+                            "issueCountry": "LK",
+                            "birthDate": "2000-10-01",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonName",
+                                "Given": "JON",
+                                "Surname": "DOEN Q"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "Receipt": [
+                {
+                    "@type": "ReceiptConfirmation",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "99430b66-7cff-4917-82a1-5106c784f223"
+                    },
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAir",
+                            "StatusAir": [
+                                {
+                                    "flightRefs": [
+                                        "Flight_01",
+                                        "Flight_02",
+                                        "Flight_03",
+                                        "Flight_04"
+                                    ],
+                                    "code": "HK",
+                                    "value": "Confirmed"
+                                }
+                            ]
+                        },
+                        "Locator": {
+                            "source": "1G",
+                            "creationDate": "2026-10-22",
+                            "value": "HNFJFP"
+                        }
+                    }
+                }
+            ],
+            "TravelAgency": {
+                "@type": "TravelAgencyDetail",
+                "id": "travelAgency_1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "a2221280-1f81-43bf-a1df-06cf5e8da97d"
+                },
+                "Telephone": [
+                    {
+                        "@type": "TelephoneDetail",
+                        "countryAccessCode": "94",
+                        "areaCityCode": "11",
+                        "phoneNumber": "7792400",
+                        "id": "telephone_1",
+                        "cityCode": "CMB"
+                    }
+                ],
+                "Address": [
+                    {
+                        "@type": "Address",
+                        "id": "address_1",
+                        "role": "Business",
+                        "AddressLine": [
+                            "Ground Floor, 439 Galle Rd"
+                        ],
+                        "City": "Colombo",
+                        "Country": {
+                            "name": "LK"
+                        },
+                        "PostalCode": "00300"
+                    }
+                ],
+                "Email": [
+                    {
+                        "id": "email_1",
+                        "value": "ticketing@gstravels.lk"
+                    }
+                ]
+            },
+            "ReservationDisplaySequence": {
+                "@type": "ReservationDisplaySequence",
+                "DisplaySequence": [
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 1,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_1",
+                        "Sequence": 1
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 2,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_1",
+                        "Sequence": 2
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 3,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2",
+                        "Sequence": 3
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 4,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2",
+                        "Sequence": 4
+                    }
+                ]
+            }
         }
     }
 }

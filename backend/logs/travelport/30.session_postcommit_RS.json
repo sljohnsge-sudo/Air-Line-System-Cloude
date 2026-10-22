@@ -5,52 +5,88 @@
             "@type": "Reservation",
             "Identifier": {
                 "authority": "Travelport",
-                "value": "04700c53-86e9-47c4-b1cc-eccf0810b1e0"
+                "value": "c47dfa22-07e3-44bd-96c6-92635c00b2e8"
             },
             "Offer": [
                 {
                     "@type": "Offer",
                     "id": "offer_1",
                     "Identifier": {
-                        "authority": "Travelport",
-                        "value": "7d2164cd-fa28-4d14-aa14-574cbb453bb2"
+                        "authority": "QR",
+                        "value": "OUNRWUcyfFFSXzlDUVlHMl9BSVItMS0yfFFSfFFSXzlDUVlHMnxwcm9kdWN0XzFfczEtU0VHMSxzMi1TRUcyfEFEVDpQQVgyfFN0YXR1czpVU0VEIE5UQUM="
                     },
-                    "ContentSource": "GDS",
+                    "ContentSource": "NDC",
                     "Product": [
                         {
                             "@type": "ProductAir",
+                            "totalDuration": "PT8H55M",
                             "id": "product_1",
                             "Identifier": {
-                                "authority": "Travelport",
-                                "value": "b77c5cf3-5514-422a-a8c9-cbfaedca21b3"
+                                "authority": "QR",
+                                "value": "68229171-67e2-411d-8613-a0772842039d"
                             },
                             "FlightSegment": [
                                 {
                                     "@type": "FlightSegment",
-                                    "id": "FlightSegment_01",
+                                    "id": "s1",
                                     "sequence": 1,
+                                    "connectionDuration": "PT2H45M",
                                     "Flight": {
                                         "@type": "Flight",
-                                        "duration": "PT4H35M",
-                                        "carrier": "FZ",
-                                        "number": "570",
-                                        "equipment": "7M8",
-                                        "id": "Flight_01",
+                                        "duration": "PT4H50M",
+                                        "carrier": "QR",
+                                        "number": "663",
+                                        "operatingCarrier": "QR",
+                                        "operatingCarrierName": "QATAR AIRWAYS",
+                                        "equipment": "788",
+                                        "id": "seg1",
                                         "Identifier": {
-                                            "authority": "Travelport",
-                                            "value": "26b26276-de29-44e6-9254-f7f91405ac4a"
+                                            "authority": "QR",
+                                            "value": "78129410-8a42-4a04-b796-538da49b2545"
                                         },
                                         "Departure": {
-                                            "@type": "Departure",
+                                            "@type": "DepartureDetail",
                                             "location": "CMB",
-                                            "date": "2026-09-18",
-                                            "time": "02:05:00"
+                                            "date": "2026-10-31",
+                                            "time": "04:15:00"
                                         },
                                         "Arrival": {
-                                            "@type": "Arrival",
+                                            "@type": "ArrivalDetail",
+                                            "location": "DOH",
+                                            "date": "2026-10-31",
+                                            "time": "06:35:00"
+                                        }
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "s2",
+                                    "sequence": 2,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT1H20M",
+                                        "carrier": "QR",
+                                        "number": "1022",
+                                        "operatingCarrier": "QR",
+                                        "operatingCarrierName": "QATAR AIRWAYS",
+                                        "equipment": "359",
+                                        "id": "seg2",
+                                        "Identifier": {
+                                            "authority": "QR",
+                                            "value": "934b1745-0b56-4896-8d8c-e9eeaa09f1e5"
+                                        },
+                                        "Departure": {
+                                            "@type": "DepartureDetail",
+                                            "location": "DOH",
+                                            "date": "2026-10-31",
+                                            "time": "09:20:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "ArrivalDetail",
+                                            "terminal": "1",
                                             "location": "DXB",
-                                            "date": "2026-09-18",
-                                            "time": "05:15:00"
+                                            "date": "2026-10-31",
+                                            "time": "11:40:00"
                                         }
                                     }
                                 }
@@ -64,12 +100,16 @@
                                         {
                                             "@type": "FlightProduct",
                                             "segmentSequence": [
-                                                1
+                                                1,
+                                                2
                                             ],
-                                            "classOfService": "T",
+                                            "classOfService": "O",
                                             "cabin": "Economy",
-                                            "fareBasisCode": "TOLP7LK1",
-                                            "fareType": "PublicFare"
+                                            "fareBasisCode": "OJLKP0RI",
+                                            "Brand": {
+                                                "@type": "Brand",
+                                                "name": "ECONOMY CLASSIC"
+                                            }
                                         }
                                     ]
                                 }
@@ -78,14 +118,14 @@
                     ],
                     "Price": {
                         "@type": "PriceDetail",
-                        "id": "PriceDetail_1",
                         "CurrencyCode": {
+                            "decimalPlace": 0,
                             "value": "LKR"
                         },
-                        "Base": 44300,
-                        "TotalTaxes": 23900,
+                        "Base": 26200,
+                        "TotalTaxes": 40478,
                         "TotalFees": 0,
-                        "TotalPrice": 68200,
+                        "TotalPrice": 66678,
                         "PriceBreakdown": [
                             {
                                 "@type": "PriceBreakdownAir",
@@ -94,127 +134,2037 @@
                                 "Amount": {
                                     "@type": "Amount",
                                     "CurrencyCode": {
-                                        "decimalPlace": 2,
-                                        "value": "USD"
-                                    },
-                                    "Base": 130.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_1"
-                                ]
-                            },
-                            {
-                                "@type": "PriceBreakdownAir",
-                                "quantity": 1,
-                                "requestedPassengerType": "ADT",
-                                "Amount": {
-                                    "@type": "Amount",
-                                    "currencySource": "Charged",
-                                    "approximateInd": true,
-                                    "CurrencyCode": {
                                         "decimalPlace": 0,
                                         "value": "LKR"
                                     },
-                                    "Base": 44300,
+                                    "Base": 26200,
                                     "Taxes": {
                                         "@type": "TaxesDetail",
-                                        "TotalTaxes": 23900,
+                                        "TotalTaxes": 40478,
                                         "Tax": [
                                             {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "LK",
-                                                "value": 20436
-                                            },
-                                            {
-                                                "currencyCode": "LKR",
-                                                "taxCode": "ZR",
-                                                "value": 464
-                                            },
-                                            {
-                                                "currencyCode": "LKR",
                                                 "taxCode": "YR",
-                                                "value": 3000
+                                                "value": 7386
+                                            },
+                                            {
+                                                "taxCode": "LK",
+                                                "value": 20144
+                                            },
+                                            {
+                                                "taxCode": "G4",
+                                                "value": 5532
+                                            },
+                                            {
+                                                "taxCode": "PZ",
+                                                "value": 504
+                                            },
+                                            {
+                                                "taxCode": "QA",
+                                                "value": 5532
+                                            },
+                                            {
+                                                "taxCode": "R9",
+                                                "value": 922
+                                            },
+                                            {
+                                                "taxCode": "ZR",
+                                                "value": 458
                                             }
                                         ]
                                     },
-                                    "Total": 68200
-                                },
-                                "FiledAmount": {
-                                    "currencyCode": "USD",
-                                    "decimalPlace": 2,
-                                    "value": 130.0
-                                },
-                                "TravelerRefs": [
-                                    "travelerRefId_1"
-                                ],
-                                "FareCalculation": "CMB FZ DXB Q4.08 126.00TOLP7LK1 NUC130.08END ROE1.0"
+                                    "Total": 66678
+                                }
                             }
                         ]
                     },
                     "TermsAndConditionsFull": [
                         {
                             "@type": "TermsAndConditionsFullAir",
-                            "Identifier": {
-                                "authority": "Travelport",
-                                "value": "8f38bf1d-ca09-49e5-9ded-b92a9300a611"
-                            },
-                            "ExpiryDate": "2026-09-17T18:29:00Z",
+                            "ExpiryDate": "2026-10-25T18:30:00Z",
+                            "TextBlock": [
+                                {
+                                    "@type": "TextBlockDetail",
+                                    "description": "FARE RULES",
+                                    "title": "ATC_EXCHANGE_ELIGIBILITY",
+                                    "TextFormatted": [
+                                        {
+                                            "value": "false"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "@type": "TextBlockDetail",
+                                    "description": "FARE RULES",
+                                    "title": "ATC_REFUND_ELIGIBILITY",
+                                    "TextFormatted": [
+                                        {
+                                            "value": "false"
+                                        },
+                                        {
+                                            "value": "No e-tickets eligible for refund were found."
+                                        }
+                                    ]
+                                },
+                                {
+                                    "@type": "TextBlockDetail",
+                                    "description": "FARE RULES",
+                                    "title": "VOID_ELIGIBILITY",
+                                    "TextFormatted": [
+                                        {
+                                            "value": "false"
+                                        },
+                                        {
+                                            "value": "No ticket"
+                                        }
+                                    ]
+                                }
+                            ],
                             "BaggageAllowance": [
                                 {
                                     "@type": "BaggageAllowanceDetail",
                                     "passengerTypeCodes": [
                                         "ADT"
                                     ],
+                                    "baggageType": "FirstCheckedBag",
+                                    "ProductRef": [
+                                        "product_1"
+                                    ],
+                                    "BaggageItem": [
+                                        {
+                                            "@type": "BaggageItem",
+                                            "includedInOfferPrice": "Yes",
+                                            "soldByWeightInd": true,
+                                            "Measurement": [
+                                                {
+                                                    "measurementType": "Weight",
+                                                    "unit": "Kilograms",
+                                                    "value": 25
+                                                }
+                                            ],
+                                            "Text": "25K"
+                                        }
+                                    ],
                                     "SegmentSequenceList": [
-                                        1
+                                        1,
+                                        2
                                     ],
                                     "Text": [
-                                        "30K"
+                                        "25K"
+                                    ]
+                                },
+                                {
+                                    "@type": "BaggageAllowanceDetail",
+                                    "passengerTypeCodes": [
+                                        "ADT"
+                                    ],
+                                    "baggageType": "CarryOn",
+                                    "ProductRef": [
+                                        "product_1"
+                                    ],
+                                    "BaggageItem": [
+                                        {
+                                            "@type": "BaggageItem",
+                                            "quantity": 1,
+                                            "includedInOfferPrice": "Yes",
+                                            "soldByPieceInd": true,
+                                            "Measurement": [
+                                                {
+                                                    "measurementType": "Weight",
+                                                    "unit": "Kilograms",
+                                                    "value": 7
+                                                }
+                                            ],
+                                            "BaggageFee": {
+                                                "code": "LKR",
+                                                "value": 0
+                                            },
+                                            "Text": "1 piece, 7kg total"
+                                        }
+                                    ],
+                                    "SegmentSequenceList": [
+                                        1,
+                                        2
+                                    ],
+                                    "Text": [
+                                        "1PC"
+                                    ]
+                                }
+                            ],
+                            "FareRuleInfo": [
+                                {
+                                    "@type": "FareRuleInfoText",
+                                    "flightsRefs": [
+                                        "s1"
+                                    ],
+                                    "TextFareRule": [
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount after departure: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket after departure: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount with sale currency: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount after departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket after departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount after departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount before departure: LKR33600"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket before departure: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount before departure: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount before departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket before departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount before departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount for the ticket after departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation minimum penalty amount after departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount after departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket after departure: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount after departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount with sale currency: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount for the ticket after departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation minimum penalty amount after departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount after departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket after departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount after departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount after departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount for the ticket before departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation minimum penalty amount before departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount before departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket before departure: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount before departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount before departure: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount for the ticket before departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation minimum penalty amount before departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount before departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket before departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount before departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount before departure no show: LKR26900"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "@type": "FareRuleInfoText",
+                                    "flightsRefs": [
+                                        "s2"
+                                    ],
+                                    "TextFareRule": [
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount after departure: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket after departure: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount with sale currency: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount after departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket after departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount after departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount before departure: LKR33600"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket before departure: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount before departure: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount before departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket before departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Cancel",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount before departure no show: LKR47100"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount for the ticket after departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation minimum penalty amount after departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount after departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket after departure: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount after departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount with sale currency: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount for the ticket after departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation minimum penalty amount after departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount after departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket after departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount after departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount after departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount for the ticket before departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation minimum penalty amount before departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount before departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket before departure: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount before departure: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount before departure: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount for the ticket before departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation minimum penalty amount before departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund minimum penalty amount before departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount for the ticket before departure no show: LKR26900"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Revalidation maximum penalty amount before departure no show: LKR0"
+                                        },
+                                        {
+                                            "name": "Change",
+                                            "value": "Allowed:Reissue/Refund maximum penalty amount before departure no show: LKR26900"
+                                        }
                                     ]
                                 }
                             ],
                             "ValidatingAirline": [
                                 {
                                     "@type": "ValidatingAirline",
-                                    "ValidatingAirline": "FZ"
+                                    "ValidatingAirline": "QR"
                                 }
                             ],
-                            "TicketingAgency": [
+                            "PaymentTimeLimit": "2026-10-23T18:29:00Z",
+                            "Penalties": [
                                 {
-                                    "@type": "TicketingAgency",
-                                    "Code": "7F3C"
-                                }
-                            ],
-                            "PaymentTimeLimit": "2026-09-18T18:29:00Z",
-                            "PricingAgency": [
-                                {
-                                    "@type": "PricingAgency",
-                                    "Code": "7F3C"
-                                }
-                            ],
-                            "FareGuaranteePolicy": [
-                                {
-                                    "@type": "FareGuaranteePolicy",
-                                    "passengerTypeCodes": [
-                                        "ADT"
+                                    "@type": "Penalties",
+                                    "Change": [
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        }
                                     ],
-                                    "Code": {
-                                        "value": "G"
-                                    }
-                                }
-                            ]
-                        },
-                        {
-                            "@type": "TermsAndConditionsFullAir",
-                            "Restriction": [
-                                {
-                                    "value": "NON-END"
+                                    "Cancel": [
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 33600
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
                                 },
                                 {
-                                    "value": "NO RFND WITHIN 24HRS"
-                                },
-                                {
-                                    "value": "CTC TA FOR CHNGS"
+                                    "@type": "Penalties",
+                                    "Change": [
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 0
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "ChangePermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 26900
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                    "Cancel": [
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "AfterDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 33600
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "@type": "CancelPermitted",
+                                            "penaltyTypes": [
+                                                "BeforeDeparture",
+                                                "NoShow"
+                                            ],
+                                            "higherPenatltyAppliesInd": true,
+                                            "ProductRefs": [
+                                                "product_1"
+                                            ],
+                                            "SegmentSequence": [],
+                                            "Penalty": [
+                                                {
+                                                    "@type": "PenaltyAmount",
+                                                    "Amount": {
+                                                        "code": "LKR",
+                                                        "minorUnit": 0,
+                                                        "value": 47100
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
                                 }
                             ]
                         }
@@ -224,81 +2174,100 @@
             "Traveler": [
                 {
                     "@type": "Traveler",
-                    "birthDate": "2026-05-06",
+                    "birthDate": "2026-08-01",
                     "gender": "Male",
                     "passengerTypeCode": "ADT",
                     "id": "travelerRefId_1",
+                    "TravelerRef": "travelerRefId_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "e01489a5-51fc-47c9-8ee3-2d066df8b572"
+                        "value": "QURUfFBBWDJ8UHJlZml4Ok1SO0dpdmVuOkpKSko7U3VybmFtZTpGRFNG"
                     },
                     "PersonName": {
                         "@type": "PersonName",
-                        "Given": "JFLADK MR",
-                        "Surname": "DKLDAF"
+                        "Prefix": "MR",
+                        "Given": "JJJJ",
+                        "Surname": "FDSF"
                     },
                     "Telephone": [
                         {
-                            "@type": "TelephoneDetail",
+                            "@type": "Telephone",
                             "countryAccessCode": "94",
-                            "phoneNumber": "3241434",
+                            "phoneNumber": "77747474",
                             "id": "telephone_1",
-                            "cityCode": "CMB",
                             "role": "Mobile"
-                        },
-                        {
-                            "@type": "TelephoneDetail",
-                            "countryAccessCode": "94",
-                            "areaCityCode": "11",
-                            "phoneNumber": "7792400",
-                            "id": "telephone_2",
-                            "cityCode": "CMB",
-                            "role": "Other"
                         }
                     ],
                     "Email": [
                         {
-                            "emailType": "FROM",
-                            "value": "ticketing@gstravels.lk"
-                        },
-                        {
                             "emailType": "TO",
-                            "value": "aaaa@gmail.com"
+                            "value": "aaa@gmail.com"
                         }
                     ],
                     "TravelDocument": [
                         {
-                            "@type": "TravelDocumentDetail",
-                            "docNumber": "N213234234",
+                            "@type": "TravelDocument",
+                            "docNumber": "N1233333",
                             "docType": "Passport",
-                            "expireDate": "2026-09-16",
+                            "expireDate": "2026-11-28",
                             "issueCountry": "LK",
-                            "birthDate": "2026-05-06",
                             "Gender": "Male",
-                            "Nationality": "LK",
                             "PersonName": {
-                                "@type": "PersonName",
-                                "Given": "JFLADK",
-                                "Surname": "DKLDAF"
+                                "@type": "PersonName"
                             }
                         }
                     ]
                 }
             ],
-            "TravelerProduct": [
-                {
-                    "@type": "TravelerProduct",
-                    "id": "travelerProduct_1",
-                    "TravelerRef": "travelerRefId_1",
-                    "OfferRef": "offer_1"
-                }
-            ],
             "Receipt": [
+                {
+                    "@type": "ReceiptConfirmation",
+                    "id": "receipt_1",
+                    "OfferRef": [
+                        "offer_1"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAir",
+                            "StatusAir": [
+                                {
+                                    "flightRefs": [
+                                        "seg1",
+                                        "seg2"
+                                    ],
+                                    "code": "HK",
+                                    "value": "Confirmed"
+                                }
+                            ]
+                        },
+                        "Locator": {
+                            "source": "QR",
+                            "sourceContext": "VendorLocator",
+                            "value": "9CQYG2"
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "id": "receipt_2",
+                    "OfferRef": [
+                        "offer_1"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "Locator": {
+                            "source": "QR",
+                            "sourceContext": "OrderId",
+                            "value": "QR_9CQYG2"
+                        }
+                    }
+                },
                 {
                     "@type": "ReceiptConfirmation",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "75162d92-cd40-4af9-ae26-e4d8bd99b15e"
+                        "value": "448e7300-47ea-496f-9668-b838104c84fa"
                     },
                     "Confirmation": {
                         "@type": "ConfirmationHold",
@@ -307,7 +2276,8 @@
                             "StatusAir": [
                                 {
                                     "flightRefs": [
-                                        "Flight_01"
+                                        "seg1",
+                                        "seg2"
                                     ],
                                     "code": "HK",
                                     "value": "Confirmed"
@@ -316,65 +2286,24 @@
                         },
                         "Locator": {
                             "source": "1G",
-                            "creationDate": "2026-09-17",
-                            "value": "HN5F5K"
-                        }
-                    }
-                },
-                {
-                    "@type": "ReceiptConfirmation",
-                    "Identifier": {
-                        "authority": "Travelport",
-                        "value": "b41cd0a5-a1c9-483f-a2d4-84d644b8c79e"
-                    },
-                    "Confirmation": {
-                        "@type": "ConfirmationHold",
-                        "Locator": {
-                            "source": "FZ",
-                            "value": "YBZYYV"
+                            "creationDate": "2026-10-22",
+                            "value": "HNFKCD"
                         }
                     }
                 }
             ],
-            "TravelAgency": {
-                "@type": "TravelAgencyDetail",
-                "id": "travelAgency_1",
-                "Identifier": {
-                    "authority": "Travelport",
-                    "value": "96000fad-82bb-424a-9e6d-a7a9ab54fbad"
-                },
-                "Telephone": [
-                    {
-                        "@type": "TelephoneDetail",
-                        "countryAccessCode": "94",
-                        "areaCityCode": "11",
-                        "phoneNumber": "7792400",
-                        "id": "telephone_1",
-                        "cityCode": "CMB"
-                    }
-                ],
-                "Address": [
-                    {
-                        "@type": "Address",
-                        "id": "address_1",
-                        "role": "Business",
-                        "AddressLine": [
-                            "Ground Floor, 439 Galle Rd"
-                        ],
-                        "City": "Colombo",
-                        "Country": {
-                            "name": "LK"
-                        },
-                        "PostalCode": "00300"
-                    }
-                ],
-                "Email": [
-                    {
-                        "id": "email_1",
-                        "value": "ticketing@gstravels.lk"
-                    }
-                ]
-            },
+            "ReservationComment": [
+                {
+                    "@type": "ReservationComment",
+                    "shareWith": "Agency",
+                    "id": "RSRVComment_1",
+                    "Comment": [
+                        {
+                            "value": "* PNR CONTAINS NDC AIR SEGMENTS-SERVICE VIA SMARTPOINT NDC APP *"
+                        }
+                    ]
+                }
+            ],
             "ReservationDisplaySequence": {
                 "@type": "ReservationDisplaySequence",
                 "DisplaySequence": [
@@ -384,13 +2313,20 @@
                         "OfferRef": "offer_1",
                         "ProductRef": "product_1",
                         "Sequence": 1
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 2,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_1",
+                        "Sequence": 2
                     }
                 ]
             }
         },
         "Identifier": {
             "authority": "Travelport",
-            "value": "04700c53-86e9-47c4-b1cc-eccf0810b1e0"
+            "value": "c47dfa22-07e3-44bd-96c6-92635c00b2e8"
         }
     }
 }

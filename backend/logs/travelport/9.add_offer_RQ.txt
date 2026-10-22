@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/f964dc3d-6350-40b3-ae30-b588170a9fe2/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTIxMjEzMDIsImV4cCI6MTc5MjIwNzcwMiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.qxm23wKif1cifxEaqWIZq1tgDYrSdK887pAyt5zBchaeOGa4ZxNQR6_-opjfsJJ2BQxB74dihxa7X6gJBDowSz-jcnG7V7h_7S2bqM_agH923ZEs3Gb7YuLuKzg_cyXt8SUi-uZ97TiaTih2T2gSbHuNQAo4PJ9kQMDcXrFX2cF74Szr4DadD94eQxUf3F1WZm_X6xwpzF6ZogCZLS8Qo6CeEG8bJzhs3cNvPhy7Wa-jwjLOS0O8_f1EheUU1f0h8IWduSgBN4eOoLt_VH5ERbwji9gvjbXEu1_o_kTHyK4CbdctUaIDqEdPqohmI8hEUdHiQel1MHv0WlmDRpC93A' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/ee21c475-40cb-43c1-a432-9ab304c32ec8/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTI2NTM4NjIsImV4cCI6MTc5Mjc0MDI2MiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.Tc-1M0Xof937O7o6jfWBjG0ryTSzpWOrrHxVjXhuKhWscOKb5DB17MfrVs2KE1IzuYjhAlShTNiAA5I1dSw3HtRwd3wiaqta9Bd_DCvyvAAfq0QyPHVUDDydfzPDdyl4-fHK0B3pf5Qu5jruicPJ99ZWTtp8S_Sfc-hd_FhrRiBBXXECxFY4-s_FnkLHEF6VnZFFk_6FQCN5REQln6e_TCzI70L7uM2-bjSgl7tNxbuq052VrJps5wxhnCa4mYBsIOI8aVTTgjouV76VjwlJBHwSsFdLXvRQvi0KiYvMUUitwsTYAU1EtFVbWoQNCiBuzYa4Xfe1L4CPxmL8BLC0Ew' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,46 +7,65 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_5B9281CA6334' \
+--header 'traceid: TraceID_F66BFB83AE53' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "e7505373-f1f2-4d96-b251-256ab4b81807"
-                }
-            },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "QR_CPO0"
-                        }
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "659",
+                        "from": "CMB",
+                        "to": "DOH",
+                        "departureDate": "2026-10-23",
+                        "segmentSequence": 1,
+                        "departureTime": "04:35:00",
+                        "arrivalDate": "2026-10-23",
+                        "arrivalTime": "06:55:00",
+                        "cabin": "Economy",
+                        "classOfService": "O",
+                        "ContentSource": "NDC"
                     },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "QRp6"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "QR_CPO1"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "QRp7"
-                            }
-                        }
-                    ]
-                }
-            ]
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "1126",
+                        "from": "DOH",
+                        "to": "MCT",
+                        "departureDate": "2026-10-23",
+                        "segmentSequence": 2,
+                        "departureTime": "08:55:00",
+                        "arrivalDate": "2026-10-23",
+                        "arrivalTime": "11:30:00",
+                        "cabin": "Economy",
+                        "classOfService": "O",
+                        "ContentSource": "NDC"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "ECONOMY CLASSIC",
+                "BrandRef": "QRb1"
+            }
         }
     }
 }'

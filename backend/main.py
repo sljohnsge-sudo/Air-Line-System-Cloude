@@ -1376,11 +1376,17 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         ticket["payment_auth_code"] = payment_result.get("auth_code")
 
     # issue_ticket()'s internal retrieve_reservation() only knows Travelport-side
-    # data — re-apply the locally-computed fields (seat charge, contact
-    # enrichment, adjusted total_fare) that /confirm already saved for this PNR.
+    # data — re-apply the locally-computed fields (seat selection, seat
+    # charge, ancillaries, contact enrichment, adjusted total_fare) that
+    # /confirm already saved for this PNR. seat_number/ancillaries are local-
+    # only (seat assignment is never actually sent to the GDS), so a fresh
+    # live retrieve can never carry them on its own — omitting them here
+    # was exactly why a paid Seat Selection Fee showed up on the issued
+    # ticket with no seat number anywhere on it.
     existing = database.get_booking_by_locator(locator_code)
     if existing:
-        for key in ("seat_charge", "email", "phone", "date_of_birth", "gender",
+        for key in ("seat_charge", "seat_number", "ancillaries", "ancillary_charge",
+                     "email", "phone", "date_of_birth", "gender",
                      "nationality", "passport_expiry", "offer_id", "payment_method", "customer_id",
                      "offer_local_id", "offer_uuid", "offer_authority"):
             if existing.get(key) not in (None, "", []):
@@ -2013,6 +2019,66 @@ def list_ticket_shares(_admin: dict = Depends(auth.get_current_admin)):
 # ── STEP 8: Retrieve PNR ───────────────────────────────────────────────────────
 
 
+def _merge_cached_ticket_fields(ticket: dict, cached: Optional[dict]) -> dict:
+    """Fills in fields on a freshly-retrieved Travelport `ticket` dict from
+    our own local `cached` DB row, for data that only ever exists locally
+    and Travelport's live retrieve never returns — selected seats chief
+    among them: seat assignment in this system is local/cosmetic only (no
+    real GDS seat-assignment call is ever made), so a live retrieve can
+    never surface a seat number on its own, no matter how it's called.
+    Shared by every endpoint that calls retrieve_reservation() so a fix
+    here (or a newly-added field) doesn't have to be duplicated — a
+    previous divergence here was exactly why /api/ticket-status silently
+    dropped seat numbers that /api/bookings/retrieve/{locator} preserved."""
+    if not cached:
+        return ticket
+    # Preserve seat number and total fare adjustments from confirmation step if missing in retrieve
+    if not ticket.get("seat_number") and cached.get("seat_number"):
+        ticket["seat_number"] = cached.get("seat_number")
+    # If GDS fare doesn't include the local seat selection fee added dynamically, adjust it
+    if cached.get("total_fare") and cached.get("total_fare") > ticket.get("total_fare", 0.0):
+        ticket["total_fare"] = cached.get("total_fare")
+        # currency must travel with total_fare — for NDC, Travelport's
+        # live retrieve_reservation() has no Price at all (confirmed
+        # live), so ticket["currency"] is still the "USD" default and
+        # would otherwise mislabel this cached LKR (or other) amount.
+        if cached.get("currency"):
+            ticket["currency"] = cached.get("currency")
+    if cached.get("seat_charge") and not ticket.get("seat_charge"):
+        ticket["seat_charge"] = cached.get("seat_charge")
+    if cached.get("passport_number") and not ticket.get("passport_number"):
+        ticket["passport_number"] = cached.get("passport_number")
+    if cached.get("offer_id") and not ticket.get("offer_id"):
+        ticket["offer_id"] = cached.get("offer_id")
+    # Preserve cached traveler details
+    for field in ["passport_expiry", "nationality", "gender", "phone", "date_of_birth", "email"]:
+        if cached.get(field) and not ticket.get(field):
+            ticket[field] = cached.get(field)
+    # NDC bookings: Travelport's live retrieve_reservation() above
+    # doesn't return Offer[] for NDC PNRs (confirmed live — only the
+    # original commit response has it), so flight/segment fields come
+    # back empty every time this is called. /confirm captured them
+    # from the commit response and saved them to raw_ticket_json —
+    # pull them back from there instead of losing the itinerary.
+    for field in ["flight_number", "airline", "airline_code", "departure_airport",
+                  "arrival_airport", "departure_time", "arrival_time", "duration",
+                  "segments", "legs", "cabin_class", "fare_basis", "fare_source",
+                  "baggage_allowance"]:
+        if cached.get(field) and not ticket.get(field):
+            ticket[field] = cached.get(field)
+    # fare_source override: live retrieve_reservation() defaults this to
+    # "GDS" whenever Travelport's response doesn't echo a ContentSource
+    # (confirmed live for NDC PNRs) — a truthy wrong value, so the
+    # setdefault-style loop above never corrects it from `cached`. Left
+    # unfixed, every retrieve/sync of an NDC booking would overwrite the
+    # correct value /confirm saved back to "GDS". The cached value is
+    # the ground truth, resolved once at booking time from raw_offering.
+    if cached.get("fare_source"):
+        ticket["fare_source"] = cached["fare_source"]
+    _backfill_terminals(ticket, _cached_segments(cached))
+    return ticket
+
+
 @app.get("/api/bookings/retrieve/{locator_code}")
 def retrieve_booking(locator_code: str):
     """
@@ -2023,54 +2089,10 @@ def retrieve_booking(locator_code: str):
     try:
         # Fetch live from Travelport
         ticket = services.retrieve_reservation(locator_code)
-        
+
         # Check if we have a locally cached seat number or passport mapping
         cached = database.get_booking_by_locator(locator_code)
-        if cached:
-            # Preserve seat number and total fare adjustments from confirmation step if missing in retrieve
-            if not ticket.get("seat_number") and cached.get("seat_number"):
-                ticket["seat_number"] = cached.get("seat_number")
-            # If GDS fare doesn't include the local seat selection fee added dynamically, adjust it
-            if cached.get("total_fare") and cached.get("total_fare") > ticket.get("total_fare", 0.0):
-                ticket["total_fare"] = cached.get("total_fare")
-                # currency must travel with total_fare — for NDC, Travelport's
-                # live retrieve_reservation() has no Price at all (confirmed
-                # live), so ticket["currency"] is still the "USD" default and
-                # would otherwise mislabel this cached LKR (or other) amount.
-                if cached.get("currency"):
-                    ticket["currency"] = cached.get("currency")
-            if cached.get("seat_charge") and not ticket.get("seat_charge"):
-                ticket["seat_charge"] = cached.get("seat_charge")
-            if cached.get("passport_number") and not ticket.get("passport_number"):
-                ticket["passport_number"] = cached.get("passport_number")
-            if cached.get("offer_id") and not ticket.get("offer_id"):
-                ticket["offer_id"] = cached.get("offer_id")
-            # Preserve cached traveler details
-            for field in ["passport_expiry", "nationality", "gender", "phone", "date_of_birth", "email"]:
-                if cached.get(field) and not ticket.get(field):
-                    ticket[field] = cached.get(field)
-            # NDC bookings: Travelport's live retrieve_reservation() above
-            # doesn't return Offer[] for NDC PNRs (confirmed live — only the
-            # original commit response has it), so flight/segment fields come
-            # back empty every time this is called. /confirm captured them
-            # from the commit response and saved them to raw_ticket_json —
-            # pull them back from there instead of losing the itinerary.
-            for field in ["flight_number", "airline", "airline_code", "departure_airport",
-                          "arrival_airport", "departure_time", "arrival_time", "duration",
-                          "segments", "legs", "cabin_class", "fare_basis", "fare_source",
-                          "baggage_allowance"]:
-                if cached.get(field) and not ticket.get(field):
-                    ticket[field] = cached.get(field)
-            # fare_source override: live retrieve_reservation() defaults this to
-            # "GDS" whenever Travelport's response doesn't echo a ContentSource
-            # (confirmed live for NDC PNRs) — a truthy wrong value, so the
-            # setdefault-style loop above never corrects it from `cached`. Left
-            # unfixed, every retrieve/sync of an NDC booking would overwrite the
-            # correct value /confirm saved back to "GDS". The cached value is
-            # the ground truth, resolved once at booking time from raw_offering.
-            if cached.get("fare_source"):
-                ticket["fare_source"] = cached["fare_source"]
-            _backfill_terminals(ticket, _cached_segments(cached))
+        _merge_cached_ticket_fields(ticket, cached)
 
         # Save/update the local cache
         database.save_booking(ticket)
@@ -2096,11 +2118,17 @@ def retrieve_booking(locator_code: str):
 
 # ── Check My Ticket Status (unified TP+AD lookup) ──────────────────────────────
 # One input box, no GDS picker -- the customer doesn't know (and shouldn't need
-# to know) which GDS their booking is on. Our own local DB is used ONLY to
-# figure out which GDS owns this PNR/ticket number (every booking made through
-# this system is saved with its source); the data actually shown always comes
-# from a live GDS call -- Travelport's retrieve_reservation() or Amadeus's
-# PNR_Retrieve via services.lookup_amadeus_booking -- never served from the DB.
+# to know) which GDS their booking is on. Our own local DB is used to figure
+# out which GDS owns this PNR/ticket number (every booking made through this
+# system is saved with its source) -- status/itinerary fields always come
+# from a live GDS call (Travelport's retrieve_reservation() or Amadeus's
+# PNR_Retrieve via services.lookup_amadeus_booking), never served from the DB
+# on their own. _merge_cached_ticket_fields() backfills from the DB only the
+# handful of fields a live Travelport retrieve structurally can never carry
+# (seat number chief among them -- seat assignment here is local/cosmetic,
+# never actually written to the GDS) — this endpoint used to skip that merge
+# entirely, which is exactly why a ticket's seat number showed right after
+# booking but silently disappeared the moment it was looked up again here.
 
 @app.get("/api/ticket-status")
 async def ticket_status(query: str = Query(..., min_length=3, max_length=20)):
@@ -2115,6 +2143,7 @@ async def ticket_status(query: str = Query(..., min_length=3, max_length=20)):
         except Exception as e:
             logger.error(f"Ticket-status: found {locator} locally but Travelport live retrieve failed: {e}")
             raise HTTPException(status_code=502, detail=f"Found this booking but Travelport's live lookup failed: {str(e)[:300]}")
+        _merge_cached_ticket_fields(ticket, tp_cached)
         ticket["source"] = "TP"
         return ticket
 

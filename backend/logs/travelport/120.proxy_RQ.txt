@@ -1,0 +1,29 @@
+curl --location --globoff 'https://sampath.paycorp.lk/rest/service/proxy' \
+--header 'accept: */*' \
+--header 'hmac: cbfab6e5ff9c6b4822baecf1a0f7b8af41c474461a74189e661cb4c047601b45' \
+--header 'authtoken: a8004396-1830-48da-b0c7-e94381c8ec8e' \
+--header 'content-type: application/json' \
+--data-raw '{
+    "version": "1.04",
+    "msgId": "1a5fd06b-0bb4-46a1-b63c-31158099ade1",
+    "operation": "PAYMENT_INIT",
+    "requestDate": "2026-10-22 12:47:32",
+    "validateOnly": false,
+    "requestData": {
+        "clientId": "14008400",
+        "clientIdHash": "",
+        "transactionType": "PURCHASE",
+        "transactionAmount": {
+            "paymentAmount": 44092900,
+            "currency": "LKR"
+        },
+        "redirect": {
+            "returnUrl": "http://localhost:5173/results/U2FsdGVkX1_nxkAomrFfV7RP3QDlrRFJs1rg9EuutKArrcwn9hYUi8f192-QKUCW_7Y5cWqm5xF_893mIdW8NLPNWmLEvxsi70yDayHBAU3XQPc_IElJd6s3GPCrnpj3fNTg25bigZln8LMtcT6rvv7zvyDBgRq_DDA-RL2xmZUu9CYPaOKX7kXw7mjRio1Z5mqfFn3W1EQLwP0rIVIiUkmW_ELF8sTb-d81tbeEJ2WzEHqZ5uRDd3pz-ccSR1l0I6-mVVfZusP_Wq2cyrjTzA?locator=HNFL8Y",
+            "returnMethod": "GET",
+            "cancelUrl": "http://localhost:5173/results/U2FsdGVkX1_nxkAomrFfV7RP3QDlrRFJs1rg9EuutKArrcwn9hYUi8f192-QKUCW_7Y5cWqm5xF_893mIdW8NLPNWmLEvxsi70yDayHBAU3XQPc_IElJd6s3GPCrnpj3fNTg25bigZln8LMtcT6rvv7zvyDBgRq_DDA-RL2xmZUu9CYPaOKX7kXw7mjRio1Z5mqfFn3W1EQLwP0rIVIiUkmW_ELF8sTb-d81tbeEJ2WzEHqZ5uRDd3pz-ccSR1l0I6-mVVfZusP_Wq2cyrjTzA?locator=HNFL8Y&payment=cancelled"
+        },
+        "useReliability": true,
+        "clientRef": "HNFL8Y",
+        "comment": "George Steuart Travel - HNFL8Y"
+    }
+}'

@@ -1,0 +1,113 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTI1ODA4NzAsImV4cCI6MTc5MjY2NzI3MCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.LJ5VXr96EXq5jLAQBlHOmn9wO3c_lXykuv_PtkTyq8IVi56ATshtTe04WwGa2bThbpRhI1jb9boylhPbFw5WubvRcj25nDgAZ0TVjV-czLp-JTaI4c4JNPbQ1h3aFRoN9QUF5IryFdppaJgk-a39ANWC2k0dlwA9HVe4mtXinNgTWbctNyZ4v2pUpbu4osWp_kWucK9h4N-p7hZ9qBgkhl8iFFNW87jYyP3YybAcoB1OWIPi3FOBYZH_mQOlJjgvLrd_0RzoK6h5HKkIqToq9_Au1CpSVJpV-pdDedcC4NthaQSjM7GYzqFmSf0FqRfTUm4U4nDaPw5Ae3QwPzs8pQ' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_83F6685F3314' \
+--data-raw '{
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EY",
+                        "flightNumber": "391",
+                        "from": "CMB",
+                        "to": "AUH",
+                        "departureDate": "2026-10-22",
+                        "segmentSequence": 1,
+                        "departureTime": "16:20:00",
+                        "arrivalDate": "2026-10-22",
+                        "arrivalTime": "19:20:00",
+                        "cabin": "Economy",
+                        "classOfService": "Q",
+                        "AvailabilitySourceCode": "Q",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EY",
+                        "flightNumber": "460",
+                        "from": "AUH",
+                        "to": "MEL",
+                        "departureDate": "2026-10-22",
+                        "segmentSequence": 2,
+                        "departureTime": "20:40:00",
+                        "arrivalDate": "2026-10-23",
+                        "arrivalTime": "16:50:00",
+                        "cabin": "Economy",
+                        "classOfService": "Q",
+                        "AvailabilitySourceCode": "Q",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            },
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 2,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EY",
+                        "flightNumber": "461",
+                        "from": "MEL",
+                        "to": "AUH",
+                        "departureDate": "2026-10-30",
+                        "segmentSequence": 1,
+                        "departureTime": "18:20:00",
+                        "arrivalDate": "2026-10-31",
+                        "arrivalTime": "01:10:00",
+                        "cabin": "Economy",
+                        "classOfService": "E",
+                        "AvailabilitySourceCode": "S",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
+                    },
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "EY",
+                        "flightNumber": "392",
+                        "from": "AUH",
+                        "to": "CMB",
+                        "departureDate": "2026-10-31",
+                        "segmentSequence": 2,
+                        "departureTime": "02:15:00",
+                        "arrivalDate": "2026-10-31",
+                        "arrivalTime": "08:10:00",
+                        "cabin": "Economy",
+                        "classOfService": "E",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Economy Value",
+                "BrandRef": "b11"
+            }
+        }
+    }
+}'
