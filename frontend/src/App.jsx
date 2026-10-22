@@ -1932,6 +1932,9 @@ export default function App() {
   const [ancillaries, setAncillaries] = useState([]);
   const [selectedAncillaries, setSelectedAncillaries] = useState([]);
   const [activeAncillaryTab, setActiveAncillaryTab] = useState('Lounge');
+  // Departure / Return switch on the Extras step (round trips only) —
+  // index into selectedFlight.legs.
+  const [activeAncillaryLeg, setActiveAncillaryLeg] = useState(0);
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -2618,6 +2621,7 @@ export default function App() {
       setSelectedSeats([]);
       setActivePassengerIdx(0);
       setAncillaries(data.ancillaries || []);
+      setActiveAncillaryLeg(0);
       setSelectedAncillaries([]);
       const hasAncillaries = data.ancillaries_available && data.ancillaries?.length > 0;
 
@@ -8587,8 +8591,22 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       };
                       // Ordered Lounge / Meal Preferences / Extra Baggage / Other
                       // so customers see the most sought-after extras first.
+                      // Round trips: a Departure / Return switch above the
+                      // category tabs, so each direction's extras are listed
+                      // on their own instead of mixed together. Items that
+                      // cover the whole trip (or whose flights can't be
+                      // matched) are shown under both, so nothing is hidden.
+                      const tripLegs = selectedFlight?.legs?.length >= 2 ? selectedFlight.legs : null;
+                      const legNames = tripLegs ? tripLegs.map((_, i) => tripLegs.length > 2 ? `Leg ${i + 1}` : (i === 0 ? 'Departure' : 'Return')) : [];
+                      const activeLegIdx = tripLegs && activeAncillaryLeg < tripLegs.length ? activeAncillaryLeg : 0;
+                      const inLeg = (item, legIdx) => {
+                        const dir = ancillaryDirection(item, selectedFlight);
+                        return dir === null || dir === legNames[legIdx];
+                      };
+                      const visibleAncillaries = tripLegs ? ancillaries.filter(item => inLeg(item, activeLegIdx)) : ancillaries;
+
                       const sections = { 'Lounge': [], 'Meal Preferences': [], 'Extra Baggage': [], 'Other Services': [] };
-                      ancillaries.forEach(item => sections[classify(item)].push(item));
+                      visibleAncillaries.forEach(item => sections[classify(item)].push(item));
 
                       const renderItem = (item, i) => {
                         const isSelected = selectedAncillaries.some(
@@ -8627,9 +8645,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             <div>
                               <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--gs-dark)', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                                 {item.name}
-                                {direction && (
-                                  <span style={{ fontSize: '0.64rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '0.1rem 0.45rem', borderRadius: '4px', background: direction === 'Return' ? '#eef2ff' : '#fff1f2', color: direction === 'Return' ? '#3730a3' : 'var(--gs-crimson)' }}>
-                                    {direction}
+                                {/* The Departure / Return switch already says
+                                    which flight this is — only flag items that
+                                    cover the whole trip (listed under both). */}
+                                {tripLegs && !direction && item.segment_numbers?.length > 0 && (
+                                  <span style={{ fontSize: '0.64rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '0.1rem 0.45rem', borderRadius: '4px', background: '#eef2ff', color: '#3730a3' }}>
+                                    Whole trip
                                   </span>
                                 )}
                                 {/* null = airline didn't say — show nothing */}
@@ -8680,6 +8701,37 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       const activeItems = sections[activeLabel] || [];
                       return (
                         <>
+                          {tripLegs && (
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              {tripLegs.map((leg, legIdx) => {
+                                const segs = leg.segments?.length ? leg.segments : [leg];
+                                const route = segs[0]?.departure_airport && segs[segs.length - 1]?.arrival_airport
+                                  ? `${segs[0].departure_airport} → ${segs[segs.length - 1].arrival_airport}` : null;
+                                const legCount = ancillaries.filter(item => inLeg(item, legIdx)).length;
+                                const isActive = legIdx === activeLegIdx;
+                                return (
+                                  <button
+                                    key={legIdx}
+                                    type="button"
+                                    onClick={() => setActiveAncillaryLeg(legIdx)}
+                                    style={{
+                                      flex: '1 1 0', minWidth: '120px', padding: '0.55rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
+                                      border: '1.5px solid ' + (isActive ? 'var(--gs-crimson)' : 'var(--border-color)'),
+                                      background: isActive ? 'var(--gs-crimson)' : '#fff',
+                                      color: isActive ? '#fff' : 'var(--text-secondary)',
+                                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.1rem',
+                                      fontFamily: 'var(--font-body)', transition: 'all 0.15s',
+                                    }}
+                                  >
+                                    <span style={{ fontWeight: '800', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{legNames[legIdx]} Flight</span>
+                                    <span style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: '600' }}>
+                                      {[route, `${legCount} extra${legCount === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                           <div style={{ display: 'flex', borderBottom: '2px solid var(--border-color)', marginBottom: '1rem' }}>
                             {tabLabels.map(label => {
                               const count = sections[label].length;
