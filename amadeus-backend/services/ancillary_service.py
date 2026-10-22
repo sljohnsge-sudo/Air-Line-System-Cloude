@@ -143,10 +143,6 @@ async def _fetch_ancillary_category(segments: list[dict], category: str) -> list
     items = []
     for i, group in enumerate(_find_all_local(reply, "serviceGroup"), start=1):
         name = _criteria_value(group, "serviceAttributes", "CNM")
-        # ROR = ATPCO refund/reissue indicator: "Y" refundable, "N" not.
-        # Anything else (or missing) stays None so the frontend shows no
-        # Refundable/Non-refundable tag rather than a guess.
-        refundable = {"Y": True, "N": False}.get((_criteria_value(group, "serviceAttributes", "ROR") or "").upper())
         # Confirmed live: Amadeus pads the commercial name with a leading
         # space ("EXCESS BAGGAGE..." comes back as " EXCESS BAGGAGE...").
         if name:
@@ -225,7 +221,6 @@ async def _fetch_ancillary_category(segments: list[dict], category: str) -> list
             # want it but left out of the customer-facing description.
             "service_free_text": free_text,
             "description": name,
-            "refundable": refundable,
             "price": float(price) if price else 0.0,
             "currency": currency or "USD",
         })
