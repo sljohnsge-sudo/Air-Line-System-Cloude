@@ -902,6 +902,58 @@ function ItineraryRow({ leg, label }) {
 // that airport (still useful without precise terminal data on the
 // segment) — returns null when nothing is documented, the normal case
 // for most airports since admin coverage is necessarily partial.
+// "AI0282" and "AI282" are the same flight — Travelport's seat map and its
+// search results don't always agree on zero-padding the number part.
+const normFlightNo = (fn) => (fn || '').toUpperCase().replace(/\s+/g, '').replace(/^([A-Z0-9]{2})0+(?=\d)/, '$1');
+
+// Travelport returns one seat map per FLIGHT, not per direction — a round
+// trip with a connection each way has four. Work out which direction
+// (Departure / Return) each seat map belongs to by matching its flight
+// against the itinerary's segments, falling back to segment order, and
+// number the flights within a direction ("1 of 2") so the tabs never have
+// to guess from position alone (which is how a connecting outbound flight
+// used to get labelled "Return").
+function buildSeatMapLegInfo(seatMaps, selectedFlight) {
+  const legs = selectedFlight?.legs?.length ? selectedFlight.legs : null;
+  const flat = [];
+  if (legs) {
+    legs.forEach((leg, dirIdx) => {
+      (leg.segments?.length ? leg.segments : [leg]).forEach(seg => flat.push({ dirIdx, seg }));
+    });
+  }
+  const dirName = (dirIdx) => {
+    if (dirIdx === null) return null;
+    if (legs && legs.length > 2) return `Leg ${dirIdx + 1}`;
+    return dirIdx === 0 ? 'Departure' : 'Return';
+  };
+  const info = seatMaps.map((sm, i) => {
+    const smFlight = normFlightNo(sm?.flight_number);
+    const hit = (smFlight && flat.find(f =>
+      normFlightNo(f.seg.flight_number) === smFlight &&
+      (!sm.departure_airport || !f.seg.departure_airport || f.seg.departure_airport === sm.departure_airport)
+    )) || flat[i] || null;
+    const dirIdx = hit ? hit.dirIdx : (legs ? null : 0);
+    return {
+      dirIdx,
+      flight_number: sm?.flight_number || hit?.seg.flight_number || null,
+      departure_airport: sm?.departure_airport || hit?.seg.departure_airport || null,
+      arrival_airport: sm?.arrival_airport || hit?.seg.arrival_airport || null,
+    };
+  });
+  return info.map((x, i) => {
+    const sameDir = info.filter(y => y.dirIdx === x.dirIdx);
+    const direction = dirName(x.dirIdx) || `Flight ${i + 1}`;
+    return { ...x, direction, part: sameDir.indexOf(x) + 1, parts: sameDir.length };
+  });
+}
+
+// "Departure AI282" — what a seat selection is called everywhere it's shown.
+const seatLegLabel = (legInfo, idx) => {
+  const x = legInfo[idx];
+  if (!x) return `Flight ${idx + 1}`;
+  return x.flight_number ? `${x.direction} ${x.flight_number}` : x.direction;
+};
+
 function lookupTerminalConnection(connections, airportCode, fromTerminal, toTerminal) {
   if (!connections || connections.length === 0 || !airportCode) return null;
   const forAirport = connections.filter(c => c.airport_code === airportCode);
@@ -1855,6 +1907,7 @@ export default function App() {
   const [seatMaps, setSeatMaps] = useState([]);
   const [activeSeatLeg, setActiveSeatLeg] = useState(0);
   const seatMap = seatMaps[activeSeatLeg] || null;
+  const seatMapLegInfo = buildSeatMapLegInfo(seatMaps, selectedFlight);
   // Each entry also carries leg_index so one passenger can hold a different
   // seat on the outbound vs. the return leg without the two colliding.
   const [selectedSeats, setSelectedSeats] = useState([]);
@@ -3128,6 +3181,12 @@ export default function App() {
         const newSelection = {
           passenger_idx: activePassengerIdx,
           leg_index: activeSeatLeg,
+          // Sent so the backend can label the saved seat by its real
+          // direction + flight ("Departure AI282: 14A") instead of
+          // guessing from leg_index, which breaks once there are more than
+          // two flights.
+          direction: seatMaps.length > 1 ? (seatMapLegInfo[activeSeatLeg]?.direction || null) : null,
+          flight_number: seatMaps.length > 1 ? (seatMapLegInfo[activeSeatLeg]?.flight_number || null) : null,
           seat_number: seat.seat_number,
           price: seat.price || 0.0,
           currency: seat.currency || 'LKR',
@@ -5308,7 +5367,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
                               .map((leg, lIdx) => (
                                 <div key={lIdx} style={lIdx === 0 ? { position: 'relative' } : { position: 'relative', borderTop: '1px dashed #e2e8f0', paddingTop: '0.8rem' }}>
-                                  <ItineraryRow leg={leg} label={flight.legs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`} />
+                                  <ItineraryRow leg={leg} label={flight.legs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`} />
                                 </div>
                               ))}
                           </div>
@@ -5822,7 +5881,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
                           .map((leg, lIdx, sortedLegs) => {
                             if (!leg.segments || leg.segments.length === 0) return null;
-                            const legLabel = sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`;
+                            const legLabel = sortedLegs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`;
                             return (
                               <div key={lIdx} style={{ marginTop: lIdx === 0 ? 0 : '1.5rem' }}>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
@@ -7574,7 +7633,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
                     .map((leg, lIdx, sortedLegs) => (
                       <div className="summary-col" key={lIdx}>
-                        <span className="label">{sortedLegs.length === 2 ? (lIdx === 0 ? 'Outbound' : 'Return') : `Leg ${lIdx + 1}`}</span>
+                        <span className="label">{sortedLegs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`}</span>
                         <span className="val">{leg.flight_number} ({leg.airline}) — {leg.departure_airport}{leg.departure_terminal && ` (Terminal ${leg.departure_terminal})`} → {leg.arrival_airport}{leg.arrival_terminal && ` (Terminal ${leg.arrival_terminal})`} ({leg.departure_time?.split('T')[0]})</span>
                       </div>
                     ))}
@@ -8001,11 +8060,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     seat doesn't reset when switching tabs; each leg keeps
                     its own selections (see leg_index on selectedSeats). */}
                 {seatMaps.length > 1 && (
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.9rem' }}>
-                    {seatMaps.map((_, legIdx) => {
-                      const leg = selectedFlight?.legs?.[legIdx];
-                      const routeLabel = leg?.departure_airport && leg?.arrival_airport ? `${leg.departure_airport} → ${leg.arrival_airport}` : null;
-                      const legName = legIdx === 0 ? 'Outbound' : legIdx === 1 ? 'Return' : `Leg ${legIdx + 1}`;
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.9rem', flexWrap: 'wrap' }}>
+                    {seatMaps.map((sm, legIdx) => {
+                      const li = seatMapLegInfo[legIdx];
+                      const routeLabel = li?.departure_airport && li?.arrival_airport ? `${li.departure_airport} → ${li.arrival_airport}` : null;
+                      const directionLabel = li ? `${li.direction}${li.parts > 1 ? ` ${li.part}/${li.parts}` : ''}` : `Flight ${legIdx + 1}`;
                       const seatedCount = selectedSeats.filter(s => s.leg_index === legIdx).length;
                       const isActive = activeSeatLeg === legIdx;
                       return (
@@ -8014,7 +8073,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           type="button"
                           onClick={() => setActiveSeatLeg(legIdx)}
                           style={{
-                            flex: 1, padding: '0.6rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
+                            flex: '1 1 0', minWidth: '100px', padding: '0.6rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
                             border: '1.5px solid ' + (isActive ? 'var(--gs-crimson)' : 'var(--border-color)'),
                             background: isActive ? 'var(--gs-crimson)' : '#fff',
                             color: isActive ? '#fff' : 'var(--text-secondary)',
@@ -8022,8 +8081,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             fontFamily: 'var(--font-body)', transition: 'all 0.15s',
                           }}
                         >
-                          <span style={{ fontWeight: '800', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{legName} Flight</span>
-                          {routeLabel && <span style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: '600' }}>{routeLabel}</span>}
+                          <span style={{ fontWeight: '800', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{directionLabel}</span>
+                          {(li?.flight_number || routeLabel) && (
+                            <span style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: '600' }}>
+                              {[li?.flight_number, routeLabel].filter(Boolean).join(' · ')}
+                            </span>
+                          )}
                           <span style={{ fontSize: '0.68rem', opacity: 0.85 }}>{seatedCount}/{travelers.length} seated</span>
                         </button>
                       );
@@ -8068,7 +8131,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 Passenger {idx + 1}: {t.first_name} {t.last_name}
                               </div>
                               <div style={{ fontSize: '0.75rem', opacity: isActive ? 0.9 : 0.7, fontWeight: '500' }}>
-                                {seatMaps.length > 1 ? (activeSeatLeg === 0 ? 'Outbound' : 'Return') : 'Seat'}: <span style={{ fontWeight: '700', color: isActive ? 'white' : 'var(--gs-crimson)' }}>{assignedSeat ? `${assignedSeat.seat_number} (${assignedSeat.type})` : 'Not Selected'}</span>
+                                {seatMaps.length > 1 ? seatLegLabel(seatMapLegInfo, activeSeatLeg) : 'Seat'}: <span style={{ fontWeight: '700', color: isActive ? 'white' : 'var(--gs-crimson)' }}>{assignedSeat ? `${assignedSeat.seat_number} (${assignedSeat.type})` : 'Not Selected'}</span>
                               </div>
                               {assignedSeat && assignedSeat.price > 0 && (
                                 <div style={{ fontSize: '0.7rem', opacity: isActive ? 0.9 : 0.7, textAlign: 'right' }}>
@@ -8077,7 +8140,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               )}
                               {otherLegSeat && (
                                 <div style={{ fontSize: '0.68rem', opacity: isActive ? 0.85 : 0.65, fontStyle: 'italic' }}>
-                                  {activeSeatLeg === 0 ? 'Return' : 'Outbound'}: {otherLegSeat.seat_number} ({otherLegSeat.type})
+                                  {seatLegLabel(seatMapLegInfo, otherLegSeat.leg_index)}: {otherLegSeat.seat_number} ({otherLegSeat.type})
                                 </div>
                               )}
                             </div>
@@ -8671,7 +8734,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                             {passengerSeats.map((s, sIdx) => (
                               <span key={sIdx} style={{ fontSize: '0.75rem', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: '700' }}>
-                                {seatMaps.length > 1 ? (s.leg_index === 0 ? 'Outbound' : 'Return') + ': ' : 'Seat: '}{s.seat_number} ({s.type})
+                                {seatMaps.length > 1 ? seatLegLabel(seatMapLegInfo, s.leg_index) + ': ' : 'Seat: '}{s.seat_number} ({s.type})
                               </span>
                             ))}
                           </div>
@@ -8694,7 +8757,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <h4 style={{ marginBottom: '1rem', color: 'var(--gs-dark)', fontSize: '0.95rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem' }}>Flight Itinerary</h4>
                   {selectedFlight.legs && selectedFlight.legs.length === 2 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {['Outbound', 'Return'].map((legLabel, lIdx) => {
+                      {['Departure', 'Return'].map((legLabel, lIdx) => {
                         const leg = selectedFlight.legs[lIdx];
                         return (
                           <div key={lIdx}>
@@ -9077,20 +9140,28 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       presents a round trip. */}
                   {(() => {
                     // Seats are stored as one combined string on the ticket
-                    // (see _merge_cached_ticket_fields / main.py's
-                    // confirm_booking) — "Outbound: 14A, Return: 22C" for a
-                    // round trip with a seat picked on each leg, or just
-                    // "14A" when there's only one leg. Pull out the seat
-                    // that belongs to a given leg label, if any.
-                    const seatForLeg = (legLabel) => {
-                      const raw = issuedTicket.seat_number;
-                      if (!raw) return null;
-                      const match = raw.match(new RegExp(`${legLabel}:\\s*([^,]+)`, 'i'));
-                      if (match) return match[1].trim();
-                      return raw.includes(':') ? null : raw; // unlabeled single-leg string
+                    // (see main.py's _format_seat_numbers) — one entry per
+                    // passenger per flight, "Departure AI282: 14A, Return
+                    // AI2202: 22C", or just "14A" when there's only one
+                    // flight. Older tickets used "Outbound: 14A, Return: 22C"
+                    // (one seat per direction, shown on its first flight).
+                    const seatEntries = (issuedTicket.seat_number || '').split(',').map(p => p.trim()).filter(Boolean);
+                    const seatForSegment = (dirLabel, seg, sIdx) => {
+                      if (seatEntries.length === 0) return null;
+                      const fn = normFlightNo(seg.flight_number);
+                      const byFlight = fn ? seatEntries.filter(p => {
+                        const m = p.match(/^(.*):\s*(.+)$/);
+                        return m && m[1].split(/\s+/).some(t => normFlightNo(t) === fn);
+                      }) : [];
+                      if (byFlight.length) return byFlight.map(p => p.split(':').pop().trim()).join(', ');
+                      if (sIdx !== 0) return null;
+                      const aliases = dirLabel === 'Departure' ? ['Departure', 'Outbound'] : [dirLabel];
+                      const byDir = seatEntries.filter(p => aliases.some(a => new RegExp(`^${a}:`, 'i').test(p)));
+                      if (byDir.length) return byDir.map(p => p.split(':').pop().trim()).join(', ');
+                      return seatEntries.some(p => p.includes(':')) ? null : seatEntries.join(', '); // unlabeled single-flight string
                     };
 
-                    const renderLegTable = (title, segments, legSeat) => (
+                    const renderLegTable = (title, segments, dirLabel) => (
                       <div key={title} style={{ marginBottom: '1.25rem' }}>
                         <h3 style={{ fontSize: '0.9rem', color: '#c3122e', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           {title}
@@ -9123,7 +9194,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 <td style={{ padding: '0.6rem 0.5rem' }}>
                                   <strong>{issuedTicket.cabin_class || 'Economy'}</strong><br />
                                   <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '700' }}>
-                                    {sIdx === 0 ? (legSeat ? `Seat: ${legSeat}` : 'Not assigned') : '—'}
+                                    {(() => { const segSeat = seatForSegment(dirLabel, seg, sIdx); return segSeat ? `Seat: ${segSeat}` : 'Not assigned'; })()}
                                   </span>
                                 </td>
                                 <td style={{ padding: '0.6rem 0.5rem', fontSize: '0.7rem', color: '#475569' }}>
@@ -9147,11 +9218,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         const segs = leg.segments || [];
                         if (segs.length === 0) return null;
                         const label = issuedTicket.legs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`;
-                        return renderLegTable(`${label} Flight`, segs, seatForLeg(lIdx === 0 ? 'Outbound' : 'Return'));
+                        return renderLegTable(`${label} Flight`, segs, label);
                       });
                     }
                     if (issuedTicket.segments && issuedTicket.segments.length > 0) {
-                      return renderLegTable('Flight Itinerary & Segment Details', issuedTicket.segments, seatForLeg('Outbound'));
+                      return renderLegTable('Flight Itinerary & Segment Details', issuedTicket.segments, 'Departure');
                     }
                     // Fallback for a ticket shape with no segments/legs breakdown at all.
                     return renderLegTable('Flight Itinerary & Segment Details', [{

@@ -280,6 +280,28 @@ class SelectedSeat(BaseModel):
     price: float
     currency: str = "LKR"
     type: str = "Standard"
+    # Which direction + flight this seat map was for ("Departure", "AI282").
+    # leg_index is really a per-FLIGHT index (Travelport returns one seat
+    # map per flight), so on a connecting round trip index 1 can still be
+    # a departure flight — these let the saved label say what it really is.
+    direction: Optional[str] = None
+    flight_number: Optional[str] = None
+
+
+def _format_seat_numbers(selected_seats: List[SelectedSeat]) -> List[str]:
+    """One display entry per seat selection for ticket["seat_number"]:
+    plain "14A" for a single-flight booking, otherwise "Departure AI282:
+    14A" so each seat can be matched back to its own flight on the ticket.
+    The frontend only sends flight_number when there was more than one seat
+    map; older clients that don't send it fall back to the leg_index guess."""
+    if not any(s.leg_index or s.flight_number for s in selected_seats):
+        return [s.seat_number for s in selected_seats]
+    out = []
+    for s in selected_seats:
+        direction = s.direction or ("Departure" if s.leg_index == 0 else "Return")
+        label = f"{direction} {s.flight_number}" if s.flight_number else direction
+        out.append(f"{label}: {s.seat_number}")
+    return out
 
 
 class SelectedAncillary(BaseModel):
@@ -1130,14 +1152,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         _backfill_terminals(ticket, _segments_of_offering(raw_offering))
 
         # Apply local seat assignments and seat pricing to ticket summary.
-        # On a round trip each selection also carries which leg it's for
-        # (0=outbound, 1=return) — label the two apart once there's more
-        # than one leg in play, otherwise keep the plain one-way format.
-        has_multiple_legs = len({s.leg_index for s in selected_seats}) > 1
-        if has_multiple_legs:
-            seat_numbers = [f"{'Outbound' if s.leg_index == 0 else 'Return'}: {s.seat_number}" for s in selected_seats]
-        else:
-            seat_numbers = [s.seat_number for s in selected_seats]
+        seat_numbers = _format_seat_numbers(selected_seats)
         seat_charges = sum([s.price for s in selected_seats])
 
         if seat_numbers:
@@ -1604,11 +1619,7 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
     # customer's picks are recorded locally and folded into the receipt total.
     selected_seats = selected_seats or []
     selected_ancillaries = selected_ancillaries or []
-    has_multiple_legs = len({s.leg_index for s in selected_seats}) > 1
-    if has_multiple_legs:
-        seat_numbers = [f"{'Outbound' if s.leg_index == 0 else 'Return'}: {s.seat_number}" for s in selected_seats]
-    else:
-        seat_numbers = [s.seat_number for s in selected_seats]
+    seat_numbers = _format_seat_numbers(selected_seats)
     seat_charges = sum(s.price for s in selected_seats)
     ancillary_names = [a.name for a in selected_ancillaries]
     ancillary_charges = sum(a.price for a in selected_ancillaries)
