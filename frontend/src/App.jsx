@@ -605,7 +605,11 @@ const RC_PLANE_STOPS = [
 // Reaches the right end of the line and holds there (stopped, still
 // visible) before fading out, rather than fading away mid-stride.
 const RC_WALK_STOPS = [
-  [0.00, 0, 0], [0.06, 3, 1], [0.68, 78, 1], [0.95, 78, 1], [1.00, 78, 0],
+  [0.00,  0, 0],  // invisible at left edge
+  [0.05,  2, 1],  // fade in quickly
+  [0.86, 82, 1],  // finish crossing (walks the whole slot)
+  [0.93, 82, 0],  // fade out immediately — no standing-still lag
+  [1.00, 82, 0],  // stay invisible until next plane starts
 ]; // [fraction within window, left%, opacity]
 
 function rcBuildPlaneKeyframes(name, startPct, endPct) {
