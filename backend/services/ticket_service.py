@@ -197,6 +197,13 @@ def _parse_reservation_product(product: dict) -> dict | None:
     if not flight_segments:
         return None
 
+    # Build per-segment product map from PassengerFlight[0].FlightProduct[].segmentSequence
+    # (same pattern as invoice_service.py) so each segment carries its own cabin/class.
+    seg_product_map = {}
+    for fp in (product.get("PassengerFlight") or [{}])[0].get("FlightProduct", []):
+        for seq in fp.get("segmentSequence", []):
+            seg_product_map[seq] = fp
+
     segments_list = []
     for f_seg in flight_segments:
         flight = f_seg.get("Flight", {})
@@ -206,6 +213,8 @@ def _parse_reservation_product(product: dict) -> dict | None:
         number = flight.get("number", "")
         dep = flight.get("Departure", {})
         arr = flight.get("Arrival", {})
+
+        fp_info = seg_product_map.get(f_seg.get("sequence", 1), {})
 
         segments_list.append({
             "carrier": carrier,
@@ -217,7 +226,10 @@ def _parse_reservation_product(product: dict) -> dict | None:
             "arrival_terminal": arr.get("terminal"),
             "departure_time": (dep.get("date", "") + " " + dep.get("time", "")).strip(),
             "arrival_time": (arr.get("date", "") + " " + arr.get("time", "")).strip(),
-            "duration": flight.get("duration", "")
+            "duration": flight.get("duration", ""),
+            "cabin_class": fp_info.get("cabin", ""),
+            "class_of_service": fp_info.get("classOfService", ""),
+            "fare_basis": fp_info.get("fareBasisCode", ""),
         })
 
     if not segments_list:

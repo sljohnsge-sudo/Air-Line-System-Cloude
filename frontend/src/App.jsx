@@ -490,6 +490,10 @@ const buildAmadeusIssuedTicket = (issueData, { paymentMethod, fallbackTravelers,
         arrival_airport: s.arrival_airport,
         departure_time: s.departure_time ? s.departure_time.replace('T', ' ') : '',
         arrival_time: s.arrival_time ? s.arrival_time.replace('T', ' ') : '',
+        cabin_class: s.cabin_class || '',
+        class_of_service: s.class_of_service || '',
+        fare_basis: s.fare_basis || '',
+        seat_number: s.seat_number || '',
       }))
     : [];
   const primary = rawTravelers[0] || {};
@@ -9064,9 +9068,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               <span>{seg.arrival_time}</span>
                             </td>
                             <td style={{ padding: '0.6rem 0.5rem' }}>
-                              <strong>{issuedTicket.cabin_class || 'Economy'}</strong><br />
+                              <strong>{seg.cabin_class || issuedTicket.cabin_class || 'Economy'}</strong><br />
                               <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '700' }}>
-                                {sIdx === 0 && issuedTicket.seat_number ? `Seat: ${issuedTicket.seat_number}` : '—'}
+                                {seg.seat_number
+                                  ? `Seat: ${seg.seat_number}`
+                                  : (sIdx === 0 && issuedTicket.seat_number ? `Seat: ${issuedTicket.seat_number}` : '—')}
                               </span>
                             </td>
                             <td style={{ padding: '0.6rem 0.5rem', fontSize: '0.7rem', color: '#475569' }}>
