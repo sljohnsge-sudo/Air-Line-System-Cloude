@@ -9259,6 +9259,22 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </div>
               )}
 
+              {/* Seats/extras the airline refused at booking — explains a
+                  "Not assigned" seat below; these were never charged. */}
+              {(() => {
+                const r = issuedTicket.addon_results || {};
+                const refused = [...(r.seats || []), ...(r.extras || [])].filter(i => i.status === 'failed');
+                if (!refused.length) return null;
+                return (
+                  <div style={{ marginBottom: '1.5rem', padding: '0.75rem 1rem', border: '1px solid #fed7aa', borderRadius: '8px', background: '#fff7ed', fontSize: '0.78rem', color: '#9a3412' }}>
+                    <div style={{ fontWeight: '800', marginBottom: '0.25rem' }}>Not confirmed by the airline (not charged)</div>
+                    {refused.map((i, idx) => (
+                      <div key={idx}>{i.seat_number ? `Seat ${i.seat_number}` : i.name}{i.reason ? ` — ${i.reason}` : ''}</div>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {/* Grid: Left Section (Customer details + Itinerary) / Right Section (QR code + payment breakdown) */}
               <div style={{ display: 'flex', gap: '2rem', marginBottom: '2rem' }}>
                 <div style={{ flex: 1.6 }}>
@@ -9522,12 +9538,29 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           <span>{issuedTicket.currency} {((issuedTicket.total_fare || 0) - (issuedTicket.seat_charge || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                         </div>
                       )}
-                      {issuedTicket.seat_charge > 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
-                          <span>Seat Selection Fee:</span>
-                          <span>{issuedTicket.currency} {issuedTicket.seat_charge.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                        </div>
-                      )}
+                      {/* seat_charge is seats + extras combined (ancillary_charge
+                          is the extras part), so split them here — otherwise
+                          extra baggage showed up as a "Seat Selection Fee". */}
+                      {(() => {
+                        const extrasFee = issuedTicket.ancillary_charge || 0;
+                        const seatFee = (issuedTicket.seat_charge || 0) - extrasFee;
+                        return (
+                          <>
+                            {seatFee > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                                <span>Seat Selection Fee:</span>
+                                <span>{issuedTicket.currency} {seatFee.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                              </div>
+                            )}
+                            {extrasFee > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                                <span>Extras (baggage, meals, services):</span>
+                                <span>{issuedTicket.currency} {extrasFee.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                       <div style={{ borderTop: '1px dashed #cbd5e1', margin: '0.25rem 0' }}></div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: '#c3122e', fontSize: '0.9rem' }}>
                         <span>Grand Total Paid:</span>

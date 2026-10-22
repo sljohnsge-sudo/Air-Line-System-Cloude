@@ -511,6 +511,25 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
             seat = seats[0]
             ticket["seat_number"] = f"{seat.get('row', '')}{seat.get('column', '')}"
 
+        # ── EMDs for paid seats/extras ────────────────────────────────────────
+        # Confirmed live 2026-10-22 (PNR HNFNHK): the reservation retrieve
+        # lists every issued EMD as a DocumentEMD in Receipt[], so EMD numbers
+        # always come from Travelport, not only from our saved copy.
+        emds = []
+        for receipt in reservation.get("Receipt", []) or []:
+            for doc in receipt.get("Document", []) or []:
+                if doc.get("@type") == "DocumentEMD" and doc.get("Number") and \
+                        not any(e["number"] == doc["Number"] for e in emds):
+                    emds.append({
+                        "number": doc["Number"],
+                        "description": (doc.get("EMDDescription") or {}).get("value"),
+                        "amount": (doc.get("Amount") or {}).get("Total"),
+                        "currency": ticket.get("currency"),
+                        "passenger_type": (doc.get("TravelerIdentifierRef") or {}).get("passengerTypeCode") or "ADT",
+                    })
+        if emds:
+            ticket["emd_numbers"] = emds
+
     except Exception as e:
         logger.warning(f"Partial reservation parse error: {e}", exc_info=True)
 

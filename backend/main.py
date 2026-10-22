@@ -2116,9 +2116,17 @@ def _merge_cached_ticket_fields(ticket: dict, cached: Optional[dict]) -> dict:
     dropped seat numbers that /api/bookings/retrieve/{locator} preserved."""
     if not cached:
         return ticket
-    # Preserve seat number and total fare adjustments from confirmation step if missing in retrieve
-    if not ticket.get("seat_number") and cached.get("seat_number"):
+    # Seat label saved at /confirm holds every confirmed seat with its flight
+    # ("Departure UL225: 20C, Return UL226: 4A"); since GDS seats are now
+    # really on the PNR the live retrieve returns only the first one ("20C").
+    if cached.get("seat_number"):
         ticket["seat_number"] = cached.get("seat_number")
+    # Seats/extras outcome, extras charge and EMDs exist only in our record
+    # (/confirm and ticketing) — without them a reopened ticket showed the
+    # extras total as a "Seat Selection Fee" and lost its EMD numbers.
+    for field in ["ancillary_charge", "ancillaries", "addon_results", "emd_numbers", "emd_status", "ticket_numbers"]:
+        if cached.get(field) not in (None, "", []) and not ticket.get(field):
+            ticket[field] = cached.get(field)
     # If GDS fare doesn't include the local seat selection fee added dynamically, adjust it
     if cached.get("total_fare") and cached.get("total_fare") > ticket.get("total_fare", 0.0):
         ticket["total_fare"] = cached.get("total_fare")
