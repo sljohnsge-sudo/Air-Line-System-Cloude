@@ -576,7 +576,13 @@ const handleApiResponse = async (res, defaultError) => {
 // Used once for a one-way result, and twice (Outbound/Return) for a merged
 // round-trip result card.
 const rcFmtTime = (iso) => iso?.split('T')[1]?.slice(0, 5) || iso?.split(' ')[1]?.slice(0, 5) || '--:--';
-const rcFmtDate = (iso) => iso?.split('T')[0] || iso?.split(' ')[0] || '';
+const rcFmtDate = (iso) => {
+  const d = iso?.split('T')[0] || iso?.split(' ')[0] || '';
+  if (!d) return '';
+  const [, m, day] = d.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(day, 10)} ${months[parseInt(m, 10) - 1] || ''}`;
+};
 const rcFmtDuration = (iso) => iso ? iso.replace('PT', '').replace('H', 'h ').replace('M', 'm') : '';
 
 // ── Relay animation for connecting flights ──────────────────────────────
