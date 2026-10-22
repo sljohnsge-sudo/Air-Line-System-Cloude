@@ -1566,6 +1566,11 @@ def parse_ancillary_response(result: dict) -> list[dict]:
             price = float(price_detail.get("TotalPrice", 0) or 0)
             price, _ = apply_markup(price, pricing_settings, "ancillary")
             currency = price_detail.get("CurrencyCode", {}).get("value", "LKR")
+            # TermsAndConditionsAncillary.Refundability: "Refundable" /
+            # "NonRefundable", or absent when the airline doesn't say —
+            # kept as None then, so nothing is shown rather than a guess.
+            refund_value = ((offering.get("TermsAndConditions") or {}).get("Refundability") or {}).get("value")
+            refundable = {"Refundable": True, "NonRefundable": False}.get(refund_value)
 
             for prod_opt in offering.get("ProductOptions", []) or []:
                 for prod in prod_opt.get("Product", []) or []:
@@ -1622,6 +1627,7 @@ def parse_ancillary_response(result: dict) -> list[dict]:
                         "airline_name": raw_name,
                         "description": description,
                         "segment_numbers": segment_numbers,
+                        "refundable": refundable,
                         "price": price,
                         "currency": currency,
                     })

@@ -8632,6 +8632,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                     {direction}
                                   </span>
                                 )}
+                                {/* null = airline didn't say — show nothing */}
+                                {item.refundable === true && (
+                                  <span style={{ fontSize: '0.64rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '4px', background: '#ecfdf5', color: '#047857' }}>Refundable</span>
+                                )}
+                                {item.refundable === false && (
+                                  <span style={{ fontSize: '0.64rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '4px', background: '#fef3c7', color: '#92400e' }}>Non-refundable</span>
+                                )}
                               </div>
                               {airlineText && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Airline: {airlineText}</div>}
                             </div>
