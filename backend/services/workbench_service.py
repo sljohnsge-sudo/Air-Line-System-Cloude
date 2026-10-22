@@ -1704,12 +1704,29 @@ def parse_seat_map_response(result: dict) -> list[dict]:
 
     seat_maps = []
     for i, seating_chart in enumerate(seating_charts):
-        catalog_offerings = traveler_flights[i].get("CatalogOffering", []) if i < len(traveler_flights) else []
-        seat_maps.append(_parse_single_seating_chart(seating_chart, catalog_offerings, pricing_settings))
+        trav_flight = traveler_flights[i] if i < len(traveler_flights) else {}
+        catalog_offerings = trav_flight.get("CatalogOffering", [])
+        # Extract flight identity from CatalogOfferingsID[i].Flight[0]
+        flight_info = {}
+        flights = trav_flight.get("Flight", [])
+        if flights:
+            f = flights[0]
+            carrier = f.get("carrier", "")
+            number = f.get("number", "").lstrip("0") or f.get("number", "")
+            dep = f.get("Departure", {})
+            arr = f.get("Arrival", {})
+            flight_info = {
+                "flight_number": f"{carrier}{number}",
+                "departure_airport": dep.get("location", ""),
+                "arrival_airport": arr.get("location", ""),
+                "departure_time": f"{dep.get('date', '')} {dep.get('time', '')}".strip(),
+                "arrival_time": f"{arr.get('date', '')} {arr.get('time', '')}".strip(),
+            }
+        seat_maps.append(_parse_single_seating_chart(seating_chart, catalog_offerings, pricing_settings, flight_info))
     return seat_maps
 
 
-def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pricing_settings: dict) -> dict:
+def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pricing_settings: dict, flight_info: dict | None = None) -> dict:
     """Parse one flight's seating chart + its catalog offerings (pricing/
     availability) into the flat structure the frontend seat picker expects.
     Extracted from parse_seat_map_response so it can be called once per
@@ -1864,6 +1881,7 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
         "start_row": start_row,
         "end_row": end_row,
         "columns": columns,
-        "rows": parsed_rows
+        "rows": parsed_rows,
+        **(flight_info or {}),
     }
 

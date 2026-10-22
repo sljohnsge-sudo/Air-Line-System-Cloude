@@ -8045,11 +8045,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     seat doesn't reset when switching tabs; each leg keeps
                     its own selections (see leg_index on selectedSeats). */}
                 {seatMaps.length > 1 && (
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.9rem' }}>
-                    {seatMaps.map((_, legIdx) => {
-                      const leg = selectedFlight?.legs?.[legIdx];
-                      const routeLabel = leg?.departure_airport && leg?.arrival_airport ? `${leg.departure_airport} → ${leg.arrival_airport}` : null;
-                      const legName = legIdx === 0 ? 'Outbound' : legIdx === 1 ? 'Return' : `Leg ${legIdx + 1}`;
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.9rem', flexWrap: 'wrap' }}>
+                    {seatMaps.map((sm, legIdx) => {
+                      const routeLabel = sm.departure_airport && sm.arrival_airport
+                        ? `${sm.departure_airport} → ${sm.arrival_airport}`
+                        : (() => { const leg = selectedFlight?.legs?.[legIdx]; return leg?.departure_airport && leg?.arrival_airport ? `${leg.departure_airport} → ${leg.arrival_airport}` : null; })();
+                      const flightLabel = sm.flight_number || (legIdx === 0 ? 'Outbound' : legIdx === 1 ? 'Return' : `Leg ${legIdx + 1}`);
                       const seatedCount = selectedSeats.filter(s => s.leg_index === legIdx).length;
                       const isActive = activeSeatLeg === legIdx;
                       return (
@@ -8058,7 +8059,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           type="button"
                           onClick={() => setActiveSeatLeg(legIdx)}
                           style={{
-                            flex: 1, padding: '0.6rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
+                            flex: '1 1 0', minWidth: '100px', padding: '0.6rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
                             border: '1.5px solid ' + (isActive ? 'var(--gs-crimson)' : 'var(--border-color)'),
                             background: isActive ? 'var(--gs-crimson)' : '#fff',
                             color: isActive ? '#fff' : 'var(--text-secondary)',
@@ -8066,7 +8067,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             fontFamily: 'var(--font-body)', transition: 'all 0.15s',
                           }}
                         >
-                          <span style={{ fontWeight: '800', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{legName} Flight</span>
+                          <span style={{ fontWeight: '800', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{flightLabel}</span>
                           {routeLabel && <span style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: '600' }}>{routeLabel}</span>}
                           <span style={{ fontSize: '0.68rem', opacity: 0.85 }}>{seatedCount}/{travelers.length} seated</span>
                         </button>
@@ -8112,7 +8113,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 Passenger {idx + 1}: {t.first_name} {t.last_name}
                               </div>
                               <div style={{ fontSize: '0.75rem', opacity: isActive ? 0.9 : 0.7, fontWeight: '500' }}>
-                                {seatMaps.length > 1 ? (activeSeatLeg === 0 ? 'Outbound' : 'Return') : 'Seat'}: <span style={{ fontWeight: '700', color: isActive ? 'white' : 'var(--gs-crimson)' }}>{assignedSeat ? `${assignedSeat.seat_number} (${assignedSeat.type})` : 'Not Selected'}</span>
+                                {seatMaps.length > 1 ? (seatMaps[activeSeatLeg]?.flight_number || (activeSeatLeg === 0 ? 'Outbound' : activeSeatLeg === 1 ? 'Return' : `Leg ${activeSeatLeg + 1}`)) : 'Seat'}: <span style={{ fontWeight: '700', color: isActive ? 'white' : 'var(--gs-crimson)' }}>{assignedSeat ? `${assignedSeat.seat_number} (${assignedSeat.type})` : 'Not Selected'}</span>
                               </div>
                               {assignedSeat && assignedSeat.price > 0 && (
                                 <div style={{ fontSize: '0.7rem', opacity: isActive ? 0.9 : 0.7, textAlign: 'right' }}>
@@ -8121,7 +8122,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               )}
                               {otherLegSeat && (
                                 <div style={{ fontSize: '0.68rem', opacity: isActive ? 0.85 : 0.65, fontStyle: 'italic' }}>
-                                  {activeSeatLeg === 0 ? 'Return' : 'Outbound'}: {otherLegSeat.seat_number} ({otherLegSeat.type})
+                                  {seatMaps[otherLegSeat.leg_index]?.flight_number || (otherLegSeat.leg_index === 0 ? 'Outbound' : otherLegSeat.leg_index === 1 ? 'Return' : `Leg ${otherLegSeat.leg_index + 1}`)}: {otherLegSeat.seat_number} ({otherLegSeat.type})
                                 </div>
                               )}
                             </div>
@@ -8684,7 +8685,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                             {passengerSeats.map((s, sIdx) => (
                               <span key={sIdx} style={{ fontSize: '0.75rem', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: '700' }}>
-                                {seatMaps.length > 1 ? (s.leg_index === 0 ? 'Outbound' : 'Return') + ': ' : 'Seat: '}{s.seat_number} ({s.type})
+                                {seatMaps.length > 1 ? (seatMaps[s.leg_index]?.flight_number || (s.leg_index === 0 ? 'Outbound' : s.leg_index === 1 ? 'Return' : `Leg ${s.leg_index + 1}`)) + ': ' : 'Seat: '}{s.seat_number} ({s.type})
                               </span>
                             ))}
                           </div>
