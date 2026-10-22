@@ -947,6 +947,24 @@ function buildSeatMapLegInfo(seatMaps, selectedFlight) {
   });
 }
 
+// Which direction a Travelport extra (baggage, meal, pet...) covers, from
+// its segment_numbers (1-based flight order across the whole itinerary).
+// The same item is usually offered once per direction, so without this
+// the list shows identical-looking rows. null on a one-way trip.
+function ancillaryDirection(item, selectedFlight) {
+  const legs = selectedFlight?.legs;
+  if (!legs || legs.length < 2 || !item?.segment_numbers?.length) return null;
+  const dirOfSegment = [];
+  legs.forEach((leg, dirIdx) => {
+    (leg.segments?.length ? leg.segments : [leg]).forEach(() => dirOfSegment.push(dirIdx));
+  });
+  const dirs = new Set(item.segment_numbers.map(n => dirOfSegment[n - 1]));
+  if (dirs.size !== 1 || dirs.has(undefined)) return null;
+  const dirIdx = [...dirs][0];
+  if (legs.length > 2) return `Leg ${dirIdx + 1}`;
+  return dirIdx === 0 ? 'Departure' : 'Return';
+}
+
 // "Departure AI282" — what a seat selection is called everywhere it's shown.
 const seatLegLabel = (legInfo, idx) => {
   const x = legInfo[idx];
@@ -8576,6 +8594,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         const isSelected = selectedAncillaries.some(
                           a => a.passenger_idx === activePassengerIdx && a.catalog_offering_id === item.catalog_offering_id
                         );
+                        const direction = ancillaryDirection(item, selectedFlight);
+                        // Airline's own wording, shown underneath only when
+                        // it actually says something the plain name doesn't.
+                        const squash = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        const airlineText = item.description && squash(item.description) !== squash(item.name) ? item.description : null;
                         return (
                           <div
                             key={i}
@@ -8584,7 +8607,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 ? prev.filter(a => !(a.passenger_idx === activePassengerIdx && a.catalog_offering_id === item.catalog_offering_id))
                                 : [...prev, {
                                     passenger_idx: activePassengerIdx,
-                                    name: item.name,
+                                    // Saved onto the ticket/receipt as-is, so
+                                    // carry the direction with the name.
+                                    name: direction ? `${item.name} (${direction})` : item.name,
                                     price: item.price,
                                     currency: item.currency,
                                     service_type: item.service_type,
@@ -8600,8 +8625,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             }}
                           >
                             <div>
-                              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--gs-dark)' }}>{item.name}</div>
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{item.description}</div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--gs-dark)', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                {item.name}
+                                {direction && (
+                                  <span style={{ fontSize: '0.64rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '0.1rem 0.45rem', borderRadius: '4px', background: direction === 'Return' ? '#eef2ff' : '#fff1f2', color: direction === 'Return' ? '#3730a3' : 'var(--gs-crimson)' }}>
+                                    {direction}
+                                  </span>
+                                )}
+                              </div>
+                              {airlineText && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Airline: {airlineText}</div>}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                               <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--gs-crimson)' }}>

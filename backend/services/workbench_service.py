@@ -1583,19 +1583,33 @@ def parse_ancillary_response(result: dict) -> list[dict]:
                         if m.get("measurementType") == "Weight":
                             weight = f"{m.get('value')} {m.get('unit', '')}".strip()
                             break
-                    name = desc.get("value") or "Ancillary Service"
+                    raw_name = desc.get("value") or "Ancillary Service"
+                    name = friendly_ancillary_name(desc.get("code"), desc.get("subGroup"), desc.get("ssrCode"), raw_name)
+                    # The airline's own wording stays visible as the
+                    # description line, so nothing is lost by renaming.
                     if weight:
-                        description = f"{name} ({weight})"
-                    elif desc.get("code") == "BG":
+                        description = f"{raw_name} ({weight})"
+                    elif desc.get("code") == "BG" and desc.get("ssrCode") == "XWBG":
                         # Confirmed live: some baggage SSRs (e.g. XWBG "EXCESS
                         # BAGGAGE WEIGHT") are a generic per-kg overweight
                         # charge rather than a fixed package like "UPTO33LB
                         # 15KG BAGGAGE" — Travelport gives no fixed Measurement
                         # for these, so say so explicitly instead of silently
                         # showing no weight at all (looked like missing data).
-                        description = f"{name} — priced per excess kg, not a fixed weight package"
+                        # Limited to XWBG: fixed packages like "UPTO33LB 15KG
+                        # BAGGAGE" also arrive without a Measurement, and
+                        # their own text already states the weight.
+                        description = f"{raw_name} — priced per excess kg, not a fixed weight package"
                     else:
-                        description = name
+                        description = raw_name
+                    # FlightRef ["FlightSegment_01", "FlightSegment_02"] —
+                    # which flights (1-based, itinerary order) this item
+                    # covers, so the frontend can tag it Departure/Return.
+                    segment_numbers = []
+                    for ref in ancillary.get("FlightRef", []) or []:
+                        m = re.search(r"(\d+)$", str(ref))
+                        if m:
+                            segment_numbers.append(int(m.group(1)))
                     items.append({
                         "catalog_offerings_id": catalog_offerings_id,
                         "traveler_identifier_ref": traveler_identifier_ref,
@@ -1605,12 +1619,85 @@ def parse_ancillary_response(result: dict) -> list[dict]:
                         "category_code": desc.get("code"),
                         "ssr_code": desc.get("ssrCode"),
                         "name": name,
+                        "airline_name": raw_name,
                         "description": description,
+                        "segment_numbers": segment_numbers,
                         "price": price,
                         "currency": currency,
                     })
 
     return items
+
+
+_ORDINALS = {"FIRST": "1st", "SECOND": "2nd", "THIRD": "3rd", "FOURTH": "4th", "FIFTH": "5th", "SIXTH": "6th"}
+
+
+def _title_case(text: str) -> str:
+    """'BUSINESS LOUNGE UP TO 4 HOURS' -> 'Business Lounge up to 4 Hours',
+    with weights written the normal way ('32KG' -> '32 kg')."""
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"(\d+)\s*KGS?\b", r"\1 kg", text, flags=re.I)
+    small = {"UP", "TO", "OF", "AND", "OR", "FOR", "PER", "IN", "ON", "WITH"}
+    words = []
+    for i, w in enumerate(text.split(" ")):
+        if re.fullmatch(r"\d+(kg)?|kg", w):
+            words.append(w)
+        elif i > 0 and w.upper() in small:
+            words.append(w.lower())
+        else:
+            words.append(w.capitalize())
+    return " ".join(words)
+
+
+def friendly_ancillary_name(code: str | None, sub_group: str | None, ssr_code: str | None, raw: str) -> str:
+    """Plain-English name for a Travelport ancillary, built from the
+    airline's own code + text (Ancillary.Description). Customers were seeing
+    raw airline strings like "AVIL UPTO 75KG OR 300CM DIM" (a pet-in-hold
+    fee) and mistaking them for extra baggage. Covers every code seen in
+    our Travelport logs; anything else falls back to a tidied-up version of
+    the airline's text, so an unknown item is never hidden or mislabelled."""
+    code = (code or "").upper()
+    sub_group = (sub_group or "").upper()
+    ssr = (ssr_code or "").upper()
+    text = re.sub(r"\s*AllowedWeight\s*-\s*\d+\s*KG\s*$", "", raw or "", flags=re.I).strip()
+    upper = text.upper()
+    kg = re.search(r"(\d+)\s*KG", upper)
+    kg = kg.group(1) if kg else None
+
+    # ── Pets (PT): AVIH/AVIL/AVIM = live animal in the hold, PETC = in cabin
+    if code == "PT" or ssr in ("AVIH", "AVIL", "AVIM", "PETC"):
+        size = {"AVIL": "large ", "AVIM": "medium "}.get(ssr, "")
+        if ssr == "PETC" or sub_group == "PC":
+            base = "Pet in cabin"
+        else:
+            base = f"Pet in hold ({size.strip()})" if size else "Pet in hold"
+        return f"{base} – animal + crate up to {kg} kg" if kg else base
+
+    if code == "BG":
+        if ssr == "SPEQ" or "SPORT" in upper:
+            return "Sports equipment"
+        if ssr == "XWBG":
+            return "Extra baggage – charged per kg"
+        m = re.match(r"(FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH) CHECKED BAG", upper)
+        if m:
+            return f"{_ORDINALS[m.group(1)]} checked bag" + (f" – up to {kg} kg" if kg else "")
+        if "EXCESS SIZE" in upper or ssr == "OVBG":
+            return "Oversized baggage charge"
+        if "SPECIAL BAGGAGE" in upper:
+            prefix = "Large special baggage" if "LARGE" in upper else "Special baggage"
+            return f"{prefix} – up to {kg} kg" if kg else prefix
+        if "PER5KG" in upper.replace(" ", ""):
+            return "Extra baggage – per 5 kg"
+        if kg:
+            cm = re.search(r"(\d+)\s*LCM", upper)
+            return f"Extra baggage – {kg} kg" + (f" (bag up to {cm.group(1)} cm)" if cm else "")
+        return _title_case(text)
+
+    if code == "LG":
+        return _title_case(text) if "LOUNGE" in upper else f"Lounge – {_title_case(text)}"
+
+    # Meals (ML), services (TS) and anything new: tidy the airline's text.
+    return _title_case(text)
 
 
 def book_ancillary_offer(workbench_id: str, ancillary: dict, quantity: int = 1) -> dict:
