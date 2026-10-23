@@ -7869,6 +7869,39 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </span>
               </div>
               <div className="summary-col"><span className="label">Price</span><span className="val highlight">{selectedFlight.currency} {(() => { const bdk = selectedFlight.price_breakdown ? Object.keys(selectedFlight.price_breakdown) : []; return (bdk.length > 0 ? bdk.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0) : selectedFlight.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2}); })()}</span></div>
+
+              {/* Payment step only: every flight with its departure/arrival
+                  time and aircraft, so the customer confirms exactly what
+                  they are paying for. */}
+              {bookingStep === 'payment' && (() => {
+                const legs = selectedFlight.legs && selectedFlight.legs.length >= 2
+                  ? [...selectedFlight.legs].sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
+                  : [selectedFlight];
+                const hm = (iso) => iso?.split('T')[1]?.slice(0, 5) || iso?.split(' ')[1]?.slice(0, 5) || '--:--';
+                const ymd = (iso) => iso?.split('T')[0] || iso?.split(' ')[0] || '';
+                return (
+                  <div style={{ flexBasis: '100%', borderTop: '1px dashed #e2e8f0', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {legs.map((leg, lIdx) => {
+                      const segs = leg.segments && leg.segments.length ? leg.segments : [leg];
+                      return (
+                        <div key={lIdx}>
+                          {legs.length > 1 && (
+                            <div className="label" style={{ marginBottom: '0.2rem' }}>{legs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`}</div>
+                          )}
+                          {segs.map((seg, sIdx) => (
+                            <div key={sIdx} style={{ fontSize: '0.8rem', color: 'var(--gs-dark)', display: 'flex', flexWrap: 'wrap', gap: '0.15rem 0.9rem', alignItems: 'baseline' }}>
+                              <strong>{seg.flight_number}</strong>
+                              <span>{seg.departure_airport} <strong>{hm(seg.departure_time)}</strong> → {seg.arrival_airport} <strong>{hm(seg.arrival_time)}</strong></span>
+                              <span style={{ color: 'var(--text-muted)' }}>{ymd(seg.departure_time)}{ymd(seg.arrival_time) && ymd(seg.arrival_time) !== ymd(seg.departure_time) ? ` → ${ymd(seg.arrival_time)}` : ''}</span>
+                              <span>✈ {seg.aircraft_type || 'Aircraft not provided'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             {bookingError && (
