@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import gsLogo from './assets/george_steuart_logo.png';
 import whatsappIcon from './assets/whatsapp_icon.png';
@@ -915,7 +915,10 @@ const normFlightNo = (fn) => (fn || '').toUpperCase().replace(/\s+/g, '').replac
 // to guess from position alone (which is how a connecting outbound flight
 // used to get labelled "Return").
 function buildSeatMapLegInfo(seatMaps, selectedFlight) {
-  const legs = selectedFlight?.legs?.length ? selectedFlight.legs : null;
+  // Some fares (e.g. NDC one-way) carry their flights in selectedFlight.segments
+  // with no legs list — treat the whole trip as one leg then.
+  const legs = selectedFlight?.legs?.length ? selectedFlight.legs
+    : selectedFlight?.segments?.length ? [selectedFlight] : null;
   const flat = [];
   if (legs) {
     legs.forEach((leg, dirIdx) => {
@@ -958,7 +961,8 @@ const seatMapStatus = (sm) => {
   return open ? 'ok' : 'closed';
 };
 function buildSeatTabs(seatMaps, selectedFlight, legInfo) {
-  const legs = selectedFlight?.legs?.length ? selectedFlight.legs : null;
+  const legs = selectedFlight?.legs?.length ? selectedFlight.legs
+    : selectedFlight?.segments?.length ? [selectedFlight] : null;
   const used = new Set();
   const tabs = [];
   (legs || []).forEach((leg, dirIdx) => {
@@ -1204,6 +1208,7 @@ export default function App() {
   // staying on "/".
   const navigate = useNavigate();
   const location = useLocation();
+  const navigationType = useNavigationType();
 
   // activeTab value -> URL path. 'book' and 'bookings' are handled
   // specially (see computeCanonicalPath below) since they need a sub-path
@@ -1968,7 +1973,6 @@ export default function App() {
   const seatMap = seatMaps[activeSeatLeg] || null;
   const seatMapLegInfo = buildSeatMapLegInfo(seatMaps, selectedFlight);
   const seatTabs = buildSeatTabs(seatMaps, selectedFlight, seatMapLegInfo);
-  const firstOpenSeatLeg = seatTabs.find(t => t.status === 'ok')?.mapIdx ?? 0;
   // Each entry also carries leg_index so one passenger can hold a different
   // seat on the outbound vs. the return leg without the two colliding.
   const [selectedSeats, setSelectedSeats] = useState([]);
@@ -2269,7 +2273,12 @@ export default function App() {
       // URL" effect re-encrypts the results token (step omitted) -> this
       // effect fires on that URL change and, seeing no step, reset
       // bookingStep to null right back.
-      setBookingStep(current => {
+      // A PUSH is the "state -> URL" effect above echoing a step the app
+      // already moved to, so app state is newer than this URL. Applying it
+      // anyway raced quick step changes: Options -> seat map -> Done landed
+      // back on the seat map when the seat map's URL arrived late. Only
+      // back/forward and opened links (POP) restore the step from the URL.
+      if (navigationType !== 'PUSH') setBookingStep(current => {
         if (typeof current === 'string' && current.startsWith('amadeus')) return current;
         if (sub) {
           if (selectedFlight) return sub;
@@ -8700,18 +8709,42 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 drop-down per passenger and route for Additional baggage,
                 Meal and Lounge. Everything is optional. */}
             {bookingStep === 'options' && (() => {
-              const tripLegs = selectedFlight?.legs?.length >= 2 ? selectedFlight.legs : null;
-              const routeOf = (leg) => {
+              // Extras are grouped per flight, using Travelport's own
+              // segment_numbers (1-based flight order across the itinerary):
+              // a meal or lounge for flight 2 sits under flight 2, and a
+              // lounge is at that flight's departure airport (so on
+              // CMB→DOH→DXB, flight 2's lounge is the Doha connection).
+              // Items Travelport sells for several flights at once (e.g.
+              // per-kg baggage for the whole journey) get their own group.
+              const allLegs = selectedFlight?.legs?.length ? selectedFlight.legs : [selectedFlight];
+              const dirLabel = (d) => allLegs.length > 2 ? `Leg ${d + 1}` : allLegs.length === 2 ? (d === 0 ? 'Departure' : 'Return') : 'Departure';
+              const flatSegs = [];
+              allLegs.forEach((leg, d) => {
                 const segs = leg?.segments?.length ? leg.segments : [leg];
-                return segs[0]?.departure_airport && segs[segs.length - 1]?.arrival_airport
-                  ? `${segs[0].departure_airport} → ${segs[segs.length - 1].arrival_airport}` : '';
+                segs.forEach((s, j) => flatSegs.push({ d, part: j + 1, parts: segs.length, seg: s }));
+              });
+              const groupOf = (item) => {
+                const nums = [...new Set(item.segment_numbers || [])].sort((a, b) => a - b);
+                if (nums.length === 1 && flatSegs[nums[0] - 1]) return `F${nums[0]}`;
+                return nums.length ? `M${nums.join(',')}` : 'M';
               };
-              const groupNames = tripLegs
-                ? tripLegs.map((_, i) => tripLegs.length > 2 ? `Leg ${i + 1}` : (i === 0 ? 'Departure' : 'Return'))
-                : ['Your flight'];
-              const groupRoutes = tripLegs ? tripLegs.map(routeOf)
-                : [`${selectedFlight.departure_airport} → ${selectedFlight.arrival_airport}`];
-              const groupOf = (item) => tripLegs ? (ancillaryDirection(item, selectedFlight) || 'Whole trip') : 'Your flight';
+              const groupInfo = (g) => {
+                if (g.startsWith('F')) {
+                  const f = flatSegs[Number(g.slice(1)) - 1];
+                  return {
+                    title: `${dirLabel(f.d)}${f.parts > 1 ? ` · Flight ${f.part} of ${f.parts}` : ''}`,
+                    route: [f.seg.flight_number, f.seg.departure_airport && f.seg.arrival_airport ? `${f.seg.departure_airport} → ${f.seg.arrival_airport}` : ''].filter(Boolean).join(' · '),
+                    airport: f.seg.departure_airport,
+                    short: [f.seg.flight_number, f.seg.departure_airport && `${f.seg.departure_airport}→${f.seg.arrival_airport}`].filter(Boolean).join(' '),
+                  };
+                }
+                const segs = g.slice(1).split(',').filter(Boolean).map(n => flatSegs[Number(n) - 1]).filter(Boolean);
+                const dirs = new Set(segs.map(f => f.d));
+                const route = segs.length ? `${segs[0].seg.departure_airport} → ${segs[segs.length - 1].seg.arrival_airport}` : '';
+                const title = dirs.size === 1 && segs.length > 1 ? `${dirLabel(segs[0].d)} · all flights` : 'Whole trip';
+                return { title, route, airport: null, short: title };
+              };
+              const groupOrder = (g) => g.startsWith('F') ? Number(g.slice(1)) * 10 : (Math.max(0, ...g.slice(1).split(',').filter(Boolean).map(Number)) * 10 + 5);
               const optionKey = (item) => `${item.airline_name}|${(item.segment_numbers || []).join(',')}`;
               const CATS = [
                 { code: 'BG', label: 'Additional baggage' },
@@ -8726,14 +8759,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   .filter(i => { const k = optionKey(i); if (seen.has(k)) return false; seen.add(k); return true; })
                   .sort((a, b) => (a.price || 0) - (b.price || 0));
               };
-              const allGroups = [...groupNames, ...(tripLegs && ancillaries.some(i => groupOf(i) === 'Whole trip') ? ['Whole trip'] : [])];
+              const allGroups = [...new Set([...flatSegs.map((_, i) => `F${i + 1}`), ...ancillaries.map(groupOf)])]
+                .sort((a, b) => groupOrder(a) - groupOrder(b));
               const choose = (paxIdx, group, cat, key) => {
                 const item = optionsFor(group, cat).find(i => optionKey(i) === key);
                 setSelectedAncillaries(prev => [
                   ...prev.filter(a => !(a.passenger_idx === paxIdx && a._group === group && a._cat === cat)),
                   ...(item ? [{
                     passenger_idx: paxIdx,
-                    name: group === 'Your flight' ? item.name : `${item.name} (${group})`,
+                    name: flatSegs.length > 1 ? `${item.name} (${groupInfo(group).short})` : item.name,
                     airline_name: item.airline_name,
                     segment_numbers: item.segment_numbers || [],
                     price: item.price,
@@ -8784,36 +8818,51 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             : 'Not available online for this flight'}
                         </div>
                       </div>
-                      {seatMaps.length > 0 && (
-                        <button type="button" className="btn btn-primary" onClick={() => { setActiveSeatLeg(firstOpenSeatLeg); setBookingStep('seats'); }}>
-                          {selectedSeats.length ? 'Change seats' : 'Choose seats'}
-                        </button>
-                      )}
                     </div>
                     {seatFareNote && (
                       <div style={{ ...noteStyle, marginTop: '0.6rem' }}>{seatFareNote}</div>
                     )}
-                    {seatMaps.length > 0 && seatTabs.length > 1 && (
-                      <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.78rem' }}>
-                        {seatTabs.map((t, i) => (
-                          <div key={i} style={{ color: t.status === 'ok' ? '#166534' : '#92400e' }}>
-                            {t.status === 'ok' ? '✓' : '✕'} {t.flight_number}{t.departure_airport && t.arrival_airport ? ` ${t.departure_airport} → ${t.arrival_airport}` : ''}: {t.status === 'ok' ? 'seat selection available' : 'seat selection not available online — choose at airline check-in'}
+                    {/* One row per flight, each with its own Choose seat
+                        button. Open only when Travelport's seat map for
+                        that flight has Available seats (free or paid). */}
+                    <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      {(seatTabs.length ? seatTabs : [{ mapIdx: -1, status: 'missing', flight_number: selectedFlight.flight_number, departure_airport: selectedFlight.departure_airport, arrival_airport: selectedFlight.arrival_airport }]).map((t, i) => {
+                        const open = seatMaps.length > 0 && t.status === 'ok';
+                        const closedText = addonsNote ? 'Seat selection not available online for this fare' : 'Seat selection not provided by the airline';
+                        const legSeats = open ? selectedSeats.filter(s => s.leg_index === t.mapIdx) : [];
+                        return (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.6rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--gs-dark)' }}>
+                                {t.flight_number}{t.departure_airport && t.arrival_airport ? ` · ${t.departure_airport} → ${t.arrival_airport}` : ''}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', marginTop: '0.1rem', color: open ? '#166534' : '#92400e' }}>
+                                {open ? '✓ Seat selection available' : `✕ ${closedText}`}
+                              </div>
+                              {legSeats.length > 0 && (
+                                <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                  {legSeats.map((s, j) => (
+                                    <span key={j} style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                                      {travelers[s.passenger_idx]?.first_name || `Passenger ${s.passenger_idx + 1}`}: {s.seat_number}{s.price ? ` · ${cur} ${Number(s.price).toLocaleString()}` : ' · Free'}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <button type="button" className={open ? 'btn btn-primary' : 'btn btn-secondary'} aria-disabled={!open}
+                                    onClick={() => open
+                                      ? (setActiveSeatLeg(t.mapIdx), setActivePassengerIdx(0), setBookingStep('seats'))
+                                      : showNotification(`${closedText} for ${t.flight_number || 'this flight'}. You can choose your seat with the airline at online check-in.`, 'info')}
+                                    style={{ padding: '0.45rem 0.9rem', fontSize: '0.8rem', ...(open ? {} : { background: '#f1f5f9', color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed' }) }}>
+                              {open ? (legSeats.length ? 'Change seat' : 'Choose seat') : 'Not available'}
+                            </button>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      })}
+                    </div>
                     {seatMaps.length === 0 && (
                       <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.6rem 0.75rem' }}>
                         {addonsNote || "Seat selection isn't available online for this flight."} You can choose your seat with the airline at online check-in, which opens before departure (times are set by each airline).
-                      </div>
-                    )}
-                    {selectedSeats.length > 0 && (
-                      <div style={{ marginTop: '0.6rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        {selectedSeats.map((s, i) => (
-                          <span key={i} style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                            {travelers[s.passenger_idx]?.first_name || `Passenger ${s.passenger_idx + 1}`}: {seatMaps.length > 1 ? `${seatLegLabel(seatMapLegInfo, s.leg_index)} ` : ''}{s.seat_number}{s.price ? ` · ${cur} ${Number(s.price).toLocaleString()}` : ''}
-                          </span>
-                        ))}
                       </div>
                     )}
                   </div>
@@ -8831,19 +8880,22 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         {mealBenefit === 'Chargeable' && <span>🍽 Meals are not included in this fare</span>}
                       </div>
                     )}
-                    {!hasAnyExtras ? (
-                      <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {!hasAnyExtras && (
+                      <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.6rem 0.75rem' }}>
                         {addonsNote || 'No additional baggage, meals or lounge are offered online for this flight.'}
                       </div>
-                    ) : allGroups.map((group, gIdx) => {
-                      // All three drop-downs are always shown; one the airline
-                      // doesn't offer on this route is disabled and says so.
-                      const groupCats = CATS;
-                      if (!CATS.some(c => optionsFor(group, c.code).length > 0)) return null;
+                    )}
+                    {allGroups.map((group) => {
+                      // Per flight, all three drop-downs are always shown; one
+                      // the airline doesn't offer is disabled and says so. A
+                      // multi-flight group only shows what it actually has.
+                      const gi = groupInfo(group);
+                      const groupCats = group.startsWith('F') ? CATS : CATS.filter(c => optionsFor(group, c.code).length > 0);
+                      if (!group.startsWith('F') && groupCats.length === 0) return null;
                       return (
                         <div key={group} style={{ marginTop: '0.85rem' }}>
                           <div style={{ fontSize: '0.78rem', fontWeight: '800', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            {group}{groupRoutes[gIdx] ? ` · ${groupRoutes[gIdx]}` : ''}
+                            {gi.title}{gi.route ? ` · ${gi.route}` : ''}
                           </div>
                           {travelers.map((t, pIdx) => (
                             <div key={pIdx} style={{ marginTop: '0.5rem', padding: '0.65rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
@@ -8853,13 +8905,24 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '0.5rem' }}>
                                 {groupCats.map(c => {
                                   const current = selectedAncillaries.find(a => a.passenger_idx === pIdx && a._group === group && a._cat === c.code);
+                                  // Unavailable drop-downs stay visible (the customer
+                                  // sees what we sell) but don't open: a click
+                                  // explains why instead.
+                                  const none = optionsFor(group, c.code).length === 0;
+                                  const why = () => showNotification(
+                                    addonsNote || (c.code === 'LG' && gi.airport
+                                      ? `No lounge is offered online at ${gi.airport} for this flight.`
+                                      : `${c.label} isn't offered online for this flight.`),
+                                    'info');
                                   return (
                                     <label key={c.code} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', minWidth: 0 }}>
-                                      {c.label}
+                                      {c.code === 'LG' && gi.airport ? `Lounge at ${gi.airport}` : c.label}
                                       <select value={current?._key || ''} onChange={e => choose(pIdx, group, c.code, e.target.value)}
-                                              disabled={optionsFor(group, c.code).length === 0}
-                                              style={{ ...selectStyle, ...(optionsFor(group, c.code).length === 0 ? { background: '#f1f5f9', color: '#94a3b8' } : {}) }}>
-                                        <option value="">{optionsFor(group, c.code).length === 0 ? 'Not offered on this flight' : 'No selection'}</option>
+                                              aria-disabled={none}
+                                              onMouseDown={none ? (e => { e.preventDefault(); why(); }) : undefined}
+                                              onKeyDown={none ? (e => { if (e.key !== 'Tab') { e.preventDefault(); why(); } }) : undefined}
+                                              style={{ ...selectStyle, ...(none ? { background: '#f1f5f9', color: '#94a3b8', cursor: 'not-allowed' } : {}) }}>
+                                        <option value="">{none ? (addonsNote ? 'Not available online for this fare' : c.code === 'LG' && gi.airport ? `No lounge offered at ${gi.airport}` : 'Not offered on this flight') : 'No selection'}</option>
                                         {optionsFor(group, c.code).map(item => (
                                           <option key={optionKey(item)} value={optionKey(item)}>
                                             {item.name} — {item.currency} {Number(item.price).toLocaleString()}
