@@ -7778,11 +7778,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       {/* ── BOOKING WIZARD MODAL ─────────────────────────────────────────── */}
       {selectedFlight && bookingStep && bookingStep !== 'ticket' && bookingStep !== 'amadeus_ticket' && (
         <div className="modal-overlay animate-fade-only">
-          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: (bookingStep === 'seats' || bookingStep === 'seats_loading' || bookingStep === 'ancillaries' || bookingStep === 'options') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
+          <div className={`modal-content glass-panel animate-fade${bookingStep === 'passenger' ? ' booking-compact' : ''}`} style={{ maxWidth: bookingStep === 'passenger' ? '760px' : (bookingStep === 'seats' || bookingStep === 'seats_loading' || bookingStep === 'ancillaries' || bookingStep === 'options') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
             {/* Progress Steps — this stepper is shaped for Travelport's own step sequence; Amadeus
                 offers use a shorter flow (passenger details → seats → processing → ticket) and
                 are kept on their own step titles below instead of this (mismatched) step dial. */}
-            <div style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
+            <div className="booking-stepper" style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
   {(() => {
                 // Seats and extras now live together on one Options step (the
                 // seat map opens from it), like emirates.com's Options page.
@@ -8048,7 +8048,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
             {/* STEP: Passenger Details Form */}
             {bookingStep === 'passenger' && (
-              <form onSubmit={handlePassengerNext} className="booking-modal-form">
+              <form onSubmit={handlePassengerNext} className="booking-modal-form pax-form">
                 {travelers.length > 1 && (
                   <div className="passenger-tabs" style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.65rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
                     {travelers.map((t, idx) => {
@@ -8151,7 +8151,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                       <select
                         className="form-input"
-                        style={{ flex: '0 0 110px' }}
+                        style={{ flex: '0 0 92px', paddingLeft: '0.4rem', paddingRight: '0.2rem' }}
                         value={splitPhone(travelers[activePassengerIdx]?.phone).dial}
                         onChange={e => handleTravelerPhoneDialChange(e.target.value)}
                       >
@@ -8171,7 +8171,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </div>
                     {renderFieldError(activePassengerIdx, 'phone')}
                   </div>
-                  <div className="form-group">
+                  <div className="form-group pax-email">
                     <label className="form-label">Email Address *</label>
                     <input type="email" className="form-input" required placeholder="john@example.com" style={fieldErrorStyle(activePassengerIdx, 'email')} value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
                     {renderFieldError(activePassengerIdx, 'email')}

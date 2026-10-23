@@ -2962,3 +2962,35 @@ body {
   background: var(--gs-crimson);
   color: #ffffff;
 }
+
+/* ── Passenger Details step: compact, whole form visible at once ─────────── */
+.booking-compact .booking-stepper { padding: 0.6rem 1.5rem 0.45rem !important; margin-bottom: 0 !important; }
+.booking-compact .modal-header { padding: 0.6rem 1.5rem; }
+.booking-compact .modal-header h3 { font-size: 1.05rem; }
+.booking-compact .modal-flight-summary {
+  margin: 0.6rem 1.5rem 0.5rem !important;
+  padding: 0.55rem 0.9rem;
+  gap: 0.35rem 1.25rem;
+}
+.booking-compact .modal-flight-summary .label { font-size: 0.58rem; }
+.booking-compact .modal-flight-summary .val { font-size: 0.78rem; }
+
+.pax-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.15rem 0.85rem;
+  padding-bottom: 1rem;
+}
+.pax-form > * { grid-column: 1 / -1; }
+.pax-form > .form-grid-2 { display: contents; }
+.pax-form .form-group { margin-bottom: 0.45rem; gap: 0.25rem; }
+.pax-form .pax-email { grid-column: span 2; }
+.pax-form .form-label { font-size: 0.66rem; }
+.pax-form .form-input,
+.pax-form .form-select { padding: 0.45rem 0.65rem; font-size: 0.85rem; }
+.pax-form .modal-actions { margin-top: 0.4rem; padding-top: 0.75rem; }
+
+@media (max-width: 640px) {
+  .pax-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pax-form .pax-email { grid-column: 1 / -1; }
+}
