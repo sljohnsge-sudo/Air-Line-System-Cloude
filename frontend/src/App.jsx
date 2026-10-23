@@ -7777,7 +7777,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
       {/* ── BOOKING WIZARD MODAL ─────────────────────────────────────────── */}
       {selectedFlight && bookingStep && bookingStep !== 'ticket' && bookingStep !== 'amadeus_ticket' && (
-        <div className="modal-overlay animate-fade-only">
+        <div className="modal-overlay booking-fullpage animate-fade-only">
           <div className={`modal-content glass-panel animate-fade${bookingStep === 'passenger' ? ' booking-compact' : ''}`} style={{ maxWidth: bookingStep === 'passenger' ? '760px' : (bookingStep === 'seats' || bookingStep === 'seats_loading' || bookingStep === 'ancillaries' || bookingStep === 'options') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
             {/* Progress Steps — this stepper is shaped for Travelport's own step sequence; Amadeus
                 offers use a shorter flow (passenger details → seats → processing → ticket) and

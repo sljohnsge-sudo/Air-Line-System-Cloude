@@ -2994,3 +2994,92 @@ body {
   .pax-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pax-form .pax-email { grid-column: 1 / -1; }
 }
+
+/* ── Booking wizard as a full page (not a pop-up) ─────────────────────────
+   Layout: stepper + title across the top; the step's form/options in a white
+   card on the left; the trip summary as a sticky side card on the right. */
+.modal-overlay.booking-fullpage {
+  background: #f4f6f9;
+  backdrop-filter: none;
+  padding: 0;
+  align-items: flex-start;
+}
+.booking-fullpage > .modal-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  column-gap: 1.5rem;
+  align-items: start;
+  align-content: start;
+  max-width: 1240px !important;
+  width: 100% !important;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.booking-fullpage > .modal-content > * { grid-column: 1; min-width: 0; }
+
+.booking-fullpage > .modal-content > .booking-stepper {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 12px 12px;
+  border-top: 5px solid var(--gs-crimson);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  padding: 0.9rem 1.5rem 0.75rem !important;
+  margin: 0 0 0.5rem !important;
+}
+.booking-fullpage > .modal-content > .modal-header {
+  grid-column: 1 / -1;
+  border: none;
+  padding: 1rem 0 0.9rem;
+}
+.booking-fullpage > .modal-content > .modal-header h3 { font-size: 1.6rem; }
+
+/* Trip summary -> sticky side card */
+.booking-fullpage > .modal-content > .modal-flight-summary {
+  grid-column: 2;
+  grid-row: 3 / span 40;
+  position: sticky;
+  top: 1rem;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 0.85rem;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  padding: 1.1rem 1.2rem !important;
+  margin: 0 !important;
+}
+.booking-fullpage .modal-flight-summary .summary-col {
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.booking-fullpage .modal-flight-summary .val { font-size: 0.88rem; }
+.booking-fullpage .modal-flight-summary .val.highlight { font-size: 1.35rem; }
+
+/* Everything else = the step card */
+.booking-fullpage > .modal-content > :not(.booking-stepper):not(.modal-header):not(.modal-flight-summary):not(.error-banner):not(.info-banner) {
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+.booking-fullpage .pax-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.booking-fullpage .pax-form .pax-email { grid-column: span 2; }
+
+@media (max-width: 960px) {
+  .booking-fullpage > .modal-content { grid-template-columns: minmax(0, 1fr); padding: 0 0.75rem 2rem; }
+  .booking-fullpage > .modal-content > .modal-flight-summary { grid-column: 1; grid-row: auto; position: static; margin-bottom: 1rem !important; }
+}
+@media (max-width: 640px) {
+  .booking-fullpage .pax-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .booking-fullpage .pax-form .pax-email { grid-column: 1 / -1; }
+}
