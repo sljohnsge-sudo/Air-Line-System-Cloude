@@ -9541,6 +9541,41 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   );
                 })()}
 
+                {/* Everything the customer typed, shown right above the
+                    confirmation so they agree to exactly what will be sent
+                    to the airline. */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem 1.1rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem', marginBottom: '0.75rem' }}>
+                    <h4 style={{ margin: 0, color: 'var(--gs-dark)', fontSize: '0.92rem' }}>Please check your passenger details</h4>
+                    <button type="button" className="btn btn-secondary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }} onClick={() => setBookingStep('passenger')}>Edit details</button>
+                  </div>
+                  {travelers.map((t, idx) => {
+                    const ptc = t.passenger_type;
+                    const typeLabel = ptc === 'CNN' ? 'Child' : ptc === 'INF' ? 'Infant' : ptc === 'STU' ? 'Student' : 'Adult';
+                    const rows = [
+                      ['Name (as on passport)', `${t.first_name || ''} ${t.last_name || ''}`.trim()],
+                      ['Gender', t.gender],
+                      ['Date of birth', t.date_of_birth],
+                      ['Passport number', t.passport_number],
+                      ['Passport expiry', t.passport_expiry],
+                      ['Nationality', t.nationality || 'LK'],
+                      ['Passport issued by', t.passport_issue_country || t.nationality || 'LK'],
+                      ['Email', t.email],
+                      ['Phone', t.phone],
+                    ];
+                    return (
+                      <div key={idx} style={{ marginBottom: idx < travelers.length - 1 ? '0.9rem' : 0, paddingBottom: idx < travelers.length - 1 ? '0.75rem' : 0, borderBottom: idx < travelers.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Passenger {idx + 1} · {typeLabel}</div>
+                        <div className="form-grid-2" style={{ fontSize: '0.83rem', gap: '0.3rem 1rem' }}>
+                          {rows.map(([label, value]) => (
+                            <div key={label}><span style={{ color: 'var(--text-muted)' }}>{label}: </span><strong style={{ wordBreak: 'break-word' }}>{value || '—'}</strong></div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
                   <input type="checkbox" checked={dataConfirmAgreed} onChange={e => setDataConfirmAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
                   <span>I confirm that all passenger details entered (names, passport information, dates of birth) are accurate and match my travel documents exactly. I understand that incorrect information may result in denied boarding, additional airline fees, or ticket cancellation with no refund.</span>
