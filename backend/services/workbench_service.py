@@ -713,6 +713,85 @@ def _calculate_age(date_of_birth: str) -> int | None:
         return None
 
 
+def _split_phone(phone: str) -> tuple[str, str]:
+    """"+94771234567" -> ("94", "771234567"). Clean phone number and parse
+    country code for Galileo 1G; shared by the traveler payload and the
+    contact SSR (PrimaryContact) so both always carry the same number."""
+    phone_clean = (phone or "").replace("+", "").replace(" ", "").replace("-", "")
+    country_code = "94"
+    phone_num = phone_clean
+    if phone_clean.startswith("94"):
+        phone_num = phone_clean[2:]
+    elif len(phone_clean) > 9:
+        country_code = phone_clean[:-9]
+        phone_num = phone_clean[-9:]
+    return country_code, phone_num
+
+
+def add_primary_contacts(workbench_id: str, travelers: list) -> list:
+    """
+    Send each passenger's mobile and email to the airline as contact SSRs
+    (CTCM / CTCE) via Travelport's "Add Primary Contact Remark (SSR CTC)".
+    Without them, Etihad, Qatar and SriLankan all flag the PNR with "MISSING
+    SSR CTCM MOBILE OR SSR CTCE EMAIL OR SSR CTCR NON-CONSENT" (confirmed
+    live 2026-10-22) — putting phone/email on the Traveler alone doesn't
+    produce these SSRs.
+
+    One request per passenger, matched to the workbench's own Traveler ids
+    by name. Passengers without their own phone/email (e.g. infants) use the
+    lead passenger's. Returns a list of {passenger_idx, status, error}.
+    Never raises — a missing contact SSR is an airline warning, not a reason
+    to block the booking.
+    """
+    results = []
+    try:
+        wb = get_workbench_details(workbench_id)
+        reservation = wb.get("ReservationResponse", {}).get("Reservation", {}) or wb.get("Reservation", {}) or wb
+        traveler_map = _match_traveler_refs(reservation.get("Traveler", []) or [], travelers)
+    except Exception as e:
+        logger.warning(f"Contact SSRs skipped — could not read workbench travelers: {e}")
+        return [{"passenger_idx": i, "status": "failed", "error": str(e)} for i in range(len(travelers))]
+
+    lead = travelers[0] if travelers else {}
+    url = f"{TravelportConfig.base_path()}/air/book/primarycontact/reservationworkbench/{workbench_id}/primarycontacts"
+    for idx, traveler in enumerate(travelers):
+        wt = traveler_map.get(idx)
+        if not wt:
+            results.append({"passenger_idx": idx, "status": "failed", "error": "passenger not found on workbench"})
+            continue
+        phone = traveler.get("phone") or lead.get("phone")
+        email = traveler.get("email") or lead.get("email")
+        # Confirmed live (PNR HNFNX2): TravelerRef alone is rejected with
+        # 8217 "TRAVELER ID IS NOT VALID"; the workbench Traveler's id AND
+        # its Travelport Identifier are both required (same as Seat Book).
+        contact: dict = {
+            "@type": "PrimaryContact",
+            "shareWith": "Supplier",
+            "TravelerIdentifier": {"id": wt.get("id"), **({"Identifier": wt["Identifier"]} if wt.get("Identifier") else {})},
+        }
+        if phone:
+            country_code, phone_num = _split_phone(phone)
+            contact["Telephone"] = {"@type": "Telephone", "countryAccessCode": country_code,
+                                    "phoneNumber": phone_num, "role": "Mobile"}
+        if email:
+            contact["Email"] = {"value": email}
+        if not phone and not email:
+            results.append({"passenger_idx": idx, "status": "skipped", "error": "no phone or email"})
+            continue
+        try:
+            result = _api_post(url, {"PrimaryContact": contact}, session_id=workbench_id)
+            # Errors come back inside PrimaryContactResponse.Result, which
+            # _raise_if_error doesn't look at.
+            errors = ((result.get("PrimaryContactResponse") or {}).get("Result") or {}).get("Error") or []
+            if errors:
+                raise ValueError(f"Travelport Add Primary Contact failed: {errors[0].get('Message')}")
+            results.append({"passenger_idx": idx, "status": "added", "error": None})
+        except Exception as e:
+            logger.warning(f"Contact SSR for passenger {idx + 1} failed (booking continues): {e}")
+            results.append({"passenger_idx": idx, "status": "failed", "error": str(e)})
+    return results
+
+
 def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_gds: bool = True) -> dict:
     """
     Build a single Traveler object from our internal passenger dict. Shared by
@@ -738,17 +817,9 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_g
             codebase always sends "Passport", never the other GDS-only
             "PassportCard" value the same guide calls out.
     """
-    # Clean phone number and parse country code for Galileo 1G
-    phone_clean = traveler.get("phone", "").replace("+", "").replace(" ", "").replace("-", "")
-    country_code = "94"
-    phone_num = phone_clean
-    if phone_clean.startswith("94"):
-        phone_num = phone_clean[2:]
-    elif len(phone_clean) > 9:
-        country_code = phone_clean[:-9]
-        phone_num = phone_clean[-9:]
+    country_code, phone_num = _split_phone(traveler.get("phone", ""))
 
-    prefix = _person_prefix(traveler.get("gender", "Male"), traveler.get("passenger_type", "ADT"))
+    prefix =_person_prefix(traveler.get("gender", "Male"), traveler.get("passenger_type", "ADT"))
 
     passenger_type = traveler.get("passenger_type", "ADT")
 
@@ -1264,6 +1335,11 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
                     key=lambda t: passenger_type_order.get(t.get("passenger_type", "ADT"), 99)
                 )
                 add_travelers_to_workbench(workbench_id, ordered_travelers, is_gds=is_gds)
+
+                # STEP 6a — Contact SSRs (CTCM/CTCE) for every passenger, GDS
+                # only (NDC carriers take contact details from the Traveler).
+                if is_gds:
+                    add_primary_contacts(workbench_id, ordered_travelers)
 
                 # STEP 6b — Add Travel Agency, GDS content only (matches the
                 # GDS certification reference, which includes this step; the
