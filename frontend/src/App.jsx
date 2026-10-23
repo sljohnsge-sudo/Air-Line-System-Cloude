@@ -2471,7 +2471,11 @@ export default function App() {
       raw_offering: fareOption.raw_offering,
       baggage_allowance: fareOption.baggage_allowance,
       change_policy: fareOption.change_policy,
-      cancel_policy: fareOption.cancel_policy
+      cancel_policy: fareOption.cancel_policy,
+      // Fare benefits from Travelport (seat selection / meals / bags:
+      // Included, Chargeable or Not Offered) — the Options step tells the
+      // customer what their chosen fare already covers.
+      brand_attributes: fareOption.brand_attributes
     });
     setBookingStep('passenger');
     setBookingError('');
@@ -8699,6 +8703,22 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               const extrasTotal = selectedAncillaries.reduce((t, a) => t + (a.price || 0), 0);
               const cur = selectedFlight.currency || 'LKR';
               const hasAnyExtras = allGroups.some(g => CATS.some(c => optionsFor(g, c.code).length > 0));
+              // What the chosen fare already covers — Travelport's own fare
+              // benefits (BrandAttribute: Included / Chargeable / Not Offered)
+              // and baggage allowance. Nothing is said when Travelport is silent.
+              const fareName = selectedFlight.fare_family || 'selected';
+              const fareBenefit = (cls) => (selectedFlight.brand_attributes || []).find(a => a.classification === cls)?.inclusion;
+              const seatBenefit = fareBenefit('SeatAssignment');
+              const seatFareNote = seatBenefit === 'Included'
+                ? `Your ${fareName} fare includes standard seat selection. Seats with a price in the seat map are an additional charge.`
+                : seatBenefit === 'Chargeable'
+                  ? `You have selected the ${fareName} fare, which does not include free seat selection. Seat selection is an additional charge.`
+                  : seatBenefit === 'Not Offered'
+                    ? `Seat selection is not offered with the ${fareName} fare.`
+                    : null;
+              const mealBenefit = fareBenefit('Meals');
+              const includedBags = (selectedFlight.baggage_allowance || []).filter(b => b?.type && b?.allowance);
+              const noteStyle = { fontSize: '0.78rem', color: '#1e3a8a', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '0.55rem 0.75rem' };
               const cardStyle = { border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' };
               const selectStyle = { width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', padding: '0.55rem 0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#fff', fontFamily: 'var(--font-body)' };
               return (
@@ -8720,6 +8740,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         </button>
                       )}
                     </div>
+                    {seatFareNote && (
+                      <div style={{ ...noteStyle, marginTop: '0.6rem' }}>{seatFareNote}</div>
+                    )}
                     {seatMaps.length === 0 && (
                       <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.6rem 0.75rem' }}>
                         {addonsNote || "Seat selection isn't available online for this flight."} You can choose your seat with the airline at online check-in, which opens before departure (times are set by each airline).
@@ -8739,13 +8762,25 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   {/* 2. Additional baggage, meals and lounge */}
                   <div style={cardStyle}>
                     <div style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--gs-dark)' }}>Additional baggage, meals &amp; lounge</div>
+                    {(includedBags.length > 0 || mealBenefit === 'Included' || mealBenefit === 'Chargeable') && (
+                      <div style={{ ...noteStyle, marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <strong>Already included in your {fareName} fare</strong>
+                        {includedBags.map((b, i) => (
+                          <span key={i}>🧳 {b.type}: {b.allowance}</span>
+                        ))}
+                        {mealBenefit === 'Included' && <span>🍽 Standard meals &amp; beverages (the meals below are paid choices)</span>}
+                        {mealBenefit === 'Chargeable' && <span>🍽 Meals are not included in this fare</span>}
+                      </div>
+                    )}
                     {!hasAnyExtras ? (
                       <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {addonsNote || 'No additional baggage, meals or lounge are offered online for this flight.'}
                       </div>
                     ) : allGroups.map((group, gIdx) => {
-                      const groupCats = CATS.filter(c => optionsFor(group, c.code).length > 0);
-                      if (!groupCats.length) return null;
+                      // All three drop-downs are always shown; one the airline
+                      // doesn't offer on this route is disabled and says so.
+                      const groupCats = CATS;
+                      if (!CATS.some(c => optionsFor(group, c.code).length > 0)) return null;
                       return (
                         <div key={group} style={{ marginTop: '0.85rem' }}>
                           <div style={{ fontSize: '0.78rem', fontWeight: '800', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -8762,8 +8797,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                   return (
                                     <label key={c.code} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', minWidth: 0 }}>
                                       {c.label}
-                                      <select value={current?._key || ''} onChange={e => choose(pIdx, group, c.code, e.target.value)} style={selectStyle}>
-                                        <option value="">No selection</option>
+                                      <select value={current?._key || ''} onChange={e => choose(pIdx, group, c.code, e.target.value)}
+                                              disabled={optionsFor(group, c.code).length === 0}
+                                              style={{ ...selectStyle, ...(optionsFor(group, c.code).length === 0 ? { background: '#f1f5f9', color: '#94a3b8' } : {}) }}>
+                                        <option value="">{optionsFor(group, c.code).length === 0 ? 'Not offered on this flight' : 'No selection'}</option>
                                         {optionsFor(group, c.code).map(item => (
                                           <option key={optionKey(item)} value={optionKey(item)}>
                                             {item.name} — {item.currency} {Number(item.price).toLocaleString()}
