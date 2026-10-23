@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import gsLogo from './assets/george_steuart_logo.png';
@@ -2134,6 +2135,13 @@ export default function App() {
     // form again even with stale flights still in state, and the URL should
     // follow that back to plain /book, not stay on the old results link.
     if (activeTab === 'book' && !showSearchForm && flights.length > 0) {
+      // Short loading steps keep the URL on the step before them. Encoding
+      // them made two navigations fire back-to-back when the answer came
+      // back instantly (NDC fares skip the seat map), and the late "URL ->
+      // state" pass for the first one put the screen back on the loading
+      // step — the customer was left stuck on "Please wait...".
+      const urlStep = bookingStep === 'seats_loading' ? 'passenger'
+        : bookingStep === 'processing' ? 'payment' : bookingStep;
       const payload = {
         // Amadeus booking steps are deliberately NOT round-tripped through
         // the URL the way Travelport's wizard steps are: encoding them here
@@ -2142,7 +2150,7 @@ export default function App() {
         // sell failure), clobbering the newer step back to the stale one
         // from the in-flight navigation. The Amadeus flow doesn't need
         // deep-linking/back-button support for its short synchronous steps.
-        step: bookingStep && bookingStep !== 'ticket' && !bookingStep.startsWith('amadeus') ? bookingStep : null,
+        step: urlStep && urlStep !== 'ticket' && !urlStep.startsWith('amadeus') ? urlStep : null,
         origin: searchOrigin, destination: searchDest, date: searchDate,
         returnDate: searchType === 'roundtrip' ? returnDate : null,
         type: searchType, adults: adultCount, children: childCount,
@@ -2154,9 +2162,22 @@ export default function App() {
     return { path: TAB_TO_PATH[activeTab] || '/', search: '' };
   };
 
+  // encryptForUrl uses a random salt, so the same data gives a different
+  // token every time — compare what the tokens SAY, not the token strings.
+  // Otherwise every step change re-navigated even when nothing in the URL
+  // changed, and that extra navigation's "URL -> state" pass could put a
+  // newer step back to an older one (seen live: the Options step snapping
+  // back to Passenger Details on a fast NDC response).
+  const sameDecodedPath = (a, b) => {
+    const [, kindA, tokA] = a.split('/');
+    const [, kindB, tokB] = b.split('/');
+    if (kindA !== kindB || !tokA || !tokB || !['results', 'booking'].includes(kindA)) return a === b;
+    return decryptFromUrl(tokA) === decryptFromUrl(tokB);
+  };
+
   useEffect(() => {
     const { path, search } = computeCanonicalPath();
-    if (path + search !== location.pathname + location.search) {
+    if (!(search === location.search && sameDecodedPath(path, location.pathname))) {
       navigate({ pathname: path, search }, { replace: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2629,23 +2650,18 @@ export default function App() {
       setActiveAncillaryLeg(0);
       setSelectedAncillaries([]);
       setAddonsNote(data.addons_note || '');
-      const hasAncillaries = data.ancillaries_available && data.ancillaries?.length > 0;
 
+      // data.seat_maps is one entry per flight — fall back to the single
+      // data.seat_map if an older response shape ever omits the plural field.
+      // Either way the customer lands on the Options step, which shows a
+      // "Choose seats" card or explains when seats can be chosen.
       if (data.seat_map_available === false || !data.seat_map) {
         setSeatMaps([]);
-        setActiveSeatLeg(0);
-        // Travelport confirmed no seat map for this airline/flight — skip
-        // seat step, go straight to ancillaries (if any) or review.
-        showNotification(`ℹ️ ${data.addons_note || 'Seat selection is not supported by this airline via GDS.'} Proceeding to the next step.`, 'info');
-        setBookingStep(hasAncillaries ? 'ancillaries' : 'review');
       } else {
-        // data.seat_maps is one entry per leg (outbound[, return]) — fall
-        // back to the single data.seat_map if an older response shape ever
-        // omits the plural field, so this never regresses to no seat map.
         setSeatMaps(data.seat_maps && data.seat_maps.length > 0 ? data.seat_maps : [data.seat_map]);
-        setActiveSeatLeg(0);
-        setBookingStep('seats');
       }
+      setActiveSeatLeg(0);
+      setBookingStep('options');
 
     } catch (err) {
       const errMsg = err.message || String(err);
@@ -5473,7 +5489,18 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             {selectedFareOption && (
                               <button
                                 type="button"
-                                onClick={() => handleSelectFlight(flight, selectedFareOption)}
+                                onClick={() => {
+                                  // Like emirates.com: with more than one fare
+                                  // on offer, Select opens the fare chooser
+                                  // pop-up first. The round-trip outbound pick
+                                  // only locks the outbound leg, so it skips it.
+                                  if (roundTripPhase !== 'outbound' && (flight.fare_options || []).length > 1) {
+                                    setExpandedFareIds(prev => ({ ...prev, [fId]: true }));
+                                    if (flight.source === 'AD') fetchAmadeusFareRules(flight);
+                                  } else {
+                                    handleSelectFlight(flight, selectedFareOption);
+                                  }
+                                }}
                                 style={{
                                   background: '#245d38',
                                   color: 'white',
@@ -5560,15 +5587,34 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         </button>
                       </div>
 
-                      {/* ── Expandable Cabin Select and Fare Options ── */}
-                      {isFareExpanded && (
-                        <div style={{ borderTop: '1px solid #e2e8f0', background: '#ffffff', padding: '1.5rem', width: '100%', boxSizing: 'border-box' }}>
-                          
+                      {/* ── Cabin Select and Fare Options — shown as a pop-up
+                          (Select Flight / "Other fares & cabins"). Rendered into
+                          document.body so result-card styles can't clip it. ── */}
+                      {isFareExpanded && createPortal(
+                        <div className="modal-overlay" style={{ animation: 'none' }}
+                             onClick={() => setExpandedFareIds(prev => ({ ...prev, [fId]: false }))}>
+                        <div className="modal-content" style={{ maxWidth: '980px', width: '95%', animation: 'none' }}
+                             onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+                          <div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#1e293b' }}>Choose your fare</div>
+                            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.15rem' }}>
+                              {flight.departure_airport} → {flight.arrival_airport}
+                            </div>
+                          </div>
+                          <button type="button" aria-label="Close"
+                                  onClick={() => setExpandedFareIds(prev => ({ ...prev, [fId]: false }))}
+                                  style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem', color: '#475569' }}>
+                            ×
+                          </button>
+                        </div>
+                        <div style={{ background: '#ffffff', padding: '1.5rem', width: '100%', boxSizing: 'border-box', maxHeight: '75vh', overflowY: 'auto' }}>
+
                           {/* Segment Summary or Airline Details */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1.25rem', color: '#64748b', fontSize: '0.78rem' }}>
                             <span style={{ fontWeight: '800', color: '#1e293b' }}>✈ {flight.aircraft_type || 'Boeing 777-300ER'}</span>
                             <span>•</span>
-                            <span style={{ fontWeight: '700', color: '#475569' }}>{flight.airline_code}{flight.flight_number}</span>
+                            <span style={{ fontWeight: '700', color: '#475569' }}>{(flight.flight_number || '').startsWith(flight.airline_code || '~') ? flight.flight_number : `${flight.airline_code}${flight.flight_number}`}</span>
                           </div>
 
                           {/* Cabin Selector Tabs */}
@@ -5778,7 +5824,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                     {/* Action Button */}
                                     <button
                                       type="button"
-                                      onClick={() => handleSelectFlight(flight, fo)}
+                                      onClick={() => {
+                                        setExpandedFareIds(prev => ({ ...prev, [fId]: false }));
+                                        handleSelectFlight(flight, fo);
+                                      }}
                                       style={{
                                         background: isCheapest ? '#245d38' : '#1e293b',
                                         color: 'white',
@@ -5805,6 +5854,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           </div>
 
                         </div>
+                        </div>
+                        </div>,
+                        document.body
                       )}
 
                       {/* ── Always-visible Per-Passenger Price Strip ── */}
@@ -7636,27 +7688,25 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       {/* ── BOOKING WIZARD MODAL ─────────────────────────────────────────── */}
       {selectedFlight && bookingStep && bookingStep !== 'ticket' && bookingStep !== 'amadeus_ticket' && (
         <div className="modal-overlay animate-fade-only">
-          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: (bookingStep === 'seats' || bookingStep === 'seats_loading' || bookingStep === 'ancillaries') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
+          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: (bookingStep === 'seats' || bookingStep === 'seats_loading' || bookingStep === 'ancillaries' || bookingStep === 'options') ? '850px' : '640px', width: '95%', transition: 'max-width 0.25s ease' }}>
             {/* Progress Steps — this stepper is shaped for Travelport's own step sequence; Amadeus
                 offers use a shorter flow (passenger details → seats → processing → ticket) and
                 are kept on their own step titles below instead of this (mismatched) step dial. */}
             <div style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
   {(() => {
+                // Seats and extras now live together on one Options step (the
+                // seat map opens from it), like emirates.com's Options page.
                 const steps = [
                   { key: 'passenger', label: 'Passenger Details' },
-                  { key: 'seats', label: 'Seat Selection' },
-                  { key: 'ancillaries', label: 'Extras' },
+                  { key: 'options', label: 'Options' },
                   { key: 'review', label: 'Review Booking' },
                   { key: 'payment', label: 'Payment' }
                 ];
-                // When seat map is unavailable (skipped), mark the seats step as completed/skipped
-                const seatStepSkipped = !seatMap && (bookingStep === 'ancillaries' || bookingStep === 'review' || bookingStep === 'payment' || bookingStep === 'processing');
-                const extrasStepSkipped = ancillaries.length === 0 && (bookingStep === 'review' || bookingStep === 'payment' || bookingStep === 'processing');
                 return steps.map((step, idx) => {
                   const isActive = bookingStep === step.key ||
-                                  (step.key === 'seats' && (bookingStep === 'seats_loading')) ||
+                                  (step.key === 'options' && ['seats_loading', 'seats', 'ancillaries'].includes(bookingStep)) ||
                                   (step.key === 'payment' && bookingStep === 'processing');
-                  const isSkipped = (step.key === 'seats' && seatStepSkipped) || (step.key === 'ancillaries' && extrasStepSkipped);
+                  const isSkipped = false;
                   return (
                     <div key={step.key} style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', color: isSkipped ? '#94a3b8' : isActive ? 'var(--gs-crimson)' : 'var(--text-muted)', fontWeight: isActive ? '700' : '400', position: 'relative' }}>
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: isSkipped ? '#e2e8f0' : isActive ? 'var(--gs-crimson)' : 'var(--border-color)', color: isSkipped ? '#94a3b8' : 'white', margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '700' }}>
@@ -7677,6 +7727,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                  bookingStep === 'seats' ? 'Select Passenger Seats' :
                  bookingStep === 'seats_unavailable' ? 'Seat Selection Unavailable' :
                  bookingStep === 'ancillaries' ? 'Optional Extras' :
+                 bookingStep === 'options' ? 'Options' :
                  bookingStep === 'review' ? 'Review Your Booking' :
                  bookingStep === 'payment' ? 'Payment Details' :
                  bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
@@ -8090,7 +8141,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                 <div className="modal-actions">
                   <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">Continue to Seat Selection →</button>
+                  <button type="submit" className="btn btn-primary">Continue to Options →</button>
                 </div>
               </form>
             )}
@@ -8542,7 +8593,20 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </div>
 
                 <div className="modal-actions" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep(selectedFlight.source === 'AD' ? 'amadeus_passenger' : 'passenger')}>
+                  {selectedFlight.source !== 'AD' ? (
+                    // Travelport: the seat map is opened from the Options
+                    // step, so both buttons go back there.
+                    <>
+                      <button type="button" className="btn btn-secondary" onClick={() => { setSelectedSeats([]); setBookingStep('options'); }}>
+                        Clear seats &amp; back to Options
+                      </button>
+                      <button type="button" className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => { setBookingError(''); setBookingStep('options'); }}>
+                        Done →
+                      </button>
+                    </>
+                  ) : (
+                  <>
+                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep('amadeus_passenger')}>
                     ← Back to Passenger
                   </button>
                   <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }}>
@@ -8571,11 +8635,177 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       Continue →
                     </button>
                   </div>
+                  </>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* STEP: Ancillaries (Extra Baggage / Services) */}
+            {/* STEP: Options (Travelport) — like emirates.com's Options page:
+                a "Choose seats" card that opens the seat map, then one
+                drop-down per passenger and route for Additional baggage,
+                Meal and Lounge. Everything is optional. */}
+            {bookingStep === 'options' && (() => {
+              const tripLegs = selectedFlight?.legs?.length >= 2 ? selectedFlight.legs : null;
+              const routeOf = (leg) => {
+                const segs = leg?.segments?.length ? leg.segments : [leg];
+                return segs[0]?.departure_airport && segs[segs.length - 1]?.arrival_airport
+                  ? `${segs[0].departure_airport} → ${segs[segs.length - 1].arrival_airport}` : '';
+              };
+              const groupNames = tripLegs
+                ? tripLegs.map((_, i) => tripLegs.length > 2 ? `Leg ${i + 1}` : (i === 0 ? 'Departure' : 'Return'))
+                : ['Your flight'];
+              const groupRoutes = tripLegs ? tripLegs.map(routeOf)
+                : [`${selectedFlight.departure_airport} → ${selectedFlight.arrival_airport}`];
+              const groupOf = (item) => tripLegs ? (ancillaryDirection(item, selectedFlight) || 'Whole trip') : 'Your flight';
+              const optionKey = (item) => `${item.airline_name}|${(item.segment_numbers || []).join(',')}`;
+              const CATS = [
+                { code: 'BG', label: 'Additional baggage' },
+                { code: 'ML', label: 'Meal' },
+                { code: 'LG', label: 'Lounge' },
+              ];
+              // One entry per distinct item (the shop repeats items per traveller).
+              const optionsFor = (group, cat) => {
+                const seen = new Set();
+                return ancillaries
+                  .filter(i => (i.category_code || '').toUpperCase() === cat && groupOf(i) === group)
+                  .filter(i => { const k = optionKey(i); if (seen.has(k)) return false; seen.add(k); return true; })
+                  .sort((a, b) => (a.price || 0) - (b.price || 0));
+              };
+              const allGroups = [...groupNames, ...(tripLegs && ancillaries.some(i => groupOf(i) === 'Whole trip') ? ['Whole trip'] : [])];
+              const choose = (paxIdx, group, cat, key) => {
+                const item = optionsFor(group, cat).find(i => optionKey(i) === key);
+                setSelectedAncillaries(prev => [
+                  ...prev.filter(a => !(a.passenger_idx === paxIdx && a._group === group && a._cat === cat)),
+                  ...(item ? [{
+                    passenger_idx: paxIdx,
+                    name: group === 'Your flight' ? item.name : `${item.name} (${group})`,
+                    airline_name: item.airline_name,
+                    segment_numbers: item.segment_numbers || [],
+                    price: item.price,
+                    currency: item.currency,
+                    service_type: item.service_type,
+                    catalog_offering_id: item.catalog_offering_id,
+                    _group: group, _cat: cat, _key: key,
+                  }] : []),
+                ]);
+              };
+              const cheapestPaidSeat = (() => {
+                const prices = seatMaps.flatMap(sm => (sm?.rows || []).flatMap(r => (r.seats || [])
+                  .filter(s => s.status === 'available' && (s.price || 0) > 0).map(s => s.price)));
+                return prices.length ? Math.min(...prices) : null;
+              })();
+              const seatTotal = selectedSeats.reduce((t, s) => t + (s.price || 0), 0);
+              const extrasTotal = selectedAncillaries.reduce((t, a) => t + (a.price || 0), 0);
+              const cur = selectedFlight.currency || 'LKR';
+              const hasAnyExtras = allGroups.some(g => CATS.some(c => optionsFor(g, c.code).length > 0));
+              const cardStyle = { border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' };
+              const selectStyle = { width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', padding: '0.55rem 0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#fff', fontFamily: 'var(--font-body)' };
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {/* 1. Seats */}
+                  <div style={cardStyle}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--gs-dark)' }}>Choose seats</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          {seatMaps.length > 0
+                            ? (cheapestPaidSeat ? `From ${cur} ${cheapestPaidSeat.toLocaleString()} · seat selection is optional` : 'Seat selection is optional')
+                            : 'Not available online for this flight'}
+                        </div>
+                      </div>
+                      {seatMaps.length > 0 && (
+                        <button type="button" className="btn btn-primary" onClick={() => { setActiveSeatLeg(0); setBookingStep('seats'); }}>
+                          {selectedSeats.length ? 'Change seats' : 'Choose seats'}
+                        </button>
+                      )}
+                    </div>
+                    {seatMaps.length === 0 && (
+                      <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.6rem 0.75rem' }}>
+                        {addonsNote || "Seat selection isn't available online for this flight."} You can choose your seat with the airline at online check-in, which opens before departure (times are set by each airline).
+                      </div>
+                    )}
+                    {selectedSeats.length > 0 && (
+                      <div style={{ marginTop: '0.6rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        {selectedSeats.map((s, i) => (
+                          <span key={i} style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                            {travelers[s.passenger_idx]?.first_name || `Passenger ${s.passenger_idx + 1}`}: {seatMaps.length > 1 ? `${seatLegLabel(seatMapLegInfo, s.leg_index)} ` : ''}{s.seat_number}{s.price ? ` · ${cur} ${Number(s.price).toLocaleString()}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Additional baggage, meals and lounge */}
+                  <div style={cardStyle}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--gs-dark)' }}>Additional baggage, meals &amp; lounge</div>
+                    {!hasAnyExtras ? (
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {addonsNote || 'No additional baggage, meals or lounge are offered online for this flight.'}
+                      </div>
+                    ) : allGroups.map((group, gIdx) => {
+                      const groupCats = CATS.filter(c => optionsFor(group, c.code).length > 0);
+                      if (!groupCats.length) return null;
+                      return (
+                        <div key={group} style={{ marginTop: '0.85rem' }}>
+                          <div style={{ fontSize: '0.78rem', fontWeight: '800', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {group}{groupRoutes[gIdx] ? ` · ${groupRoutes[gIdx]}` : ''}
+                          </div>
+                          {travelers.map((t, pIdx) => (
+                            <div key={pIdx} style={{ marginTop: '0.5rem', padding: '0.65rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                              <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--gs-dark)', marginBottom: '0.45rem' }}>
+                                {t.first_name} {t.last_name}
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '0.5rem' }}>
+                                {groupCats.map(c => {
+                                  const current = selectedAncillaries.find(a => a.passenger_idx === pIdx && a._group === group && a._cat === c.code);
+                                  return (
+                                    <label key={c.code} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', minWidth: 0 }}>
+                                      {c.label}
+                                      <select value={current?._key || ''} onChange={e => choose(pIdx, group, c.code, e.target.value)} style={selectStyle}>
+                                        <option value="">No selection</option>
+                                        {optionsFor(group, c.code).map(item => (
+                                          <option key={optionKey(item)} value={optionKey(item)}>
+                                            {item.name} — {item.currency} {Number(item.price).toLocaleString()}
+                                            {item.refundable === true ? ' · Refundable' : item.refundable === false ? ' · Non-refundable' : ''}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Seats and extras are confirmed by the airline before payment; you are only charged for what the airline confirms.
+                  </div>
+
+                  <div className="modal-actions" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setBookingStep('passenger')}>
+                      ← Back to Passenger
+                    </button>
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {(seatTotal + extrasTotal) > 0 && (
+                        <span style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--gs-dark)' }}>
+                          Seats &amp; extras: {cur} {(seatTotal + extrasTotal).toLocaleString()}
+                        </span>
+                      )}
+                      <button type="button" className="btn btn-primary" onClick={() => { setBookingError(''); setBookingStep('review'); }}>
+                        Continue to Review →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* STEP: Ancillaries (Extra Baggage / Services) — Amadeus flow */}
             {bookingStep === 'ancillaries' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: 'auto' }}>
                 <div className="info-banner" style={{ fontSize: '0.78rem', marginBottom: '0.75rem' }}>
@@ -9012,7 +9242,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 })()}
 
                 <div className="modal-actions">
-                  <button className="btn btn-secondary" onClick={() => setBookingStep(seatMap ? 'seats' : 'seats_unavailable')}>← Back</button>
+                  <button className="btn btn-secondary" onClick={() => setBookingStep('options')}>← Back to Options</button>
                   <button className="btn btn-primary" onClick={() => setBookingStep('payment')}>Proceed to Payment →</button>
                 </div>
               </div>
