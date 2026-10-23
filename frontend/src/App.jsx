@@ -8803,6 +8803,42 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               const mealBenefit = fareBenefit('Meals');
               const includedBags = (selectedFlight.baggage_allowance || []).filter(b => b?.type && b?.allowance);
               const noteStyle = { fontSize: '0.78rem', color: '#1e3a8a', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '0.55rem 0.75rem' };
+              // One flight's row in the Choose seats card: its own Choose seat
+              // button, open only when Travelport's seat map for that flight
+              // has Available seats (free or paid).
+              const renderSeatRow = (t, key) => {
+                const open = seatMaps.length > 0 && t.status === 'ok';
+                const closedText = addonsNote ? 'Seat selection not available online for this fare' : 'Seat selection not provided by the airline';
+                const legSeats = open ? selectedSeats.filter(s => s.leg_index === t.mapIdx) : [];
+                return (
+                  <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.6rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--gs-dark)' }}>
+                        {t.flight_number}{t.departure_airport && t.arrival_airport ? ` · ${t.departure_airport} → ${t.arrival_airport}` : ''}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', marginTop: '0.1rem', color: open ? '#166534' : '#92400e' }}>
+                        {open ? '✓ Seat selection available' : `✕ ${closedText}`}
+                      </div>
+                      {legSeats.length > 0 && (
+                        <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          {legSeats.map((s, j) => (
+                            <span key={j} style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                              {travelers[s.passenger_idx]?.first_name || `Passenger ${s.passenger_idx + 1}`}: {s.seat_number}{s.price ? ` · ${cur} ${Number(s.price).toLocaleString()}` : ' · Free'}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button type="button" className={open ? 'btn btn-primary' : 'btn btn-secondary'} aria-disabled={!open}
+                            onClick={() => open
+                              ? (setActiveSeatLeg(t.mapIdx), setActivePassengerIdx(0), setBookingStep('seats'))
+                              : showNotification(`${closedText} for ${t.flight_number || 'this flight'}. You can choose your seat with the airline at online check-in.`, 'info')}
+                            style={{ padding: '0.45rem 0.9rem', fontSize: '0.8rem', ...(open ? {} : { background: '#f1f5f9', color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed' }) }}>
+                      {open ? (legSeats.length ? 'Change seat' : 'Choose seat') : 'Not available'}
+                    </button>
+                  </div>
+                );
+              };
               const cardStyle = { border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' };
               const selectStyle = { width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', padding: '0.55rem 0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#fff', fontFamily: 'var(--font-body)' };
               return (
@@ -8826,39 +8862,29 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         button. Open only when Travelport's seat map for
                         that flight has Available seats (free or paid). */}
                     <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                      {(seatTabs.length ? seatTabs : [{ mapIdx: -1, status: 'missing', flight_number: selectedFlight.flight_number, departure_airport: selectedFlight.departure_airport, arrival_airport: selectedFlight.arrival_airport }]).map((t, i) => {
-                        const open = seatMaps.length > 0 && t.status === 'ok';
-                        const closedText = addonsNote ? 'Seat selection not available online for this fare' : 'Seat selection not provided by the airline';
-                        const legSeats = open ? selectedSeats.filter(s => s.leg_index === t.mapIdx) : [];
-                        return (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.6rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--gs-dark)' }}>
-                                {t.flight_number}{t.departure_airport && t.arrival_airport ? ` · ${t.departure_airport} → ${t.arrival_airport}` : ''}
+                      {(() => {
+                        // Flights grouped by direction (Departure / Return, or
+                        // Leg n on multi-city), each under its own heading.
+                        const rows = seatTabs.length ? seatTabs : [{ mapIdx: -1, status: 'missing', direction: 'Departure', flight_number: selectedFlight.flight_number, departure_airport: selectedFlight.departure_airport, arrival_airport: selectedFlight.arrival_airport }];
+                        const sections = [];
+                        rows.forEach(t => {
+                          const name = t.direction || 'Departure';
+                          const last = sections[sections.length - 1];
+                          if (last && last.name === name) last.rows.push(t); else sections.push({ name, rows: [t] });
+                        });
+                        return sections.map((sec, si) => {
+                          const first = sec.rows[0], end = sec.rows[sec.rows.length - 1];
+                          const route = first.departure_airport && end.arrival_airport ? `${first.departure_airport} → ${end.arrival_airport}` : '';
+                          return (
+                            <div key={si} style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: si ? '0.5rem' : 0 }}>
+                              <div style={{ fontSize: '0.78rem', fontWeight: '800', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                {sec.name}{route ? ` · ${route}` : ''}
                               </div>
-                              <div style={{ fontSize: '0.75rem', marginTop: '0.1rem', color: open ? '#166534' : '#92400e' }}>
-                                {open ? '✓ Seat selection available' : `✕ ${closedText}`}
-                              </div>
-                              {legSeats.length > 0 && (
-                                <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                  {legSeats.map((s, j) => (
-                                    <span key={j} style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                                      {travelers[s.passenger_idx]?.first_name || `Passenger ${s.passenger_idx + 1}`}: {s.seat_number}{s.price ? ` · ${cur} ${Number(s.price).toLocaleString()}` : ' · Free'}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
+                              {sec.rows.map((t, i) => renderSeatRow(t, `${si}-${i}`))}
                             </div>
-                            <button type="button" className={open ? 'btn btn-primary' : 'btn btn-secondary'} aria-disabled={!open}
-                                    onClick={() => open
-                                      ? (setActiveSeatLeg(t.mapIdx), setActivePassengerIdx(0), setBookingStep('seats'))
-                                      : showNotification(`${closedText} for ${t.flight_number || 'this flight'}. You can choose your seat with the airline at online check-in.`, 'info')}
-                                    style={{ padding: '0.45rem 0.9rem', fontSize: '0.8rem', ...(open ? {} : { background: '#f1f5f9', color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed' }) }}>
-                              {open ? (legSeats.length ? 'Change seat' : 'Choose seat') : 'Not available'}
-                            </button>
-                          </div>
-                        );
-                      })}
+                          );
+                        });
+                      })()}
                     </div>
                     {seatMaps.length === 0 && (
                       <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.6rem 0.75rem' }}>
