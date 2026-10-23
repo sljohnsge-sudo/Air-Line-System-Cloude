@@ -7673,7 +7673,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             <div className="modal-header">
               <h3>
                 {bookingStep === 'passenger' ? 'Passenger Details' :
-                 bookingStep === 'seats_loading' ? 'Loading Seat Map...' :
+                 bookingStep === 'seats_loading' ? 'Checking Seats & Services...' :
                  bookingStep === 'seats' ? 'Select Passenger Seats' :
                  bookingStep === 'seats_unavailable' ? 'Seat Selection Unavailable' :
                  bookingStep === 'ancillaries' ? 'Optional Extras' :
@@ -8099,10 +8099,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             {bookingStep === 'seats_loading' && (
               <div style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
                 <div className="spinner" style={{ margin: '0 auto 1.25rem' }}></div>
-                <h4 style={{ color: 'var(--gs-dark)', fontWeight: '700' }}>Fetching Live Seat Availability...</h4>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                  Connecting to Travelport GDS to retrieve the real-time seat configuration and pricing for {selectedFlight.flight_number}.
-                </p>
+                <h4 className="loading-blink" style={{ color: 'var(--gs-dark)', fontWeight: '700', lineHeight: 1.5 }}>
+                  Please wait, we are checking seat map availability and other services for you
+                </h4>
               </div>
             )}
 
@@ -8627,10 +8626,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         if (code === 'LG' || /LOUNGE/.test(text)) return 'Lounge';
                         if (code === 'ML' || ssr.endsWith('ML') || /MEAL|CATERING|SNACK|BEVERAGE/.test(text)) return 'Meal Preferences';
                         if (code === 'BG' || /BAG/.test(text)) return 'Extra Baggage';
-                        return 'Other Services';
+                        // Only baggage, meals and lounge are sold online (the
+                        // backend already filters Travelport extras the same
+                        // way); anything else is not shown.
+                        return null;
                       };
-                      // Ordered Lounge / Meal Preferences / Extra Baggage / Other
-                      // so customers see the most sought-after extras first.
+                      // Ordered Lounge / Meal Preferences / Extra Baggage so
+                      // customers see the most sought-after extras first.
                       // Round trips: a Departure / Return switch above the
                       // category tabs, so each direction's extras are listed
                       // on their own instead of mixed together. Items that
@@ -8645,8 +8647,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       };
                       const visibleAncillaries = tripLegs ? ancillaries.filter(item => inLeg(item, activeLegIdx)) : ancillaries;
 
-                      const sections = { 'Lounge': [], 'Meal Preferences': [], 'Extra Baggage': [], 'Other Services': [] };
-                      visibleAncillaries.forEach(item => sections[classify(item)].push(item));
+                      const sections = { 'Lounge': [], 'Meal Preferences': [], 'Extra Baggage': [] };
+                      visibleAncillaries.forEach(item => { const s = classify(item); if (s) sections[s].push(item); });
 
                       const renderItem = (item, i) => {
                         const isSelected = selectedAncillaries.some(
@@ -8751,7 +8753,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 const segs = leg.segments?.length ? leg.segments : [leg];
                                 const route = segs[0]?.departure_airport && segs[segs.length - 1]?.arrival_airport
                                   ? `${segs[0].departure_airport} → ${segs[segs.length - 1].arrival_airport}` : null;
-                                const legCount = ancillaries.filter(item => inLeg(item, legIdx)).length;
+                                const legCount = ancillaries.filter(item => inLeg(item, legIdx) && classify(item)).length;
                                 const isActive = legIdx === activeLegIdx;
                                 return (
                                   <button

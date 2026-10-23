@@ -1709,7 +1709,17 @@ def parse_ancillary_response(result: dict) -> list[dict]:
                         "currency": currency,
                     })
 
-    return items
+    # Only baggage, meals and lounge are offered online. Other categories
+    # (pets, priority/handling services, ...) were removed by the business:
+    # e.g. Qatar's pet-in-hold needs animal details that Travelport can't
+    # pass to the airline yet, so they were charged and then rejected.
+    # Filtering here also keeps them out of add_seats_and_extras_to_pnr's
+    # fresh shop, so they can't be booked even if a request names one.
+    return [i for i in items if (i.get("category_code") or "").upper() in ALLOWED_ANCILLARY_CATEGORIES]
+
+
+# Travelport Ancillary Description.code: BG = baggage, ML = meals, LG = lounge.
+ALLOWED_ANCILLARY_CATEGORIES = {"BG", "ML", "LG"}
 
 
 _ORDINALS = {"FIRST": "1st", "SECOND": "2nd", "THIRD": "3rd", "FOURTH": "4th", "FIFTH": "5th", "SIXTH": "6th"}
