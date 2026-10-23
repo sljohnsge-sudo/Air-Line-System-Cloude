@@ -4349,10 +4349,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           // just the cheapest — never by only the first leg, since two
           // itineraries can legitimately share a first leg but differ later
           // (e.g. same CMB→DEL flight, different DEL→LON or return flight).
+          // The content source is part of the key: a GDS and an NDC fare for
+          // the same flights stay two cards (as on one-way results, where
+          // groupFlightsBySameFlight puts them side by side). Keying on the
+          // flights alone folded e.g. every Qatar GDS round trip into the
+          // cheaper Qatar NDC card, so no GDS card was ever shown for QR.
           const byCombo = new Map();
           for (const pair of flights) {
             if (!pair.legs?.length) continue;
-            const key = pair.legs.map(legKey).sort().join('|');
+            const key = `${pair.fare_source || 'GDS'}#` + pair.legs.map(legKey).sort().join('|');
             const existing = byCombo.get(key);
             if (!existing) {
               byCombo.set(key, { ...pair, fare_options: [...(pair.fare_options || [])] });
