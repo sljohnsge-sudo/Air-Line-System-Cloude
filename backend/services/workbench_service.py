@@ -2117,9 +2117,9 @@ def parse_seat_map_response(result: dict) -> list[dict]:
         if ref.get("@type") == "ReferenceListSeatingChart":
             seating_charts.extend(ref.get("SeatingChart", []))
 
+    errors = resp.get("Result", {}).get("Error", [])
     if not seating_charts:
         logger.warning("No seating chart found in Travelport response.")
-        errors = resp.get("Result", {}).get("Error", [])
         if errors:
             raise ValueError(f"Travelport Seating Chart Error: {errors[0].get('Message')}")
         raise ValueError("Travelport did not return a seating chart for this flight.")
@@ -2149,6 +2149,11 @@ def parse_seat_map_response(result: dict) -> list[dict]:
                 "arrival_time": f"{arr.get('date', '')} {arr.get('time', '')}".strip(),
             }
         seat_maps.append(_parse_single_seating_chart(seating_chart, catalog_offerings, pricing_settings, flight_info))
+    # Confirmed live (Oman Air WY): Travelport can answer with charts for only
+    # some flights plus "SEAT MAP IS UNAVAILABLE" for the rest — that flight
+    # simply has no entry here, and the frontend shows it as unavailable.
+    if errors:
+        logger.warning(f"Seat map partly unavailable: {[e.get('Message') for e in errors]} — returned for {[m.get('flight_number') for m in seat_maps]}")
     return seat_maps
 
 
@@ -2303,11 +2308,17 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
             "seats": seats
         })
         
+    # Seats Travelport marks "Available" are the only ones the customer can
+    # book — a chart where every seat is Blocked/Reserved (seen live on WY)
+    # means seat selection isn't open for that flight.
+    available_count = sum(1 for r in parsed_rows for s in r["seats"] if s["status"] == "available")
     return {
         "start_row": start_row,
         "end_row": end_row,
         "columns": columns,
         "rows": parsed_rows,
+        "available_seat_count": available_count,
+        "seat_selection_available": available_count > 0,
         **(flight_info or {}),
     }
 

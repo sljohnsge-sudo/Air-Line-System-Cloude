@@ -1034,7 +1034,7 @@ def initiate_booking(request: BookingInitiateRequest):
         seat_map_available = False
         try:
             seat_maps = services.get_seat_map(workbench_id, offer_id)
-            seat_map_available = bool(seat_maps)
+            seat_map_available = any(m.get("seat_selection_available") for m in seat_maps)
         except Exception as e:
             logger.warning(f"Live seat map retrieval failed: {e}")
 

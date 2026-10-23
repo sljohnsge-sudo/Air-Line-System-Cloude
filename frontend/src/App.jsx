@@ -948,6 +948,46 @@ function buildSeatMapLegInfo(seatMaps, selectedFlight) {
   });
 }
 
+// One tab per flight of the itinerary, each tied to the Travelport seat map
+// for that flight (mapIdx, -1 when Travelport returned none). status:
+// 'ok' = Travelport lists Available seats; 'closed' = chart returned but no
+// seat is Available; 'missing' = no chart for this flight at all.
+const seatMapStatus = (sm) => {
+  if (!sm) return 'missing';
+  const open = sm.seat_selection_available ?? (sm.rows || []).some(r => (r.seats || []).some(s => s.status === 'available'));
+  return open ? 'ok' : 'closed';
+};
+function buildSeatTabs(seatMaps, selectedFlight, legInfo) {
+  const legs = selectedFlight?.legs?.length ? selectedFlight.legs : null;
+  const used = new Set();
+  const tabs = [];
+  (legs || []).forEach((leg, dirIdx) => {
+    (leg.segments?.length ? leg.segments : [leg]).forEach(seg => {
+      const mapIdx = legInfo.findIndex((li, i) => !used.has(i) && li.flight_number &&
+        normFlightNo(li.flight_number) === normFlightNo(seg.flight_number) &&
+        (!li.departure_airport || !seg.departure_airport || li.departure_airport === seg.departure_airport));
+      if (mapIdx >= 0) used.add(mapIdx);
+      tabs.push({
+        mapIdx, dirIdx,
+        flight_number: mapIdx >= 0 ? legInfo[mapIdx].flight_number : seg.flight_number,
+        departure_airport: seg.departure_airport || legInfo[mapIdx]?.departure_airport,
+        arrival_airport: seg.arrival_airport || legInfo[mapIdx]?.arrival_airport,
+        status: seatMapStatus(mapIdx >= 0 ? seatMaps[mapIdx] : null),
+      });
+    });
+  });
+  // Any chart that couldn't be matched to a segment still gets its own tab.
+  seatMaps.forEach((sm, i) => {
+    if (!used.has(i)) tabs.push({ mapIdx: i, ...legInfo[i], status: seatMapStatus(sm) });
+  });
+  const dirName = (dirIdx, i) => dirIdx == null ? `Flight ${i + 1}`
+    : legs && legs.length > 2 ? `Leg ${dirIdx + 1}` : dirIdx === 0 ? 'Departure' : 'Return';
+  return tabs.map((t, i) => {
+    const sameDir = tabs.filter(y => y.dirIdx === t.dirIdx);
+    return { ...t, direction: dirName(t.dirIdx, i), part: sameDir.indexOf(t) + 1, parts: sameDir.length };
+  });
+}
+
 // Which direction a Travelport extra (baggage, meal, pet...) covers, from
 // its segment_numbers (1-based flight order across the whole itinerary).
 // The same item is usually offered once per direction, so without this
@@ -1927,6 +1967,8 @@ export default function App() {
   const [activeSeatLeg, setActiveSeatLeg] = useState(0);
   const seatMap = seatMaps[activeSeatLeg] || null;
   const seatMapLegInfo = buildSeatMapLegInfo(seatMaps, selectedFlight);
+  const seatTabs = buildSeatTabs(seatMaps, selectedFlight, seatMapLegInfo);
+  const firstOpenSeatLeg = seatTabs.find(t => t.status === 'ok')?.mapIdx ?? 0;
   // Each entry also carries leg_index so one passenger can hold a different
   // seat on the outbound vs. the return leg without the two colliding.
   const [selectedSeats, setSelectedSeats] = useState([]);
@@ -3190,8 +3232,11 @@ export default function App() {
       return <div key={idx} style={{ width: '32px', height: '32px' }} />;
     }
 
-    const isOccupied = seat.status === 'occupied';
+    // Only seats Travelport/Amadeus mark Available can be booked — Travelport
+    // "Blocked" seats (crew, infant rows, airline holds) are just as
+    // unselectable as occupied ones, so they get the same treatment.
     const isAvailable = seat.status === 'available';
+    const isOccupied = !isAvailable;
 
     // Window/Middle/Aisle — read straight from Travelport's own seat map
     // column data (seatMap.columns[].position), not guessed from seat
@@ -8175,24 +8220,27 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     map for more than one flight (a round trip). Picking a
                     seat doesn't reset when switching tabs; each leg keeps
                     its own selections (see leg_index on selectedSeats). */}
-                {seatMaps.length > 1 && (
+                {seatTabs.length > 1 && (
                   <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.9rem', flexWrap: 'wrap' }}>
-                    {seatMaps.map((sm, legIdx) => {
-                      const li = seatMapLegInfo[legIdx];
+                    {seatTabs.map((li, tabIdx) => {
+                      const legIdx = li.mapIdx;
+                      const open = li.status === 'ok';
                       const routeLabel = li?.departure_airport && li?.arrival_airport ? `${li.departure_airport} → ${li.arrival_airport}` : null;
-                      const directionLabel = li ? `${li.direction}${li.parts > 1 ? ` ${li.part}/${li.parts}` : ''}` : `Flight ${legIdx + 1}`;
+                      const directionLabel = `${li.direction}${li.parts > 1 ? ` ${li.part}/${li.parts}` : ''}`;
                       const seatedCount = selectedSeats.filter(s => s.leg_index === legIdx).length;
-                      const isActive = activeSeatLeg === legIdx;
+                      const isActive = open && activeSeatLeg === legIdx;
                       return (
                         <button
-                          key={legIdx}
+                          key={tabIdx}
                           type="button"
-                          onClick={() => setActiveSeatLeg(legIdx)}
+                          disabled={!open}
+                          title={open ? undefined : 'The airline has not opened seat selection for this flight online'}
+                          onClick={() => open && setActiveSeatLeg(legIdx)}
                           style={{
-                            flex: '1 1 0', minWidth: '100px', padding: '0.6rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
+                            flex: '1 1 0', minWidth: '100px', padding: '0.6rem 0.75rem', borderRadius: '8px', cursor: open ? 'pointer' : 'not-allowed',
                             border: '1.5px solid ' + (isActive ? 'var(--gs-crimson)' : 'var(--border-color)'),
-                            background: isActive ? 'var(--gs-crimson)' : '#fff',
-                            color: isActive ? '#fff' : 'var(--text-secondary)',
+                            background: isActive ? 'var(--gs-crimson)' : open ? '#fff' : '#f1f5f9',
+                            color: isActive ? '#fff' : open ? 'var(--text-secondary)' : '#94a3b8',
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.15rem',
                             fontFamily: 'var(--font-body)', transition: 'all 0.15s',
                           }}
@@ -8203,7 +8251,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               {[li?.flight_number, routeLabel].filter(Boolean).join(' · ')}
                             </span>
                           )}
-                          <span style={{ fontSize: '0.68rem', opacity: 0.85 }}>{seatedCount}/{travelers.length} seated</span>
+                          <span style={{ fontSize: '0.68rem', opacity: 0.85 }}>
+                            {open ? `${seatedCount}/${travelers.length} seated` : 'Seat selection not available'}
+                          </span>
                         </button>
                       );
                     })}
@@ -8735,13 +8785,22 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         </div>
                       </div>
                       {seatMaps.length > 0 && (
-                        <button type="button" className="btn btn-primary" onClick={() => { setActiveSeatLeg(0); setBookingStep('seats'); }}>
+                        <button type="button" className="btn btn-primary" onClick={() => { setActiveSeatLeg(firstOpenSeatLeg); setBookingStep('seats'); }}>
                           {selectedSeats.length ? 'Change seats' : 'Choose seats'}
                         </button>
                       )}
                     </div>
                     {seatFareNote && (
                       <div style={{ ...noteStyle, marginTop: '0.6rem' }}>{seatFareNote}</div>
+                    )}
+                    {seatMaps.length > 0 && seatTabs.length > 1 && (
+                      <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.78rem' }}>
+                        {seatTabs.map((t, i) => (
+                          <div key={i} style={{ color: t.status === 'ok' ? '#166534' : '#92400e' }}>
+                            {t.status === 'ok' ? '✓' : '✕'} {t.flight_number}{t.departure_airport && t.arrival_airport ? ` ${t.departure_airport} → ${t.arrival_airport}` : ''}: {t.status === 'ok' ? 'seat selection available' : 'seat selection not available online — choose at airline check-in'}
+                          </div>
+                        ))}
+                      </div>
                     )}
                     {seatMaps.length === 0 && (
                       <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.6rem 0.75rem' }}>
