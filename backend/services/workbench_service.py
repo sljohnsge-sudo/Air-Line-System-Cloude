@@ -2303,9 +2303,13 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
                 "currency": seat_currencies.get(seat_num, "LKR")
             })
             
+        # "E" is Travelport's exit-row seat characteristic (seen live on UL's
+        # A330-200, row 50) — the row is flagged from the data, not row numbers.
+        exit_row = any("E" in (sp.get("Characteristic") or []) for sp in row.get("Space", []))
         parsed_rows.append({
             "row_number": int(row_label) if row_label.isdigit() else row_label,
-            "seats": seats
+            "seats": seats,
+            "exit_row": exit_row,
         })
         
     # Seats Travelport marks "Available" are the only ones the customer can

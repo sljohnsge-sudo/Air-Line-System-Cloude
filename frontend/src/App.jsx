@@ -3236,6 +3236,24 @@ export default function App() {
     }
   };
 
+  // Splits the seat-map columns into blocks separated by an aisle, from the
+  // airline's own layout: an aisle runs between two neighbouring columns that
+  // are both tagged "Aisle" (A330-200 A C | D E F G | H K → 2-4-2; a 3-3 jet
+  // C|D → 3-3). Only when the data carries no aisle tags at all (some Amadeus
+  // maps) does it fall back to a single central aisle.
+  const seatColumnGroups = (cols) => {
+    const groups = [[]];
+    cols.forEach((c, i) => {
+      groups[groups.length - 1].push(c);
+      if (c.position === 'Aisle' && cols[i + 1]?.position === 'Aisle') groups.push([]);
+    });
+    if (groups.length === 1 && cols.length > 1) {
+      const half = Math.ceil(cols.length / 2);
+      return [cols.slice(0, half), cols.slice(half)];
+    }
+    return groups;
+  };
+
   const renderSeat = (seat, idx) => {
     if (!seat || seat.type === 'empty' || seat.status === 'empty') {
       return <div key={idx} style={{ width: '32px', height: '32px' }} />;
@@ -8479,23 +8497,19 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           {/* Column Headers */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.5rem', fontWeight: '700', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                             {(() => {
-                              const cols = seatMap.columns || [];
-                              const half = Math.ceil(cols.length / 2);
-                              const leftCols = cols.slice(0, half);
-                              const rightCols = cols.slice(half);
+                              const groups = seatColumnGroups(seatMap.columns || []);
                               return (
                                 <>
-                                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                    {leftCols.map(c => (
-                                      <div key={c.value} style={{ width: '32px', textAlign: 'center' }}>{c.value}</div>
-                                    ))}
-                                  </div>
-                                  <div style={{ width: '32px', textAlign: 'center' }}></div>
-                                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                    {rightCols.map(c => (
-                                      <div key={c.value} style={{ width: '32px', textAlign: 'center' }}>{c.value}</div>
-                                    ))}
-                                  </div>
+                                  {groups.map((group, gi) => (
+                                    <React.Fragment key={gi}>
+                                      {gi > 0 && <div style={{ width: '32px', textAlign: 'center' }}></div>}
+                                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                        {group.map(c => (
+                                          <div key={c.value} style={{ width: '32px', textAlign: 'center' }}>{c.value}</div>
+                                        ))}
+                                      </div>
+                                    </React.Fragment>
+                                  ))}
                                 </>
                               );
                             })()}
@@ -8551,10 +8565,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                             return seatMap.rows?.map((row, rowIdx) => {
                               const seats = row.seats || [];
-                              const half = Math.ceil(seats.length / 2);
-                              const leftSeats = seats.slice(0, half);
-                              const rightSeats = seats.slice(half);
-                              const isExitRow = row.row_number === 12 || row.row_number === 13;
+                              // Place each seat in its own column so the aisle
+                              // gaps line up with the header; a column the row
+                              // has no seat for stays an empty slot.
+                              const seatColumns = seatMap.columns || [];
+                              const seatGroups = seatColumns.length
+                                ? seatColumnGroups(seatColumns).map(g => g.map(c => seats.find(s => s.col === c.value) || null))
+                                : (() => { const h = Math.ceil(seats.length / 2); return [seats.slice(0, h), seats.slice(h)]; })();
+                              const isExitRow = !!row.exit_row;
 
                               return (
                                 <div key={row.row_number || rowIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
@@ -8602,9 +8620,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', margin: '0.15rem 0' }}>
                                     <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                      {leftSeats.map((seat, idx) => renderSeat(seat, idx))}
+                                      {seatGroups[0].map((seat, idx) => renderSeat(seat, idx))}
                                     </div>
 
+                                    {seatGroups.slice(1).map((group, gi) => (
+                                    <React.Fragment key={gi}>
                                     <div style={{
                                       width: '32px',
                                       height: '32px',
@@ -8622,8 +8642,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                     </div>
 
                                     <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                      {rightSeats.map((seat, idx) => renderSeat(seat, idx))}
+                                      {group.map((seat, idx) => renderSeat(seat, idx))}
                                     </div>
+                                    </React.Fragment>
+                                    ))}
                                   </div>
                                 </div>
                               );
