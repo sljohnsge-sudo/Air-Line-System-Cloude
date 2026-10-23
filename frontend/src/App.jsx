@@ -3254,6 +3254,15 @@ export default function App() {
     return groups;
   };
 
+  // Fuselage outline width: wide enough for the row (32px seats / aisle
+  // gaps, 4px apart) plus padding — 290px is only enough for ~7 across, a
+  // 3-4-3 jet needs more.
+  const fuselageWidth = (() => {
+    const cols = seatMap?.columns || [];
+    const items = cols.length + Math.max(seatColumnGroups(cols).length - 1, 0);
+    return `${Math.max(290, items * 36 + 44)}px`;
+  })();
+
   const renderSeat = (seat, idx) => {
     if (!seat || seat.type === 'empty' || seat.status === 'empty') {
       return <div key={idx} style={{ width: '32px', height: '32px' }} />;
@@ -8459,7 +8468,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       
                       {/* Cockpit Nose */}
                       <div style={{
-                        width: '290px',
+                        width: fuselageWidth,
                         height: '75px',
                         border: '2px solid #cbd5e1',
                         borderBottom: 'none',
@@ -8482,7 +8491,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                       {/* Fuselage body */}
                       <div style={{
-                        width: '290px',
+                        width: fuselageWidth,
                         borderLeft: '2px solid #cbd5e1',
                         borderRight: '2px solid #cbd5e1',
                         background: '#f8fafc',
@@ -8657,7 +8666,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
 
                       {/* Tail Cone */}
                       <div style={{
-                        width: '290px',
+                        width: fuselageWidth,
                         height: '60px',
                         border: '2px solid #cbd5e1',
                         borderTop: 'none',
