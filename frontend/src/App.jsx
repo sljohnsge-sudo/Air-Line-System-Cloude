@@ -7868,7 +7868,35 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     : '—'}
                 </span>
               </div>
-              <div className="summary-col"><span className="label">Price</span><span className="val highlight">{selectedFlight.currency} {(() => { const bdk = selectedFlight.price_breakdown ? Object.keys(selectedFlight.price_breakdown) : []; return (bdk.length > 0 ? bdk.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0) : selectedFlight.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2}); })()}</span></div>
+              {(() => {
+                const bdk = selectedFlight.price_breakdown ? Object.keys(selectedFlight.price_breakdown) : [];
+                const fare = bdk.length > 0 ? bdk.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0) : selectedFlight.price || 0;
+                const money = (n) => `${selectedFlight.currency} ${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                const paxTag = (idx) => travelers.length > 1 ? ` · Pax ${idx + 1}` : '';
+                // Extras as the customer adds them, in the order they were picked
+                const lines = [
+                  ...selectedSeats.map(s => ({ label: `Seat ${s.seat_number} (${seatMaps.length > 1 ? seatLegLabel(seatMapLegInfo, s.leg_index) : 'Seat'})${paxTag(s.passenger_idx)}`, price: s.price || 0 })),
+                  ...selectedAncillaries.map(a => ({ label: `${a.name}${paxTag(a.passenger_idx)}`, price: a.price || 0 })),
+                ];
+                const total = fare + lines.reduce((sum, l) => sum + l.price, 0);
+                return (
+                  <div className="summary-col">
+                    <span className="label">{lines.length > 0 ? 'Total amount' : 'Price'}</span>
+                    <span className="val highlight">{money(total)}</span>
+                    {lines.length > 0 && (
+                      <div style={{ marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}><span>Flight fare</span><strong style={{ whiteSpace: 'nowrap' }}>{money(fare)}</strong></div>
+                        {lines.map((l, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                            <span>+ {l.label}</span>
+                            <strong style={{ whiteSpace: 'nowrap', color: l.price > 0 ? 'var(--gs-dark)' : '#16a34a' }}>{l.price > 0 ? money(l.price) : 'Included'}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Payment step only: every flight with its departure/arrival
                   time and aircraft, so the customer confirms exactly what
