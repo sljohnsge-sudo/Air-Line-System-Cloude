@@ -104,6 +104,11 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [notificationsError, setNotificationsError] = useState('');
   const [notificationActionId, setNotificationActionId] = useState(null);
 
+  const [stuckBookings, setStuckBookings] = useState([]);
+  const [stuckBookingsLoading, setStuckBookingsLoading] = useState(false);
+  const [stuckBookingsError, setStuckBookingsError] = useState('');
+  const [stuckBookingActionId, setStuckBookingActionId] = useState(null);
+
   const [notificationRecipients, setNotificationRecipients] = useState([]);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
   const [recipientsError, setRecipientsError] = useState('');
@@ -423,6 +428,20 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
+  const loadStuckBookings = async () => {
+    setStuckBookingsLoading(true);
+    setStuckBookingsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/stuck-bookings?status=new`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load stuck-booking alerts');
+      setStuckBookings(data.notifications || []);
+    } catch (err) {
+      setStuckBookingsError(err.message);
+    } finally {
+      setStuckBookingsLoading(false);
+    }
+  };
+
   const loadNotificationRecipients = async () => {
     setRecipientsLoading(true);
     setRecipientsError('');
@@ -640,6 +659,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       loadEmailRequests();
       loadCancellationRequests();
       loadNotifications();
+      loadStuckBookings();
       loadNotificationRecipients();
       loadProviderSettings();
       loadVisaConsultations();
@@ -774,6 +794,23 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setNotificationsError(err.message);
     } finally {
       setNotificationActionId(null);
+    }
+  };
+
+  const acknowledgeStuckBooking = async (id) => {
+    setStuckBookingActionId(id);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/stuck-bookings/${id}/acknowledge`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({}),
+      });
+      await adminApiResponse(res, 'Failed to acknowledge stuck-booking alert');
+      setStuckBookings(items => items.filter(n => n.id !== id));
+    } catch (err) {
+      setStuckBookingsError(err.message);
+    } finally {
+      setStuckBookingActionId(null);
     }
   };
 
@@ -1198,6 +1235,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     { id: 'visa-bookings', label: 'Visa Consultation Bookings', count: visaConsultations.length },
     { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
     { id: 'notifications', label: 'Fare Notifications', count: notifications.length },
+    { id: 'stuck-bookings', label: 'Stuck Bookings', count: stuckBookings.length },
     { id: 'providers', label: 'Provider Control' },
     { id: 'packages', label: 'Tour Packages' },
     { id: 'package-requests', label: 'Package Booking Requests', count: packageRequests.length },
@@ -1825,6 +1863,45 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           />
           <button className="btn btn-primary btn-sm" disabled={recipientActionId === 'new' || !newRecipientEmail.trim()} onClick={addNotificationRecipient}>Add</button>
         </div>
+      </section>
+      )}
+
+      {activeAdminSection === 'stuck-bookings' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Stuck Bookings {stuckBookings.length > 0 && `(${stuckBookings.length} new)`}</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+          Raised when a paid booking couldn't be ticketed at Travelport, or when a staff void / refund / cancel didn't go
+          through there. Each one needs checking by hand — an email also goes to the Fare Notifications recipients.
+        </p>
+        {stuckBookingsError && <div className="error-banner">{stuckBookingsError}</div>}
+        {stuckBookingsLoading ? (
+          <div className="loading-state"><div className="spinner"></div><p>Loading stuck bookings...</p></div>
+        ) : stuckBookings.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No new stuck-booking alerts.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {stuckBookings.map(n => (
+              <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                <div style={{ fontSize: '0.85rem', flex: 1, minWidth: 0 }}>
+                  <div>
+                    <strong style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>{n.locator_code}</strong>
+                    {n.payment_txn_ref && <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{' · Payment ref '}{n.payment_txn_ref}</span>}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>
+                    {n.error_message}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    {new Date(n.created_at).toLocaleString()}
+                    {n.email_sent ? ' · Email sent' : ' · Email not sent'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button className="btn btn-primary btn-sm" disabled={stuckBookingActionId === n.id} onClick={() => acknowledgeStuckBooking(n.id)}>Acknowledge</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
       )}
 
