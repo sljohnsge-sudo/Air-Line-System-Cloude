@@ -16,6 +16,7 @@ from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
 from services.search_service import parse_iso_duration, parse_naive_datetime, minutes_to_iso_duration, IATA_AIRLINE_NAMES
+from services.special_services import ssr_code_of, ssr_kind
 from utils import tp_logger
 
 logger = logging.getLogger(__name__)
@@ -271,6 +272,52 @@ def _parse_reservation_product(product: dict) -> dict | None:
     }
 
 
+def _parse_special_services(reservation: dict) -> list[dict]:
+    """
+    Meal and wheelchair SSRs on a reservation, one row per passenger and
+    code: {passenger_name, kind, code, status}, status from the airline
+    ("confirmed", "pending", ...). Other SSRs are left out.
+
+    Confirmed live 2026-10-29 (UL PNR HNH8DW): the retrieve lists each SSR
+    twice — typed (SpecialServiceMeal / SpecialServiceWheelchairAirlineSupplied)
+    and by IATA code (SpecialService + SSRCode) — and once per flight, so
+    they're merged; a request counts as confirmed only when every copy is.
+    """
+    names = {}
+    for t in reservation.get("Traveler", []) or []:
+        name = t.get("PersonName", {})
+        full_name = clean_passenger_name(name.get("Given", ""), name.get("Surname", ""))
+        for ref in (t.get("id"), (t.get("Identifier") or {}).get("value")):
+            if ref:
+                names[ref] = full_name
+
+    rows: dict[tuple, dict] = {}
+    for item in reservation.get("SpecialService", []) or []:
+        code = ssr_code_of(item)
+        kind = ssr_kind(code)
+        if not kind:
+            continue
+        trav = item.get("TravelerIdentifier") or {}
+        ref = trav.get("TravelerRef") or trav.get("id") or (trav.get("Identifier") or {}).get("value")
+        name = names.get(ref) or names.get((trav.get("Identifier") or {}).get("value"), "")
+        status = ((item.get("Status") or {}).get("value") or "").lower()
+        row = rows.setdefault((name, code), {"passenger_name": name, "kind": kind, "code": code, "statuses": set()})
+        if status:
+            row["statuses"].add(status)
+
+    out = []
+    for row in rows.values():
+        statuses = row.pop("statuses")
+        if statuses == {"confirmed"}:
+            row["status"] = "confirmed"
+        elif "pending" in statuses or not statuses:
+            row["status"] = "pending"
+        else:
+            row["status"] = sorted(statuses - {"confirmed"})[0]
+        out.append(row)
+    return out
+
+
 def _parse_reservation(raw: dict, locator_code: str) -> dict:
     """
     Parse the raw Travelport reservation response into a clean ticket record.
@@ -515,6 +562,9 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
         if seats:
             seat = seats[0]
             ticket["seat_number"] = f"{seat.get('row', '')}{seat.get('column', '')}"
+
+        # ── Meal / wheelchair SSRs with the airline's status ──────────────────
+        ticket["special_services"] = _parse_special_services(reservation)
 
         # ── EMDs for paid seats/extras ────────────────────────────────────────
         # Confirmed live 2026-10-22 (PNR HNFNHK): the reservation retrieve

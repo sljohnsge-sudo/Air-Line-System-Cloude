@@ -83,6 +83,13 @@ class TravelportEndpoints:
     # full-payload method as Add Offer.
     AIRPRICE_FULL_PAYLOAD = f"{_air}/price/offers/buildfromproducts"
 
+    # ── Fare Rules (standalone) ────────────────────────────────────────────────
+    # GET, query parameters only (Fare Rules Guide). After search: the search
+    # Identifier + CatalogProductOffering id + ONE productIDs per request. For
+    # an existing booking: reservationIdentifier = the locator.
+    FARE_RULES_FROM_SEARCH = f"{_air}/farerule/farerules/fromcatalogproductofferings"
+    FARE_RULES_FROM_RESERVATION = f"{_air}/farerule/farerules/fromreservation"
+
     # ── STEP 4: Reservation Workbench ─────────────────────────────────────────
     CREATE_WORKBENCH = f"{_air}/book/session/reservationworkbench"
     # POST  → create a new reservation workbench session
@@ -130,6 +137,13 @@ class TravelportEndpoints:
         for AF/KL NDC bookings), but sent on GDS bookings to match Travelport's
         GDS full-payload certification reference."""
         return f"{_air}/ticket/travelagency/reservationworkbench/{workbench_id}/travelagency"
+
+    # ── STEP 6c: Special Service Requests (meal, wheelchair) ───────────────────
+    @staticmethod
+    def add_special_services(workbench_id: str) -> str:
+        """POST → SpecialServiceListRequest. One kind of SSR per request
+        (Remarks & Service Requests Guide): meals and wheelchairs go separately."""
+        return f"{_air}/book/specialservices/reservationworkbench/{workbench_id}/specialservices/list"
 
     # ── STEP 7: Commit Workbench → Generate PNR ───────────────────────────────
     @staticmethod
