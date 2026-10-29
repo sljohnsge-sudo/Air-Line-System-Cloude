@@ -1973,6 +1973,20 @@ export default function App() {
   const seatMap = seatMaps[activeSeatLeg] || null;
   const seatMapLegInfo = buildSeatMapLegInfo(seatMaps, selectedFlight);
   const seatTabs = buildSeatTabs(seatMaps, selectedFlight, seatMapLegInfo);
+  // Airline seat-selection conditions (e.g. "closes 8 hours before departure")
+  // sent with the seat maps; shown once as a popup when the customer reaches
+  // the Options step, and again next to each flight's Choose seat button.
+  const seatConditions = seatMaps.filter(sm => sm?.seat_condition).map(sm => ({ flight_number: sm.flight_number, ...sm.seat_condition }));
+  const [seatConditionPopup, setSeatConditionPopup] = useState(null);
+  const seatConditionSeenRef = useRef('');
+  useEffect(() => {
+    if (!bookingStep) seatConditionSeenRef.current = '';  // new booking → show again
+    if (bookingStep !== 'options' || seatConditions.length === 0) return;
+    const key = seatConditions.map(c => `${c.flight_number}:${c.closed}`).join('|');
+    if (seatConditionSeenRef.current === key) return;
+    seatConditionSeenRef.current = key;
+    setSeatConditionPopup(seatConditions);
+  }, [bookingStep, seatMaps]);
   // Each entry also carries leg_index so one passenger can hold a different
   // seat on the outbound vs. the return leg without the two colliding.
   const [selectedSeats, setSelectedSeats] = useState([]);
@@ -2747,7 +2761,7 @@ export default function App() {
 
     if (isInstantPayNdc) {
       try {
-        if (paymentMethod === 'card') {
+        {
           const bookRes = await fetchWithRetry(`${API_BASE}/ndc/book`, {
             method: 'POST',
             headers: {
@@ -2763,14 +2777,14 @@ export default function App() {
           });
           const bookData = await handleApiResponse(bookRes, 'Booking failed');
 
-          const seatChargesNdc = selectedSeats.reduce((acc, s) => acc + s.price, 0);
-          const ancillaryChargesNdc = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
+          // Fare only: Travelport's NDC Instant Pay workflow can't book seats
+          // or extras, so the backend never books them — never charge for them.
           const baseUrl = `${window.location.origin}${window.location.pathname}`;
           const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              amount: selectedFlight.price + seatChargesNdc + ancillaryChargesNdc,
+              amount: selectedFlight.price,
               currency: selectedFlight.currency || 'LKR',
               return_url: `${baseUrl}?ndc_pending=${bookData.pending_id}`,
               cancel_url: `${baseUrl}?ndc_pending=${bookData.pending_id}&payment=cancelled`,
@@ -2782,32 +2796,6 @@ export default function App() {
           window.location.href = payData.payment_page_url;
           return;
         }
-
-        // Cash / Bank Transfer — Emirates Instant Pay has no gateway-free way
-        // to hold a PNR before payment, so book and ticket happen together in
-        // one combined call (the same endpoint the standalone NDC page used).
-        const res = await fetchWithRetry(`${API_BASE}/ndc/book-and-issue`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
-          },
-          body: JSON.stringify({
-            raw_offering: selectedFlight.raw_offering,
-            travelers,
-            selected_seats: selectedSeats,
-            selected_ancillaries: selectedAncillaries,
-          })
-        });
-        const data = await handleApiResponse(res, 'Booking failed');
-        if (!data.success) {
-          throw new Error(data.message || 'PNR created but Travelport did not issue a ticket.');
-        }
-        const fullTicketRes = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${data.locator_code}`);
-        const fullTicket = await handleApiResponse(fullTicketRes, 'Ticket issued but failed to load details');
-        setIssuedTicket(fullTicket);
-        setBookingStep('ticket');
-        showNotification('🎉 Ticket issued successfully!', 'success');
       } catch (err) {
         const errMsg = err.message || String(err);
         setBookingError(errMsg);
@@ -2870,42 +2858,27 @@ export default function App() {
   // Payment + ticketing for a PNR that's already confirmed on Travelport.
   // pnrTicket.total_fare already includes only the seats/extras the airline
   // confirmed, at Travelport's own price.
+  // Card only: the ticket is issued solely by the PayCorp-return effect
+  // above, after the backend has verified the payment.
   const proceedToPayment = async (pnrTicket) => {
-    {
-      if (paymentMethod === 'card') {
-        // Redirect to PayCorp's hosted payment page — card details are
-        // entered there, never on this site. On return, the mount-time
-        // effect above verifies payment and issues the ticket.
-        const baseUrl = `${window.location.origin}${window.location.pathname}`;
-        const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: pnrTicket.total_fare,
-            currency: pnrTicket.currency || 'LKR',
-            return_url: `${baseUrl}?locator=${pnrTicket.locator_code}`,
-            cancel_url: `${baseUrl}?locator=${pnrTicket.locator_code}&payment=cancelled`,
-            client_ref: pnrTicket.locator_code,
-            comment: `George Steuart Travel - ${pnrTicket.locator_code}`
-          })
-        });
-        const payData = await handleApiResponse(payRes, 'Failed to start payment');
-        window.location.href = payData.payment_page_url;
-        return;
-      }
-
-      // Cash / Bank Transfer — no online gateway involved; issue immediately.
-      const issueRes = await fetchWithRetry(`${API_BASE}/bookings/${pnrTicket.locator_code}/issue-ticket`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
-      const issueData = await handleApiResponse(issueRes, 'Ticket issuance failed');
-
-      setIssuedTicket(issueData.ticket);
-      setBookingStep('ticket');
-      showNotification('🎉 Ticket issued successfully!', 'success');
-    }
+    // Redirect to PayCorp's hosted payment page — card details are
+    // entered there, never on this site. On return, the mount-time
+    // effect above verifies payment and issues the ticket.
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: pnrTicket.total_fare,
+        currency: pnrTicket.currency || 'LKR',
+        return_url: `${baseUrl}?locator=${pnrTicket.locator_code}`,
+        cancel_url: `${baseUrl}?locator=${pnrTicket.locator_code}&payment=cancelled`,
+        client_ref: pnrTicket.locator_code,
+        comment: `George Steuart Travel - ${pnrTicket.locator_code}`
+      })
+    });
+    const payData = await handleApiResponse(payRes, 'Failed to start payment');
+    window.location.href = payData.payment_page_url;
   };
 
   // "Continue to payment" on the seats/extras result step.
@@ -7892,6 +7865,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             <strong style={{ whiteSpace: 'nowrap', color: l.price > 0 ? 'var(--gs-dark)' : '#16a34a' }}>{l.price > 0 ? money(l.price) : 'Included'}</strong>
                           </div>
                         ))}
+                        <div style={{ fontSize: '0.7rem', color: '#9a3412', background: '#fff7ed', borderRadius: '6px', padding: '0.4rem 0.55rem', marginTop: '0.2rem' }}>
+                          Seats and extras are requests. You are charged only for the ones the airline confirms after booking.
+                        </div>
                       </div>
                     )}
                   </div>
@@ -8905,7 +8881,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               // has Available seats (free or paid).
               const renderSeatRow = (t, key) => {
                 const open = seatMaps.length > 0 && t.status === 'ok';
-                const closedText = addonsNote ? 'Seat selection not available online for this fare' : 'Seat selection not provided by the airline';
+                const cond = t.mapIdx >= 0 ? seatMaps[t.mapIdx]?.seat_condition : null;
+                const closedText = cond?.closed
+                  ? `Seat selection has closed (airline closes it ${cond.hours} hours before departure)`
+                  : addonsNote ? 'Seat selection not available online for this fare' : 'Seat selection not provided by the airline';
                 const legSeats = open ? selectedSeats.filter(s => s.leg_index === t.mapIdx) : [];
                 return (
                   <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.6rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
@@ -8916,6 +8895,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       <div style={{ fontSize: '0.75rem', marginTop: '0.1rem', color: open ? '#166534' : '#92400e' }}>
                         {open ? '✓ Seat selection available' : `✕ ${closedText}`}
                       </div>
+                      {cond && (
+                        <div style={{ fontSize: '0.72rem', marginTop: '0.25rem', color: '#9a3412', maxWidth: '520px' }}>ⓘ {cond.text}</div>
+                      )}
                       {legSeats.length > 0 && (
                         <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                           {legSeats.map((s, j) => (
@@ -8929,7 +8911,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     <button type="button" className={open ? 'btn btn-primary' : 'btn btn-secondary'} aria-disabled={!open}
                             onClick={() => open
                               ? (setActiveSeatLeg(t.mapIdx), setActivePassengerIdx(0), setBookingStep('seats'))
-                              : showNotification(`${closedText} for ${t.flight_number || 'this flight'}. You can choose your seat with the airline at online check-in.`, 'info')}
+                              : (cond?.closed ? setSeatConditionPopup([{ flight_number: t.flight_number, ...cond }]) : showNotification(`${closedText} for ${t.flight_number || 'this flight'}. You can choose your seat with the airline at online check-in.`, 'info'))}
                             style={{ padding: '0.45rem 0.9rem', fontSize: '0.8rem', ...(open ? {} : { background: '#f1f5f9', color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed' }) }}>
                       {open ? (legSeats.length ? 'Change seat' : 'Choose seat') : 'Not available'}
                     </button>
@@ -9674,7 +9656,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div className="info-banner" style={{ fontSize: '0.82rem' }}>
-                    Your flight booking <strong>{t.locator_code}</strong> is confirmed. Here is what the airline returned for the seats and extras you chose. Items marked "Not available" are not charged; "Requested from airline" items are added to your booking and charged, and the airline confirms them.
+                    Your flight booking <strong>{t.locator_code}</strong> is confirmed. Here is what the airline returned for the seats and extras you chose. You are charged only for items the airline has confirmed. Items marked "Not available" or "Requested from airline" are not charged.
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {rows.map((r, i) => (
@@ -9682,14 +9664,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         <div>
                           <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--gs-dark)' }}>{r.label}</div>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            {paxName(r.passenger_idx)}{r.status === 'failed' && r.reason ? ` — ${r.reason}` : ''}
+                            {paxName(r.passenger_idx)}{r.status !== 'confirmed' && r.reason ? ` — ${r.reason}` : ''}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <div style={{ fontSize: '0.72rem', fontWeight: '800', color: r.status === 'confirmed' ? '#047857' : r.status === 'pending' ? '#1d4ed8' : '#b45309' }}>
-                            {r.status === 'confirmed' ? 'Confirmed by airline' : r.status === 'pending' ? 'Requested from airline' : 'Not available — not charged'}
+                            {r.status === 'confirmed' ? 'Confirmed by airline' : r.status === 'pending' ? 'Requested — not charged' : 'Not available — not charged'}
                           </div>
-                          {(r.status === 'confirmed' || r.status === 'pending') && (
+                          {r.status === 'confirmed' && (
                             <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--gs-crimson)' }}>{r.currency || t.currency} {Number(r.price || 0).toLocaleString()}</div>
                           )}
                         </div>
@@ -9703,6 +9685,29 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── SEAT CONDITION POPUP — airline rules for choosing seats ─────── */}
+      {seatConditionPopup && seatConditionPopup.length > 0 && (
+        <div className="modal-overlay animate-fade-only" style={{ zIndex: 100001, alignItems: 'center' }} onClick={() => setSeatConditionPopup(null)}>
+          <div className="modal-content glass-panel animate-fade" style={{ maxWidth: '520px', width: '92%' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Seat selection condition</h3>
+              <button className="close-btn" onClick={() => setSeatConditionPopup(null)}>×</button>
+            </div>
+            <div style={{ padding: '0 1.5rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {seatConditionPopup.map((c, i) => (
+                <div key={i} style={{ border: '1px solid ' + (c.closed ? '#fecaca' : '#fed7aa'), background: c.closed ? '#fef2f2' : '#fff7ed', borderRadius: '8px', padding: '0.75rem 0.9rem', fontSize: '0.85rem', color: '#7c2d12' }}>
+                  <div style={{ fontWeight: 800, marginBottom: '0.25rem' }}>{c.flight_number}{c.closed ? ' — seat selection closed' : ''}</div>
+                  <div>{c.text}</div>
+                  {c.airline_message && <div style={{ marginTop: '0.4rem', fontSize: '0.7rem', color: '#9a3412', opacity: 0.8 }}>Airline message: {c.airline_message}</div>}
+                </div>
+              ))}
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>You are charged only for seats and extras the airline confirms.</div>
+              <button type="button" className="btn btn-primary" style={{ alignSelf: 'flex-end' }} onClick={() => setSeatConditionPopup(null)}>OK, I understand</button>
+            </div>
           </div>
         </div>
       )}
@@ -9812,14 +9817,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   "Not assigned" seat below; these were never charged. */}
               {(() => {
                 const r = issuedTicket.addon_results || {};
-                const refused = [...(r.seats || []), ...(r.extras || [])].filter(i => i.status === 'failed');
+                const refused = [...(r.seats || []), ...(r.extras || [])].filter(i => i.status !== 'confirmed');
                 if (!refused.length) return null;
                 return (
                   <div style={{ marginBottom: '1.5rem', padding: '0.75rem 1rem', border: '1px solid #fed7aa', borderRadius: '8px', background: '#fff7ed', fontSize: '0.78rem', color: '#9a3412' }}>
                     <div style={{ fontWeight: '800', marginBottom: '0.25rem' }}>Not confirmed by the airline (not charged)</div>
                     {refused.map((i, idx) => (
-                      <div key={idx}>{i.seat_number ? `Seat ${i.seat_number}` : i.name}{i.reason ? ` — ${i.reason}` : ''}</div>
+                      <div key={idx}>{i.seat_number ? `Seat ${i.seat_number}${i.flight_number ? ` (${i.flight_number})` : ''}` : i.name}{i.reason ? ` — ${i.reason}` : ''}</div>
                     ))}
+                    <div style={{ marginTop: '0.4rem', fontWeight: '600' }}>You have not been charged for these. You can choose a seat with the airline at check-in.</div>
                   </div>
                 );
               })()}
@@ -9957,7 +9963,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 <td style={{ padding: '0.6rem 0.5rem' }}>
                                   <strong>{issuedTicket.cabin_class || 'Economy'}</strong><br />
                                   <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '700' }}>
-                                    {(() => { const segSeat = seatForSegment(dirLabel, seg, sIdx); return segSeat ? `Seat: ${segSeat}` : 'Not assigned'; })()}
+                                    {(() => { const segSeat = seatForSegment(dirLabel, seg, sIdx); return segSeat ? `Seat: ${segSeat}` : <>Not assigned<span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: '#64748b' }}>choose at check-in</span></>; })()}
                                   </span>
                                 </td>
                                 <td style={{ padding: '0.6rem 0.5rem', fontSize: '0.7rem', color: '#475569' }}>

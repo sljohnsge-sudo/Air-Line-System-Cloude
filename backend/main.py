@@ -50,6 +50,7 @@ import database
 import services
 import auth
 import hotel_database
+from services import seat_rules
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -1034,6 +1035,7 @@ def initiate_booking(request: BookingInitiateRequest):
         seat_map_available = False
         try:
             seat_maps = services.get_seat_map(workbench_id, offer_id)
+            seat_rules.annotate_seat_conditions(seat_maps)  # airline conditions (e.g. closes N h before departure)
             seat_map_available = any(m.get("seat_selection_available") for m in seat_maps)
         except Exception as e:
             logger.warning(f"Live seat map retrieval failed: {e}")
@@ -1209,10 +1211,11 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
                     "seats": [{**s.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for s in selected_seats],
                     "extras": [{**a.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for a in selected_ancillaries],
                 }
-        # "pending" = on the PNR, requested from the airline: it is paid for
-        # (EMD) at ticketing like a confirmed one, so it is charged too.
-        confirmed_seats = [s for s in addon_results["seats"] if s["status"] in ("confirmed", "pending")]
-        confirmed_extras = [a for a in addon_results["extras"] if a["status"] in ("confirmed", "pending")]
+        # Only items the airline CONFIRMED are charged. "pending" = requested
+        # on the PNR but not yet answered by the airline: not charged, no seat
+        # number recorded, and not paid at ticketing (see issue_ticket).
+        confirmed_seats = [s for s in addon_results["seats"] if s["status"] == "confirmed"]
+        confirmed_extras = [a for a in addon_results["extras"] if a["status"] == "confirmed"]
         ticket["addon_results"] = addon_results
 
         seat_numbers = _format_seat_numbers([SelectedSeat(**{k: v for k, v in s.items() if k in SelectedSeat.model_fields}) for s in confirmed_seats])
@@ -1312,9 +1315,12 @@ class IssueTicketRequest(BaseModel):
     reqid: Optional[str] = Field(
         default=None,
         description="PayCorp reqid from a completed hosted-page payment. "
-                     "Omit only for cash/bank-transfer bookings, where payment "
-                     "is confirmed offline by agency staff rather than PayCorp."
+                     "Required: a ticket is never issued without a verified "
+                     "card payment — there is no admin override."
     )
+
+
+PAYMENT_REQUIRED_DETAIL = "A confirmed card payment is required before a ticket can be issued. Ticket not issued."
 
 
 def _verify_and_claim_payment(
@@ -1388,13 +1394,11 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     """
     STEP 9 — Issue the Travelport ticket for an already-confirmed PNR.
 
-    If reqid is provided (card payments), the PayCorp payment MUST have
-    succeeded — Travelport is never contacted for ticket issuance otherwise.
-    If reqid is omitted (cash/bank transfer), issues immediately, matching
-    the offline-settlement flows that don't go through PayCorp at all.
+    The PayCorp payment (reqid) MUST have succeeded, for this booking and
+    this amount — Travelport is never contacted for ticket issuance otherwise.
+    There is no unpaid path: a missing reqid is refused with 402.
     """
     locator_code = locator_code.upper().strip()
-    payment_result = None
 
     # Idempotency: a double-click, a retried request, or a race between two
     # browser tabs could otherwise call this twice for the same PNR, which
@@ -1407,23 +1411,24 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
         logger.info(f"Issue-ticket for {locator_code} called again — already ticketed (#{existing['ticket_number']}), returning the existing ticket instead of re-issuing.")
         return {"success": True, "ticket": existing, "cached_id": existing.get("id"), "already_issued": True}
 
-    if request.reqid:
-        expected_fare = existing.get("total_fare") if existing else None
-        expected_currency = existing.get("currency") if existing else None
-        payment_result = _verify_and_claim_payment(
-            request.reqid, expected_client_ref=locator_code, locator_code=locator_code,
-            expected_amount=expected_fare, expected_currency=expected_currency,
-        )
-    else:
-        logger.info(f"Issuing ticket for {locator_code} without a PayCorp reqid (cash/bank transfer)...")
+    if not request.reqid:
+        logger.warning(f"Ticket issuance refused for {locator_code} — no PayCorp payment reference.")
+        raise HTTPException(status_code=402, detail=PAYMENT_REQUIRED_DETAIL)
+    if not existing or not existing.get("total_fare"):
+        # Without the booking's own fare there is nothing to check the paid
+        # amount against, so a cheaper payment could ticket a dearer booking.
+        logger.warning(f"Ticket issuance refused for {locator_code} — no booking record with a fare to verify the payment against.")
+        raise HTTPException(status_code=409, detail="This booking could not be matched to a payment amount. Ticket not issued — contact support.")
 
+    payment_result = _verify_and_claim_payment(
+        request.reqid, expected_client_ref=locator_code, locator_code=locator_code,
+        expected_amount=existing["total_fare"], expected_currency=existing.get("currency"),
+    )
     return _issue_and_save_ticket(locator_code, payment_result)
 
 
 def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = None) -> dict:
-    """Shared by the normal PayCorp-gated issue-ticket flow and the admin
-    force-issue override below — everything after payment has already been
-    decided (succeeded, or deliberately overridden by an admin)."""
+    """Runs after the PayCorp payment has been verified by the caller."""
     # One TraceId for every Travelport call issue_ticket() makes internally
     # (buildfromlocator -> formofpayment -> payment -> commit-with-ticketing).
     trace_token = services.start_flow_trace_id()
@@ -1841,56 +1846,6 @@ def ndc_search(request: NdcSearchRequest):
     return {"flights": offers, "count": len(offers), "content_source": "NDC", "carrier_notes": carrier_notes}
 
 
-@app.post("/api/ndc/book-and-issue")
-def ndc_book_and_issue(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
-    """
-    Books the chosen NDC offer (PNR), then issues the ticket, in Travelport's
-    NDC certification order: price → session → add offer → travelers → commit
-    → retrieve → post-commit workbench → form of payment → payment →
-    ticketing commit → retrieve. Paid by cash form of payment (no card gateway).
-
-    confirm_booking() already retrieves the reservation itself (with one
-    conditional re-retrieve only if the airline PNR isn't populated yet —
-    see its own docstring); this endpoint used to also call
-    retrieve_reservation() again here, unconditionally, and discard the
-    result. That extra call never fed into `ticket` or `booked` and only
-    added a redundant Travelport call — removed.
-    """
-    trace_token = services.start_flow_trace_id()
-    try:
-        if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
-            return _ndc_instant_pay(
-                request.raw_offering, [t.model_dump() for t in request.travelers],
-                request.selected_seats, request.selected_ancillaries,
-                customer_id=customer_id,
-            )
-        booked = confirm_booking(
-            BookingConfirmRequest(
-                raw_offering=request.raw_offering, travelers=request.travelers,
-                selected_seats=[], payment_method="cash", reference_payload_only=True,
-            ),
-            customer_id=customer_id,
-        )
-        locator = booked["ticket"]["locator_code"]
-        issued = issue_ticket_after_payment(locator, IssueTicketRequest())
-        ticket = issued["ticket"]
-        ticketed = bool(ticket.get("ticket_number"))
-        return {
-            "success": ticketed,
-            "locator_code": locator,
-            "airline_pnr": ticket.get("airline_pnr"),
-            "status": ticket.get("status"),
-            "ticket_numbers": ticket.get("ticket_numbers") or (
-                [{"passenger_type": "ADT", "number": ticket["ticket_number"]}] if ticketed else []),
-            "total_fare": ticket.get("total_fare"),
-            "currency": ticket.get("currency"),
-            "message": None if ticketed else
-                "PNR created but Travelport did not issue a ticket. Nothing was charged; retry issuing or cancel the PNR.",
-        }
-    finally:
-        services.end_flow_trace_id(trace_token)
-
-
 @app.get("/api/ndc/tickets/{locator_code}")
 def ndc_verify_tickets(locator_code: str, numbers: str = Query(..., description="comma-separated ticket numbers")):
     """Confirms NDC tickets with Travelport's Ticket Retrieve API."""
@@ -1907,69 +1862,10 @@ def ndc_verify_tickets(locator_code: str, numbers: str = Query(..., description=
     return {"locator_code": locator_code.upper(), "tickets": out}
 
 
-# ── Admin: Force Issue Ticket (manual override, audited) ───────────────────────
-# For bookings stuck because the payment gateway itself returned a sandbox-only
-# failure (PayCorp "(TEST TRANSACTION ONLY)" responses have hit this repeatedly —
-# confirmed each time as a gateway-side issue via the correct official test card,
-# not a bug here). An admin reviews the booking + gateway response and force-
-# issues with one click. Every use is logged to force_issued_tickets (who, why,
-# what the gateway said) — this bypasses payment verification, so it is never
-# automatic or silent, and is not reachable from the customer-facing flow.
-
-class ForceIssueTicketRequest(BaseModel):
-    reason: str = Field(..., min_length=3, max_length=1000)
-    reqid: Optional[str] = Field(
-        default=None,
-        description="PayCorp reqid from the failed attempt, if any — used only "
-                     "to capture the gateway's response code/text/txnReference "
-                     "into the audit log, not to gate issuance."
-    )
-
-
-@app.post("/api/admin/bookings/{locator_code}/force-issue-ticket")
-def force_issue_ticket(
-    locator_code: str,
-    request: ForceIssueTicketRequest,
-    admin: dict = Depends(auth.get_current_admin),
-):
-    """
-    Admin-only override: issue the ticket for a PNR regardless of payment
-    gateway result. Always logged to force_issued_tickets for audit.
-    """
-    locator_code = locator_code.upper().strip()
-
-    gateway_code = gateway_text = txn_ref = None
-    if request.reqid:
-        try:
-            payment_result = services.complete_payment(request.reqid)
-            gateway_code = (
-                str(payment_result.get("response_code"))
-                if payment_result.get("response_code") is not None else None
-            )
-            gateway_text = payment_result.get("response_text")
-            txn_ref = payment_result.get("txn_reference")
-        except services.PayCorpError as e:
-            gateway_text = str(e)
-
-    logger.warning(
-        f"ADMIN FORCE-ISSUE: {locator_code} by {admin.get('sub')} "
-        f"(admin_id={admin.get('admin_id')}) — reason: {request.reason} — "
-        f"gateway: code={gateway_code} text={gateway_text}"
-    )
-    database.log_force_issued_ticket(
-        locator_code=locator_code,
-        admin_id=admin.get("admin_id"),
-        admin_username=admin.get("sub"),
-        reason=request.reason,
-        gateway_response_code=gateway_code,
-        gateway_response_text=gateway_text,
-        txn_reference=txn_ref,
-    )
-
-    result = _issue_and_save_ticket(locator_code, payment_result=None)
-    result["force_issued"] = True
-    return result
-
+# ── Admin: past force-issued tickets (read-only) ──────────────────────────────
+# The admin force-issue override was removed: no one, admin included, can
+# issue a ticket without a verified card payment. Its audit log stays
+# viewable for the tickets force-issued before then.
 
 @app.get("/api/admin/force-issued-tickets")
 def list_force_issued_tickets(_admin: dict = Depends(auth.get_current_admin)):

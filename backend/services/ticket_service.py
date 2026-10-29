@@ -643,14 +643,15 @@ def issue_ticket(locator_code: str) -> dict:
                 currency_code = price.get("CurrencyCode", {}).get("value", "USD")
             # Safety lock: only pay Travelport for seat/extra offers the
             # customer was actually charged for at /confirm (addon_results
-            # status confirmed/pending, matched by offer id). Anything else on
-            # the PNR is left unpaid, so the agency never pays the airline
-            # for an item the customer didn't pay us for.
+            # status "confirmed" only, matched by offer id). Anything else on
+            # the PNR — including airline-"pending" requests — is left unpaid,
+            # so the agency never pays the airline for an item the customer
+            # didn't pay us for.
             cached_for_addons = database.get_booking_by_locator(locator_code) or {}
             addon_results = cached_for_addons.get("addon_results") or {}
             charged_offer_ids = {
                 i.get("offer_id") for i in (addon_results.get("seats") or []) + (addon_results.get("extras") or [])
-                if i.get("offer_id") and i.get("status") in ("confirmed", "pending")
+                if i.get("offer_id") and i.get("status") == "confirmed"
             }
             for o in offers[1:]:
                 o_price = float(o.get("Price", {}).get("TotalPrice", 0.0) or 0.0)
