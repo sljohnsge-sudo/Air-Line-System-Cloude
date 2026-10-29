@@ -256,6 +256,23 @@ def init_db():
     if row and row[0] is not None and row[0] < 255:
         cursor.execute("ALTER TABLE bookings MODIFY COLUMN seat_number VARCHAR(255)")
 
+    # bookings.refund_* / cancel_* — outcome of a staff cancellation through
+    # Travelport (services/cancel_service.py): status becomes Voided (GDS
+    # ticket voided), Refunded (NDC ticket cancelled with a refund) or
+    # Cancelled (held booking, or NDC ticket with nothing refundable).
+    # refund_amount is what Travelport confirmed, never our own estimate;
+    # cancel_details keeps the voided document numbers / receipt ids.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='bookings' AND COLUMN_NAME='refund_amount'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE bookings ADD COLUMN refund_amount DOUBLE NULL AFTER fare_source")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN refund_currency VARCHAR(5) NULL AFTER refund_amount")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN cancel_method VARCHAR(30) NULL AFTER refund_currency")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN cancelled_at DATETIME NULL AFTER cancel_method")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN cancel_details TEXT NULL AFTER cancelled_at")
+
     # ── Loyalty Program ──────────────────────────────────────────────────────
     # Single-row config table (same pattern as pricing_settings) — points
     # accrual rate per currency (fares are LKR or USD, never blended) and the
@@ -875,7 +892,8 @@ def save_booking(ticket: dict) -> dict:
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON DUPLICATE KEY UPDATE
                 pnr=VALUES(pnr), ticket_number=VALUES(ticket_number),
-                status=VALUES(status), passenger_name=VALUES(passenger_name),
+                status=IF(status IN ('Cancelled','Voided','Refunded'), status, VALUES(status)),
+                passenger_name=VALUES(passenger_name),
                 passenger_email=VALUES(passenger_email), customer_id=VALUES(customer_id),
                 passport_number=VALUES(passport_number),
                 flight_number=VALUES(flight_number), airline=VALUES(airline),
@@ -2489,18 +2507,31 @@ def claim_payment_reqid(reqid: str, client_ref: str, locator_code: str | None = 
         conn.close()
 
 
-def cancel_booking(locator_code: str) -> bool:
-    """Mark a cached booking as Cancelled. Returns True if updated."""
+CANCELLED_STATUSES = ("Cancelled", "Voided", "Refunded")
+
+
+def record_cancellation(locator_code: str, status: str, cancel_method: str,
+                        refund_amount: float | None, refund_currency: str | None,
+                        details: dict) -> dict | None:
+    """Store the outcome of a Travelport-confirmed cancellation.
+    status: Voided / Refunded / Cancelled. Only called after Travelport
+    itself confirmed the void/cancel — see services/cancel_service.py."""
+    if status not in CANCELLED_STATUSES:
+        raise ValueError(f"Unknown cancellation status {status}")
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT status FROM bookings WHERE locator_code=%s",(locator_code,))
-        row = cursor.fetchone()
-        if not row or row["status"] == "Cancelled":
-            return False
-        cursor.execute("UPDATE bookings SET status='Cancelled' WHERE locator_code=%s",(locator_code,))
+        cursor.execute(
+            """UPDATE bookings SET status=%s, cancel_method=%s, refund_amount=%s,
+               refund_currency=%s, cancelled_at=NOW(), cancel_details=%s
+               WHERE locator_code=%s""",
+            (status, cancel_method, refund_amount, refund_currency,
+             json.dumps(details, default=str), locator_code),
+        )
         conn.commit()
-        return True
+        cursor.execute("SELECT * FROM bookings WHERE locator_code=%s", (locator_code,))
+        row = cursor.fetchone()
+        return _hydrate_bookings([row])[0] if row else None
     except Exception as e:
         conn.rollback()
         raise e
@@ -2833,7 +2864,7 @@ def get_sales_summary(start_date: str | None = None, end_date: str | None = None
 
         cursor.execute(
             f"""SELECT currency, COUNT(*) AS booking_count,
-                       SUM(CASE WHEN status='Cancelled' THEN 0 ELSE total_fare END) AS total_sales,
+                       SUM(CASE WHEN status IN ('Cancelled','Voided','Refunded') THEN 0 ELSE total_fare END) AS total_sales,
                        SUM(CASE WHEN ticket_number IS NOT NULL AND ticket_number != '' THEN 1 ELSE 0 END) AS ticket_count
                 FROM bookings {clause}
                 GROUP BY currency""",
@@ -2843,7 +2874,7 @@ def get_sales_summary(start_date: str | None = None, end_date: str | None = None
 
         cursor.execute(
             f"""SELECT COUNT(*) AS total_bookings,
-                       SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) AS total_cancelled
+                       SUM(CASE WHEN status IN ('Cancelled','Voided','Refunded') THEN 1 ELSE 0 END) AS total_cancelled
                 FROM bookings {clause}""",
             tuple(params),
         )

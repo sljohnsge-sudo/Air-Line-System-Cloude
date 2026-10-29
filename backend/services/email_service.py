@@ -136,3 +136,21 @@ def send_stuck_booking_email(to_addr: str, locator_code: str, error_message: str
         f"Force Issue Ticket once the underlying issue is confirmed resolved.\n"
     )
     return _send(to_addr, subject, body)
+
+
+def send_cancel_failure_email(to_addr: str, locator_code: str, error_message: str, recorded_status: str | None) -> tuple[bool, str | None]:
+    """Alerts staff that a staff-confirmed cancellation (void / refund /
+    cancel) failed at Travelport. recorded_status is what Travelport had
+    already confirmed and was saved (e.g. 'Voided' when the tickets were voided
+    but the flights could not be cancelled), or None when nothing changed.
+    Called from main.py's _notify_cancel_failure."""
+    subject = f"Cancellation failed at Travelport — {locator_code}"
+    body = (
+        f"A staff cancellation did not complete on Travelport.\n\n"
+        f"PNR / Locator:     {locator_code}\n"
+        f"Travelport error:  {error_message}\n"
+        f"Saved locally as:  {recorded_status or 'unchanged — Travelport confirmed nothing'}\n\n"
+        f"Check the booking in Smartpoint and finish the void/refund/cancel there if needed, then "
+        f"acknowledge this alert in the Admin Portal.\n"
+    )
+    return _send(to_addr, subject, body)

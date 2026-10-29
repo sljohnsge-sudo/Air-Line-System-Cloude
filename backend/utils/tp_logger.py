@@ -123,6 +123,14 @@ def _step_name(method: str, url: str) -> str:
         return "payment"
     if path.endswith("/cancelitems"):
         return "cancel_items"
+    if path.endswith("/documents/void"):
+        return "batch_void"
+    if "/ticket/tickets/updatestatus/" in path:
+        return "ticket_void"
+    if path.endswith("/offers/canceloffer"):
+        return "refund_quote"
+    if re.search(r"/receipt/reservations/[^/]+/receipts$", path) and m == "POST":
+        return "reservation_cancel"
     if re.search(r"/reservations/[^/]+$", path) and m == "POST":
         return "issue" if "Issuance=Ticket" in url else "reservation_commit"
     if re.search(r"/reservations/[^/]+$", path) and m == "GET":

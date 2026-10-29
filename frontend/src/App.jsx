@@ -6,6 +6,7 @@ import gsLogo from './assets/george_steuart_logo.png';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
+import CancelBookingDialog from './CancelBookingDialog.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
@@ -2015,6 +2016,7 @@ export default function App() {
   const [myBookings, setMyBookings] = useState([]);
   const [searchEmail, setSearchEmail] = useState('');
   const [loadingBookings, setLoadingBookings] = useState(false);
+  const [cancelDialogLocator, setCancelDialogLocator] = useState(null);
 
   // Notification
   const [notification, setNotification] = useState(null);
@@ -3396,18 +3398,8 @@ export default function App() {
     }
   };
 
-  const handleCancelBooking = async (locatorCode) => {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-    try {
-      const res = await fetchWithRetry(`${API_BASE}/bookings/${locatorCode}/cancel`, { method: 'POST', headers: signedInHeaders() });
-      const data = await handleApiResponse(res, 'Cancellation failed');
-      showNotification('Booking cancelled successfully.', 'warning');
-      fetchBookings();
-    } catch (err) {
-      const errMsg = err.message || String(err);
-      showNotification(errMsg, 'error');
-    }
-  };
+  // Opens the two-step Check refund → Confirm cancel dialog (staff only).
+  const handleCancelBooking = (locatorCode) => setCancelDialogLocator(locatorCode);
 
   // ── PDF DOWNLOAD & SHARING HANDLERS ───────────────────────────────────────
   const handleDownloadPDF = () => {
@@ -6800,8 +6792,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               <td style={{ padding: '0.6rem 0.85rem' }}>
                                 <span style={{
                                   fontSize: '0.65rem', fontWeight: '700', padding: '0.15rem 0.4rem', borderRadius: '4px',
-                                  background: r.status === 'Ticketed' ? '#dcfce7' : r.status === 'Cancelled' ? '#fee2e2' : '#f1f5f9',
-                                  color: r.status === 'Ticketed' ? '#15803d' : r.status === 'Cancelled' ? '#b91c1c' : '#475569'
+                                  background: r.status === 'Ticketed' ? '#dcfce7' : ['Cancelled', 'Voided', 'Refunded'].includes(r.status) ? '#fee2e2' : '#f1f5f9',
+                                  color: r.status === 'Ticketed' ? '#15803d' : ['Cancelled', 'Voided', 'Refunded'].includes(r.status) ? '#b91c1c' : '#475569'
                                 }}>{r.status || 'Confirmed'}</span>
                               </td>
                               <td style={{ padding: '0.6rem 0.85rem', color: '#475569', fontWeight: '500' }}>{r.payment_method || 'Credit Card'}</td>
@@ -7692,6 +7684,19 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </div>
               )}
             </section>
+            {cancelDialogLocator && (
+              <CancelBookingDialog
+                locator={cancelDialogLocator}
+                apiBase={API_BASE}
+                fetchWithRetry={fetchWithRetry}
+                authToken={adminToken}
+                onClose={() => setCancelDialogLocator(null)}
+                onCancelled={(r) => {
+                  showNotification(`Booking ${r.locator_code} ${r.status.toLowerCase()} on Travelport.`, 'warning');
+                  fetchBookings();
+                }}
+              />
+            )}
           </div>
         ) : (
           <div className="tab-content animate-fade">

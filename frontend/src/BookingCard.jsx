@@ -28,9 +28,21 @@ const cleanPassengerName = (name) => {
   return foundTitle ? `${foundTitle} ${rejoined}` : rejoined;
 };
 
+// A Voided booking whose flights couldn't be cancelled after the void
+// (cancel_details.itinerary_cancelled === false) can still be cancelled.
+const itineraryStillOpen = (b) => {
+  try {
+    return b.status === 'Voided' && JSON.parse(b.cancel_details || '{}').itinerary_cancelled === false;
+  } catch {
+    return false;
+  }
+};
+
 export default function BookingCard({ booking: b, onViewTicket, onCancelBooking, onRequestCancellation }) {
+  const isCancelled = ['Cancelled', 'Voided', 'Refunded'].includes(b.status);
+  const canCancel = !isCancelled || itineraryStillOpen(b);
   return (
-    <div className={`boarding-pass glass-panel ${b.status === 'Cancelled' ? 'cancelled-pass' : ''} animate-fade`}>
+    <div className={`boarding-pass glass-panel ${isCancelled ? 'cancelled-pass' : ''} animate-fade`}>
       <div className="pass-row header-row">
         <div className="pass-airline">
           <span className="pass-airline-name">{b.airline}</span>
@@ -50,15 +62,18 @@ export default function BookingCard({ booking: b, onViewTicket, onCancelBooking,
         <div className="detail-item"><span className="detail-label">DEPARTURE</span><span className="detail-val">{b.departure_time}</span></div>
         <div className="detail-item"><span className="detail-label">CABIN CLASS</span><span className="detail-val">{b.cabin_class}</span></div>
         <div className="detail-item"><span className="detail-label">FARE</span><span className="detail-val highlight">{b.currency} {b.total_fare?.toFixed(2)}</span></div>
+        {b.refund_amount !== null && b.refund_amount !== undefined && (
+          <div className="detail-item"><span className="detail-label">{b.status === 'Voided' ? 'VOIDED VALUE' : 'REFUND'}</span><span className="detail-val">{b.refund_currency} {Number(b.refund_amount).toFixed(2)}</span></div>
+        )}
       </div>
       <div className="pass-footer" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <div className="pass-barcode-box" style={{ flex: 1 }}><span className="barcode-label">PNR: {b.locator_code}</span></div>
         <div style={{ display: 'flex', gap: '0.4rem' }}>
           <button className="btn btn-secondary btn-sm" onClick={() => onViewTicket(b)}>📋 View/Print Ticket</button>
-          {b.status !== 'Cancelled' && onCancelBooking && (
+          {canCancel && onCancelBooking && (
             <button className="btn btn-danger btn-sm" onClick={() => onCancelBooking(b.locator_code)}>Cancel Booking</button>
           )}
-          {b.status !== 'Cancelled' && onRequestCancellation && (
+          {!isCancelled && onRequestCancellation && (
             <button className="btn btn-secondary btn-sm" onClick={() => onRequestCancellation(b)}>Request Cancellation</button>
           )}
         </div>

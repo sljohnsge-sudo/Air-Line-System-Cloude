@@ -28,7 +28,8 @@ Booking Workflow:
     POST  /api/bookings/create         → STEPS 4-9: Full booking + ticket issuance
     GET   /api/bookings/retrieve/{pnr} → STEP 8: Retrieve PNR details
     GET   /api/bookings/history        → Local cache of issued tickets
-    POST  /api/bookings/{pnr}/cancel   → Cancel reservation on Travelport + local cache
+    POST  /api/bookings/{pnr}/cancel/quote → Staff: void / refund / cancel quote from Travelport
+    POST  /api/bookings/{pnr}/cancel   → Staff: void / refund / cancel on Travelport + local record
 """
 
 import asyncio
@@ -533,6 +534,26 @@ def _notify_stuck_booking(locator_code: str, error_message: str, payment_txn_ref
 
     try:
         database.create_stuck_booking_notification(locator_code, error_message, payment_txn_ref, email_sent)
+    except Exception as db_err:
+        logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
+
+
+def _notify_cancel_failure(locator_code: str, error_message: str, recorded_status: Optional[str]) -> None:
+    """Same stuck-booking queue + email as _notify_stuck_booking, for a staff
+    cancellation (void / refund / cancel) that Travelport didn't complete.
+    recorded_status is what was saved because Travelport had already
+    confirmed it (e.g. 'Voided'), or None when nothing changed."""
+    recipients = [r["email"] for r in database.get_notification_recipients(active_only=True)]
+    email_sent = False
+    if recipients:
+        sent, err = services.send_cancel_failure_email(", ".join(recipients), locator_code, error_message, recorded_status)
+        email_sent = sent
+        if not sent:
+            logger.warning(f"Cancel-failure notification email not sent: {err}")
+
+    note = f"Cancellation failed at Travelport ({'saved as ' + recorded_status if recorded_status else 'nothing changed locally'}): {error_message}"
+    try:
+        database.create_stuck_booking_notification(locator_code, note, None, email_sent)
     except Exception as db_err:
         logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
 
@@ -2303,72 +2324,87 @@ def booking_history(email: Optional[str] = Query(None, description="Filter by pa
 
 
 # ── Cancel Booking ─────────────────────────────────────────────────────────────
+# Two steps, staff only. /cancel/quote asks Travelport what cancelling would
+# do (void a same-day GDS ticket, NDC Refund Quote, or cancel a held booking)
+# without changing anything; /cancel then does it, refusing if the action or
+# amount moved since the quote staff confirmed. The local record changes only
+# after Travelport confirms (services/cancel_service.py) — anything that fails
+# at Travelport is raised as a stuck-booking alert.
 
-TICKETED_CANCEL_DETAIL = (
-    "This booking is ticketed. Cancelling it here would not void or refund the ticket, "
-    "so it was not cancelled. Void it (same day as issue) or refund it in Travelport "
-    "(Smartpoint), then mark the cancellation request resolved."
-)
+class CancelConfirmRequest(BaseModel):
+    action: Literal["void", "refund", "cancel"]
+    amount: Optional[float] = None  # the amount shown on the quote staff confirmed
+    cancellation_request_id: Optional[int] = None  # B2C request to mark resolved on success
 
 
-def _is_ticketed(locator_code: str, cached: Optional[dict]) -> bool:
-    """Live Travelport check first; falls back to our record if the retrieve fails."""
-    try:
-        live = services.retrieve_reservation(locator_code)
-        if live.get("ticket_number") or live.get("ticket_numbers"):
-            return True
-    except Exception as e:
-        logger.warning(f"Cancel: live ticket check for {locator_code} failed, using local record: {e}")
-    return bool(cached and (cached.get("ticket_number") or str(cached.get("status", "")).lower() == "ticketed"))
+@app.post("/api/bookings/{locator_code}/cancel/quote")
+def quote_booking_cancellation(locator_code: str, _admin: dict = Depends(auth.get_current_admin)):
+    """Check refund: void vs refund vs cancel, and the amount, live from Travelport."""
+    locator_code = locator_code.upper().strip()
+    with services.flow_trace_id() as trace_id:
+        try:
+            quote = services.quote_cancellation(locator_code)
+        except services.CancelRefused as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        except services.CancelError as e:
+            logger.error(f"Cancel quote for {locator_code} failed at {e.step}: {e}")
+            raise HTTPException(status_code=502, detail=f"{e} (TraceId {trace_id})")
+    quote["trace_id"] = trace_id
+    return quote
 
 
 @app.post("/api/bookings/{locator_code}/cancel")
-def cancel_booking(locator_code: str, _admin: dict = Depends(auth.get_current_admin)):
+def cancel_booking(locator_code: str, body: CancelConfirmRequest, admin: dict = Depends(auth.get_current_admin)):
     """
-    Cancel a held (not yet ticketed) booking: cancels on Travelport and
-    updates local cache. Staff only — this used to need no sign-in at all,
-    so anyone holding a PNR could cancel a customer's real booking.
+    Confirm cancel: void / refund / cancel on Travelport, then record the
+    outcome (Voided / Refunded / Cancelled + refund amount). Staff only.
 
-    Ticketed bookings are refused: the workbench cancel used here (Cancel
-    Workbench Items) does not void or refund a ticket, so they're voided or
-    refunded in Travelport directly until the void/refund APIs are built.
-
-    Only ever marks the local record Cancelled -- and only ever reports
-    success -- when Travelport's own cancellation actually succeeded.
-    Previously this unconditionally updated the local cache and only 404'd
-    when BOTH the Travelport call and the local update failed, so a
-    genuine Travelport-side cancellation failure (e.g. a transient API
-    error) could still come back as "successfully cancelled" while the
-    booking was in fact still live and ticketed on Travelport -- a real
-    no-show/refund-mismatch risk for whoever acted on that response.
+    Replaces the earlier stop-gap that refused every ticketed booking with a
+    409 because Cancel Workbench Items alone neither voids nor refunds a
+    ticket. GDS tickets past their void period are still refused (409):
+    TripServices has no automated GDS refund yet, so those are refunded in
+    Smartpoint.
     """
     locator_code = locator_code.upper().strip()
-    if _is_ticketed(locator_code, database.get_booking_by_locator(locator_code)):
-        raise HTTPException(status_code=409, detail=TICKETED_CANCEL_DETAIL)
+    with services.flow_trace_id() as trace_id:
+        try:
+            result = services.cancel_travelport_booking(locator_code, body.action, body.amount)
+        except services.CancelRefused as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        except services.QuoteChanged as e:
+            e.quote["trace_id"] = trace_id
+            raise HTTPException(status_code=409, detail={
+                "message": "Travelport's answer changed since you checked — review the new quote and confirm again.",
+                "quote": e.quote,
+            })
+        except services.CancelError as e:
+            recorded = e.done.get("status")
+            logger.error(f"Cancel of {locator_code} failed at {e.step} (TraceId {trace_id}): {e}")
+            _notify_cancel_failure(locator_code, f"{e} (TraceId {trace_id})", recorded)
+            raise HTTPException(status_code=502, detail=(
+                f"{e} (TraceId {trace_id}). "
+                + (f"Saved as {recorded} — that much Travelport confirmed. " if recorded
+                   else "Nothing was changed locally. ")
+                + "Staff have been alerted; check the booking in Smartpoint."
+            ))
 
-    # One TraceId for cancel_reservation()'s internal calls (buildfromlocator
-    # -> cancelitems -> commit) — it never raises (returns bool), so no
-    # try/finally is needed to guarantee the reset.
-    trace_token = services.start_flow_trace_id()
-    tp_cancelled = services.cancel_reservation(locator_code)
-    services.end_flow_trace_id(trace_token)
+    if body.cancellation_request_id:
+        req = database.get_cancellation_request_by_id(body.cancellation_request_id)
+        if req and req["status"] == "pending" and req["booking_locator"].upper() == locator_code:
+            amount_note = f" {result['currency']} {result['amount']:,.2f}" if result.get("amount") is not None else ""
+            database.resolve_cancellation_request(
+                body.cancellation_request_id, "resolved", admin["admin_id"],
+                f"{result['status']} on Travelport{amount_note} (TraceId {trace_id})",
+            )
 
-    if not tp_cancelled:
-        existing = database.get_booking_by_locator(locator_code)
-        if not existing:
-            raise HTTPException(status_code=404, detail="Booking not found.")
-        logger.error(f"Cancel booking: Travelport did not confirm cancellation for {locator_code} — leaving local record unchanged.")
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                f"Travelport did not confirm cancellation for {locator_code} — the booking may still be "
-                f"active and ticketed. Nothing was changed locally; please verify directly with Travelport "
-                f"before telling the customer it's cancelled."
-            ),
-        )
-
-    database.cancel_booking(locator_code)
-    return {"message": f"Booking {locator_code} successfully cancelled."}
+    return {
+        "locator_code": locator_code,
+        "status": result["status"],
+        "amount": result["amount"],
+        "currency": result["currency"],
+        "details": result["details"],
+        "trace_id": trace_id,
+    }
 
 
 # ── Invoice Data Retrieval (Travelport Live) ───────────────────────────────────

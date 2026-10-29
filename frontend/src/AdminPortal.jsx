@@ -1,6 +1,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
+import CancelBookingDialog from './CancelBookingDialog.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
 // Terminal dropdowns. Naming isn't standardized across airports (numbers,
@@ -96,6 +97,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [cancellationRequestsLoading, setCancellationRequestsLoading] = useState(false);
   const [cancellationRequestsError, setCancellationRequestsError] = useState('');
   const [cancellationRequestActionId, setCancellationRequestActionId] = useState(null);
+  const [cancelDialogRequest, setCancelDialogRequest] = useState(null);
 
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -1696,8 +1698,9 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
         <h3 className="results-heading">Cancellation Requests {cancellationRequests.length > 0 && `(${cancellationRequests.length} pending)`}</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
-          Submitted via the B2C "Cancel Booking" form. Verify the booking and requester, then cancel it manually
-          via Travelport (All Bookings tab) before marking Resolved.
+          Submitted via the B2C "Cancel Booking" form. Verify the booking and requester, then use Check refund /
+          cancel: Travelport's quote comes first, and confirming voids, refunds or cancels the booking and marks the
+          request resolved. A GDS ticket past its void day can't be refunded online — refund it in Smartpoint, then Mark Resolved.
         </p>
         {settings && (settings.refund_charge_percent > 0 || settings.refund_charge_fixed > 0) && (
           <p style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.8rem', color: '#78350f', marginTop: 0, marginBottom: '1rem' }}>
@@ -1727,13 +1730,25 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                     {r.customer_id ? ' · Signed-in customer' : ' · Public form (not signed in)'}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <button className="btn btn-danger btn-sm" disabled={cancellationRequestActionId === r.id} onClick={() => setCancelDialogRequest(r)}>Check refund / cancel</button>
                   <button className="btn btn-primary btn-sm" disabled={cancellationRequestActionId === r.id} onClick={() => reviewCancellationRequest(r.id, 'resolve')}>Mark Resolved</button>
                   <button className="btn btn-danger btn-sm" disabled={cancellationRequestActionId === r.id} onClick={() => reviewCancellationRequest(r.id, 'reject')}>Reject</button>
                 </div>
               </div>
             ))}
           </div>
+        )}
+        {cancelDialogRequest && (
+          <CancelBookingDialog
+            locator={cancelDialogRequest.booking_locator}
+            apiBase={API_BASE}
+            fetchWithRetry={fetchWithRetry}
+            authToken={adminToken}
+            cancellationRequestId={cancelDialogRequest.id}
+            onClose={() => setCancelDialogRequest(null)}
+            onCancelled={() => setCancellationRequests(reqs => reqs.filter(x => x.id !== cancelDialogRequest.id))}
+          />
         )}
       </section>
       )}

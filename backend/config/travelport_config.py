@@ -51,6 +51,10 @@ class TravelportConfig:
     AGENCY_PHONE_AREA_CODE: str = os.getenv("TP_AGENCY_PHONE_AREA_CODE", "11")
     AGENCY_PHONE_NUMBER: str = os.getenv("TP_AGENCY_PHONE_NUMBER", "7792400")
     AGENCY_EMAIL: str = os.getenv("TP_AGENCY_EMAIL", "ticketing@gstravels.lk")
+    # Agency local time (minutes from UTC; Sri Lanka has no DST). A GDS ticket
+    # is voidable only on its issue date in agency time — Ticket Retrieve's
+    # AgencyInfo.ticketedDate is that local date.
+    AGENCY_UTC_OFFSET_MINUTES: int = int(os.getenv("TP_AGENCY_UTC_OFFSET_MINUTES", "330"))
 
     # ── Content Sources ────────────────────────────────────────────────────────
     # Searched together by default (contentSourceList). /api/ndc/search still
