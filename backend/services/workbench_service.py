@@ -19,6 +19,7 @@ from config.api_endpoints import TravelportEndpoints
 from services import seat_rules
 from services.auth_service import get_auth_headers, invalidate_token, flow_trace_id
 from services.pricing_service import get_settings as get_pricing_settings, apply_markup
+from services.special_services import MEAL_SSR_TYPES, WHEELCHAIR_SSR_FLAGS, NDC_MEAL_SSR_CARRIERS
 from utils import tp_logger
 
 logger = logging.getLogger(__name__)
@@ -41,10 +42,11 @@ def _api_post(url: str, payload: dict | str | None, session_id: str | None = Non
             invalidate_token()
             response = _send(client)
 
-        if response.status_code not in (200, 201):
+        if response.status_code not in (200, 201, 204):
             logger.error(f"API POST Error {response.status_code} for URL {url}: {response.text}")
         response.raise_for_status()
-        return response.json()
+        # NDC answers some workbench calls (special services) with 204 No Content.
+        return response.json() if response.content else {}
 
 
 def _raise_if_error(result: dict, step_name: str) -> None:
@@ -844,6 +846,99 @@ def add_primary_contacts(workbench_id: str, travelers: list) -> list:
     return results
 
 
+def add_special_services(workbench_id: str, travelers: list, is_gds: bool, carrier: str | None = None) -> list:
+    """
+    STEP 6c: send each passenger's special meal (traveler["meal_code"], an
+    IATA code like "VGML") and wheelchair request (traveler["wheelchair"]:
+    WCHR / WCHS / WCHC) via Special Service List, before commit — Remarks &
+    Service Requests Guide, initial booking step "Add other remarks".
+
+    One kind of SSR per request (the guide): one call for all meals, one for
+    all wheelchairs. Meals for GDS go by IATA code (the guide's best practice,
+    GDS only); NDC takes meals only on AA/QF/UA, as SpecialServiceMeal with
+    the meal enum and the airline's offer. Wheelchairs use the disability
+    payload SpecialServiceWheelchairAirlineSupplied for GDS and NDC.
+
+    Confirmed live 2026-10-29: UL GDS (PNR HNH8DW) both accepted (200) and
+    returned on the PNR with the airline's status; QR/SQ NDC answer 204 but
+    never return the SSR on the commit or retrieve.
+
+    Returns [{passenger_idx, passenger_name, kind, code, status, error}],
+    status "sent" | "failed" | "not_supported". Never raises — a refused
+    request is reported on the booking, it doesn't block it.
+    """
+    wanted = [(i, "meal", t["meal_code"]) for i, t in enumerate(travelers) if t.get("meal_code")]
+    wanted += [(i, "wheelchair", t["wheelchair"]) for i, t in enumerate(travelers) if t.get("wheelchair")]
+    if not wanted:
+        return []
+
+    def _row(idx, kind, code):
+        t = travelers[idx]
+        return {"passenger_idx": idx, "passenger_name": f"{t.get('first_name', '')} {t.get('last_name', '')}".strip().upper(),
+                "kind": kind, "code": code, "status": "failed", "error": None}
+
+    try:
+        wb = get_workbench_details(workbench_id)
+        reservation = wb.get("ReservationResponse", {}).get("Reservation", {}) or wb.get("Reservation", {}) or wb
+        traveler_map = _match_traveler_refs(reservation.get("Traveler", []) or [], travelers)
+        offers = reservation.get("Offer", []) or []
+    except Exception as e:
+        logger.warning(f"Special services skipped — could not read workbench travelers: {e}")
+        return [{**_row(i, k, c), "error": str(e)} for i, k, c in wanted]
+
+    results = []
+    for kind in ("meal", "wheelchair"):
+        items, sent = [], []
+        for idx, k, code in wanted:
+            if k != kind:
+                continue
+            row = _row(idx, kind, code)
+            results.append(row)
+            if kind == "meal" and not is_gds and carrier not in NDC_MEAL_SSR_CARRIERS:
+                row.update(status="not_supported", error="This airline doesn't accept meal requests online for this fare.")
+                continue
+            wt = traveler_map.get(idx)
+            if not wt:
+                row["error"] = "passenger not found on workbench"
+                continue
+            item = {"id": f"specialService_{len(items) + 1}",
+                    "TravelerIdentifier": {"id": wt.get("id"), **({"Identifier": wt["Identifier"]} if wt.get("Identifier") else {})}}
+            if kind == "wheelchair":
+                item.update({"@type": "SpecialServiceWheelchairAirlineSupplied", **WHEELCHAIR_SSR_FLAGS[code]})
+            elif is_gds:
+                item.update({"@type": "SpecialService", "SSRCode": code})
+            else:
+                item.update({"@type": "SpecialServiceMeal", "SpecialMealTypeEnum": MEAL_SSR_TYPES[code]})
+                if offers:
+                    item["AppliesTo"] = {"@type": "AppliesToOffer", "OfferIdentifier": [
+                        {"id": offers[0].get("id"), "offerRef": offers[0].get("id"), "Identifier": offers[0].get("Identifier")}]}
+            items.append(item)
+            sent.append(row)
+        if not items:
+            continue
+        try:
+            result = _api_post(TravelportEndpoints.add_special_services(workbench_id),
+                               {"SpecialServiceListRequest": {"SpecialServiceID": items}}, session_id=workbench_id)
+            errors = ((result.get("SpecialServiceListResponse") or {}).get("Result") or {}).get("Error") or []
+            if errors:
+                raise ValueError(f"Travelport Special Service failed: {errors[0].get('Message')}")
+            for row in sent:
+                row["status"] = "sent"
+        except Exception as e:
+            message = str(e)
+            if isinstance(e, httpx.HTTPStatusError):
+                try:
+                    body = e.response.json()
+                    body = body.get("SpecialServiceListResponse", body)
+                    message = ((body.get("Result") or {}).get("Error") or [{}])[0].get("Message") or message
+                except Exception:
+                    pass
+            logger.warning(f"{kind} SSRs failed (booking continues): {message}")
+            for row in sent:
+                row["error"] = message
+    return results
+
+
 def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_gds: bool = True) -> dict:
     """
     Build a single Traveler object from our internal passenger dict. Shared by
@@ -1135,12 +1230,17 @@ def get_workbench_details(workbench_id: str) -> dict:
 
 # ── STEP 7: Commit Workbench → Generate PNR ───────────────────────────────────
 
-def commit_workbench(workbench_id: str) -> dict:
+def commit_workbench(workbench_id: str, received_from: str | None = None) -> dict:
     """
     STEP 7: Commit the workbench to generate a PNR/Locator Code.
 
     Args:
         workbench_id (str): The workbench to commit
+        received_from (str | None): GDS only — sent as the optional commit
+            payload {"ReservationQueryCommitReservation": {"ReceivedFrom": ...}}
+            (Flights Booking Guide "Add ReceivedFrom"; not supported for NDC).
+            Confirmed live 2026-10-29 (UL PNR HNH8DW): accepted, PNR created.
+            None keeps the original empty-body commit.
 
     Returns:
         dict: Reservation response including locator code (PNR)
@@ -1151,8 +1251,9 @@ def commit_workbench(workbench_id: str) -> dict:
     logger.info(f"Committing workbench {workbench_id} to generate PNR...")
 
     url = TravelportEndpoints.commit_workbench(workbench_id)
-    # Commit requires an empty string payload content=""
-    result = _api_post(url, "", session_id=workbench_id)
+    # The commit needs no payload; without ReceivedFrom it stays an empty string content=""
+    payload = {"ReservationQueryCommitReservation": {"ReceivedFrom": received_from[:61]}} if received_from else ""
+    result = _api_post(url, payload, session_id=workbench_id)
 
     # ── Detect error 4350 at commit time ──────────────────────────────────────
     # Galileo may return error 4350 (COMMIT OR IGNORE RESERVATION WORKBENCH)
@@ -1275,7 +1376,8 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
         4. Create workbench
         5. Add offer
         6. Add all travelers
-        7. Commit → PNR
+        6c. Meal / wheelchair SSRs the passengers asked for
+        7. Commit → PNR (with ReceivedFrom for GDS)
 
     NOTE on AirPrice (STEP 3b) — scoped to GDS only, per Travelport support
     feedback on submitted logs asking for a Price step between Search and
@@ -1315,7 +1417,8 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
         max_retries (int): Max full-flow attempts on stale workbench errors.
 
     Returns:
-        dict: {"locator_code": str, "raw_response": dict}
+        dict: commit_workbench's result plus charge_amount, charge_currency
+        and ssr_requests (add_special_services' outcome per request).
 
     Raises:
         ValueError: if all retries are exhausted or a non-recoverable error occurs.
@@ -1407,10 +1510,17 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
                 if is_gds:
                     add_travel_agency_to_workbench(workbench_id)
 
-                # STEP 7
-                committed = commit_workbench(workbench_id)
+                # STEP 6c — meal / wheelchair requests, GDS and NDC (see
+                # add_special_services for what each content source takes).
+                carrier = ((leg_offerings[0].get("segments") or [{}])[0]).get("carrier")
+                ssr_requests = add_special_services(workbench_id, travelers, is_gds=is_gds, carrier=carrier)
+
+                # STEP 7 — ReceivedFrom is GDS only (Flights Booking Guide);
+                # NDC keeps the empty-body commit.
+                committed = commit_workbench(workbench_id, received_from=TravelportConfig.RECEIVED_FROM if is_gds else None)
                 committed["charge_amount"] = charge_amount
                 committed["charge_currency"] = charge_currency
+                committed["ssr_requests"] = ssr_requests
                 return committed
 
             except StaleWorkbenchError as e:

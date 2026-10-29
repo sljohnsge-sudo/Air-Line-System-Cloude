@@ -52,6 +52,12 @@ class TravelportConfig:
     AGENCY_PHONE_NUMBER: str = os.getenv("TP_AGENCY_PHONE_NUMBER", "7792400")
     AGENCY_EMAIL: str = os.getenv("TP_AGENCY_EMAIL", "ticketing@gstravels.lk")
 
+    # ── ReceivedFrom (Workbench Commit, GDS only) ─────────────────────────────
+    # Who made the booking, as Galileo's received-from field records it —
+    # Flights Booking Guide "Optional Actions at Commit": GDS only, max 61
+    # characters, visible in a terminal but not in Reservation Retrieve.
+    RECEIVED_FROM: str = (os.getenv("TP_RECEIVED_FROM") or f"{AGENCY_NAME} ONLINE").strip().upper()[:61]
+
     # ── Content Sources ────────────────────────────────────────────────────────
     # Searched together by default (contentSourceList). /api/ndc/search still
     # narrows a single request to NDC.

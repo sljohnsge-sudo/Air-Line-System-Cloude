@@ -50,7 +50,8 @@ import database
 import services
 import auth
 import hotel_database
-from services import seat_rules
+from services import seat_rules, fare_rule_service
+from services.special_services import MEAL_SSR_TYPES, merge_ssr_status
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -314,6 +315,21 @@ class TravelerInfo(BaseModel):
     address_state_value: Optional[str] = Field(default=None, description="TravelDocument.Address.StateProv.value")
     address_country: Optional[str] = Field(default=None, description="TravelDocument.Address.Country.value")
     address_postal_code: Optional[str] = Field(default=None, description="TravelDocument.Address.PostalCode")
+
+    # ── Special service requests (sent to the airline before commit) ────────
+    meal_code: Optional[str] = Field(default=None, description="IATA special meal SSR code, e.g. VGML")
+    wheelchair: Optional[str] = Field(default=None, pattern="^(WCHR|WCHS|WCHC)$", description="WCHR | WCHS | WCHC")
+
+    @field_validator("meal_code")
+    @classmethod
+    def _validate_meal_code(cls, v: Optional[str]) -> Optional[str]:
+        if v and v not in MEAL_SSR_TYPES:
+            raise ValueError("meal_code must be one of " + ", ".join(MEAL_SSR_TYPES))
+        return v or None
+
+
+class FareRulesRequest(BaseModel):
+    raw_offering: dict = Field(..., description="The raw offer from the search response")
 
 
 class BookingCreateRequest(BaseModel):
@@ -853,6 +869,15 @@ def _attach_traveler_details(ticket: dict, travelers: list) -> None:
     ticket["date_of_birth"] = lead.get("date_of_birth", "")
 
 
+def _attach_ssr_status(ticket: dict, ssr_requests: Optional[list]) -> None:
+    """Meal / wheelchair requests made at booking (kept on our record —
+    NDC PNRs don't carry them) and the airline's status for each from the
+    live PNR (ticket["special_services"])."""
+    if ssr_requests is not None:
+        ticket["ssr_requests"] = ssr_requests
+    ticket["ssr_status"] = merge_ssr_status(ticket.get("ssr_requests"), ticket.get("special_services"))
+
+
 def _quoted_currency(raw_offering: dict) -> Optional[str]:
     """Currency of the price the customer was shown, from the selected offer.
     raw_offering is one leg, {"outbound","inbound"} (round trip) or
@@ -983,6 +1008,7 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
         # Map every traveler (Adult/Child/Infant) Travelport confirmed back onto
         # this booking, and mirror the lead traveler onto the flat top-level fields.
         _attach_traveler_details(ticket, travelers)
+        _attach_ssr_status(ticket, commit_result.get("ssr_requests"))
 
         ticket["seat_charge"] = 0.0
 
@@ -1134,6 +1160,34 @@ def initiate_booking(request: BookingInitiateRequest):
             except Exception as ex:
                 logger.warning(f"Failed to discard temporary initiate workbench {workbench_id}: {ex}")
 
+
+
+# ── Fare Rules (change / cancel conditions) ───────────────────────────────────
+
+@app.post("/api/fare-rules")
+def fare_rules_for_offer(request: FareRulesRequest):
+    """Fare rules of a searched fare, live from Travelport (short text +
+    structured penalties per leg) — shown on fare selection and review."""
+    try:
+        return {"fares": fare_rule_service.get_fare_rules_for_offering(request.raw_offering)}
+    except Exception as e:
+        logger.error(f"Fare rules failed: {e}")
+        raise HTTPException(status_code=502, detail="Fare rules couldn't be loaded from the airline right now.")
+
+
+@app.get("/api/bookings/{locator_code}/fare-rules")
+def fare_rules_for_booking(locator_code: str):
+    """Fare rules of a booking made through this site (Travelport: the
+    booking must have been made via TripServices with a valid fare)."""
+    cached = database.get_booking_by_locator(locator_code)
+    if not cached:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    try:
+        is_gds = (cached.get("fare_source") or "GDS") == "GDS"
+        return {"fares": fare_rule_service.get_fare_rules_for_reservation(locator_code, is_gds)}
+    except Exception as e:
+        logger.error(f"Fare rules for {locator_code} failed: {e}")
+        raise HTTPException(status_code=502, detail="Fare rules couldn't be loaded from the airline right now.")
 
 
 # ── STEPS 6-9: Confirm Booking (Add Travelers, Seats, Commit PNR & Ticket) ──
@@ -1312,6 +1366,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # Map every traveler (Adult/Child/Infant) Travelport confirmed back onto
         # this booking, and mirror the lead traveler onto the flat top-level fields.
         _attach_traveler_details(ticket, travelers)
+        _attach_ssr_status(ticket, commit_result.get("ssr_requests"))
 
         # Enrich with payment method details
         pay_input = request.payment_method or "card"
@@ -2095,9 +2150,10 @@ def _merge_cached_ticket_fields(ticket: dict, cached: Optional[dict]) -> dict:
     # Seats/extras outcome, extras charge and EMDs exist only in our record
     # (/confirm and ticketing) — without them a reopened ticket showed the
     # extras total as a "Seat Selection Fee" and lost its EMD numbers.
-    for field in ["ancillary_charge", "ancillaries", "addon_results", "emd_numbers", "emd_status", "ticket_numbers"]:
+    for field in ["ancillary_charge", "ancillaries", "addon_results", "emd_numbers", "emd_status", "ticket_numbers", "ssr_requests"]:
         if cached.get(field) not in (None, "", []) and not ticket.get(field):
             ticket[field] = cached.get(field)
+    _attach_ssr_status(ticket, None)
     # If GDS fare doesn't include the local seat selection fee added dynamically, adjust it
     if cached.get("total_fare") and cached.get("total_fare") > ticket.get("total_fare", 0.0):
         ticket["total_fare"] = cached.get("total_fare")
@@ -2153,6 +2209,8 @@ _PRIVATE_FIELDS_DROPPED = {
     "date_of_birth", "passport_expiry", "birth_place", "document_issue_date",
     "address_street", "address_city", "address_state_name", "address_state_value",
     "address_country", "address_postal_code", "raw_ticket_json", "raw_response",
+    # Wheelchair / dietary requests are health-related.
+    "ssr_requests", "special_services", "ssr_status",
 }
 
 

@@ -6,6 +6,8 @@ import gsLogo from './assets/george_steuart_logo.png';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
+import FareRulesPanel from './FareRulesPanel.jsx';
+import { MEAL_OPTIONS, WHEELCHAIR_OPTIONS, ssrSupport, SsrStatusList } from './SpecialServices.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
@@ -5806,6 +5808,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                             <strong style={{ color: '#1e293b' }}>Cancellations:</strong> <span style={{ fontWeight: '500' }}>{fo.cancel_policy}</span>
                                           </div>
                                         </div>
+                                        {/* Full change/cancel conditions, live from Travelport's Fare Rules API */}
+                                        {flight.source !== 'AD' && fo.raw_offering && (
+                                          <div style={{ marginTop: '0.5rem' }}>
+                                            <FareRulesPanel apiBase={API_BASE} rawOffering={fo.raw_offering} title="Full fare rules" />
+                                          </div>
+                                        )}
                                       </div>
 
                                       {/* Brand Attributes Section */}
@@ -8172,6 +8180,35 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                 </div>
 
+                {/* Special assistance — sent to the airline as SSRs with the booking */}
+                {(() => {
+                  const support = ssrSupport(selectedFlight.raw_offering);
+                  const t = travelers[activePassengerIdx] || {};
+                  return (
+                    <div style={{ marginTop: '0.25rem' }}>
+                      <div className="form-grid-2">
+                        <div className="form-group">
+                          <label className="form-label">Special Meal</label>
+                          <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
+                            <option value="">No special meal</option>
+                            {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Wheelchair Assistance</label>
+                          <select className="form-select" disabled={!support.wheelchair} value={t.wheelchair || ''} onChange={e => handleTravelerChange('wheelchair', e.target.value || null)}>
+                            <option value="">Not needed</option>
+                            {WHEELCHAIR_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '-0.35rem', marginBottom: '0.5rem' }}>
+                        {support.note || 'Sent to the airline with your booking. Requests depend on the airline confirming them.'}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <button
                   type="button"
                   onClick={() => setShowExtraTravelerFields(v => !v)}
@@ -9367,10 +9404,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           <div><span style={{ color: 'var(--text-muted)' }}>Nationality: </span><strong>{t.nationality || '—'}</strong></div>
                           <div><span style={{ color: 'var(--text-muted)' }}>Email: </span><strong>{t.email}</strong></div>
                           <div><span style={{ color: 'var(--text-muted)' }}>Phone: </span><strong>{t.phone}</strong></div>
+                          {t.meal_code && <div><span style={{ color: 'var(--text-muted)' }}>Special meal: </span><strong>{(MEAL_OPTIONS.find(o => o[0] === t.meal_code) || [, t.meal_code])[1]}</strong></div>}
+                          {t.wheelchair && <div><span style={{ color: 'var(--text-muted)' }}>Wheelchair: </span><strong>{t.wheelchair}</strong></div>}
                         </div>
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Fare conditions of the chosen fare, live from Travelport */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <FareRulesPanel apiBase={API_BASE} rawOffering={selectedFlight.raw_offering} title="Fare rules — changes & cancellations" defaultOpen />
                 </div>
 
                 {/* Flight Itinerary Details */}
@@ -9595,6 +9639,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       ['Passport issued by', t.passport_issue_country || t.nationality || '—'],
                       ['Email', t.email],
                       ['Phone', t.phone],
+                      ...(t.meal_code ? [['Special meal', (MEAL_OPTIONS.find(o => o[0] === t.meal_code) || [, t.meal_code])[1]]] : []),
+                      ...(t.wheelchair ? [['Wheelchair', (WHEELCHAIR_OPTIONS.find(o => o[0] === t.wheelchair) || [, t.wheelchair])[1]]] : []),
                     ];
                     return (
                       <div key={idx} style={{ marginBottom: idx < travelers.length - 1 ? '0.9rem' : 0, paddingBottom: idx < travelers.length - 1 ? '0.75rem' : 0, borderBottom: idx < travelers.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
@@ -9800,6 +9846,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       ⚠ Some seat/extra documents are still being issued by the airline. Our team has been notified and will contact you.
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Meal / wheelchair requests and the airline's status for each */}
+              <SsrStatusList items={issuedTicket.ssr_status} />
+
+              {/* This booking's fare conditions, live from Travelport (fromreservation) */}
+              {issuedTicket.locator_code && (
+                <div className="no-print" style={{ marginBottom: '1.5rem' }}>
+                  <FareRulesPanel apiBase={API_BASE} locator={issuedTicket.locator_code} title="Fare rules for this booking" />
                 </div>
               )}
 
