@@ -991,6 +991,16 @@ const seatLegLabel = (legInfo, idx) => {
   return x.flight_number ? `${x.direction} ${x.flight_number}` : x.direction;
 };
 
+// Identifies one result card for its fare pop-up and cabin pick. offer_id
+// alone isn't unique: NDC carriers reuse it across offers (live CMB-DXB
+// search: "QR_CPO0" on 20 Qatar results, "EK_CPO0" on 15 Emirates), so
+// keying on it opened every one of those cards' pop-ups on one click.
+const fareCardKey = (flight, idx) => {
+  const legs = flight.legs?.length ? flight.legs : [flight];
+  const flights = legs.flatMap(l => (l.segments?.length ? l.segments : [l]).map(s => `${s.flight_number}@${s.departure_time}`));
+  return [flight.offer_id, flight.fare_source, ...flights].join('|') || idx;
+};
+
 function lookupTerminalConnection(connections, airportCode, fromTerminal, toTerminal) {
   if (!connections || connections.length === 0 || !airportCode) return null;
   const forAirport = connections.filter(c => c.airport_code === airportCode);
@@ -5361,10 +5371,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <style dangerouslySetInnerHTML={{ __html: RC_RELAY_ANIMATION_CSS }} />
                 )}
                 {!loadingFlights && displayed.map((flight, idx) => {
-                  const isFareExpanded = !!expandedFareIds[flight.offer_id || idx];
+                  const isFareExpanded = !!expandedFareIds[fareCardKey(flight, idx)];
                   const totalPax = adultCount + childCount + infantCount + studentCount;
 
-                  const fId = flight.offer_id || idx;
+                  const fId = fareCardKey(flight, idx);
                   // When a cabin filter is active (e.g. "Business") and this
                   // card qualified for the filter because it has a matching
                   // fare option, show THAT cabin by default — not the card's
@@ -5509,7 +5519,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             carries the seats-remaining badge, when Travelport provides one. */}
                         {flight.seats_remaining != null && (
                           <div className="rc-details-col" style={{ cursor: 'pointer' }} onClick={() => {
-                            const fId = flight.offer_id || idx;
+                            const fId = fareCardKey(flight, idx);
                             setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
                           }}>
                             <div className="rc-seats" style={{ color: flight.seats_remaining < 5 ? '#c3122e' : '#0f766e', fontWeight: '700' }}>
@@ -5574,7 +5584,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             <button
                               type="button"
                               onClick={() => {
-                                const fId = flight.offer_id || idx;
+                                const fId = fareCardKey(flight, idx);
                                 setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
                                 if (flight.source === 'AD') fetchAmadeusFareRules(flight);
                               }}
