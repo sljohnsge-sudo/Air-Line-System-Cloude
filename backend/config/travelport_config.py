@@ -52,13 +52,17 @@ class TravelportConfig:
     AGENCY_PHONE_NUMBER: str = os.getenv("TP_AGENCY_PHONE_NUMBER", "7792400")
     AGENCY_EMAIL: str = os.getenv("TP_AGENCY_EMAIL", "ticketing@gstravels.lk")
 
-    # ── Content Source ─────────────────────────────────────────────────────────
-    # "GDS" for Travelport GDS content, "NDC" for NDC carriers
-    CONTENT_SOURCE: str = os.getenv("TP_CONTENT_SOURCE", "GDS")
+    # ── Content Sources ────────────────────────────────────────────────────────
+    # Searched together by default (contentSourceList). /api/ndc/search still
+    # narrows a single request to NDC.
+    CONTENT_SOURCES: list = [s.strip().upper() for s in os.getenv("TP_CONTENT_SOURCES", "GDS,NDC").split(",") if s.strip()]
 
     # ── Search Defaults ────────────────────────────────────────────────────────
-    OFFERS_PER_PAGE: int = int(os.getenv("TP_OFFERS_PER_PAGE", "45"))
-    MAX_UPSELLS: int = int(os.getenv("TP_MAX_UPSELLS", "1"))
+    # offersPerPage must be sent so journey-based results are cached for the
+    # reference calls that follow (AirPrice/Add Offer); 999 keeps all offers.
+    # 4 is the most GDS upsells Travelport returns in a Search response.
+    OFFERS_PER_PAGE: int = int(os.getenv("TP_OFFERS_PER_PAGE", "999"))
+    MAX_UPSELLS: int = int(os.getenv("TP_MAX_UPSELLS", "4"))
 
     # ── Request Defaults ──────────────────────────────────────────────────────
     # Sent as PricingModifiersAir.currencyCode on every Search request so GDS
@@ -70,6 +74,11 @@ class TravelportConfig:
     DEFAULT_CURRENCY: str = os.getenv("TP_CURRENCY", "LKR")
     DEFAULT_LANGUAGE: str = "en"
     REQUEST_TIMEOUT: int = 120   # seconds per HTTP request
+
+    @classmethod
+    def is_production(cls) -> bool:
+        """True when pointed at Travelport production rather than pre-production (.pp.)."""
+        return ".pp." not in cls.API_BASE and ".pp." not in cls.AUTH_URL
 
     @classmethod
     def base_path(cls) -> str:

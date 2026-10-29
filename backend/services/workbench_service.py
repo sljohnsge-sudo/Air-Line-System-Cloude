@@ -24,23 +24,23 @@ from utils import tp_logger
 logger = logging.getLogger(__name__)
 
 
-def _api_post(url: str, payload: dict | str, session_id: str | None = None) -> dict:
-    """Internal helper for POST requests with automatic token retry."""
-    headers = get_auth_headers(session_id)
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
+def _api_post(url: str, payload: dict | str | None, session_id: str | None = None) -> dict:
+    """Internal helper for POST requests with automatic token retry.
+    payload=None sends no body and no Content-Type (Post Commit Workbench)."""
+    def _send(client):
+        headers = get_auth_headers(session_id, with_body=payload is not None)
+        if payload is None:
+            return client.post(url, headers=headers)
         if isinstance(payload, str):
-            response = client.post(url, content=payload, headers=headers)
-        else:
-            response = client.post(url, json=payload, headers=headers)
-            
+            return client.post(url, content=payload, headers=headers)
+        return client.post(url, json=payload, headers=headers)
+
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
+        response = _send(client)
         if response.status_code == 401:
             invalidate_token()
-            headers = get_auth_headers(session_id)
-            if isinstance(payload, str):
-                response = client.post(url, content=payload, headers=headers)
-            else:
-                response = client.post(url, json=payload, headers=headers)
-                
+            response = _send(client)
+
         if response.status_code not in (200, 201):
             logger.error(f"API POST Error {response.status_code} for URL {url}: {response.text}")
         response.raise_for_status()
@@ -68,24 +68,24 @@ def _raise_if_error(result: dict, step_name: str) -> None:
 
 def _api_get(url: str, session_id: str | None = None) -> dict:
     """Internal helper for GET requests with automatic token retry."""
-    headers = get_auth_headers(session_id)
+    headers = get_auth_headers(session_id, with_body=False)
     with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.get(url, headers=headers)
         if response.status_code == 401:
             invalidate_token()
-            response = client.get(url, headers=get_auth_headers(session_id))
+            response = client.get(url, headers=get_auth_headers(session_id, with_body=False))
         response.raise_for_status()
         return response.json()
 
 
 def _api_delete(url: str, session_id: str | None = None) -> None:
     """Internal helper for DELETE requests (used to ignore/cancel a stale workbench)."""
-    headers = get_auth_headers(session_id)
+    headers = get_auth_headers(session_id, with_body=False)
     with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.delete(url, headers=headers)
         if response.status_code == 401:
             invalidate_token()
-            response = client.delete(url, headers=get_auth_headers(session_id))
+            response = client.delete(url, headers=get_auth_headers(session_id, with_body=False))
         # 200, 204, 404 are all acceptable — 404 means it was already gone
         if response.status_code not in (200, 204, 404):
             logger.warning(f"DELETE workbench returned unexpected status {response.status_code}")
@@ -111,6 +111,10 @@ def _api_post_with_retry(url: str, payload: dict | str, session_id: str | None =
     POST with automatic retry on gateway errors (502/503/504).
     Uses exponential backoff: waits 3s, then 6s between retries.
     This handles transient Travelport sandbox timeouts gracefully.
+
+    Only for POSTs that READ (AirPrice, Seat Map, Ancillary Shop). Never for
+    calls that add to a workbench (Add Offer, Seat/Ancillary Book): a timeout
+    doesn't mean Travelport didn't apply it, so a retry can add it twice.
     """
     last_exc = None
     for attempt in range(max_retries):
@@ -500,7 +504,49 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
     }
 
 
+class PriceChangedError(ValueError):
+    """The price the customer was quoted is lower than Travelport's current
+    priced fare (plus our markup). Raised before any workbench is created."""
+    def __init__(self, message: str, expected: float | None = None, currency: str | None = None):
+        super().__init__(message)
+        self.expected = expected
+        self.currency = currency
+
+
+# Rounding allowance when comparing a quoted price with the re-priced fare.
+_PRICE_TOLERANCE = 1.0
+
+
+def charge_for_priced_fare(priced: dict, quoted_price: float | None = None,
+                           quoted_currency: str | None = None) -> tuple[float, str]:
+    """The amount to charge for an itinerary, from Travelport's own AirPrice
+    total (never from the browser) with the admin ticket markup applied —
+    the same markup search used to quote it. Refuses with PriceChangedError
+    if the customer was quoted less than that (fare went up, or the request
+    was tampered with), or if AirPrice returned no usable price.
+    Returns (amount, currency)."""
+    total, currency = priced.get("total"), priced.get("currency")
+    if not total or not currency:
+        raise PriceChangedError("Travelport didn't confirm a price for this fare. Please search again.")
+    expected, _ = apply_markup(float(total), get_pricing_settings(), "ticket")
+    if quoted_currency and quoted_currency.upper() != currency.upper():
+        raise PriceChangedError(
+            f"This fare is now priced in {currency}, not {quoted_currency}. Please search again.",
+            expected, currency)
+    if quoted_price is not None and quoted_price + _PRICE_TOLERANCE < expected:
+        raise PriceChangedError(
+            f"The fare has changed to {currency} {expected:,.2f} (you were quoted {currency} "
+            f"{quoted_price:,.2f}). Please review the new price and book again.",
+            expected, currency)
+    return expected, currency
+
+
 def confirm_price(raw_offering: dict) -> str:
+    """AirPrice, returning only the identifier for Add Offer. See confirm_price_details."""
+    return confirm_price_details(raw_offering)["identifier"]
+
+
+def confirm_price_details(raw_offering: dict) -> dict:
     """
     STEP 3b: Confirm pricing via AirPrice, called for every content source
     (GDS and NDC) — see run_booking_flow's docstring. Serves Travelport
@@ -522,11 +568,13 @@ def confirm_price(raw_offering: dict) -> str:
     Not tied to any workbench either way — POSTs directly to /air/price/....
 
     Returns:
-        str: The AirPrice response's transactionId. Per Travelport docs,
-        "If you add the offer after a price request, you can send the
-        transaction identifier from the AirPrice response" — the caller
-        should use this value as the CatalogProductOfferingsIdentifier for
-        the subsequent Add Offer call instead of the original Search one.
+        dict: {"identifier", "total", "currency"}. identifier is the AirPrice
+        response's transactionId — per Travelport docs, "If you add the offer
+        after a price request, you can send the transaction identifier from
+        the AirPrice response", so the caller uses it as the
+        CatalogProductOfferingsIdentifier for Add Offer (GDS). total/currency
+        are Travelport's priced itinerary total (OfferID[0].Price, all
+        passengers, all legs) — the server-side figure the charge is based on.
     """
     leg_offerings = _get_leg_offerings(raw_offering)
     is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
@@ -602,8 +650,11 @@ def confirm_price(raw_offering: dict) -> str:
         logger.error(f"AirPrice did not return a usable identifier. Full response: {result}")
         raise ValueError("Travelport AirPrice did not return a transactionId.")
 
-    logger.info(f"AirPrice confirmed. transactionId for Add Offer: {priced_transaction_id}")
-    return priced_transaction_id
+    price = ((offer_list.get("OfferID") or [{}])[0].get("Price") or {})
+    total = price.get("TotalPrice")
+    currency = (price.get("CurrencyCode") or {}).get("value")
+    logger.info(f"AirPrice confirmed: {currency} {total}. transactionId for Add Offer: {priced_transaction_id}")
+    return {"identifier": priced_transaction_id, "total": float(total) if total else None, "currency": currency}
 
 
 def _build_reference_payload_offer(leg_offerings: list) -> dict:
@@ -667,7 +718,7 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict, force_referenc
         payload = _build_full_payload_offer(leg_offerings)
         url = TravelportEndpoints.add_offer_to_workbench_full_payload(workbench_id)
         try:
-            result = _api_post_with_retry(url, payload, session_id=workbench_id)
+            result = _api_post(url, payload, session_id=workbench_id)
             _raise_if_error(result, "Add Offer (full payload)")
             logger.info("Offer added to workbench (full payload).")
             return result
@@ -683,7 +734,7 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict, force_referenc
     # content) the full-payload attempt above failed and this is the fallback.
     payload = _build_reference_payload_offer(leg_offerings)
     url = TravelportEndpoints.add_offer_to_workbench(workbench_id)
-    result = _api_post_with_retry(url, payload, session_id=workbench_id)
+    result = _api_post(url, payload, session_id=workbench_id)
     _raise_if_error(result, "Add Offer")
     logger.info("Offer added to workbench (reference payload).")
     return result
@@ -820,7 +871,7 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_g
     """
     country_code, phone_num = _split_phone(traveler.get("phone", ""))
 
-    prefix =_person_prefix(traveler.get("gender", "Male"), traveler.get("passenger_type", "ADT"))
+    prefix =_person_prefix(traveler.get("gender") or "", traveler.get("passenger_type", "ADT"))
 
     passenger_type = traveler.get("passenger_type", "ADT")
 
@@ -855,15 +906,15 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_g
         # Passport issuing country — collected as its own field since it can
         # differ from the traveler's nationality; falls back to nationality
         # only if somehow not supplied.
-        "issueCountry": traveler.get("passport_issue_country") or traveler.get("nationality", "LK"),
+        "issueCountry": traveler.get("passport_issue_country") or traveler.get("nationality"),
         # "Birth country as noted on document" — per Travelport's own
         # TravelDocumentDetail schema this field is named "Nationality"
         # (confirmed against support.travelport.com/.../APIRef_TravelerAdd.htm).
         # An earlier version of this code used a non-existent "birthCountry"
         # key, which Travelport silently ignored — this is the fix.
-        "Nationality": traveler.get("nationality", "LK"),
+        "Nationality": traveler.get("nationality"),
         "birthDate": traveler.get("date_of_birth", ""),
-        "Gender": traveler.get("gender", "Male"),
+        "Gender": traveler.get("gender"),
         "PersonName": {
             # Travelport's own sample uses PersonNameDetail here (same @type
             # as the top-level PersonName), not the bare "PersonName" type.
@@ -904,7 +955,7 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_g
 
     payload = {
         "@type": "Traveler",
-        "gender": traveler.get("gender", "Male"),
+        "gender": traveler.get("gender"),
         "birthDate": traveler.get("date_of_birth", ""),
         "passengerTypeCode": passenger_type,
         "PersonName": {
@@ -1213,7 +1264,8 @@ def commit_workbench(workbench_id: str) -> dict:
 
 # ── Booking Flow Helper (Steps 4-7 with stale-workbench auto-retry) ───────────
 
-def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, reference_payload_only: bool = False) -> dict:
+def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, reference_payload_only: bool = False,
+                     quoted_price: float | None = None, quoted_currency: str | None = None) -> dict:
     """
     Execute the full GDS booking flow (Steps 4-7) with automatic retry on
     Galileo error 4350 (COMMIT OR IGNORE RESERVATION WORKBENCH).
@@ -1295,7 +1347,11 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
         #     without re-testing live first.
         leg_offerings = _get_leg_offerings(raw_offering)
         is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
-        priced_transaction_id = confirm_price(raw_offering)
+        priced = confirm_price_details(raw_offering)
+        priced_transaction_id = priced["identifier"]
+        # The fare to charge comes from AirPrice, not the browser — and an
+        # under-quote is refused here, before any workbench or PNR exists.
+        charge_amount, charge_currency = charge_for_priced_fare(priced, quoted_price, quoted_currency)
         if is_gds:
             for leg in leg_offerings:
                 leg["CatalogProductOfferingsIdentifier"] = priced_transaction_id
@@ -1352,7 +1408,10 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
                     add_travel_agency_to_workbench(workbench_id)
 
                 # STEP 7
-                return commit_workbench(workbench_id)
+                committed = commit_workbench(workbench_id)
+                committed["charge_amount"] = charge_amount
+                committed["charge_currency"] = charge_currency
+                return committed
 
             except StaleWorkbenchError as e:
                 logger.warning(
@@ -1846,7 +1905,7 @@ def book_ancillary_offer(workbench_id: str, ancillary: dict, quantity: int = 1) 
             }
         ],
     }
-    result = _api_post_with_retry(url, payload, session_id=workbench_id)
+    result = _api_post(url, payload, session_id=workbench_id)
     _raise_if_error(result, "Ancillary Book")
     return result
 
@@ -1925,7 +1984,7 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
         return result
 
     pricing_settings = get_pricing_settings()
-    wb_result = _api_post(TravelportEndpoints.create_workbench_from_locator(locator_code), {})
+    wb_result = _api_post(TravelportEndpoints.create_workbench_from_locator(locator_code), None)
     reservation = (
         wb_result.get("ReservationResponse", {}).get("Reservation", {})
         or wb_result.get("ReservationWorkbench", {})
@@ -2014,7 +2073,7 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
                     "@type": "OfferQueryBuildAncillaryOffersFromCatalogOfferings",
                     "BuildAncillaryOffersFromCatalogOfferings": [payload for _, payload in entries]}}
                 try:
-                    resp = _api_post_with_retry(
+                    resp = _api_post(
                         f"{TravelportConfig.base_path()}/air/book/airoffer/reservationworkbench/{workbench_id}/offers/buildancillaryoffersfromcatalogofferings",
                         body, session_id=workbench_id)
                     _raise_if_error(resp, "Seat Book")

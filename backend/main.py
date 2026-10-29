@@ -102,28 +102,94 @@ FEATURE_GATED_PREFIXES = {
 }
 
 
+# Phase 1 sells Travelport flights only. The Amadeus booking proxy follows the
+# same Provider Control search_mode that already keeps Amadeus out of search,
+# and the IndiGo (Travelport uAPI) routes stay off unless INDIGO_ENABLED=true —
+# both used to answer requests even while their modules were switched off.
+AMADEUS_ROUTE_PREFIXES = ("/api/amadeus-bookings",)
+INDIGO_ROUTE_PREFIXES = ("/api/indigo",)
+INDIGO_ENABLED = os.getenv("INDIGO_ENABLED", "false").strip().lower() in ("1", "true", "yes")
+
+
+def _module_unavailable() -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": "This feature is temporarily unavailable."})
+
+
 @app.middleware("http")
 async def _enforce_module_flags(request: Request, call_next):
     path = request.url.path
+    if path.startswith(INDIGO_ROUTE_PREFIXES) and not INDIGO_ENABLED:
+        return _module_unavailable()
+    if path.startswith(AMADEUS_ROUTE_PREFIXES):
+        if database.get_provider_settings().get("search_mode", "travelport_only") not in ("both", "amadeus_only"):
+            return _module_unavailable()
     for flag_name, prefixes in FEATURE_GATED_PREFIXES.items():
         if any(path.startswith(p) for p in prefixes):
             settings = database.get_provider_settings()
             if not settings.get(flag_name, True):
-                return JSONResponse(
-                    status_code=503,
-                    content={"detail": "This feature is temporarily unavailable."},
-                )
+                return _module_unavailable()
             break
     return await call_next(request)
 
 
+# CORS: only the site's own origins may call this API from a browser. Set
+# CORS_ALLOWED_ORIGINS (comma-separated, e.g. https://book.example.lk) in
+# production. Unset, it allows localhost and private-network (LAN) origins on
+# any port, so the dev setup and LAN testing keep working — never the whole
+# internet. No cookies are used (tokens travel in the Authorization header),
+# so credentials stay off.
+_cors_origins = [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Restrict to frontend URL in production
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_origin_regex=None if _cors_origins else (
+        r"^https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$"
+    ),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Go-live readiness ──────────────────────────────────────────────────────────
+# Settings that must be right before real customers book. Logged as warnings
+# at startup and shown to admins at GET /api/admin/go-live-checks.
+def go_live_checks() -> list[dict]:
+    from utils import tp_logger
+    from config.hotel_config import HotelConfig
+    checks = []
+
+    def add(ok: bool, item: str, detail: str):
+        checks.append({"ok": bool(ok), "item": item, "detail": detail})
+
+    prod = TravelportConfig.is_production()
+    add(prod, "Travelport environment", f"{TravelportConfig.API_BASE} ({'production' if prod else 'pre-production'})")
+    add(TravelportConfig.ACCESS_GROUP, "Travelport access group", "set" if TravelportConfig.ACCESS_GROUP else "TP_ACCESS_GROUP is empty")
+    add(_cors_origins, "Allowed website origins (CORS)",
+        ", ".join(_cors_origins) or "CORS_ALLOWED_ORIGINS not set — only localhost/LAN origins can call the API")
+    add(database.MYSQL_PASSWORD, "MySQL password", "set" if database.MYSQL_PASSWORD else "MYSQL_PASSWORD is empty")
+    erp = os.getenv("ERP_BASE_URL", "")
+    add(erp and "-dev" not in erp, "ERP server", erp or "ERP_BASE_URL not set (ERP sync off)")
+    add(not tp_logger._unredacted(), "Log masking",
+        "on" if not tp_logger._unredacted() else "TP_LOG_UNREDACTED is on — logs hold tokens and passport data")
+    try:
+        mode = database.get_provider_settings().get("search_mode")
+    except Exception:
+        mode = "unknown"
+    add(mode == "travelport_only", "Provider Control", f"search_mode = {mode}")
+    add(not INDIGO_ENABLED, "IndiGo routes", "off" if not INDIGO_ENABLED else "INDIGO_ENABLED is on")
+    holder = HotelConfig.GUARANTEE_CARD_HOLDER_NAME or ""
+    add("test" not in holder.lower(), "Hotel guarantee card",
+        "looks like a test card — replace before enabling hotels" if "test" in holder.lower() else "ok")
+    return checks
+
+
+try:
+    for _c in go_live_checks():
+        if not _c["ok"]:
+            logger.warning(f"GO-LIVE CHECK: {_c['item']}: {_c['detail']}")
+except Exception as _e:
+    logger.warning(f"Go-live checks could not run: {_e}")
 
 
 # ── Stale-offer error classification ─────────────────────────────────────────
@@ -197,8 +263,8 @@ class TravelerInfo(BaseModel):
     gender: str = Field(..., pattern="^(Male|Female)$", description="Male or Female")
     passport_number: str = Field(..., min_length=5, max_length=20)
     passport_expiry: str = Field(..., description="YYYY-MM-DD, must be a future date")
-    nationality: str = Field(default="LK", min_length=2, max_length=3)
-    passport_issue_country: str = Field(default="LK", min_length=2, max_length=3, description="TravelDocument.issueCountry — the country that issued the passport, which can differ from nationality")
+    nationality: str = Field(..., min_length=2, max_length=3, description="ISO country code — required, never defaulted")
+    passport_issue_country: str = Field(..., min_length=2, max_length=3, description="TravelDocument.issueCountry — the country that issued the passport, which can differ from nationality")
     email: EmailStr
     phone: str = Field(..., min_length=7, max_length=20)
     passenger_type: Optional[str] = Field(default="ADT", pattern="^(ADT|CNN|INF|STU)$", description="ADT|CNN|INF|STU")
@@ -499,7 +565,7 @@ async def search_flights(request: FlightSearchRequest):
     # Admin on/off switch (Admin Portal -> Provider Control) -- lets staff
     # take a GDS out of the unified search entirely (contract issue, outage,
     # or just wanting to sell one source only) without touching code.
-    search_mode = database.get_provider_settings().get("search_mode", "both")
+    search_mode = database.get_provider_settings().get("search_mode", "travelport_only")
     tp_enabled = search_mode in ("both", "travelport_only")
     ad_enabled = search_mode in ("both", "amadeus_only")
 
@@ -568,13 +634,14 @@ async def search_flights(request: FlightSearchRequest):
     if tp_task is not None and isinstance(tp_result, Exception):
         error_msg = str(tp_result)
         if "400" in error_msg and "Client error" in error_msg:
+            env_name = "production" if TravelportConfig.is_production() else "pre-production"
             detail = (
                 "Travelport API returned 400 INVALID INPUT FORMAT (error 1586). "
-                "This is a SANDBOX ACCOUNT CONFIGURATION issue — your TripServices v11 "
-                "subscription may not be fully activated. "
-                "Please verify at https://developer.travelport.com that: "
+                f"This usually means the {env_name} account isn't fully set up — "
+                "your TripServices v11 subscription may not be fully activated. "
+                "Please verify with Travelport that: "
                 "(1) Your account has TripServices v11 access, "
-                "(2) PCC 7F3C is enabled for your sandbox, "
+                f"(2) PCC {TravelportConfig.PCC} is enabled for {env_name}, "
                 "(3) Your access group is active. "
                 f"Raw error: {error_msg[:300]}"
             )
@@ -779,57 +846,35 @@ def _attach_traveler_details(ticket: dict, travelers: list) -> None:
     lead = ordered[0]
     ticket["passport_number"] = lead.get("passport_number", "")
     ticket["passport_expiry"] = lead.get("passport_expiry", "")
-    ticket["nationality"] = lead.get("nationality", "LK")
-    ticket["passport_issue_country"] = lead.get("passport_issue_country", "LK")
-    ticket["gender"] = lead.get("gender", "Male")
+    ticket["nationality"] = lead.get("nationality", "")
+    ticket["passport_issue_country"] = lead.get("passport_issue_country", "")
+    ticket["gender"] = lead.get("gender", "")
     ticket["phone"] = lead.get("phone", "")
     ticket["date_of_birth"] = lead.get("date_of_birth", "")
 
 
-def _verify_custom_price(custom_price: float, raw_offering: dict) -> None:
-    """custom_price is sent by the client (normally just echoing the price
-    this backend itself quoted at search time -- the frontend never lets a
-    customer edit it) and is applied directly as the ticket's authoritative
-    fare with no server-side check against Travelport's own priced offer, so
-    a caller bypassing the UI could submit any value. This re-derives the
-    SAME Price Travelport returned for this exact offer straight out of
-    raw_offering -- data already present in the request, not a fresh
-    Travelport call -- and refuses the booking if custom_price doesn't match
-    it (after the same markup every legitimate quote already has applied).
+def _quoted_currency(raw_offering: dict) -> Optional[str]:
+    """Currency of the price the customer was shown, from the selected offer.
+    raw_offering is one leg, {"outbound","inbound"} (round trip) or
+    {"legs":[...]} (multi-city) — every leg of one offer shares a currency."""
+    if "outbound" in raw_offering and "inbound" in raw_offering:
+        src = raw_offering["outbound"]
+    elif "legs" in raw_offering:
+        src = raw_offering["legs"][0] if raw_offering["legs"] else {}
+    else:
+        src = raw_offering
+    return src.get("currency")
 
-    Only checked for the single-leg offer shape search_service.py builds
-    (raw_offering["ProductBrandOptions"][0]["ProductBrandOffering"][0]
-    ["BestCombinablePrice"]). Round-trip ({"outbound","inbound"}) and
-    multi-city ({"legs":[...]}) offers have a different raw_offering shape
-    not covered here -- rather than guess at validating those and risk
-    rejecting a legitimate booking, this silently skips verification for any
-    shape it doesn't recognize. That's a real, acknowledged gap, not a
-    silent "fixed" claim -- extending coverage to those shapes is separate
-    follow-up work.
-    """
-    try:
-        brand_options = raw_offering.get("ProductBrandOptions", [{}])[0]
-        brand_offering = brand_options.get("ProductBrandOffering", [{}])[0]
-        best_price = brand_offering.get("BestCombinablePrice")
-        if not best_price:
-            return
-        offer_total = float(best_price.get("TotalPrice", 0))
-        if not offer_total:
-            return
-    except Exception:
-        return
 
-    pricing_settings = services.get_pricing_settings_cfg()
-    expected_price, _ = services.apply_markup(offer_total, pricing_settings, "ticket")
-    if abs(custom_price - expected_price) > 0.01:
-        logger.error(
-            f"CUSTOM_PRICE MISMATCH: client submitted {custom_price}, this offer's "
-            f"real (marked-up) fare is {expected_price} — refusing to book."
-        )
-        raise HTTPException(
-            status_code=409,
-            detail="The submitted price does not match this offer's actual fare. Booking refused.",
-        )
+def _price_changed_response(e: "services.workbench_service.PriceChangedError") -> HTTPException:
+    """The fare to charge is always Travelport's own AirPrice total plus our
+    markup (see workbench_service.charge_for_priced_fare) — the browser's
+    custom_price is only the quote the customer saw, and a lower one is
+    refused before any booking is made. Covers one-way, round-trip and
+    multi-city alike; the old check only covered one-way, and compared two
+    numbers that both came from the browser."""
+    logger.warning(f"Booking refused before any workbench was created: {e}")
+    return HTTPException(status_code=409, detail=str(e))
 
 
 # ── Duplicate-submission guard for PNR creation ────────────────────────────────
@@ -840,8 +885,8 @@ def _verify_custom_price(custom_price: float, raw_offering: dict) -> None:
 # retry, submitting the identical offer+travelers within moments of each
 # other -- each would otherwise create its own separate Travelport PNR/
 # workbench. This keeps a short-lived fingerprint of each in-flight/recent
-# submission (single-process in-memory state -- same pattern already used by
-# _ndc_pending_instant_pay below) and refuses an exact repeat within the
+# submission (single-process in-memory state; a 20-second window doesn't
+# need to survive a restart) and refuses an exact repeat within the
 # window rather than letting Travelport create a second PNR for one action.
 _recent_booking_fingerprints: dict[str, float] = {}
 _BOOKING_DEDUP_WINDOW_SECONDS = 20
@@ -900,7 +945,11 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
 
     try:
         # STEPS 4-7: Full booking flow with automatic stale-workbench retry and cleanup.
-        commit_result = services.run_booking_flow(raw_offering, travelers)
+        # The quote is checked against AirPrice before anything is booked.
+        commit_result = services.run_booking_flow(
+            raw_offering, travelers,
+            quoted_price=request.custom_price, quoted_currency=_quoted_currency(raw_offering),
+        )
         locator_code = commit_result["locator_code"]
 
         # STEP 8 only — ticket issuance (STEP 9) now happens separately via
@@ -918,10 +967,9 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
         if commit_result.get("offer_authority"):
             ticket["offer_authority"] = commit_result["offer_authority"]
 
-        # Apply pricing overrides if selecting custom fare family
-        if request.custom_price:
-            _verify_custom_price(request.custom_price, raw_offering)
-            ticket["total_fare"] = request.custom_price
+        # The fare to charge: Travelport's AirPrice total + markup, never the browser's number.
+        ticket["total_fare"] = commit_result["charge_amount"]
+        ticket["currency"] = commit_result["charge_currency"]
         if request.cabin_class:
             ticket["cabin_class"] = request.cabin_class
         if request.fare_family:
@@ -958,6 +1006,8 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
             "cached_id": saved.get("id")
         }
 
+    except services.workbench_service.PriceChangedError as e:
+        raise _price_changed_response(e)
     except ValueError as e:
         friendly = friendly_travelport_error(str(e))
         raise HTTPException(status_code=409 if friendly != str(e) else 422, detail=friendly)
@@ -966,12 +1016,13 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
         status_code = e.response.status_code
         response_text = e.response.text
         if status_code == 500:
+            env_name = "production" if TravelportConfig.is_production() else "pre-production"
             detail = (
                 "Travelport API returned 500 INTERNAL SERVER ERROR at the booking commit stage. "
-                "This is a common issue in the Travelport pre-production sandbox when using accounts "
-                "with limited booking permissions (specifically 'preAuthorized: false' in the JWT token). "
-                "Please verify in the Travelport Developer Portal (https://developer.travelport.com) that: "
-                "(1) Your sandbox PCC (7F3C) has live GDS/NDC booking and ticketing capability activated. "
+                "This usually means the account has limited booking permissions "
+                "(specifically 'preAuthorized: false' in the JWT token). "
+                "Please verify with Travelport that: "
+                f"(1) PCC {TravelportConfig.PCC} has GDS/NDC booking and ticketing enabled in {env_name}. "
                 "(2) Your API credentials have the required role permissions to hold/commit reservations. "
                 "To troubleshoot, you can provide Travelport support with the request TraceId or the E2ETrackingID "
                 f"from your API headers. Raw error response: {response_text[:300]}"
@@ -1118,7 +1169,12 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # run_booking_flow() handles Galileo error 4350 (COMMIT OR IGNORE
         # RESERVATION WORKBENCH) at both create and commit stages by DELETing
         # the stale workbench and retrying the entire flow (up to 3 attempts).
-        commit_result = services.run_booking_flow(raw_offering, travelers, reference_payload_only=request.reference_payload_only)
+        # The customer's quote (custom_price) is checked against Travelport's
+        # AirPrice total + markup inside the flow, before anything is booked.
+        commit_result = services.run_booking_flow(
+            raw_offering, travelers, reference_payload_only=request.reference_payload_only,
+            quoted_price=request.custom_price, quoted_currency=_quoted_currency(raw_offering),
+        )
         locator_code = commit_result["locator_code"]
         logger.info(f"PNR generated: {locator_code}")
 
@@ -1232,27 +1288,13 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
 
         seat_charges += ancillary_charges
 
-        if request.custom_price:
-            _verify_custom_price(request.custom_price, raw_offering)
-            ticket["total_fare"] = request.custom_price + seat_charges
-            # NDC content: Travelport's Offer has no Price at all (confirmed
-            # live), so ticket["currency"] is still whatever _parse_reservation()
-            # defaulted to ("USD") — not the actual currency custom_price is
-            # denominated in. raw_offering carries the real currency from the
-            # search-time price breakdown; use it so the receipt doesn't show
-            # e.g. "USD 82,145" for an LKR amount. raw_offering may be a single
-            # leg, {"outbound","inbound"} (round-trip), or {"legs":[...]}
-            # (multi-city) — currency is the same across every leg of one offer.
-            if "outbound" in raw_offering and "inbound" in raw_offering:
-                _currency_src = raw_offering["outbound"]
-            elif "legs" in raw_offering:
-                _currency_src = raw_offering["legs"][0] if raw_offering["legs"] else {}
-            else:
-                _currency_src = raw_offering
-            if _currency_src.get("currency"):
-                ticket["currency"] = _currency_src["currency"]
-        else:
-            ticket["total_fare"] += seat_charges
+        # The fare charged is Travelport's own AirPrice total + our markup
+        # (run_booking_flow, already checked against the customer's quote),
+        # plus only the seats/extras the airline confirmed. Never the
+        # browser's number. Currency travels with it — for NDC, the live
+        # retrieve has no Price, so its "USD" default must not be kept.
+        ticket["total_fare"] = round(commit_result["charge_amount"] + seat_charges, 2)
+        ticket["currency"] = commit_result["charge_currency"]
 
         ticket["seat_charge"] = seat_charges
         ticket["ancillary_charge"] = ancillary_charges
@@ -1290,6 +1332,8 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
             "ticket": ticket,
             "cached_id": saved.get("id")
         }
+    except services.workbench_service.PriceChangedError as e:
+        raise _price_changed_response(e)
     except ValueError as e:
         friendly = friendly_travelport_error(str(e))
         raise HTTPException(status_code=409 if friendly != str(e) else 422, detail=friendly)
@@ -1662,6 +1706,7 @@ class NdcBookAndIssueRequest(BaseModel):
     travelers: List[TravelerInfo]
     selected_seats: List[SelectedSeat] = []
     selected_ancillaries: List[SelectedAncillary] = []
+    quoted_price: Optional[float] = Field(default=None, description="Price the customer was shown; refused if Travelport's priced fare is higher")
 
 
 # Carriers whose post-commit workbench has no offer to pay against, so they
@@ -1675,7 +1720,8 @@ def _ndc_carrier_of(raw_offering: dict) -> str:
 
 
 def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list = None,
-                      selected_ancillaries: list = None, customer_id: Optional[int] = None) -> dict:
+                      selected_ancillaries: list = None, customer_id: Optional[int] = None,
+                      charged_amount: Optional[float] = None, charged_currency: Optional[str] = None) -> dict:
     try:
         ip = services.workbench_service.run_instant_pay_flow(raw_offering, travelers)
     except services.workbench_service.InstantPayError as e:
@@ -1696,7 +1742,11 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
     ticket["fare_source"] = "NDC"
     ticket["payment_method"] = "Cash"
     _backfill_terminals(ticket, _segments_of_offering(raw_offering))
-    if not ticket.get("total_fare"):
+    if charged_amount:
+        # What the customer actually paid (Travelport's priced fare + markup,
+        # fixed server-side at /api/ndc/book) — not Travelport's net price.
+        ticket["total_fare"], ticket["currency"] = charged_amount, charged_currency
+    elif not ticket.get("total_fare"):
         ticket["total_fare"], ticket["currency"] = ip["total_fare"], ip["currency"]
 
     # Travelport's Ancillary and EMD Guide: "The NDC Instant Pay workflow ...
@@ -1745,9 +1795,9 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
 
 # Emirates (Instant Pay) has no separate "hold" step — Travelport does not
 # store a form of payment added before the ticketing commit, so a PNR can't
-# usefully exist before payment. Its raw_offering/travelers are held here,
-# in memory only, between /api/ndc/book and the PayCorp return.
-_ndc_pending_instant_pay: dict[str, dict] = {}
+# usefully exist before payment. Its raw_offering/travelers and the amount
+# to charge are saved in MySQL (ndc_pending_payments) between /api/ndc/book
+# and the PayCorp return, so a backend restart can't strand a paid customer.
 
 
 class NdcInstantPayCompleteRequest(BaseModel):
@@ -1765,15 +1815,29 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
     /api/ndc/instant-pay/complete.
     """
     if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
+        # Price it with Travelport now, so the amount the customer pays is
+        # fixed server-side (AirPrice total + markup) — the browser used to
+        # send the payment amount itself and nothing checked it.
+        trace_token = services.start_flow_trace_id()
+        try:
+            priced = services.workbench_service.confirm_price_details(request.raw_offering)
+            amount, currency = services.workbench_service.charge_for_priced_fare(
+                priced, request.quoted_price, _quoted_currency(request.raw_offering))
+        except services.workbench_service.PriceChangedError as e:
+            raise _price_changed_response(e)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=friendly_travelport_error(str(e)))
+        finally:
+            services.end_flow_trace_id(trace_token)
         pending_id = str(uuid.uuid4())
-        _ndc_pending_instant_pay[pending_id] = {
+        database.save_ndc_pending_payment(pending_id, {
             "raw_offering": request.raw_offering,
             "travelers": [t.model_dump() for t in request.travelers],
-            "selected_seats": request.selected_seats,
-            "selected_ancillaries": request.selected_ancillaries,
+            "selected_seats": [s.model_dump() for s in request.selected_seats],
+            "selected_ancillaries": [a.model_dump() for a in request.selected_ancillaries],
             "customer_id": customer_id,
-        }
-        return {"requires_prepay": True, "pending_id": pending_id}
+        }, amount, currency)
+        return {"requires_prepay": True, "pending_id": pending_id, "amount": amount, "currency": currency}
 
     trace_token = services.start_flow_trace_id()
     try:
@@ -1797,23 +1861,34 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
 @app.post("/api/ndc/instant-pay/complete")
 def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
     """STEP 3 (Emirates only): payment confirmed — now book and ticket in one Instant Pay commit."""
-    pending = _ndc_pending_instant_pay.pop(request.pending_id, None)
+    pending = database.get_ndc_pending_payment(request.pending_id)
     if not pending:
         raise HTTPException(status_code=404, detail="This booking has expired or was already completed. Please search and select the flight again.")
-    # expected_amount is intentionally not checked here (unlike the GDS path
-    # below) -- there's no pre-existing booking record yet to compare against
-    # at this point (the PNR+ticket are created together, after this check).
-    # client_ref binding + single-use claim still close the main exploitable
-    # gap: a successful reqid being replayed against a DIFFERENT pending
-    # Instant Pay booking.
-    payment_result = _verify_and_claim_payment(request.reqid, expected_client_ref=request.pending_id)
+    # The paid amount must equal the server-side amount fixed at /api/ndc/book
+    # (Travelport's priced fare + markup), for this pending booking, once.
+    payment_result = _verify_and_claim_payment(
+        request.reqid, expected_client_ref=request.pending_id,
+        expected_amount=pending["amount"], expected_currency=pending["currency"],
+    )
+    if not database.consume_ndc_pending_payment(request.pending_id):
+        raise HTTPException(status_code=409, detail="This booking was already completed.")
+    payload = pending["payload"]
     trace_token = services.start_flow_trace_id()
     try:
         result = _ndc_instant_pay(
-            pending["raw_offering"], pending["travelers"],
-            pending.get("selected_seats"), pending.get("selected_ancillaries"),
-            customer_id=pending.get("customer_id"),
+            payload["raw_offering"], payload["travelers"],
+            payload.get("selected_seats"), payload.get("selected_ancillaries"),
+            customer_id=payload.get("customer_id"),
+            charged_amount=pending["amount"], charged_currency=pending["currency"],
         )
+    except HTTPException as e:
+        # Paid, but Travelport didn't ticket: alert staff so the payment is
+        # refunded or the ticket issued manually — never left silent.
+        try:
+            _notify_stuck_booking(f"NDC-{request.pending_id[:8]}", str(e.detail), payment_result.get("txn_reference"))
+        except Exception as notify_err:
+            logger.error(f"Failed to send stuck-booking notification for pending {request.pending_id}: {notify_err}")
+        raise
     finally:
         services.end_flow_trace_id(trace_token)
     result["payment_txn_reference"] = payment_result.get("txn_reference")
@@ -2067,12 +2142,70 @@ def _merge_cached_ticket_fields(ticket: dict, cached: Optional[dict]) -> dict:
     return ticket
 
 
+# ── Public booking views: personal data is only for staff or the owner ───────
+# A PNR is printed on tickets, shared over WhatsApp and easy to guess, so
+# anyone holding one used to get every passenger's passport number, birth
+# date, phone and email back. Without an admin token or the booking's own
+# customer token, those are masked or left out of the response (the stored
+# record is untouched). The e-ticket itself still shows names, flights,
+# fares and ticket numbers.
+_PRIVATE_FIELDS_DROPPED = {
+    "date_of_birth", "passport_expiry", "birth_place", "document_issue_date",
+    "address_street", "address_city", "address_state_name", "address_state_value",
+    "address_country", "address_postal_code", "raw_ticket_json", "raw_response",
+}
+
+
+def _mask_tail(value, keep: int = 3) -> str:
+    s = str(value or "")
+    return ("•" * max(len(s) - keep, 0)) + s[-keep:] if s else ""
+
+
+def _mask_email(value) -> str:
+    s = str(value or "")
+    if "@" not in s:
+        return _mask_tail(s)
+    local, _, domain = s.partition("@")
+    return f"{local[:1]}•••@{domain}"
+
+
+def _public_booking_view(data):
+    """Deep copy with personal data masked/removed, for unauthenticated callers."""
+    if isinstance(data, list):
+        return [_public_booking_view(v) for v in data]
+    if not isinstance(data, dict):
+        return data
+    out = {}
+    for k, v in data.items():
+        if k in _PRIVATE_FIELDS_DROPPED:
+            continue
+        if k == "passport_number":
+            out[k] = _mask_tail(v)
+        elif k in ("phone", "passenger_phone"):
+            out[k] = _mask_tail(v, 3)
+        elif k in ("email", "passenger_email"):
+            out[k] = _mask_email(v)
+        else:
+            out[k] = _public_booking_view(v)
+    return out
+
+
+def _can_see_private(principal: Optional[dict], booking: Optional[dict]) -> bool:
+    if not principal:
+        return False
+    if principal["role"] == "admin":
+        return True
+    return bool(booking) and principal.get("customer_id") is not None \
+        and booking.get("customer_id") == principal.get("customer_id")
+
+
 @app.get("/api/bookings/retrieve/{locator_code}")
-def retrieve_booking(locator_code: str):
+def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth.get_optional_principal)):
     """
     STEP 8 — Retrieve a reservation's details from Travelport by PNR.
     We fetch live from Travelport to ensure latest status and PNR link,
-    then update our local database cache.
+    then update our local database cache. Passport, birth date and contact
+    details are only returned to staff or the booking's own customer.
     """
     try:
         # Fetch live from Travelport
@@ -2084,7 +2217,7 @@ def retrieve_booking(locator_code: str):
 
         # Save/update the local cache
         database.save_booking(ticket)
-        return ticket
+        return ticket if _can_see_private(principal, cached) else _public_booking_view(ticket)
     except Exception as e:
         logger.warning(f"Live retrieval failed for PNR {locator_code}: {e}")
         # Fallback to local cache if offline or error occurs -- but only when
@@ -2100,7 +2233,7 @@ def retrieve_booking(locator_code: str):
         # worse than no data at all, so it's treated the same as no cache.
         cached = database.get_booking_by_locator(locator_code)
         if cached and (cached.get("flight_number") or cached.get("passenger_name")):
-            return cached
+            return cached if _can_see_private(principal, cached) else _public_booking_view(cached)
         raise HTTPException(status_code=404, detail=f"Reservation not found: {str(e)}")
 
 
@@ -2119,7 +2252,8 @@ def retrieve_booking(locator_code: str):
 # booking but silently disappeared the moment it was looked up again here.
 
 @app.get("/api/ticket-status")
-async def ticket_status(query: str = Query(..., min_length=3, max_length=20)):
+async def ticket_status(query: str = Query(..., min_length=3, max_length=20),
+                        principal: Optional[dict] = Depends(auth.get_optional_principal)):
     q = query.strip().upper()
 
     # Is this one of ours on Travelport? (locator OR issued ticket number)
@@ -2133,7 +2267,12 @@ async def ticket_status(query: str = Query(..., min_length=3, max_length=20)):
             raise HTTPException(status_code=502, detail=f"Found this booking but Travelport's live lookup failed: {str(e)[:300]}")
         _merge_cached_ticket_fields(ticket, tp_cached)
         ticket["source"] = "TP"
-        return ticket
+        return ticket if _can_see_private(principal, tp_cached) else _public_booking_view(ticket)
+
+    # Phase 1: when Amadeus is switched off in Provider Control, don't call
+    # the Amadeus backend at all — it isn't a booking source.
+    if database.get_provider_settings().get("search_mode", "travelport_only") not in ("both", "amadeus_only"):
+        raise HTTPException(status_code=404, detail="No booking found for that PNR or ticket number.")
 
     # Not ours on Travelport -- ask the Amadeus backend if it's one of theirs.
     try:
@@ -2145,7 +2284,7 @@ async def ticket_status(query: str = Query(..., min_length=3, max_length=20)):
         raise HTTPException(status_code=502, detail=f"Found this booking but Amadeus's live lookup failed: {e.message}")
 
     amadeus_result["source"] = "AD"
-    return amadeus_result
+    return amadeus_result if (principal and principal["role"] == "admin") else _public_booking_view(amadeus_result)
 
 
 # ── Booking History ────────────────────────────────────────────────────────────
@@ -2165,10 +2304,34 @@ def booking_history(email: Optional[str] = Query(None, description="Filter by pa
 
 # ── Cancel Booking ─────────────────────────────────────────────────────────────
 
+TICKETED_CANCEL_DETAIL = (
+    "This booking is ticketed. Cancelling it here would not void or refund the ticket, "
+    "so it was not cancelled. Void it (same day as issue) or refund it in Travelport "
+    "(Smartpoint), then mark the cancellation request resolved."
+)
+
+
+def _is_ticketed(locator_code: str, cached: Optional[dict]) -> bool:
+    """Live Travelport check first; falls back to our record if the retrieve fails."""
+    try:
+        live = services.retrieve_reservation(locator_code)
+        if live.get("ticket_number") or live.get("ticket_numbers"):
+            return True
+    except Exception as e:
+        logger.warning(f"Cancel: live ticket check for {locator_code} failed, using local record: {e}")
+    return bool(cached and (cached.get("ticket_number") or str(cached.get("status", "")).lower() == "ticketed"))
+
+
 @app.post("/api/bookings/{locator_code}/cancel")
-def cancel_booking(locator_code: str):
+def cancel_booking(locator_code: str, _admin: dict = Depends(auth.get_current_admin)):
     """
-    Cancel a booking: cancels on Travelport and updates local cache.
+    Cancel a held (not yet ticketed) booking: cancels on Travelport and
+    updates local cache. Staff only — this used to need no sign-in at all,
+    so anyone holding a PNR could cancel a customer's real booking.
+
+    Ticketed bookings are refused: the workbench cancel used here (Cancel
+    Workbench Items) does not void or refund a ticket, so they're voided or
+    refunded in Travelport directly until the void/refund APIs are built.
 
     Only ever marks the local record Cancelled -- and only ever reports
     success -- when Travelport's own cancellation actually succeeded.
@@ -2179,6 +2342,10 @@ def cancel_booking(locator_code: str):
     booking was in fact still live and ticketed on Travelport -- a real
     no-show/refund-mismatch risk for whoever acted on that response.
     """
+    locator_code = locator_code.upper().strip()
+    if _is_ticketed(locator_code, database.get_booking_by_locator(locator_code)):
+        raise HTTPException(status_code=409, detail=TICKETED_CANCEL_DETAIL)
+
     # One TraceId for cancel_reservation()'s internal calls (buildfromlocator
     # -> cancelitems -> commit) — it never raises (returns bool), so no
     # try/finally is needed to guarantee the reset.
@@ -2207,13 +2374,13 @@ def cancel_booking(locator_code: str):
 # ── Invoice Data Retrieval (Travelport Live) ───────────────────────────────────
 
 @app.get("/api/invoice/price-raw/{locator_code}")
-def get_raw_price(locator_code: str):
-    """Debug: returns raw Offer (Price + Commission + Discount) from Travelport for inspection."""
+def get_raw_price(locator_code: str, _admin: dict = Depends(auth.get_current_admin)):
+    """Debug (staff only): returns raw Offer (Price + Commission + Discount) from Travelport for inspection."""
     from config.api_endpoints import TravelportEndpoints
     from services.auth_service import get_auth_headers
     pnr = locator_code.upper().strip()
     url = TravelportEndpoints.retrieve_reservation(pnr)
-    headers = get_auth_headers()
+    headers = get_auth_headers(with_body=False)
     with httpx.Client(timeout=60) as client:
         r = client.get(url, headers=headers)
         r.raise_for_status()
@@ -2332,11 +2499,11 @@ def get_invoice_report(
     _admin: dict = Depends(auth.get_current_admin),
 ):
     """
-    Retrieve live Travelport data for all PNRs booked/issued under PCC 7F3C within a date range.
+    Retrieve live Travelport data for all PNRs booked/issued under the configured PCC within a date range.
     Queries the local sqlite cache for matching locators, then fetches live PNR data from Travelport.
     NO system-generated mock data. Admin-only — bulk PCC-wide report.
     """
-    logger.info(f"Generating live Travelport PNR report for dates {start_date} to {end_date} under PCC 7F3C...")
+    logger.info(f"Generating live Travelport PNR report for dates {start_date} to {end_date} under PCC {TravelportConfig.PCC}...")
     
     # Query MySQL database for matching locator codes
     start_dt = f"{start_date} 00:00:00"
@@ -2527,17 +2694,34 @@ def payments_init(request: PaymentInitRequestBody):
     STEP 1: Initiate a hosted-page PayCorp payment.
     Returns a payment_page_url — the frontend must redirect the browser
     there so the customer enters their card on PayCorp's own page.
+
+    The amount is set server-side whenever client_ref is one of ours: a
+    pending Emirates Instant Pay booking (amount fixed at /api/ndc/book) or
+    an un-ticketed Travelport booking (its saved total_fare). The browser's
+    amount is only used for anything else.
     """
+    amount, currency = request.amount, request.currency
+    ref = (request.client_ref or "").strip()
+    if ref:
+        pending = database.get_ndc_pending_payment(ref)
+        booking = None if pending else database.get_booking_by_locator(ref.upper())
+        if pending:
+            amount, currency = pending["amount"], pending["currency"]
+        elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
+            amount, currency = float(booking["total_fare"]), booking.get("currency") or currency
+        if (amount, currency) != (request.amount, request.currency):
+            logger.warning(f"Payment init for {ref}: browser sent {request.currency} {request.amount}, "
+                           f"charging the server-side {currency} {amount} instead.")
     try:
         result = services.init_payment(
-            amount=request.amount,
-            currency=request.currency,
+            amount=amount,
+            currency=currency,
             return_url=request.return_url,
             cancel_url=request.cancel_url,
             client_ref=request.client_ref,
             comment=request.comment,
         )
-        return {"success": True, **result}
+        return {"success": True, **result, "amount": amount, "currency": currency}
     except services.PayCorpError as e:
         logger.error(f"PayCorp init failed: {e}")
         raise HTTPException(status_code=502, detail=str(e))
@@ -2975,6 +3159,13 @@ class ProviderSettingsRequest(BaseModel):
     packages_enabled: bool = True
 
 
+@app.get("/api/admin/go-live-checks")
+def admin_go_live_checks(_admin: dict = Depends(auth.get_current_admin)):
+    """Production-readiness settings (see go_live_checks)."""
+    checks = go_live_checks()
+    return {"ready": all(c["ok"] for c in checks), "checks": checks}
+
+
 @app.get("/api/admin/provider-settings")
 def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
     return database.get_provider_settings()
@@ -2994,12 +3185,12 @@ def public_feature_flags():
     enforcement of the same flags lives in FEATURE_GATED_PREFIXES below --
     this endpoint only drives what the UI offers, not what the API accepts."""
     settings = database.get_provider_settings()
-    search_mode = settings.get("search_mode", "both")
+    search_mode = settings.get("search_mode", "travelport_only")
     return {
         "flights_amadeus_enabled": search_mode in ("both", "amadeus_only"),
-        "hotels_enabled": settings.get("hotels_enabled", True),
-        "visa_enabled": settings.get("visa_enabled", True),
-        "packages_enabled": settings.get("packages_enabled", True),
+        "hotels_enabled": settings.get("hotels_enabled", False),
+        "visa_enabled": settings.get("visa_enabled", False),
+        "packages_enabled": settings.get("packages_enabled", False),
     }
 
 
@@ -3547,7 +3738,9 @@ def customer_oauth_callback(provider: str, code: Optional[str] = None, state: Op
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
     })
     params = urlencode({"oauth_token": token, "oauth_email": customer["email"], "oauth_name": customer["full_name"]})
-    return RedirectResponse(f"{AuthConfig.FRONTEND_BASE_URL}/account?{params}")
+    # In the URL fragment (#), not the query: the fragment is never sent to any
+    # server or put in Referer headers, so the token stays out of logs.
+    return RedirectResponse(f"{AuthConfig.FRONTEND_BASE_URL}/account#{params}")
 
 
 @app.get("/api/customers/me/bookings")

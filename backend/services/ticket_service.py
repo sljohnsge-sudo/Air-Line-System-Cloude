@@ -61,25 +61,30 @@ def _find_ticket_numbers(data) -> list[tuple[str, str]]:
 
 def _api_get(url: str) -> dict:
     """Internal helper for GET requests with automatic token retry."""
-    headers = get_auth_headers()
+    headers = get_auth_headers(with_body=False)
     with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.get(url, headers=headers)
         if response.status_code == 401:
             invalidate_token()
-            response = client.get(url, headers=get_auth_headers())
+            response = client.get(url, headers=get_auth_headers(with_body=False))
         response.raise_for_status()
         return response.json()
 
 
-def _api_post(url: str, payload: dict | str) -> dict:
-    """Internal helper for POST requests with automatic token retry."""
-    headers = get_auth_headers()
+def _api_post(url: str, payload: dict | str | None) -> dict:
+    """Internal helper for POST requests with automatic token retry.
+    payload=None sends no body and no Content-Type (Post Commit Workbench)."""
+    with_body = payload is not None
+    headers = get_auth_headers(with_body=with_body)
     with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
-        kwargs = {"json": payload} if not isinstance(payload, str) else {"content": payload}
+        if payload is None:
+            kwargs = {}
+        else:
+            kwargs = {"json": payload} if not isinstance(payload, str) else {"content": payload}
         response = client.post(url, headers=headers, **kwargs)
         if response.status_code == 401:
             invalidate_token()
-            response = client.post(url, headers=get_auth_headers(), **kwargs)
+            response = client.post(url, headers=get_auth_headers(with_body=with_body), **kwargs)
         response.raise_for_status()
         return response.json()
 
@@ -563,7 +568,7 @@ def issue_ticket(locator_code: str) -> dict:
         # ── Step 1: Create post-commit workbench from locator ─────────────────
         wb_url = TravelportEndpoints.create_workbench_from_locator(locator_code)
         logger.info(f"Step 1: POST buildfromlocator for PNR {locator_code}")
-        wb_result = _api_post(wb_url, {})
+        wb_result = _api_post(wb_url, None)
 
         reservation = (
             wb_result.get("ReservationResponse", {}).get("Reservation", {}) or
@@ -1065,7 +1070,7 @@ def cancel_reservation(locator_code: str) -> bool:
     logger.info(f"Cancelling reservation: {locator_code}")
     try:
         wb_url = TravelportEndpoints.create_workbench_from_locator(locator_code)
-        wb_result = _api_post(wb_url, {})
+        wb_result = _api_post(wb_url, None)
 
         reservation = (
             wb_result.get("ReservationResponse", {}).get("Reservation", {}) or

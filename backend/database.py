@@ -805,11 +805,13 @@ def init_db():
     # Single-row config table (same pattern as pricing_settings) — lets an
     # admin take one GDS out of the unified search entirely (e.g. a contract
     # lapse or an outage) without touching code. search_mode:
-    # 'both' | 'travelport_only' | 'amadeus_only'.
+    # 'both' | 'travelport_only' | 'amadeus_only'. Defaults to
+    # 'travelport_only' (Phase 1 go-live sells Travelport flights only) so a
+    # fresh database never starts merging Amadeus fares into search results.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS provider_settings (
             id          INT PRIMARY KEY,
-            search_mode VARCHAR(20) NOT NULL DEFAULT 'both',
+            search_mode VARCHAR(20) NOT NULL DEFAULT 'travelport_only',
             updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
@@ -829,9 +831,26 @@ def init_db():
         WHERE TABLE_SCHEMA=%s AND TABLE_NAME='provider_settings' AND COLUMN_NAME='hotels_enabled'
     """, (MYSQL_DATABASE,))
     if cursor.fetchone()[0] == 0:
-        cursor.execute("ALTER TABLE provider_settings ADD COLUMN hotels_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER search_mode")
-        cursor.execute("ALTER TABLE provider_settings ADD COLUMN visa_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER hotels_enabled")
-        cursor.execute("ALTER TABLE provider_settings ADD COLUMN packages_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER visa_enabled")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN hotels_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER search_mode")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN visa_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER hotels_enabled")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN packages_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER visa_enabled")
+
+    # ── Pending NDC Instant Pay bookings (Emirates) ──────────────────────────
+    # Instant Pay takes the card payment BEFORE the PNR and ticket exist, so
+    # the selected offer, travelers and the server-computed amount to charge
+    # must survive until PayCorp redirects back. These used to live only in
+    # process memory — a backend restart between payment and return left a
+    # paid customer with no booking. consumed_at makes completion single-use.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ndc_pending_payments (
+            pending_id    VARCHAR(64) PRIMARY KEY,
+            payload_json  LONGTEXT NOT NULL,
+            amount        DECIMAL(14,2) NOT NULL,
+            currency      VARCHAR(10) NOT NULL,
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            consumed_at   DATETIME NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
 
     conn.commit()
     cursor.close()
@@ -1619,7 +1638,7 @@ def get_provider_settings() -> dict:
     cursor.close()
     conn.close()
     if not row:
-        return {"search_mode": "both", "hotels_enabled": True, "visa_enabled": True, "packages_enabled": True}
+        return {"search_mode": "travelport_only", "hotels_enabled": False, "visa_enabled": False, "packages_enabled": False}
     row["hotels_enabled"] = bool(row.get("hotels_enabled", 1))
     row["visa_enabled"] = bool(row.get("visa_enabled", 1))
     row["packages_enabled"] = bool(row.get("packages_enabled", 1))
@@ -2399,6 +2418,51 @@ def get_ticket_shares() -> list[dict]:
     cursor.close()
     conn.close()
     return rows
+
+
+def save_ndc_pending_payment(pending_id: str, payload: dict, amount: float, currency: str) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO ndc_pending_payments (pending_id, payload_json, amount, currency) VALUES (%s,%s,%s,%s)",
+        (pending_id, json.dumps(payload, default=str), amount, currency),
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def get_ndc_pending_payment(pending_id: str) -> dict | None:
+    """The pending Instant Pay booking, or None if unknown or already completed."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM ndc_pending_payments WHERE pending_id=%s AND consumed_at IS NULL", (pending_id,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not row:
+        return None
+    row["payload"] = json.loads(row.pop("payload_json"))
+    row["amount"] = float(row["amount"])
+    return row
+
+
+def consume_ndc_pending_payment(pending_id: str) -> bool:
+    """Atomically marks a pending Instant Pay booking as completed. True only
+    for the first caller, so a replayed return URL can't book twice."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE ndc_pending_payments SET consumed_at=NOW() WHERE pending_id=%s AND consumed_at IS NULL",
+        (pending_id,),
+    )
+    conn.commit()
+    claimed = cursor.rowcount == 1
+    cursor.close()
+    conn.close()
+    return claimed
 
 
 def claim_payment_reqid(reqid: str, client_ref: str, locator_code: str | None = None) -> bool:

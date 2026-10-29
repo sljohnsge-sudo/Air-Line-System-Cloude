@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 // Use whatever host the page was loaded from (not a hardcoded 'localhost') so
 // this also works when someone on the same network opens this machine's LAN
 // IP instead of localhost — the backend runs on the same machine, port 8000.
-const API_BASE = `http://${window.location.hostname}:8000/api`;
+const API_BASE = import.meta.env.VITE_API_BASE || `http://${window.location.hostname}:8000/api`;
 
 // Shared airport search/select widget backed by the ~7,900-airport reference
 // table (/api/reference/airports) — used by the public flight search form

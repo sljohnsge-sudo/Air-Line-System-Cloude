@@ -129,7 +129,7 @@ def _request_new_token() -> tuple[str, float]:
     return access_token, _token_expiry(access_token, token_data.get("expires_in"))
 
 
-def get_auth_headers(session_id: str | None = None) -> dict:
+def get_auth_headers(session_id: str | None = None, with_body: bool = True) -> dict:
     """
     Returns HTTP headers with a valid Bearer token.
     Call this before every Travelport API request.
@@ -149,26 +149,33 @@ def get_auth_headers(session_id: str | None = None) -> dict:
       - TraceId must correlate one flow's linked calls, not be unique per
         individual request — see flow_trace_id() above, which this reads
         from automatically.
+      - Content-Type only on calls that send a body. The headers guide says
+        to leave it out for Post Commit Workbench (buildfromlocator), and it
+        means nothing on GET/DELETE — pass with_body=False for those.
+      - The old undocumented "taxBreakDown" header was dropped: a live A/B
+        search (2026-10-29) returned identical tax data with and without it.
 
     Args:
         session_id (str|None): Deprecated (no longer used in Travelport v11 headers)
+        with_body (bool): False for requests with no body (GET, DELETE,
+            Post Commit Workbench) so no Content-Type is sent.
 
     Returns:
-        dict: Headers including Authorization, Content-Type, and agency context.
+        dict: Headers including Authorization and, for body requests, Content-Type.
     """
     token = get_access_token()
     headers = {
         "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
         "Accept": "application/json",
         "Accept-Encoding": "gzip, deflate",
         "Cache-Control": "no-cache",
         "XAUTH_TRAVELPORT_ACCESSGROUP": TravelportConfig.ACCESS_GROUP,
-        "taxBreakDown": "true",
         "Accept-Version": "11",
         "Content-Version": "11",
         "TraceId": _flow_trace_id.get() or TravelportConfig.generate_trace_id(),
     }
+    if with_body:
+        headers["Content-Type"] = "application/json"
     return headers
 
 
