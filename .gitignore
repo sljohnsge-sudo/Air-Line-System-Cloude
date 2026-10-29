@@ -3,6 +3,11 @@
 .env.*
 !.env.example
 
+# ── Runtime logs ────────────────────────────────────────────────────────────
+# Travelport request/response logs carry tokens and passenger data — never commit.
+backend/logs/
+*.log
+
 # ── Python ──────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
