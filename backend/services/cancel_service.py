@@ -150,6 +150,10 @@ def _live_booking(locator_code: str) -> dict:
     tickets, EMDs and whether any flight segment is still on the booking."""
     body = _call("GET", TravelportEndpoints.retrieve_reservation(locator_code))
     reservation = _reservation(body)
+    if any(str(e.get("SourceCode")) == "4422" for e in _errors(body)):
+        # Live, after an NDC Reservation Cancel: "RESERVATION IS CANCELLED AND
+        # CANNOT BE RETRIEVED".
+        raise CancelRefused("Travelport says this reservation is already cancelled.")
     if not reservation:
         raise CancelError(f"Travelport could not retrieve {locator_code}: {_msg(_errors(body)) or 'no reservation returned'}",
                           "retrieve")
@@ -261,19 +265,25 @@ def _refund_quote(workbench_id: str, offer: dict) -> dict:
     offers = (body.get("OfferListResponse") or {}).get("OfferID") or []
     if not offers:
         raise CancelError("Travelport Refund Quote returned no offer.", "refund_quote")
-    # Live (EK, 2026-10-29): an OfferModify whose Price is the ORIGINAL fare
-    # and whose ModifyPrice is the change from it — negative TotalPrice is the
-    # amount refunded (Price 104975, ModifyPrice -96552 => 96552 back, 8423
-    # kept by the airline). Without ModifyPrice there is no refund figure, so
-    # the quote fails rather than show the original fare as the refund.
+    # The answer is an OfferModify: Price is the ORIGINAL fare and ModifyPrice
+    # carries the refund — but carriers sign it differently. Live 2026-10-29:
+    #   EK, outside the void period: Price 104975, ModifyPrice -96552,
+    #       refundValueInd=true  -> 96552 back, 8423 kept by the airline.
+    #   SQ, ticketed the same day: Price 98990, ModifyPrice +98990,
+    #       documentVoidPeriodInd=true -> full refund (Cancel voids it).
+    # So the refund is the size of ModifyPrice, never more than the fare paid.
+    # Without ModifyPrice there is no refund figure, so the quote fails rather
+    # than show the original fare as the refund.
     quoted = offers[0]
     price = quoted.get("Price") or {}
     modify = quoted.get("ModifyPrice") or {}
     if modify.get("TotalPrice") is None:
         raise CancelError("Travelport Refund Quote returned no refund amount (no ModifyPrice).", "refund_quote")
-    change = float(modify["TotalPrice"])
-    refund = -change if change < 0 else 0.0
+    refund = abs(float(modify["TotalPrice"]))
     original = float(price["TotalPrice"]) if price.get("TotalPrice") is not None else None
+    if original is not None and refund > original + 0.005:
+        raise CancelError(f"Travelport Refund Quote is unreadable: refund {refund:,.2f} is more than the "
+                          f"{original:,.2f} paid.", "refund_quote")
     return {
         "offer_id": quoted.get("id") or offer["id"],
         "offer_identifier": (quoted.get("Identifier") or {}).get("value"),
@@ -281,6 +291,7 @@ def _refund_quote(workbench_id: str, offer: dict) -> dict:
         "original_price": original,
         "airline_keeps": round(original - refund, 2) if original is not None else None,
         "currency": (modify.get("CurrencyCode") or price.get("CurrencyCode") or {}).get("value"),
+        "void_period": bool(quoted.get("documentVoidPeriodInd")),
         "refund_value_ind": quoted.get("refundValueInd"),
         "modify_price": modify,
         "warnings": [w.get("Message") for w in _warnings(body)],
@@ -323,8 +334,9 @@ def quote_cancellation(locator_code: str) -> dict:
                      message=(f"Travelport Refund Quote: {refund['currency'] or ''} {refund['amount']:,.2f} refundable"
                               + (f" of {refund['original_price']:,.2f} paid (the airline keeps {refund['airline_keeps']:,.2f})"
                                  if refund["original_price"] is not None else "")
-                              + ". Confirming cancels the ticket with the airline and refunds that amount "
-                              "to the original form of payment."))
+                              + (". Inside the airline's void period: confirming voids the ticket"
+                                 if refund["void_period"] else ". Confirming cancels the ticket with the airline")
+                              + " and refunds that amount to the original form of payment."))
         return quote
 
     if not live["tickets"]:
@@ -538,9 +550,11 @@ def _do_ndc_refund(locator_code: str, quote: dict) -> dict:
     finally:
         if not cancelled:
             discard_workbench(workbench_id)
-    status = "Refunded" if refund["amount"] > 0 else "Cancelled"
+    # Inside the void period the airline voids the ticket (full refund).
+    status = "Voided" if refund["void_period"] else ("Refunded" if refund["amount"] > 0 else "Cancelled")
     details = {"action": "refund", "refund": refund, "receipts": receipts, "tickets": quote["tickets"]}
-    record = database.record_cancellation(locator_code, status, "ndc_refund", refund["amount"], refund["currency"], details)
+    record = database.record_cancellation(locator_code, status, "ndc_void" if refund["void_period"] else "ndc_refund",
+                                          refund["amount"], refund["currency"], details)
     return {"status": status, "amount": refund["amount"], "currency": refund["currency"], "details": details, "booking": record}
 
 
