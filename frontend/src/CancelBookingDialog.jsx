@@ -128,7 +128,7 @@ export default function CancelBookingDialog({ locator, apiBase, fetchWithRetry, 
                 </div>
                 <div className="summary-col">
                   <span className="label">Travelport says</span>
-                  <span className="val">{ACTION_LABELS[quote.action] || quote.action}</span>
+                  <span className="val">{quote.refund?.void_period ? ACTION_LABELS.void : (ACTION_LABELS[quote.action] || quote.action)}</span>
                 </div>
                 <div className="summary-col">
                   <span className="label">{quote.action === 'void' ? 'Voided value' : 'Refund'}</span>
