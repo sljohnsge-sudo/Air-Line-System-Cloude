@@ -5643,34 +5643,29 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           (Select Flight / "Other fares & cabins"). Rendered into
                           document.body so result-card styles can't clip it. ── */}
                       {isFareExpanded && createPortal(
-                        <div className="modal-overlay" style={{ animation: 'none' }}
+                        <div className="modal-overlay" style={{ animation: 'none', padding: '0.75rem' }}
                              onClick={() => setExpandedFareIds(prev => ({ ...prev, [fId]: false }))}>
-                        <div className="modal-content" style={{ maxWidth: '980px', width: '95%', animation: 'none' }}
+                        <div className="modal-content" style={{ maxWidth: '920px', width: '95%', maxHeight: 'calc(100vh - 1.5rem)', animation: 'none' }}
                              onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0' }}>
-                          <div>
-                            <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#1e293b' }}>Choose your fare</div>
-                            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.15rem' }}>
-                              {flight.departure_airport} → {flight.arrival_airport}
-                            </div>
+                        {/* Compact header: title, route, flight and aircraft on one line */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 1rem', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.2rem 0.6rem', fontSize: '0.72rem', color: '#64748b' }}>
+                            <span style={{ fontSize: '0.92rem', fontWeight: '800', color: '#1e293b' }}>Choose your fare</span>
+                            <span>{flight.departure_airport} → {flight.arrival_airport}</span>
+                            <span>•</span>
+                            <span style={{ fontWeight: '700', color: '#475569' }}>{(flight.flight_number || '').startsWith(flight.airline_code || '~') ? flight.flight_number : `${flight.airline_code}${flight.flight_number}`}</span>
+                            <span>✈ {flight.aircraft_type || 'Boeing 777-300ER'}</span>
                           </div>
                           <button type="button" aria-label="Close"
                                   onClick={() => setExpandedFareIds(prev => ({ ...prev, [fId]: false }))}
-                                  style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem', color: '#475569' }}>
+                                  style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '26px', height: '26px', flexShrink: 0, cursor: 'pointer', fontSize: '0.9rem', color: '#475569' }}>
                             ×
                           </button>
                         </div>
-                        <div style={{ background: '#ffffff', padding: '1.5rem', width: '100%', boxSizing: 'border-box', maxHeight: '75vh', overflowY: 'auto' }}>
-
-                          {/* Segment Summary or Airline Details */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1.25rem', color: '#64748b', fontSize: '0.78rem' }}>
-                            <span style={{ fontWeight: '800', color: '#1e293b' }}>✈ {flight.aircraft_type || 'Boeing 777-300ER'}</span>
-                            <span>•</span>
-                            <span style={{ fontWeight: '700', color: '#475569' }}>{(flight.flight_number || '').startsWith(flight.airline_code || '~') ? flight.flight_number : `${flight.airline_code}${flight.flight_number}`}</span>
-                          </div>
+                        <div style={{ background: '#ffffff', padding: '0.6rem 1rem 0.8rem', width: '100%', boxSizing: 'border-box', flex: 1, minHeight: 0, overflowY: 'auto' }}>
 
                           {/* Cabin Selector Tabs */}
-                          <div style={{ display: 'flex', borderBottom: '1.5px solid #e2e8f0', marginBottom: '1.5rem', gap: '2rem', boxSizing: 'border-box' }}>
+                          <div style={{ display: 'flex', borderBottom: '1.5px solid #e2e8f0', marginBottom: '0.7rem', gap: '1.5rem', boxSizing: 'border-box' }}>
                             {(() => {
                               const CABIN_ORDER = ['Economy', 'PremiumEconomy', 'Business', 'First'];
                               const allCabins = flight.fare_options ? Array.from(new Set(flight.fare_options.map(fo => fo.cabin_class))) : [];
@@ -5698,22 +5693,22 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                     style={{
                                       border: 'none',
                                       background: 'transparent',
-                                      padding: '0.75rem 0',
+                                      padding: '0.35rem 0',
                                       borderBottom: isSelected ? '3px solid #245d38' : '3px solid transparent',
                                       color: isSelected ? '#1e293b' : '#64748b',
                                       fontWeight: '700',
-                                      fontSize: '0.9rem',
+                                      fontSize: '0.8rem',
                                       cursor: 'pointer',
                                       display: 'flex',
                                       flexDirection: 'column',
                                       alignItems: 'flex-start',
-                                      gap: '0.2rem',
+                                      gap: '0.05rem',
                                       outline: 'none',
                                       transition: 'all 0.15s'
                                     }}
                                   >
                                     <span>{label}</span>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: '500', color: isSelected ? '#245d38' : '#94a3b8' }}>
+                                    <span style={{ fontSize: '0.66rem', fontWeight: '500', color: isSelected ? '#245d38' : '#94a3b8' }}>
                                       {priceText}
                                     </span>
                                   </button>
@@ -5725,8 +5720,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           {/* Fare Options Container */}
                           <div style={{
                             display: 'grid',
-                            gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))`,
-                            gap: '1.25rem',
+                            gridTemplateColumns: `repeat(auto-fit, minmax(215px, 1fr))`,
+                            gap: '0.6rem',
                             width: '100%',
                             boxSizing: 'border-box'
                           }}>
@@ -5740,25 +5735,25 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                   border: '1px solid #cbd5e1',
                                   overflow: 'hidden',
                                   background: '#ffffff',
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+                                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
                                   transition: 'transform 0.15s, box-shadow 0.15s'
                                 }}>
                                   {/* Card Header */}
                                   <div style={{
                                     background: isCheapest ? '#245d38' : '#1e293b',
-                                    padding: '1.25rem',
+                                    padding: '0.55rem 0.75rem',
                                     color: 'white',
                                     position: 'relative'
                                   }}>
-                                    <div style={{ fontSize: '1rem', fontWeight: '800', letterSpacing: '0.01em' }}>{fo.brand_name}</div>
-                                    <div style={{ fontSize: '1.35rem', fontWeight: '800', marginTop: '0.35rem' }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: '800', letterSpacing: '0.01em', paddingRight: '3.5rem' }}>{fo.brand_name}</div>
+                                    <div style={{ fontSize: '1.05rem', fontWeight: '800', marginTop: '0.1rem' }}>
                                       {fo.currency} {Math.floor(fo.price).toLocaleString()}
                                     </div>
                                     {isCheapest && (
                                       <div style={{
                                         position: 'absolute',
-                                        right: '12px',
-                                        top: '12px',
+                                        right: '8px',
+                                        top: '8px',
                                         background: '#34d399',
                                         color: '#064e3b',
                                         fontSize: '0.58rem',
@@ -5771,21 +5766,21 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                         Cheapest
                                       </div>
                                     )}
-                                    <div style={{ fontSize: '0.65rem', opacity: 0.9, marginTop: '0.25rem', fontWeight: '600', fontFamily: 'monospace' }}>
+                                    <div style={{ fontSize: '0.58rem', opacity: 0.9, marginTop: '0.1rem', fontWeight: '600', fontFamily: 'monospace' }}>
                                       Fare Basis: {(fo.fare_basis_codes || []).join(', ')} ({(fo.classes_of_service || []).join(', ')})
                                     </div>
                                   </div>
 
                                   {/* Card Body */}
-                                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '1rem', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                  <div style={{ padding: '0.55rem 0.75rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.4rem', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
 
                                       {/* Baggage Allowance Section */}
                                       {fo.baggage_allowance && fo.baggage_allowance.length > 0 && (
-                                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-                                          <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>Baggage Allowance</div>
+                                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.4rem' }}>
+                                          <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Baggage Allowance</div>
                                           {fo.baggage_allowance.map((bag, bIdx) => (
-                                            <div key={bIdx} style={{ fontSize: '0.78rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                                            <div key={bIdx} style={{ fontSize: '0.7rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.05rem' }}>
                                               <span>🧳</span>
                                               <span>{bag.type}: <strong>{bag.allowance}</strong></span>
                                             </div>
@@ -5794,23 +5789,23 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                       )}
 
                                       {/* Policies Section */}
-                                      <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-                                        <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>Rules & Policies</div>
-                                        <div style={{ fontSize: '0.75rem', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.35rem', marginTop: '0.2rem' }}>
-                                          <span style={{ fontSize: '0.8rem' }}>🔄</span>
+                                      <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.4rem' }}>
+                                        <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Rules & Policies</div>
+                                        <div style={{ fontSize: '0.68rem', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', marginTop: '0.05rem' }}>
+                                          <span style={{ fontSize: '0.7rem' }}>🔄</span>
                                           <div>
                                             <strong style={{ color: '#1e293b' }}>Changes:</strong> <span style={{ fontWeight: '500' }}>{fo.change_policy}</span>
                                           </div>
                                         </div>
-                                        <div style={{ fontSize: '0.75rem', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.35rem', marginTop: '0.35rem' }}>
-                                          <span style={{ fontSize: '0.8rem' }}>❌</span>
+                                        <div style={{ fontSize: '0.68rem', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', marginTop: '0.15rem' }}>
+                                          <span style={{ fontSize: '0.7rem' }}>❌</span>
                                           <div>
                                             <strong style={{ color: '#1e293b' }}>Cancellations:</strong> <span style={{ fontWeight: '500' }}>{fo.cancel_policy}</span>
                                           </div>
                                         </div>
                                         {/* Full change/cancel conditions, live from Travelport's Fare Rules API */}
                                         {flight.source !== 'AD' && fo.raw_offering && (
-                                          <div style={{ marginTop: '0.5rem' }}>
+                                          <div style={{ marginTop: '0.3rem' }}>
                                             <FareRulesPanel apiBase={API_BASE} rawOffering={fo.raw_offering} title="Full fare rules" />
                                           </div>
                                         )}
@@ -5819,8 +5814,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                       {/* Brand Attributes Section */}
                                       {fo.brand_attributes && fo.brand_attributes.length > 0 && (
                                         <div>
-                                          <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>Fare Benefits</div>
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                          <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Fare Benefits</div>
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem' }}>
                                             {fo.brand_attributes.map((attr, aIdx) => {
                                               const labelMap = {
                                                 'CheckedBag': 'Checked baggage allowance',
@@ -5857,17 +5852,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    width: '14px',
-                                                    height: '14px',
+                                                    width: '12px',
+                                                    height: '12px',
                                                     borderRadius: '50%',
                                                     background: bg,
                                                     border: `1px solid ${border}`,
                                                     color: color,
-                                                    fontSize: '0.62rem',
+                                                    fontSize: '0.55rem',
                                                     fontWeight: '800',
                                                     flexShrink: 0
                                                   }}>{icon}</span>
-                                                  <span style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '500' }}>
+                                                  <span style={{ fontSize: '0.66rem', color: '#475569', fontWeight: '500' }}>
                                                     {displayLabel}: <strong style={{ color: color }}>{attr.inclusion}</strong>
                                                   </span>
                                                 </div>
@@ -5891,14 +5886,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                         color: 'white',
                                         border: 'none',
                                         borderRadius: '6px',
-                                        padding: '0.65rem 1rem',
+                                        padding: '0.4rem 0.75rem',
                                         fontWeight: '700',
-                                        fontSize: '0.82rem',
+                                        fontSize: '0.75rem',
                                         cursor: 'pointer',
                                         width: '100%',
                                         transition: 'background 0.2s',
                                         outline: 'none',
-                                        marginTop: '1rem'
+                                        marginTop: '0.35rem'
                                       }}
                                       onMouseEnter={e => e.target.style.opacity = 0.9}
                                       onMouseLeave={e => e.target.style.opacity = 1}

@@ -72,7 +72,7 @@ export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 
       <button
         type="button"
         onClick={toggle}
-        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', padding: '0.55rem 0.75rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, color: '#1e293b' }}
+        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', padding: '0.35rem 0.6rem', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, color: '#1e293b' }}
       >
         <span>📄 {title}</span>
         <span style={{ color: '#64748b' }}>{open ? '▾' : '▸'}</span>
