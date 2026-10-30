@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
 
@@ -102,6 +102,11 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [notificationsError, setNotificationsError] = useState('');
   const [notificationActionId, setNotificationActionId] = useState(null);
 
+  const [stuckBookings, setStuckBookings] = useState([]);
+  const [stuckBookingsLoading, setStuckBookingsLoading] = useState(false);
+  const [stuckBookingsError, setStuckBookingsError] = useState('');
+  const [stuckBookingActionId, setStuckBookingActionId] = useState(null);
+
   const [notificationRecipients, setNotificationRecipients] = useState([]);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
   const [recipientsError, setRecipientsError] = useState('');
@@ -118,20 +123,19 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [visaConsultationsError, setVisaConsultationsError] = useState('');
   const [visaConsultationActionId, setVisaConsultationActionId] = useState(null);
 
-  const [forceIssueLocator, setForceIssueLocator] = useState('');
-  const [forceIssueReason, setForceIssueReason] = useState('');
-  const [forceIssueReqid, setForceIssueReqid] = useState('');
-  const [forceIssueSubmitting, setForceIssueSubmitting] = useState(false);
-  const [forceIssueError, setForceIssueError] = useState('');
-  const [forceIssueResult, setForceIssueResult] = useState(null);
+  // Ticket Support — admins view/retrieve a booking when a customer asks.
+  // Admins can't issue tickets: only a verified card payment issues one.
+  const [lookupLocator, setLookupLocator] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [lookupResult, setLookupResult] = useState(null);
+  // Read-only history of tickets force-issued before that option was removed.
   const [forceIssuedLog, setForceIssuedLog] = useState([]);
   const [forceIssuedLogLoading, setForceIssuedLogLoading] = useState(false);
   const [forceIssuedLogError, setForceIssuedLogError] = useState('');
 
   // Share Ticket with Customer — recovery tool for "payment succeeded but the
-  // customer never received their ticket". Independent of forceIssueLocator
-  // (above) since this is also used for tickets that were issued normally
-  // and never needed force-issuing at all — the admin just looks up the PNR.
+  // customer never received their ticket" — the admin just looks up the PNR.
   const [shareLocator, setShareLocator] = useState('');
   const [shareChannel, setShareChannel] = useState('email');
   const [shareContact, setShareContact] = useState('');
@@ -422,6 +426,20 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
+  const loadStuckBookings = async () => {
+    setStuckBookingsLoading(true);
+    setStuckBookingsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/stuck-bookings?status=new`, { headers: authHeaders });
+      const data = await adminApiResponse(res, 'Failed to load stuck-booking alerts');
+      setStuckBookings(data.notifications || []);
+    } catch (err) {
+      setStuckBookingsError(err.message);
+    } finally {
+      setStuckBookingsLoading(false);
+    }
+  };
+
   const loadNotificationRecipients = async () => {
     setRecipientsLoading(true);
     setRecipientsError('');
@@ -639,6 +657,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       loadEmailRequests();
       loadCancellationRequests();
       loadNotifications();
+      loadStuckBookings();
       loadNotificationRecipients();
       loadProviderSettings();
       loadVisaConsultations();
@@ -653,31 +672,23 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   }, [adminToken]);
 
-  const submitForceIssueTicket = async () => {
-    const locator = forceIssueLocator.trim().toUpperCase();
-    if (!locator || forceIssueReason.trim().length < 3) {
-      setForceIssueError('Enter the PNR and a reason (at least a few words).');
+  // Live Travelport retrieve by PNR — view only, changes nothing on the booking.
+  const lookupBooking = async () => {
+    const locator = lookupLocator.trim().toUpperCase();
+    if (!locator) {
+      setLookupError('Enter the PNR.');
       return;
     }
-    setForceIssueSubmitting(true);
-    setForceIssueError('');
-    setForceIssueResult(null);
+    setLookupLoading(true);
+    setLookupError('');
+    setLookupResult(null);
     try {
-      const res = await fetchWithRetry(`${API_BASE}/admin/bookings/${locator}/force-issue-ticket`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ reason: forceIssueReason.trim(), reqid: forceIssueReqid.trim() || null }),
-      });
-      const data = await adminApiResponse(res, 'Failed to force-issue ticket');
-      setForceIssueResult(data.ticket);
-      setForceIssueLocator('');
-      setForceIssueReason('');
-      setForceIssueReqid('');
-      loadForceIssuedLog();
+      const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${encodeURIComponent(locator)}`, { headers: authHeaders });
+      setLookupResult(await adminApiResponse(res, 'Booking not found'));
     } catch (err) {
-      setForceIssueError(err.message);
+      setLookupError(err.message);
     } finally {
-      setForceIssueSubmitting(false);
+      setLookupLoading(false);
     }
   };
 
@@ -781,6 +792,23 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setNotificationsError(err.message);
     } finally {
       setNotificationActionId(null);
+    }
+  };
+
+  const acknowledgeStuckBooking = async (id) => {
+    setStuckBookingActionId(id);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/stuck-bookings/${id}/acknowledge`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({}),
+      });
+      await adminApiResponse(res, 'Failed to acknowledge stuck-booking alert');
+      setStuckBookings(items => items.filter(n => n.id !== id));
+    } catch (err) {
+      setStuckBookingsError(err.message);
+    } finally {
+      setStuckBookingActionId(null);
     }
   };
 
@@ -1205,6 +1233,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     { id: 'visa-bookings', label: 'Visa Consultation Bookings', count: visaConsultations.length },
     { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
     { id: 'notifications', label: 'Fare Notifications', count: notifications.length },
+    { id: 'stuck-bookings', label: 'Stuck Bookings', count: stuckBookings.length },
     { id: 'providers', label: 'Provider Control' },
     { id: 'packages', label: 'Tour Packages' },
     { id: 'package-requests', label: 'Package Booking Requests', count: packageRequests.length },
@@ -1218,7 +1247,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     },
     { id: 'terminal-connections', label: 'Terminal Connections' },
     { id: 'assign-booking', label: 'Assign Booking' },
-    { id: 'force-issue', label: 'Force Issue Ticket' },
+    { id: 'force-issue', label: 'Ticket Support' },
     { id: 'reports', label: 'Reports' },
     { id: 'tickets', label: 'Tickets & Invoices' },
   ];
@@ -1819,6 +1848,45 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           />
           <button className="btn btn-primary btn-sm" disabled={recipientActionId === 'new' || !newRecipientEmail.trim()} onClick={addNotificationRecipient}>Add</button>
         </div>
+      </section>
+      )}
+
+      {activeAdminSection === 'stuck-bookings' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Stuck Bookings {stuckBookings.length > 0 && `(${stuckBookings.length} new)`}</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+          Raised when a paid booking couldn't be ticketed at Travelport, or when a staff void / refund / cancel didn't go
+          through there. Each one needs checking by hand — an email also goes to the Fare Notifications recipients.
+        </p>
+        {stuckBookingsError && <div className="error-banner">{stuckBookingsError}</div>}
+        {stuckBookingsLoading ? (
+          <div className="loading-state"><div className="spinner"></div><p>Loading stuck bookings...</p></div>
+        ) : stuckBookings.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No new stuck-booking alerts.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {stuckBookings.map(n => (
+              <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                <div style={{ fontSize: '0.85rem', flex: 1, minWidth: 0 }}>
+                  <div>
+                    <strong style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>{n.locator_code}</strong>
+                    {n.payment_txn_ref && <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{' · Payment ref '}{n.payment_txn_ref}</span>}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>
+                    {n.error_message}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    {new Date(n.created_at).toLocaleString()}
+                    {n.email_sent ? ' · Email sent' : ' · Email not sent'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button className="btn btn-primary btn-sm" disabled={stuckBookingActionId === n.id} onClick={() => acknowledgeStuckBooking(n.id)}>Acknowledge</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
       )}
 
@@ -2513,37 +2581,42 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'force-issue' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Force Issue Ticket</h3>
+        <h3 className="results-heading">Ticket Support</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
-          For a PNR held because the card payment gateway itself returned a sandbox/test-only failure
-          (e.g. PayCorp "(TEST TRANSACTION ONLY)" responses) — verify the booking and the gateway response
-          first, then issue directly. This skips payment verification, so every use is logged below with
-          your username and the reason given.
+          When a customer asks about their booking, look it up here by PNR — the details come live from
+          Travelport. This is view-only: admins cannot issue tickets. A ticket is issued only after the
+          customer's card payment is confirmed by the payment gateway.
         </p>
-        <form onSubmit={e => { e.preventDefault(); submitForceIssueTicket(); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '520px' }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
+        <form onSubmit={e => { e.preventDefault(); lookupBooking(); }} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', maxWidth: '520px' }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
             <label className="form-label">PNR / Locator Code</label>
-            <input className="form-input" required value={forceIssueLocator} onChange={e => setForceIssueLocator(e.target.value.toUpperCase())} />
+            <input className="form-input" required value={lookupLocator} onChange={e => setLookupLocator(e.target.value.toUpperCase())} />
           </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">PayCorp reqid (optional — captures the gateway response into the audit log)</label>
-            <input className="form-input" value={forceIssueReqid} onChange={e => setForceIssueReqid(e.target.value)} />
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Reason *</label>
-            <textarea className="form-input" required rows={2} value={forceIssueReason} onChange={e => setForceIssueReason(e.target.value)}
-              placeholder="e.g. PayCorp sandbox returned INVALID RESPONSE (TEST TRANSACTION ONLY) with the correct test card — verified in Travelport logs." />
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={forceIssueSubmitting} style={{ alignSelf: 'flex-start' }}>
-            {forceIssueSubmitting ? 'Issuing…' : 'Force Issue Ticket'}
+          <button type="submit" className="btn btn-primary" disabled={lookupLoading}>
+            {lookupLoading ? 'Retrieving…' : 'Retrieve Booking'}
           </button>
         </form>
-        {forceIssueError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{forceIssueError}</div>}
-        {forceIssueResult && (
-          <p style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.75rem' }}>
-            Issued — {forceIssueResult.locator_code}, {forceIssueResult.passenger_name}, {forceIssueResult.airline} {forceIssueResult.flight_number},
-            {' '}{forceIssueResult.currency} {forceIssueResult.total_fare}. Status: {forceIssueResult.status}.
-          </p>
+        {lookupError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{lookupError}</div>}
+        {lookupResult && (
+          <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem', marginTop: '0.75rem', fontSize: '0.82rem', maxWidth: '520px', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.3rem 1rem' }}>
+            {[
+              ['PNR', lookupResult.locator_code],
+              ['Airline PNR', lookupResult.airline_pnr],
+              ['Status', lookupResult.status],
+              ['Passenger', lookupResult.passenger_name],
+              ['Flight', [lookupResult.airline, lookupResult.flight_number].filter(Boolean).join(' ')],
+              ['Route', [lookupResult.departure_airport, lookupResult.arrival_airport].filter(Boolean).join(' → ')],
+              ['Departure', lookupResult.departure_time],
+              ['Ticket number', lookupResult.ticket_number || 'Not issued'],
+              ['Seat', lookupResult.seat_number],
+              ['Fare', lookupResult.total_fare != null ? `${lookupResult.currency || ''} ${lookupResult.total_fare}` : null],
+            ].filter(([, v]) => v).map(([k, v]) => (
+              <Fragment key={k}>
+                <span style={{ color: 'var(--text-muted)' }}>{k}</span>
+                <strong style={{ color: 'var(--text-secondary)' }}>{v}</strong>
+              </Fragment>
+            ))}
+          </div>
         )}
 
         <div style={{ borderTop: '1px solid var(--border-color)', margin: '1.5rem 0 1rem' }} />
@@ -2588,7 +2661,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           </p>
         )}
 
-        <h4 style={{ margin: '1.5rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--gs-dark)' }}>Audit Log</h4>
+        <h4 style={{ margin: '1.5rem 0 0.5rem', fontSize: '0.9rem', color: 'var(--gs-dark)' }}>Past Force-Issue Log (read-only)</h4>
         {forceIssuedLogError && <div className="error-banner">{forceIssuedLogError}</div>}
         {forceIssuedLogLoading ? (
           <div className="loading-state"><div className="spinner"></div><p>Loading…</p></div>

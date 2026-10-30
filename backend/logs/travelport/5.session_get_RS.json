@@ -5,14 +5,74 @@
             "@type": "Reservation",
             "Identifier": {
                 "authority": "Travelport",
-                "value": "50529268-9ca2-4056-a7dd-e7d9900779b7"
+                "value": "e70bfc6d-e031-4883-9730-c6f8dff665fa"
             },
+            "Traveler": [
+                {
+                    "@type": "Traveler",
+                    "birthDate": "1990-01-01",
+                    "gender": "Male",
+                    "passengerTypeCode": "ADT",
+                    "age": 36,
+                    "id": "travelerRefId_1",
+                    "Identifier": {
+                        "value": "1b2e1712-0465-48e7-b2ca-6f34bdd51a10"
+                    },
+                    "PersonName": {
+                        "@type": "PersonNameDetail",
+                        "Prefix": "MR",
+                        "Given": "TEST",
+                        "Surname": "PROBE"
+                    },
+                    "Telephone": [
+                        {
+                            "@type": "Telephone",
+                            "countryAccessCode": "94",
+                            "phoneNumber": "771234567",
+                            "id": "1",
+                            "role": "Mobile"
+                        }
+                    ],
+                    "Email": [
+                        {
+                            "value": "test@example.com"
+                        }
+                    ],
+                    "TravelDocument": [
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N1234567",
+                            "docType": "Passport",
+                            "expireDate": "2030-01-01",
+                            "issueCountry": "LK",
+                            "birthDate": "1990-01-01",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonNameDetail",
+                                "Given": "TEST",
+                                "Surname": "PROBE"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "TravelerProduct": [
+                {
+                    "@type": "TravelerProduct",
+                    "TravelerRef": "travelerRefId_1",
+                    "UnpricedFlightSegmentRefs": [
+                        "unPricedFlightSegment_1",
+                        "unPricedFlightSegment_2"
+                    ]
+                }
+            ],
             "Receipt": [
                 {
                     "@type": "ReceiptConfirmation",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "08e2d293-ea30-458f-8960-763f475ef0b6"
+                        "value": "31b624c8-ebb4-446b-84e7-3cd0f02aef4e"
                     },
                     "Confirmation": {
                         "@type": "ConfirmationHold",
@@ -41,28 +101,31 @@
                         "@type": "UnpricedFlightSegment",
                         "id": "unPricedFlightSegment_1",
                         "sequence": 1,
+                        "passengerQuantity": 1,
+                        "cabin": "Economy",
+                        "classOfService": "S",
                         "Flight": {
                             "@type": "Flight",
-                            "duration": "PT2H50M",
-                            "carrier": "AI",
-                            "number": "2275",
-                            "equipment": "32N",
+                            "duration": "PT4H50M",
+                            "carrier": "QR",
+                            "number": "659",
+                            "equipment": "789",
                             "id": "Flight_01",
                             "Identifier": {
                                 "authority": "Travelport",
-                                "value": "0a3a05be-7075-4c6f-8288-fc472d47c3ee"
+                                "value": "7c99235e-60d3-46d1-bbbb-4355f6a5db8e"
                             },
                             "Departure": {
                                 "@type": "Departure",
                                 "location": "CMB",
-                                "date": "2026-11-10",
-                                "time": "16:00:00"
+                                "date": "2026-10-26",
+                                "time": "03:25:00"
                             },
                             "Arrival": {
                                 "@type": "Arrival",
-                                "location": "BOM",
-                                "date": "2026-11-10",
-                                "time": "18:40:00"
+                                "location": "DOH",
+                                "date": "2026-10-26",
+                                "time": "05:45:00"
                             }
                         }
                     },
@@ -70,28 +133,31 @@
                         "@type": "UnpricedFlightSegment",
                         "id": "unPricedFlightSegment_2",
                         "sequence": 2,
+                        "passengerQuantity": 1,
+                        "cabin": "Economy",
+                        "classOfService": "S",
                         "Flight": {
                             "@type": "Flight",
-                            "duration": "PT3H30M",
-                            "carrier": "AI",
-                            "number": "983",
-                            "equipment": "789",
+                            "duration": "PT1H20M",
+                            "carrier": "QR",
+                            "number": "1022",
+                            "equipment": "359",
                             "id": "Flight_02",
                             "Identifier": {
                                 "authority": "Travelport",
-                                "value": "a8bcdec1-87e4-466b-9cdd-f8dae3c2db7b"
+                                "value": "6123098e-a7dd-4456-b799-b697da11538d"
                             },
                             "Departure": {
                                 "@type": "Departure",
-                                "location": "BOM",
-                                "date": "2026-11-10",
-                                "time": "20:25:00"
+                                "location": "DOH",
+                                "date": "2026-10-26",
+                                "time": "09:20:00"
                             },
                             "Arrival": {
                                 "@type": "Arrival",
                                 "location": "DXB",
-                                "date": "2026-11-10",
-                                "time": "21:55:00"
+                                "date": "2026-10-26",
+                                "time": "11:40:00"
                             }
                         }
                     }

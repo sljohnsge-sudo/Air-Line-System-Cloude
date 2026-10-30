@@ -1,0 +1,62 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/traveler/reservationworkbench/3fd90933-df61-4e73-b9b5-65a1d1534cd9/travelers/list' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTI5NTA0NTUsImV4cCI6MTc5MzAzNjg1NSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.lX4P0mzpG8p0DuP670achjMCxSqVSxlUgb9Uvd4toqLBghILvx2B7Li4T4PjCWWSuSZXG2W1L3aV-tJCyZtthpxKsohK9itXxdwecZLEuwrI-F6WiOX41K3vpBsG9JRCyfYD2AK0FDEZnYQ5wBVGXTqPPvTAk6rcBPLiYgzhy7BHQz3CKK8XAzQMCJHNtVBgagep9eJGGaNFqkTL9n-YXV_Xq9Gp3WKHNw-sT1VTCgc30ByG4CjsQh2qrWFRUPCQBIOVpc2CoxFLMgPFdQZrk9YJiUmP86odl2kjsxqmkJcKlpBg9MUjWO8B4BmJGZQb9ZUmBU6TAvEp-bCx-FOUBQ' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_19FFFE05F036' \
+--data-raw '{
+    "TravelerListRequest": {
+        "@type": "TravelerListRequest",
+        "Traveler": [
+            {
+                "@type": "Traveler",
+                "gender": "Male",
+                "birthDate": "1990-01-01",
+                "passengerTypeCode": "ADT",
+                "PersonName": {
+                    "@type": "PersonNameDetail",
+                    "Prefix": "MR",
+                    "Given": "TEST",
+                    "Surname": "PROBE"
+                },
+                "Telephone": [
+                    {
+                        "@type": "Telephone",
+                        "countryAccessCode": "94",
+                        "phoneNumber": "771234567",
+                        "id": "1",
+                        "role": "Mobile"
+                    }
+                ],
+                "Email": [
+                    {
+                        "value": "test@example.com"
+                    }
+                ],
+                "TravelDocument": [
+                    {
+                        "@type": "TravelDocumentDetail",
+                        "docNumber": "N1234567",
+                        "docType": "Passport",
+                        "expireDate": "2030-01-01",
+                        "issueCountry": "LK",
+                        "Nationality": "LK",
+                        "birthDate": "1990-01-01",
+                        "Gender": "Male",
+                        "PersonName": {
+                            "@type": "PersonNameDetail",
+                            "Given": "TEST",
+                            "Surname": "PROBE"
+                        }
+                    }
+                ],
+                "age": 36,
+                "id": "trav_1"
+            }
+        ]
+    }
+}'

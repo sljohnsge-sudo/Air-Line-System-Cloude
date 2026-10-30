@@ -1,0 +1,31 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/search/seat/catalogofferingsancillaries/seatavailabilities' \
+--header 'authorization: Bearer <TOKEN>' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: <ACCESS_GROUP>' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_45588712CE09' \
+--data-raw '{
+    "CatalogOfferingsQuerySeatAvailability": {
+        "SeatAvailabilityOfferings": {
+            "@type": "SeatAvailabilityOfferingsBuildFromReservationWorkbench",
+            "BuildFromReservationWorkbench": {
+                "ReservationIdentifier": {
+                    "Identifier": {
+                        "value": "6541a19e-4510-4f93-bd74-23e7add00397",
+                        "authority": "Travelport"
+                    }
+                },
+                "OfferIdentifier": {
+                    "Identifier": {
+                        "value": "e2240466-55b3-4c8a-a4d6-18c58f6527a2",
+                        "authority": "Travelport"
+                    }
+                }
+            }
+        }
+    }
+}'

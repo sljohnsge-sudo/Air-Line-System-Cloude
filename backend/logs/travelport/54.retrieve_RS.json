@@ -5,7 +5,7 @@
             "@type": "Reservation",
             "Identifier": {
                 "authority": "Travelport",
-                "value": "f97a4123-687a-447b-977a-9dc851483d06"
+                "value": "dd8370c0-ddde-4b26-a485-4556ca62db1d"
             },
             "Offer": [
                 {
@@ -13,7 +13,7 @@
                     "id": "offer_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "40c6c7bd-ce44-41c2-b7a7-87e2c750ffdf"
+                        "value": "68cce75f-c65b-4baa-922c-67fd5962be04"
                     },
                     "ContentSource": "GDS",
                     "Product": [
@@ -22,35 +22,66 @@
                             "id": "product_1",
                             "Identifier": {
                                 "authority": "Travelport",
-                                "value": "815bc703-813a-440d-b0b6-70f61adb4f38"
+                                "value": "173311f6-8d71-4059-99ed-39f66905ef9f"
                             },
                             "FlightSegment": [
                                 {
                                     "@type": "FlightSegment",
                                     "id": "FlightSegment_01",
                                     "sequence": 1,
+                                    "connectionDuration": "PT2H20M",
+                                    "boundFlightsInd": true,
                                     "Flight": {
                                         "@type": "Flight",
-                                        "duration": "PT4H25M",
-                                        "carrier": "EK",
-                                        "number": "649",
-                                        "equipment": "359",
+                                        "duration": "PT4H50M",
+                                        "carrier": "QR",
+                                        "number": "659",
+                                        "equipment": "789",
                                         "id": "Flight_01",
                                         "Identifier": {
                                             "authority": "Travelport",
-                                            "value": "f7956fae-b0f2-4392-8c2e-b1b478661fa9"
+                                            "value": "dca29b45-0129-4aaf-90da-821cc78249e1"
                                         },
                                         "Departure": {
                                             "@type": "Departure",
                                             "location": "CMB",
-                                            "date": "2026-10-07",
-                                            "time": "02:55:00"
+                                            "date": "2026-10-31",
+                                            "time": "03:25:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "DOH",
+                                            "date": "2026-10-31",
+                                            "time": "05:45:00"
+                                        }
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_02",
+                                    "sequence": 2,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT1H20M",
+                                        "carrier": "QR",
+                                        "number": "1006",
+                                        "equipment": "359",
+                                        "id": "Flight_02",
+                                        "Identifier": {
+                                            "authority": "Travelport",
+                                            "value": "3a01243b-1fdb-4dcb-b2f6-b0c6c1641a47"
+                                        },
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "DOH",
+                                            "date": "2026-10-31",
+                                            "time": "08:05:00"
                                         },
                                         "Arrival": {
                                             "@type": "Arrival",
                                             "location": "DXB",
-                                            "date": "2026-10-07",
-                                            "time": "05:50:00"
+                                            "date": "2026-10-31",
+                                            "time": "10:25:00"
                                         }
                                     }
                                 }
@@ -64,11 +95,102 @@
                                         {
                                             "@type": "FlightProduct",
                                             "segmentSequence": [
-                                                1
+                                                1,
+                                                2
                                             ],
-                                            "classOfService": "L",
+                                            "classOfService": "S",
                                             "cabin": "Economy",
-                                            "fareBasisCode": "LAAOPLK1",
+                                            "fareBasisCode": "SJR4R1SE",
+                                            "fareType": "PublicFare"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "@type": "ProductAir",
+                            "id": "product_2",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "d95f410e-412f-4e3a-926d-8ed67989af73"
+                            },
+                            "FlightSegment": [
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_03",
+                                    "sequence": 3,
+                                    "connectionDuration": "PT2H25M",
+                                    "boundFlightsInd": true,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT1H15M",
+                                        "carrier": "QR",
+                                        "number": "1019",
+                                        "equipment": "359",
+                                        "id": "Flight_03",
+                                        "Identifier": {
+                                            "authority": "Travelport",
+                                            "value": "ba9b7809-a31b-4a28-8f0f-82849c820e4f"
+                                        },
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "DXB",
+                                            "date": "2026-11-07",
+                                            "time": "22:50:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "DOH",
+                                            "date": "2026-11-07",
+                                            "time": "23:05:00"
+                                        }
+                                    }
+                                },
+                                {
+                                    "@type": "FlightSegment",
+                                    "id": "FlightSegment_04",
+                                    "sequence": 4,
+                                    "Flight": {
+                                        "@type": "Flight",
+                                        "duration": "PT4H45M",
+                                        "carrier": "QR",
+                                        "number": "664",
+                                        "equipment": "788",
+                                        "id": "Flight_04",
+                                        "Identifier": {
+                                            "authority": "Travelport",
+                                            "value": "27c8dd80-4508-444b-83d0-08ac2d488937"
+                                        },
+                                        "Departure": {
+                                            "@type": "Departure",
+                                            "location": "DOH",
+                                            "date": "2026-11-08",
+                                            "time": "01:30:00"
+                                        },
+                                        "Arrival": {
+                                            "@type": "Arrival",
+                                            "location": "CMB",
+                                            "date": "2026-11-08",
+                                            "time": "08:45:00"
+                                        }
+                                    }
+                                }
+                            ],
+                            "PassengerFlight": [
+                                {
+                                    "@type": "PassengerFlight",
+                                    "passengerQuantity": 1,
+                                    "passengerTypeCode": "ADT",
+                                    "FlightProduct": [
+                                        {
+                                            "@type": "FlightProduct",
+                                            "segmentSequence": [
+                                                3,
+                                                4
+                                            ],
+                                            "classOfService": "S",
+                                            "cabin": "Economy",
+                                            "fareBasisCode": "SJR4R1SE",
                                             "fareType": "PublicFare"
                                         }
                                     ]
@@ -82,10 +204,10 @@
                         "CurrencyCode": {
                             "value": "LKR"
                         },
-                        "Base": 84200,
-                        "TotalTaxes": 20900,
+                        "Base": 202700,
+                        "TotalTaxes": 73751,
                         "TotalFees": 0,
-                        "TotalPrice": 105100,
+                        "TotalPrice": 276451,
                         "PriceBreakdown": [
                             {
                                 "@type": "PriceBreakdownAir",
@@ -97,7 +219,7 @@
                                         "decimalPlace": 2,
                                         "value": "USD"
                                     },
-                                    "Base": 247.0
+                                    "Base": 595.0
                                 },
                                 "TravelerRefs": [
                                     "travelerRefId_1"
@@ -115,10 +237,10 @@
                                         "decimalPlace": 0,
                                         "value": "LKR"
                                     },
-                                    "Base": 84200,
+                                    "Base": 202700,
                                     "Taxes": {
                                         "@type": "TaxesDetail",
-                                        "TotalTaxes": 20900,
+                                        "TotalTaxes": 73751,
                                         "Tax": [
                                             {
                                                 "currencyCode": "LKR",
@@ -127,33 +249,74 @@
                                             },
                                             {
                                                 "currencyCode": "LKR",
-                                                "taxCode": "ZR",
+                                                "taxCode": "G4",
+                                                "value": 11224
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "PZ",
+                                                "value": 1022
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "QA",
+                                                "value": 11224
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "R9",
+                                                "value": 1872
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "AE",
+                                                "value": 6956
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "F6",
+                                                "value": 4637
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "TP",
                                                 "value": 464
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "ZR",
+                                                "value": 928
+                                            },
+                                            {
+                                                "currencyCode": "LKR",
+                                                "taxCode": "YR",
+                                                "value": 14988
                                             }
                                         ]
                                     },
-                                    "Total": 105100
+                                    "Total": 276451
                                 },
                                 "FiledAmount": {
                                     "currencyCode": "USD",
                                     "decimalPlace": 2,
-                                    "value": 247.0
+                                    "value": 595.0
                                 },
                                 "TravelerRefs": [
                                     "travelerRefId_1"
                                 ],
-                                "FareCalculation": "CMB EK DXB 247.00LAAOPLK1 NUC247.00END ROE1.0"
+                                "FareCalculation": "CMB QR X/DOH QR DXB Q CMBDXB20.00 277.50SJR4R1SE QR X/DOH QR CMB Q DXBCMB20.00 277.50SJR4R1SE NUC595.00END ROE1.0"
                             }
                         ]
                     },
                     "TermsAndConditionsFull": [
                         {
                             "@type": "TermsAndConditionsFullAir",
+                            "secureFlightPassengerDataRequiredInd": true,
                             "Identifier": {
                                 "authority": "Travelport",
-                                "value": "48d27f9b-4566-4286-827a-5241c82e0e27"
+                                "value": "0057975c-5fca-4d24-996d-77b65e3a9f95"
                             },
-                            "ExpiryDate": "2026-10-06T18:29:00Z",
+                            "ExpiryDate": "2026-10-30T18:29:00Z",
                             "BaggageAllowance": [
                                 {
                                     "@type": "BaggageAllowanceDetail",
@@ -164,14 +327,50 @@
                                         1
                                     ],
                                     "Text": [
-                                        "25K"
+                                        "30K"
+                                    ]
+                                },
+                                {
+                                    "@type": "BaggageAllowanceDetail",
+                                    "passengerTypeCodes": [
+                                        "ADT"
+                                    ],
+                                    "SegmentSequenceList": [
+                                        2
+                                    ],
+                                    "Text": [
+                                        "30K"
+                                    ]
+                                },
+                                {
+                                    "@type": "BaggageAllowanceDetail",
+                                    "passengerTypeCodes": [
+                                        "ADT"
+                                    ],
+                                    "SegmentSequenceList": [
+                                        3
+                                    ],
+                                    "Text": [
+                                        "30K"
+                                    ]
+                                },
+                                {
+                                    "@type": "BaggageAllowanceDetail",
+                                    "passengerTypeCodes": [
+                                        "ADT"
+                                    ],
+                                    "SegmentSequenceList": [
+                                        4
+                                    ],
+                                    "Text": [
+                                        "30K"
                                     ]
                                 }
                             ],
                             "ValidatingAirline": [
                                 {
                                     "@type": "ValidatingAirline",
-                                    "ValidatingAirline": "EK"
+                                    "ValidatingAirline": "QR"
                                 }
                             ],
                             "TicketingAgency": [
@@ -180,7 +379,7 @@
                                     "Code": "7F3C"
                                 }
                             ],
-                            "PaymentTimeLimit": "2026-10-07T18:29:00Z",
+                            "PaymentTimeLimit": "2026-10-31T18:29:00Z",
                             "PricingAgency": [
                                 {
                                     "@type": "PricingAgency",
@@ -203,12 +402,647 @@
                             "@type": "TermsAndConditionsFullAir",
                             "Restriction": [
                                 {
-                                    "value": "NON-END/SAVER"
+                                    "value": "NON END/CHNG PENALTIES"
                                 },
                                 {
-                                    "value": "REWARD UPGDS  ALLOWED"
+                                    "value": "AS PER RULE"
                                 }
                             ]
+                        }
+                    ]
+                },
+                {
+                    "@type": "Offer",
+                    "id": "an_o1",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "05f3522f-0c8e-44f0-99fa-3fc8e13697ea"
+                    },
+                    "Product": [
+                        {
+                            "@type": "ProductAncillary",
+                            "id": "product_seat_Flight_01_1",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "8f7f2766-c0ec-4667-bc76-9e3894c8cf05"
+                            },
+                            "Ancillary": {
+                                "@type": "AncillaryAirSeat",
+                                "Description": [
+                                    {
+                                        "code": "A",
+                                        "subCode": "0B5",
+                                        "codeContext": "ATPCO",
+                                        "value": "PREFERRED SEAT"
+                                    }
+                                ],
+                                "FlightRef": [
+                                    "Flight_01"
+                                ],
+                                "SeatAssignment": {
+                                    "@type": "SeatAssignment",
+                                    "Seat": "14A"
+                                }
+                            }
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "CurrencyCode": {
+                            "decimalPlace": 0,
+                            "value": "LKR"
+                        },
+                        "Base": 17711,
+                        "TotalTaxes": 0,
+                        "TotalPrice": 17711,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAncillaryAir",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "Tax": [
+                                            {
+                                                "value": 0
+                                            }
+                                        ]
+                                    }
+                                },
+                                "Description": {
+                                    "code": "A",
+                                    "subCode": "0B5",
+                                    "codeContext": "ATPCO",
+                                    "value": "PREFERRED SEAT"
+                                },
+                                "TravelerIdentifierRef": {
+                                    "name": "JOHN MR",
+                                    "passengerTypeCode": "ADT",
+                                    "id": "travelerRefId_1",
+                                    "value": "DOE"
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAncillary",
+                            "ApplicationLimit": {
+                                "start": "1",
+                                "end": "1",
+                                "value": "PassengerSegment"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "@type": "Offer",
+                    "id": "an_o2",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "0a1364c3-1e4a-42de-ae2f-100813fa29be"
+                    },
+                    "Product": [
+                        {
+                            "@type": "ProductAncillary",
+                            "id": "product_seat_Flight_02_1",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "c02c5d6b-8616-4160-bc0a-580b053e83f7"
+                            },
+                            "Ancillary": {
+                                "@type": "AncillaryAirSeat",
+                                "Description": [
+                                    {
+                                        "code": "A",
+                                        "subCode": "0B5",
+                                        "codeContext": "ATPCO",
+                                        "value": "EXTRA LEGROOM"
+                                    }
+                                ],
+                                "FlightRef": [
+                                    "Flight_02"
+                                ],
+                                "SeatAssignment": {
+                                    "@type": "SeatAssignment",
+                                    "Seat": "16A"
+                                }
+                            }
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "CurrencyCode": {
+                            "decimalPlace": 0,
+                            "value": "LKR"
+                        },
+                        "Base": 15668,
+                        "TotalTaxes": 0,
+                        "TotalPrice": 15668,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAncillaryAir",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "Tax": [
+                                            {
+                                                "value": 0
+                                            }
+                                        ]
+                                    }
+                                },
+                                "Description": {
+                                    "code": "A",
+                                    "subCode": "0B5",
+                                    "codeContext": "ATPCO",
+                                    "value": "EXTRA LEGROOM"
+                                },
+                                "TravelerIdentifierRef": {
+                                    "name": "JOHN MR",
+                                    "passengerTypeCode": "ADT",
+                                    "id": "travelerRefId_1",
+                                    "value": "DOE"
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAncillary",
+                            "ApplicationLimit": {
+                                "start": "1",
+                                "end": "1",
+                                "value": "PassengerSegment"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "@type": "Offer",
+                    "id": "an_o3",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "f41d94c3-83d3-46dd-8757-9803cd957b89"
+                    },
+                    "Product": [
+                        {
+                            "@type": "ProductAncillary",
+                            "id": "product_seat_Flight_03_1",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "36b62982-7bc6-419a-a163-1f2e951157ee"
+                            },
+                            "Ancillary": {
+                                "@type": "AncillaryAirSeat",
+                                "Description": [
+                                    {
+                                        "code": "A",
+                                        "subCode": "0B5",
+                                        "codeContext": "ATPCO",
+                                        "value": "PREFERRED SEAT"
+                                    }
+                                ],
+                                "FlightRef": [
+                                    "Flight_03"
+                                ],
+                                "SeatAssignment": {
+                                    "@type": "SeatAssignment",
+                                    "Seat": "21A"
+                                }
+                            }
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "CurrencyCode": {
+                            "decimalPlace": 0,
+                            "value": "LKR"
+                        },
+                        "Base": 7834,
+                        "TotalTaxes": 0,
+                        "TotalPrice": 7834,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAncillaryAir",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "Tax": [
+                                            {
+                                                "value": 0
+                                            }
+                                        ]
+                                    }
+                                },
+                                "Description": {
+                                    "code": "A",
+                                    "subCode": "0B5",
+                                    "codeContext": "ATPCO",
+                                    "value": "PREFERRED SEAT"
+                                },
+                                "TravelerIdentifierRef": {
+                                    "name": "JOHN MR",
+                                    "passengerTypeCode": "ADT",
+                                    "id": "travelerRefId_1",
+                                    "value": "DOE"
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAncillary",
+                            "ApplicationLimit": {
+                                "start": "1",
+                                "end": "1",
+                                "value": "PassengerSegment"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "@type": "Offer",
+                    "id": "an_o4",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "91eb43b0-2ab4-4319-b125-f9d33a4b8f76"
+                    },
+                    "Product": [
+                        {
+                            "@type": "ProductAncillary",
+                            "id": "product_seat_Flight_04_1",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "38697403-a0d8-4a7f-8f4c-fbb5139d7dac"
+                            },
+                            "Ancillary": {
+                                "@type": "AncillaryAirSeat",
+                                "Description": [
+                                    {
+                                        "code": "A",
+                                        "subCode": "0B5",
+                                        "codeContext": "ATPCO",
+                                        "value": "PREFERRED SEAT"
+                                    }
+                                ],
+                                "FlightRef": [
+                                    "Flight_04"
+                                ],
+                                "SeatAssignment": {
+                                    "@type": "SeatAssignment",
+                                    "Seat": "16A"
+                                }
+                            }
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "CurrencyCode": {
+                            "decimalPlace": 0,
+                            "value": "LKR"
+                        },
+                        "Base": 17711,
+                        "TotalTaxes": 0,
+                        "TotalPrice": 17711,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAncillaryAir",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "Tax": [
+                                            {
+                                                "value": 0
+                                            }
+                                        ]
+                                    }
+                                },
+                                "Description": {
+                                    "code": "A",
+                                    "subCode": "0B5",
+                                    "codeContext": "ATPCO",
+                                    "value": "PREFERRED SEAT"
+                                },
+                                "TravelerIdentifierRef": {
+                                    "name": "JOHN MR",
+                                    "passengerTypeCode": "ADT",
+                                    "id": "travelerRefId_1",
+                                    "value": "DOE"
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAncillary",
+                            "ApplicationLimit": {
+                                "start": "1",
+                                "end": "1",
+                                "value": "PassengerSegment"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "@type": "Offer",
+                    "id": "an_o5",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "7cc98cdc-7b16-4e61-a361-e363161913c0"
+                    },
+                    "ContentSource": "GDS",
+                    "Product": [
+                        {
+                            "@type": "ProductAncillary",
+                            "id": "product_nonbag_01_1",
+                            "Quantity": 1,
+                            "Ancillary": {
+                                "@type": "AncillaryAir",
+                                "quantity": 1,
+                                "Description": [
+                                    {
+                                        "code": "LG",
+                                        "subCode": "PLT",
+                                        "ssrCode": "PLTL",
+                                        "subGroup": "WT",
+                                        "value": "PLATINUM LOUNGE"
+                                    },
+                                    {
+                                        "code": "ASVC",
+                                        "subCode": "SSR",
+                                        "value": "**HNHKB3/E/PLT/PLTL/LKR/37413/0/PLATINUM LOUNGE"
+                                    },
+                                    {
+                                        "code": "PLTL",
+                                        "subCode": "SSR",
+                                        "value": "**HNHKB3/"
+                                    }
+                                ],
+                                "FlightRef": [
+                                    "Flight_01"
+                                ]
+                            }
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "CurrencyCode": {
+                            "value": "LKR"
+                        },
+                        "Base": 37413,
+                        "TotalTaxes": 0,
+                        "TotalPrice": 37413,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAncillaryAir",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "Tax": [
+                                            {
+                                                "value": 0
+                                            }
+                                        ]
+                                    }
+                                },
+                                "Commission": {
+                                    "@type": "Commission",
+                                    "application": "Non-paying"
+                                },
+                                "Description": {
+                                    "issuanceReasonCode": "E",
+                                    "geographicSpecification": "Sector",
+                                    "value": "Associated to a flight coupon of a ticket"
+                                },
+                                "AncillaryPriceApplicationCode": {
+                                    "application": "Per travel",
+                                    "value": "4"
+                                },
+                                "TravelerIdentifierRef": {
+                                    "name": "JOHN MR",
+                                    "passengerTypeCode": "ADT",
+                                    "id": "travelerRefId_1",
+                                    "value": "DOE"
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAncillary",
+                            "fulfillmentType": "EMD-A Associated",
+                            "ApplicationLimit": {
+                                "start": "1",
+                                "end": "1",
+                                "value": "PassengerSegment"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "@type": "Offer",
+                    "id": "an_o6",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "473d1faa-8591-4068-9c4b-dd0819b1dae5"
+                    },
+                    "ContentSource": "GDS",
+                    "Product": [
+                        {
+                            "@type": "ProductAncillary",
+                            "id": "product_nonbag_03_1",
+                            "Quantity": 1,
+                            "Ancillary": {
+                                "@type": "AncillaryAir",
+                                "quantity": 1,
+                                "Description": [
+                                    {
+                                        "code": "LG",
+                                        "subCode": "PLT",
+                                        "ssrCode": "PLTL",
+                                        "subGroup": "WT",
+                                        "value": "PLATINUM LOUNGE"
+                                    },
+                                    {
+                                        "code": "ASVC",
+                                        "subCode": "SSR",
+                                        "value": "**HNHKB3/E/PLT/PLTL/LKR/37413/0/PLATINUM LOUNGE"
+                                    },
+                                    {
+                                        "code": "PLTL",
+                                        "subCode": "SSR",
+                                        "value": "**HNHKB3/"
+                                    }
+                                ],
+                                "FlightRef": [
+                                    "Flight_03"
+                                ]
+                            }
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "CurrencyCode": {
+                            "value": "LKR"
+                        },
+                        "Base": 37413,
+                        "TotalTaxes": 0,
+                        "TotalPrice": 37413,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAncillaryAir",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "Tax": [
+                                            {
+                                                "value": 0
+                                            }
+                                        ]
+                                    }
+                                },
+                                "Commission": {
+                                    "@type": "Commission",
+                                    "application": "Non-paying"
+                                },
+                                "Description": {
+                                    "issuanceReasonCode": "E",
+                                    "geographicSpecification": "Sector",
+                                    "value": "Associated to a flight coupon of a ticket"
+                                },
+                                "AncillaryPriceApplicationCode": {
+                                    "application": "Per travel",
+                                    "value": "4"
+                                },
+                                "TravelerIdentifierRef": {
+                                    "name": "JOHN MR",
+                                    "passengerTypeCode": "ADT",
+                                    "id": "travelerRefId_1",
+                                    "value": "DOE"
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAncillary",
+                            "fulfillmentType": "EMD-A Associated",
+                            "ApplicationLimit": {
+                                "start": "1",
+                                "end": "1",
+                                "value": "PassengerSegment"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "@type": "Offer",
+                    "id": "an_o7",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "9f42b092-f3a1-4e5f-bc29-b59a4512d769"
+                    },
+                    "ContentSource": "GDS",
+                    "Product": [
+                        {
+                            "@type": "ProductAncillary",
+                            "id": "product_nonbag_03_1",
+                            "Identifier": {
+                                "authority": "Travelport",
+                                "value": "7b6db2d9-43a5-4a06-ac95-fb33813ddd74"
+                            },
+                            "Quantity": 1,
+                            "Ancillary": {
+                                "@type": "AncillaryAirBaggage",
+                                "quantity": 1,
+                                "Description": [
+                                    {
+                                        "code": "BG",
+                                        "subCode": "0DG",
+                                        "ssrCode": "XWBG",
+                                        "subGroup": "XS",
+                                        "value": "WEIGHT SYSTEM CHARGE"
+                                    },
+                                    {
+                                        "value": "C-RepriceRequired"
+                                    },
+                                    {
+                                        "code": "ASVC",
+                                        "subCode": "SSR",
+                                        "value": "**HNHKB3/C/0DG/XWBG/LKR/6812/0/WEIGHT SYSTEM CHARGE"
+                                    },
+                                    {
+                                        "code": "XWBG",
+                                        "subCode": "SSR",
+                                        "value": "**HNHKB3/"
+                                    }
+                                ],
+                                "FlightRef": [
+                                    "Flight_03",
+                                    "Flight_04"
+                                ]
+                            }
+                        }
+                    ],
+                    "Price": {
+                        "@type": "PriceDetail",
+                        "CurrencyCode": {
+                            "value": "LKR"
+                        },
+                        "Base": 6812,
+                        "TotalTaxes": 0,
+                        "TotalPrice": 6812,
+                        "PriceBreakdown": [
+                            {
+                                "@type": "PriceBreakdownAncillaryAir",
+                                "Amount": {
+                                    "@type": "Amount",
+                                    "Taxes": {
+                                        "@type": "TaxesDetail",
+                                        "Tax": [
+                                            {
+                                                "value": 0
+                                            }
+                                        ]
+                                    }
+                                },
+                                "Commission": {
+                                    "@type": "Commission",
+                                    "application": "Non-paying"
+                                },
+                                "Description": {
+                                    "issuanceReasonCode": "C",
+                                    "geographicSpecification": "Portion",
+                                    "value": "Associated to a flight coupon of a ticket"
+                                },
+                                "AncillaryPriceApplicationCode": {
+                                    "application": "1 kg over free allowance",
+                                    "value": "K"
+                                },
+                                "TravelerIdentifierRef": {
+                                    "name": "JOHN MR",
+                                    "passengerTypeCode": "ADT",
+                                    "id": "travelerRefId_1",
+                                    "value": "DOE"
+                                }
+                            }
+                        ]
+                    },
+                    "TermsAndConditionsFull": [
+                        {
+                            "@type": "TermsAndConditionsFullAncillary",
+                            "fulfillmentType": "EMD-A Associated",
+                            "ApplicationLimit": {
+                                "start": "1",
+                                "end": "1",
+                                "value": "PassengerSegment"
+                            }
                         }
                     ]
                 }
@@ -216,24 +1050,24 @@
             "Traveler": [
                 {
                     "@type": "Traveler",
-                    "birthDate": "2026-05-04",
+                    "birthDate": "2026-05-01",
                     "gender": "Male",
                     "passengerTypeCode": "ADT",
                     "id": "travelerRefId_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "07680d81-3ea4-4d74-af93-212ade1e75a5"
+                        "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
                     },
                     "PersonName": {
                         "@type": "PersonName",
-                        "Given": "TRWT MR",
-                        "Surname": "RWT"
+                        "Given": "JOHN MR",
+                        "Surname": "DOE"
                     },
                     "Telephone": [
                         {
                             "@type": "TelephoneDetail",
                             "countryAccessCode": "94",
-                            "phoneNumber": "77777777",
+                            "phoneNumber": "771231111",
                             "id": "telephone_1",
                             "cityCode": "CMB",
                             "role": "Mobile"
@@ -255,29 +1089,109 @@
                         },
                         {
                             "emailType": "TO",
-                            "value": "aaaa@gmail.com"
+                            "value": "aaa@gmail.com"
                         }
                     ],
                     "TravelDocument": [
                         {
                             "@type": "TravelDocumentDetail",
-                            "docNumber": "N213123213",
+                            "docNumber": "N2131333",
                             "docType": "Passport",
-                            "expireDate": "2026-10-30",
+                            "expireDate": "2027-03-31",
                             "issueCountry": "LK",
-                            "birthDate": "2026-05-04",
+                            "birthDate": "2026-05-01",
                             "Gender": "Male",
                             "Nationality": "LK",
                             "PersonName": {
                                 "@type": "PersonName",
-                                "Given": "TRWT",
-                                "Surname": "RWT"
+                                "Given": "JOHN",
+                                "Surname": "DOE"
+                            }
+                        },
+                        {
+                            "@type": "TravelDocumentDetail",
+                            "docNumber": "N2131333",
+                            "docType": "Passport",
+                            "expireDate": "2027-03-31",
+                            "issueCountry": "LK",
+                            "birthDate": "2026-05-01",
+                            "Gender": "Male",
+                            "Nationality": "LK",
+                            "PersonName": {
+                                "@type": "PersonName",
+                                "Given": "JOHN",
+                                "Middle": "INVALID TEXT DATA",
+                                "Surname": "DOE"
                             }
                         }
                     ]
                 }
             ],
             "TravelerProduct": [
+                {
+                    "@type": "TravelerProduct",
+                    "id": "trav_prod_1",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "an_o1",
+                    "ProductRef": "product_seat_Flight_01_1",
+                    "ConfirmationStatusEnum": "Confirmed"
+                },
+                {
+                    "@type": "TravelerProduct",
+                    "id": "trav_prod_3",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "an_o5",
+                    "ProductRef": "product_nonbag_01_1",
+                    "ConfirmationStatusEnum": "Pending"
+                },
+                {
+                    "@type": "TravelerProduct",
+                    "id": "trav_prod_3",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "an_o2",
+                    "ProductRef": "product_seat_Flight_02_1",
+                    "ConfirmationStatusEnum": "Confirmed"
+                },
+                {
+                    "@type": "TravelerProduct",
+                    "id": "trav_prod_5",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "an_o4",
+                    "ProductRef": "product_bag_02_1",
+                    "ConfirmationStatusEnum": "Pending"
+                },
+                {
+                    "@type": "TravelerProduct",
+                    "id": "trav_prod_5",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "an_o3",
+                    "ProductRef": "product_seat_Flight_03_1",
+                    "ConfirmationStatusEnum": "Confirmed"
+                },
+                {
+                    "@type": "TravelerProduct",
+                    "id": "trav_prod_7",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "an_o6",
+                    "ProductRef": "product_nonbag_03_1",
+                    "ConfirmationStatusEnum": "Pending"
+                },
+                {
+                    "@type": "TravelerProduct",
+                    "id": "trav_prod_8",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "an_o7",
+                    "ProductRef": "product_nonbag_03_1",
+                    "ConfirmationStatusEnum": "Pending"
+                },
+                {
+                    "@type": "TravelerProduct",
+                    "id": "trav_prod_8",
+                    "TravelerRef": "travelerRefId_1",
+                    "OfferRef": "an_o4",
+                    "ProductRef": "product_seat_Flight_04_1",
+                    "ConfirmationStatusEnum": "Confirmed"
+                },
                 {
                     "@type": "TravelerProduct",
                     "id": "travelerProduct_1",
@@ -292,7 +1206,7 @@
                     "FormOfPaymentRef": "formOfPayment_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "1bdafc01-3b9d-45c4-aebb-6e59b16f1aed"
+                        "value": "0f5ac004-3a96-4088-bb39-7e3e29d7d7bb"
                     }
                 }
             ],
@@ -303,11 +1217,11 @@
                     "PaymentRef": "payment_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "7edb6d84-7750-4c2b-9459-be76291b97a8"
+                        "value": "ef721e7b-7da5-4f12-b4dd-d3c958a0b592"
                     },
                     "Amount": {
                         "minorUnit": 0,
-                        "value": 105100
+                        "value": 276451
                     },
                     "FormOfPaymentIdentifier": {
                         "FormOfPaymentRef": "formOfPayment_1"
@@ -319,7 +1233,7 @@
                     "@type": "ReceiptConfirmation",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "c144dd54-9524-48b0-9631-12a394ab973a"
+                        "value": "95332bf4-53bc-4c5b-9460-1d2fd18fd3c0"
                     },
                     "Confirmation": {
                         "@type": "ConfirmationHold",
@@ -328,7 +1242,10 @@
                             "StatusAir": [
                                 {
                                     "flightRefs": [
-                                        "Flight_01"
+                                        "Flight_01",
+                                        "Flight_02",
+                                        "Flight_03",
+                                        "Flight_04"
                                     ],
                                     "code": "HK",
                                     "value": "Confirmed"
@@ -337,8 +1254,8 @@
                         },
                         "Locator": {
                             "source": "1G",
-                            "creationDate": "2026-10-06",
-                            "value": "HN9VSR"
+                            "creationDate": "2026-10-30",
+                            "value": "HNHKB3"
                         }
                     }
                 },
@@ -346,24 +1263,24 @@
                     "@type": "ReceiptConfirmation",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "417f6742-392e-46df-a6b1-f52a72669665"
+                        "value": "3bfb5f2d-3c02-4e47-8174-2c37451cb8e2"
                     },
                     "Confirmation": {
                         "@type": "ConfirmationHold",
                         "Locator": {
-                            "source": "EK",
-                            "value": "KDVYMJ"
+                            "source": "1A",
+                            "value": "55UIJK"
                         }
                     }
                 },
                 {
                     "@type": "ReceiptPayment",
-                    "dateTime": "2026-10-06T07:29:00Z",
+                    "dateTime": "2026-10-30T04:39:00Z",
                     "id": "receipt_1",
                     "ReceiptRef": "receipt_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "bc43f78d-5333-4f95-9b69-809f6d6883df"
+                        "value": "65425ec9-71b1-4006-ab28-e857f923dce8"
                     },
                     "OfferRef": [
                         "offer_1"
@@ -371,11 +1288,11 @@
                     "Document": [
                         {
                             "@type": "DocumentTicket",
-                            "Number": "1762903683688",
+                            "Number": "1572903683751",
                             "TravelerIdentifierRef": {
                                 "passengerTypeCode": "ADT",
                                 "id": "travelerRefId_1",
-                                "value": "9b15f2fe-3f79-4e13-a8ea-9abb9d0cec4a"
+                                "value": "1b44c1f6-69c2-49f4-b9fe-0ce4b027b575"
                             },
                             "Amount": {
                                 "@type": "Amount",
@@ -383,28 +1300,60 @@
                                     "decimalPlace": 0,
                                     "value": "LKR"
                                 },
-                                "Base": 84200,
+                                "Base": 202700,
                                 "Taxes": {
                                     "@type": "TaxesDetail",
-                                    "TotalTaxes": 20900,
+                                    "TotalTaxes": 73751,
                                     "Tax": [
                                         {
                                             "taxCode": "LK",
                                             "value": 20436
                                         },
                                         {
-                                            "taxCode": "ZR",
+                                            "taxCode": "G4",
+                                            "value": 11224
+                                        },
+                                        {
+                                            "taxCode": "PZ",
+                                            "value": 1022
+                                        },
+                                        {
+                                            "taxCode": "QA",
+                                            "value": 11224
+                                        },
+                                        {
+                                            "taxCode": "R9",
+                                            "value": 1872
+                                        },
+                                        {
+                                            "taxCode": "AE",
+                                            "value": 6956
+                                        },
+                                        {
+                                            "taxCode": "F6",
+                                            "value": 4637
+                                        },
+                                        {
+                                            "taxCode": "TP",
                                             "value": 464
+                                        },
+                                        {
+                                            "taxCode": "ZR",
+                                            "value": 928
+                                        },
+                                        {
+                                            "taxCode": "YR",
+                                            "value": 14988
                                         }
                                     ]
                                 },
-                                "Total": 105100
+                                "Total": 276451
                             },
                             "IssuingPCC": "7F3C",
                             "FiledAmount": {
                                 "currencyCode": "USD",
                                 "decimalPlace": 0,
-                                "value": 24700
+                                "value": 59500
                             }
                         }
                     ],
@@ -413,9 +1362,187 @@
                         "PaymentRef": "payment_1",
                         "Identifier": {
                             "authority": "Travelport",
-                            "value": "7edb6d84-7750-4c2b-9459-be76291b97a8"
+                            "value": "ef721e7b-7da5-4f12-b4dd-d3c958a0b592"
                         }
                     }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "OfferRef": [
+                        "an_o1"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAncillary",
+                            "StatusAncillary": [
+                                {
+                                    "value": "Pending"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "OfferRef": [
+                        "an_o5"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAncillary",
+                            "StatusAncillary": [
+                                {
+                                    "value": "Pending"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "OfferRef": [
+                        "an_o4"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAncillary",
+                            "StatusAncillary": [
+                                {
+                                    "value": "Pending"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "OfferRef": [
+                        "an_o3"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAncillary",
+                            "StatusAncillary": [
+                                {
+                                    "value": "Pending"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "OfferRef": [
+                        "an_o6"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAncillary",
+                            "StatusAncillary": [
+                                {
+                                    "value": "Pending"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "OfferRef": [
+                        "an_o7"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAncillary",
+                            "StatusAncillary": [
+                                {
+                                    "value": "Pending"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "@type": "ReceiptConfirmation",
+                    "OfferRef": [
+                        "an_o4"
+                    ],
+                    "Confirmation": {
+                        "@type": "ConfirmationHold",
+                        "OfferStatus": {
+                            "@type": "OfferStatusAncillary",
+                            "StatusAncillary": [
+                                {
+                                    "value": "Pending"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "ReservationComment": [
+                {
+                    "@type": "ReservationComment",
+                    "commentSource": "Supplier",
+                    "shareWith": "Agency",
+                    "shareWithSupplier": [
+                        "1A"
+                    ],
+                    "id": "RSRVComment_1",
+                    "Comment": [
+                        {
+                            "id": "VeiComment_6",
+                            "name": "Vendor Remarks",
+                            "value": "142343842515 - FARE RULE OVERRIDES TKT DEADLINE IF MORE RESTRICTIVE"
+                        },
+                        {
+                            "id": "VeiComment_7",
+                            "name": "Vendor Remarks",
+                            "value": "ADTK1GTOQR BY 30OCT 1206 CMB TIME ZONE OTHERWISE WILL BE XLD"
+                        }
+                    ]
+                },
+                {
+                    "@type": "ReservationComment",
+                    "commentSource": "Supplier",
+                    "shareWith": "Agency",
+                    "shareWithSupplier": [
+                        "QR"
+                    ],
+                    "id": "RSRVComment_2",
+                    "Comment": [
+                        {
+                            "id": "VeiComment_1",
+                            "name": "Vendor Remarks",
+                            "value": "MISSING SSR CTCM MOBILE OR SSR CTCE EMAIL OR SSR CTCR NON-CONSENT FOR QR"
+                        },
+                        {
+                            "id": "VeiComment_2",
+                            "name": "Vendor Remarks",
+                            "value": "ETSYNC SSRTKNX - ETICKET NUMBER DOES NOT EXIST - 1572903683751"
+                        },
+                        {
+                            "id": "VeiComment_3",
+                            "name": "Vendor Remarks",
+                            "value": "ETSYNC SSRTKNX - ETICKET NUMBER DOES NOT EXIST - 1572903683751"
+                        },
+                        {
+                            "id": "VeiComment_4",
+                            "name": "Vendor Remarks",
+                            "value": "ETSYNC SSRTKNX - ETICKET NUMBER DOES NOT EXIST - 1572903683751"
+                        },
+                        {
+                            "id": "VeiComment_5",
+                            "name": "Vendor Remarks",
+                            "value": "ETSYNC SSRTKNX - ETICKET NUMBER DOES NOT EXIST - 1572903683751"
+                        }
+                    ]
                 }
             ],
             "TravelAgency": {
@@ -423,7 +1550,7 @@
                 "id": "travelAgency_1",
                 "Identifier": {
                     "authority": "Travelport",
-                    "value": "0aaa0da9-2a89-47dd-8bfa-a89c97b5da91"
+                    "value": "a6bc320b-9f30-4330-b009-f64509a8fbfe"
                 },
                 "Telephone": [
                     {
@@ -463,7 +1590,106 @@
                     "id": "SpecialService_1",
                     "Identifier": {
                         "authority": "Travelport",
-                        "value": "aa92b2db-bf33-4840-b37b-ff0e265b83a7"
+                        "value": "6e0ef7cf-5d87-4c9e-9113-89ad4776b46d"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_1"
+                        },
+                        "SegmentSequenceList": [
+                            1
+                        ]
+                    },
+                    "Status": {
+                        "value": "Pending"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "**A/0B5/RQST/PREFERRED SEAT",
+                    "SSRCode": "ASVC"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_2",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "6746ac12-4dbb-4e3c-b359-46dfe36f2993"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_1"
+                        },
+                        "SegmentSequenceList": [
+                            1
+                        ]
+                    },
+                    "Status": {
+                        "value": "Pending"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "**E/PLT/PLTL/PLATINUM LOUNGE",
+                    "SSRCode": "ASVC"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_3",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "cf5e267b-c682-4d07-8654-fe7d8ad39171"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_1"
+                        },
+                        "SegmentSequenceList": [
+                            1
+                        ]
+                    },
+                    "Status": {
+                        "value": "Rejected"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "USE FREEFLOW INFORMATION",
+                    "SSRCode": "PLTL"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_4",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "e92663a3-8707-410e-95f7-07c1a5c20f22"
                     },
                     "AppliesTo": {
                         "@type": "AppliesToOfferProductSegment",
@@ -484,12 +1710,408 @@
                         "TravelerRef": "travelerRefId_1",
                         "Identifier": {
                             "authority": "Travelport",
-                            "value": "07680d81-3ea4-4d74-af93-212ade1e75a5"
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
                         }
                     },
                     "Quantity": 1,
-                    "FreeText": "1762903683688C1",
+                    "FreeText": "1572903683751C1",
                     "SSRCode": "TKNE"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_5",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "d94b72a8-dbad-46e5-8af3-7d746930aa4b"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_1"
+                        },
+                        "SegmentSequenceList": [
+                            2
+                        ]
+                    },
+                    "Status": {
+                        "value": "Pending"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "**A/0B5/RQST/EXTRA LEGROOM",
+                    "SSRCode": "ASVC"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_6",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "53fcfd5b-282f-4d78-a619-d6249722f99f"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_1"
+                        },
+                        "SegmentSequenceList": [
+                            2
+                        ]
+                    },
+                    "Status": {
+                        "value": "Confirmed"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "1572903683751C2",
+                    "SSRCode": "TKNE"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_7",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "125b6354-3be1-43e2-8a28-0dfb6a38912e"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            3
+                        ]
+                    },
+                    "Status": {
+                        "value": "Pending"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "**A/0B5/RQST/PREFERRED SEAT",
+                    "SSRCode": "ASVC"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_8",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "419fa19e-0bdc-41fe-858b-893d49dcbdc2"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            3
+                        ]
+                    },
+                    "Status": {
+                        "value": "Pending"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "**E/PLT/PLTL/PLATINUM LOUNGE",
+                    "SSRCode": "ASVC"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_9",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "d98fe28f-0a5e-4f6f-85fe-ee964036f615"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            3
+                        ]
+                    },
+                    "Status": {
+                        "value": "Pending"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "**C/0DG/XWBG/WEIGHT SYSTEM CHARGE",
+                    "SSRCode": "ASVC"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_10",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "79ee79d7-b119-4037-9f3c-efc18b30881b"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            3
+                        ]
+                    },
+                    "Status": {
+                        "value": "Rejected"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "USE FREEFLOW INFORMATION",
+                    "SSRCode": "PLTL"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_11",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "0b267273-4b9a-4612-b993-5587c5f02698"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            3
+                        ]
+                    },
+                    "Status": {
+                        "value": "Confirmed"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "1572903683751C3",
+                    "SSRCode": "TKNE"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_12",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "5ad86138-1c37-4415-8086-0a08173539fd"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            3
+                        ]
+                    },
+                    "Status": {
+                        "value": "Rejected"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "TEXT INFORMATION REQUIRED",
+                    "SSRCode": "XWBG"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_13",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "1785a71d-9cd2-4513-a899-cb5d654677f0"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            4
+                        ]
+                    },
+                    "Status": {
+                        "value": "Pending"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "**A/0B5/RQST/PREFERRED SEAT",
+                    "SSRCode": "ASVC"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_14",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "c65dc22a-a00f-4d49-af29-a297fd021ff3"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            4
+                        ]
+                    },
+                    "Status": {
+                        "value": "Pending"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "**C/0DG/XWBG/WEIGHT SYSTEM CHARGE",
+                    "SSRCode": "ASVC"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_15",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "f952339f-4cf7-41a1-9947-1d377c1300e4"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            4
+                        ]
+                    },
+                    "Status": {
+                        "value": "Confirmed"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "1572903683751C4",
+                    "SSRCode": "TKNE"
+                },
+                {
+                    "@type": "SpecialService",
+                    "id": "SpecialService_16",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "70780729-aa5a-45be-9f97-972cfc442d65"
+                    },
+                    "AppliesTo": {
+                        "@type": "AppliesToOfferProductSegment",
+                        "OfferIdentifier": {
+                            "offerRef": "offer_1"
+                        },
+                        "ProductIdentifier": {
+                            "productRef": "product_2"
+                        },
+                        "SegmentSequenceList": [
+                            4
+                        ]
+                    },
+                    "Status": {
+                        "value": "Rejected"
+                    },
+                    "TravelerIdentifier": {
+                        "TravelerRef": "travelerRefId_1",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "44540d53-1fd2-4ba8-9373-0ecc78c54083"
+                        }
+                    },
+                    "Quantity": 1,
+                    "FreeText": "TEXT INFORMATION REQUIRED",
+                    "SSRCode": "XWBG"
                 }
             ],
             "ReservationDisplaySequence": {
@@ -501,6 +2123,27 @@
                         "OfferRef": "offer_1",
                         "ProductRef": "product_1",
                         "Sequence": 1
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 2,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_1",
+                        "Sequence": 2
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 3,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2",
+                        "Sequence": 3
+                    },
+                    {
+                        "@type": "DisplaySequence",
+                        "displaySequence": 4,
+                        "OfferRef": "offer_1",
+                        "ProductRef": "product_2",
+                        "Sequence": 4
                     }
                 ]
             }

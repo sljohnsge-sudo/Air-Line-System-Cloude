@@ -1,20 +1,19 @@
 {
     "TicketListResponse": {
-        "atType": "TicketListResponse",
         "TicketID": [
             {
                 "@type": "TicketSummary",
                 "Identifier": {
-                    "value": "0982903683682"
+                    "value": "6032903683733"
                 },
                 "numberOfTicketsIssued": 1,
                 "PersonName": {
                     "@type": "PersonName",
-                    "Given": "AGLKF MR",
-                    "Surname": "FDSF"
+                    "Given": "TEST MR",
+                    "Surname": "TRAVELER"
                 },
                 "ReservationLocator": {
-                    "value": "HN6R5X",
+                    "value": "HNFNMY",
                     "supplierCode": "1G"
                 },
                 "FormOfPayment": [
@@ -27,68 +26,79 @@
                         "atType": "TicketSegment",
                         "@type": "TicketSegment",
                         "sequence": 1,
-                        "ClassOfService": "U",
-                        "FareBasisCode": "UL3YXSL4",
+                        "ClassOfService": "S",
+                        "FareBasisCode": "S3MLK",
                         "Status": "OpenForUse",
-                        "Carrier": "AI",
-                        "Number": "6221",
+                        "Carrier": "UL",
+                        "Number": "225",
                         "Departure": {
                             "@type": "Departure",
                             "location": "CMB",
-                            "date": "2026-09-24",
-                            "time": "23:40:00"
+                            "date": "2026-11-12",
+                            "time": "18:40:00"
                         },
                         "Arrival": {
                             "@type": "Arrival",
-                            "location": "BOM"
+                            "location": "DXB"
                         },
                         "FlightStatusCode": "OK",
                         "TicketBaggage": {
                             "atType": "TicketBaggage",
                             "@type": "TicketBaggage",
-                            "quantity": 1,
-                            "soldByPieceInd": true
+                            "Measurement": [
+                                {
+                                    "value": 30,
+                                    "measurementType": "Weight",
+                                    "unit": "Kilograms"
+                                }
+                            ],
+                            "soldByWeightInd": true
                         }
                     },
                     {
                         "atType": "TicketSegment",
                         "@type": "TicketSegment",
                         "sequence": 2,
-                        "ClassOfService": "U",
-                        "FareBasisCode": "UL3YXSL4",
-                        "Status": "OtherAirlineControl",
-                        "Carrier": "AI",
-                        "Number": "129",
+                        "ClassOfService": "V",
+                        "FareBasisCode": "V3MLK",
+                        "Status": "OpenForUse",
+                        "Carrier": "UL",
+                        "Number": "226",
                         "Departure": {
                             "@type": "Departure",
-                            "location": "BOM",
-                            "date": "2026-09-25",
-                            "time": "05:05:00"
+                            "location": "DXB",
+                            "date": "2026-11-19",
+                            "time": "23:10:00"
                         },
                         "Arrival": {
                             "@type": "Arrival",
-                            "location": "LHR"
+                            "location": "CMB"
                         },
                         "FlightStatusCode": "OK",
                         "TicketBaggage": {
                             "atType": "TicketBaggage",
                             "@type": "TicketBaggage",
-                            "quantity": 1,
-                            "soldByPieceInd": true
-                        },
-                        "connectionInd": true
+                            "Measurement": [
+                                {
+                                    "value": 30,
+                                    "measurementType": "Weight",
+                                    "unit": "Kilograms"
+                                }
+                            ],
+                            "soldByWeightInd": true
+                        }
                     }
                 ],
                 "TicketPrice": {
                     "atType": "TicketPrice",
                     "@type": "TicketPrice",
                     "fareCalculation": "G",
-                    "fareBreakdown": "CMB AI X/BOM AI LON 250.96UL3YXSL4 NUC250.96END ROE1.0",
+                    "fareBreakdown": "CMB UL DXB Q20.00Q2.00 150.00S3MLK UL CMB Q20.00Q2.00 160.00V3MLK NUC354.00END ROE1.0",
                     "CurrencyCode": {
                         "value": "LKR",
                         "decimalPlace": 0
                     },
-                    "Base": 85500,
+                    "Base": 120600,
                     "Taxes": {
                         "@type": "TaxesDetail",
                         "Tax": [
@@ -99,38 +109,52 @@
                                 "decimalPlace": 0
                             },
                             {
-                                "value": 68119,
+                                "value": 6956,
                                 "currencyCode": "LKR",
-                                "taxCode": "YQ",
+                                "taxCode": "AE",
                                 "decimalPlace": 0
                             },
                             {
-                                "value": 572,
+                                "value": 4637,
                                 "currencyCode": "LKR",
-                                "taxCode": "YR",
+                                "taxCode": "F6",
+                                "decimalPlace": 0
+                            },
+                            {
+                                "value": 464,
+                                "currencyCode": "LKR",
+                                "taxCode": "TP",
+                                "decimalPlace": 0
+                            },
+                            {
+                                "value": 928,
+                                "currencyCode": "LKR",
+                                "taxCode": "ZR",
+                                "decimalPlace": 0
+                            },
+                            {
+                                "value": 34060,
+                                "currencyCode": "LKR",
+                                "taxCode": "YQ",
                                 "decimalPlace": 0
                             }
                         ]
                     },
-                    "Total": 174627,
-                    "Commission": {
-                        "@type": "CommissionPercent",
-                        "Percent": 1
-                    },
+                    "Total": 188081,
                     "FiledAmount": {
-                        "value": 251.0,
+                        "value": 354.0,
                         "currencyCode": "USD",
                         "decimalPlace": 2
                     }
                 },
                 "PassengerTypeCode": "ADT",
-                "ValidatingCarrier": "098",
+                "ValidatingCarrier": "603",
                 "PricingType": "Auto Priced",
                 "Restrictions": [
-                    "[NON-END/CHANGE/CANCELLATION/N                                         O-SHOW/PENALTY MAY APPLY]"
+                    "[VALID ON UL ONLY/CHANGE FEE M                                         AY APPLY]"
                 ],
                 "AgencyInfo": {
-                    "ticketedDate": "2026-09-23",
+                    "ticketedDate": "2026-10-22",
                     "name": "GEORGE STEUARTS TRAVEL INT L",
                     "ticketingPCC": "7F3C",
                     "code": "07300020",

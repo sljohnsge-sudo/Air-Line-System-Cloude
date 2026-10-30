@@ -1,0 +1,359 @@
+{
+    "OfferListResponse": {
+        "@type": "OfferListResponse",
+        "transactionId": "19ae62b2d4165bd98fc175be8dd4d523",
+        "traceId": "TraceID_BAA09C6610B8",
+        "OfferID": [
+            {
+                "@type": "Offer",
+                "id": "o0",
+                "ContentSource": "GDS",
+                "Product": [
+                    {
+                        "@type": "ProductAir",
+                        "totalDuration": "PT12H10M",
+                        "id": "p0",
+                        "FlightSegment": [
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s1",
+                                "sequence": 1,
+                                "connectionDuration": "PT6H",
+                                "boundFlightsInd": true,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 2245,
+                                    "duration": "PT4H50M",
+                                    "carrier": "QR",
+                                    "number": "665",
+                                    "operatingCarrier": "QR",
+                                    "operatingCarrierName": "Qatar Airways",
+                                    "equipment": "788",
+                                    "id": "f1",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "location": "CMB",
+                                        "date": "2026-11-05",
+                                        "time": "10:15:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "location": "DOH",
+                                        "date": "2026-11-05",
+                                        "time": "12:35:00"
+                                    },
+                                    "AvailabilitySourceCode": "S"
+                                }
+                            },
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s2",
+                                "sequence": 2,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 229,
+                                    "duration": "PT1H20M",
+                                    "carrier": "QR",
+                                    "number": "1014",
+                                    "operatingCarrier": "QR",
+                                    "operatingCarrierName": "Qatar Airways",
+                                    "equipment": "359",
+                                    "id": "f2",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "location": "DOH",
+                                        "date": "2026-11-05",
+                                        "time": "18:35:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "1",
+                                        "location": "DXB",
+                                        "date": "2026-11-05",
+                                        "time": "20:55:00"
+                                    },
+                                    "AvailabilitySourceCode": "S"
+                                }
+                            }
+                        ],
+                        "PassengerFlight": [
+                            {
+                                "@type": "PassengerFlight",
+                                "passengerQuantity": 1,
+                                "passengerTypeCode": "ADT",
+                                "FlightProduct": [
+                                    {
+                                        "@type": "FlightProduct",
+                                        "segmentSequence": [
+                                            1,
+                                            2
+                                        ],
+                                        "classOfService": "H",
+                                        "cabin": "Economy",
+                                        "fareBasisCode": "HJR4R1FI",
+                                        "fareType": "PublicFare",
+                                        "fareTypeCode": "EU"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "Price": {
+                    "@type": "PriceDetail",
+                    "id": "price0",
+                    "CurrencyCode": {
+                        "decimalPlace": 0,
+                        "value": "LKR"
+                    },
+                    "Base": 231300,
+                    "TotalTaxes": 41065,
+                    "TotalFees": 0,
+                    "TotalPrice": 272365,
+                    "PriceBreakdown": [
+                        {
+                            "@type": "PriceBreakdownAir",
+                            "quantity": 1,
+                            "requestedPassengerType": "ADT",
+                            "Amount": {
+                                "@type": "Amount",
+                                "CurrencyCode": {
+                                    "decimalPlace": 0,
+                                    "value": "LKR"
+                                },
+                                "Base": 231300,
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "TotalTaxes": 41065,
+                                    "Tax": [
+                                        {
+                                            "taxCode": "LK",
+                                            "description": "EMBARKATION TAX",
+                                            "value": 20436
+                                        },
+                                        {
+                                            "taxCode": "G4",
+                                            "description": "PASSENGER FACILITY CHARGE PFC",
+                                            "value": 5612
+                                        },
+                                        {
+                                            "taxCode": "PZ",
+                                            "description": "PASSENGER SERVICE CHARGE ARRIVALS",
+                                            "value": 511
+                                        },
+                                        {
+                                            "taxCode": "QA",
+                                            "description": "AIRPORT FEE INTERNATIONAL",
+                                            "value": 5612
+                                        },
+                                        {
+                                            "taxCode": "R9",
+                                            "description": "PASSENGER SAFETY AND SECURITY FEE PSSF",
+                                            "value": 936
+                                        },
+                                        {
+                                            "taxCode": "ZR",
+                                            "description": "INTERNATIONAL ADVANCED PASSENGER INFORMATION FEE ARRIVALS",
+                                            "value": 464
+                                        },
+                                        {
+                                            "taxCode": "YR",
+                                            "value": 7494
+                                        }
+                                    ]
+                                },
+                                "Fees": {
+                                    "@type": "FeesDetail",
+                                    "TotalFees": 0
+                                },
+                                "Total": 272365
+                            },
+                            "FiledAmount": {
+                                "currencyCode": "USD",
+                                "decimalPlace": 2,
+                                "value": 679
+                            },
+                            "FareCalculation": "CMB QR X/DOH QR DXB 679.00HJR4R1FI NUC679.00END ROE1.0"
+                        }
+                    ]
+                },
+                "TermsAndConditionsFull": [
+                    {
+                        "@type": "TermsAndConditionsFullAir",
+                        "secureFlightPassengerDataRequiredInd": true,
+                        "ExpiryDate": "2026-11-05T08:15:00Z",
+                        "BaggageAllowance": [
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/QR",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "FirstCheckedBag",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByWeightInd": true,
+                                        "Measurement": [
+                                            {
+                                                "measurementType": "Weight",
+                                                "unit": "Kilograms",
+                                                "value": 35
+                                            }
+                                        ],
+                                        "Text": "CHGS MAY APPLY IF BAGS EXCEED TTL WT ALLOWANCE"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1,
+                                    2
+                                ],
+                                "Text": [
+                                    "35K"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO45LI/115LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO45LI/115LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    2
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            }
+                        ],
+                        "Restriction": [
+                            {
+                                "value": "NON END/CHNG PENALTIES"
+                            },
+                            {
+                                "value": "AS PER RULE"
+                            }
+                        ],
+                        "ValidatingAirline": [
+                            {
+                                "@type": "ValidatingAirline",
+                                "ValidatingAirline": "QR"
+                            }
+                        ],
+                        "TicketingAgency": [
+                            {
+                                "@type": "TicketingAgency",
+                                "Code": "7F3C"
+                            }
+                        ],
+                        "PaymentTimeLimit": "2026-11-05T08:15:00Z",
+                        "Penalties": [
+                            {
+                                "@type": "Penalties",
+                                "Change": [
+                                    {
+                                        "@type": "ChangePermitted",
+                                        "penaltyTypes": [
+                                            "Anytime"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "value": 0
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "Cancel": [
+                                    {
+                                        "@type": "CancelPermitted",
+                                        "penaltyTypes": [
+                                            "Anytime"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "value": 0
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "PassengerTypeCodes": [
+                                    "ADT"
+                                ]
+                            }
+                        ],
+                        "FareGuaranteePolicy": [
+                            {
+                                "@type": "FareGuaranteePolicy",
+                                "Code": {
+                                    "value": "G"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "Identifier": {
+            "value": "efa80ce3-6d4d-4ea6-a247-42206f4e37e7_PC"
+        }
+    }
+}

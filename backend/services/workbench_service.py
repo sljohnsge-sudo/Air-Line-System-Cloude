@@ -16,6 +16,7 @@ import time
 from datetime import datetime
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
+from services import seat_rules
 from services.auth_service import get_auth_headers, invalidate_token, flow_trace_id
 from services.pricing_service import get_settings as get_pricing_settings, apply_markup
 from utils import tp_logger
@@ -2027,6 +2028,7 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
                         else:
                             item["reason"] = "Travelport did not return an offer for this seat"
                 except Exception as e:
+                    seat_rules.learn(str(e))  # remember the airline's seating-range rule
                     for item, _ in entries:
                         item["reason"] = str(e)
 
@@ -2080,10 +2082,11 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
     for item, kind, offer_id in booked:
         status = statuses.get(offer_id)
         if status in ("confirmed", "pending"):
-            # On the PNR — paid for (and its EMD issued) at ticketing.
+            # On the PNR. Only "confirmed" is charged and paid (EMD) at
+            # ticketing; "pending" is just a request the airline hasn't answered.
             item["status"] = status
             item["offer_id"] = offer_id
-            item["reason"] = None if status == "confirmed" else "Requested from the airline — awaiting their confirmation"
+            item["reason"] = None if status == "confirmed" else "Requested from the airline — not charged unless the airline confirms it"
         else:
             item["reason"] = (f"Airline status: {status}" if status else None) or \
                 "; ".join(m for m in commit_errors if m) or "Not added to the booking by the airline"

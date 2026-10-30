@@ -1,0 +1,128 @@
+{
+    "OfferListResponse": {
+        "@type": "OfferListResponse",
+        "transactionId": "3ee2f9c750ab42b9ec0de544a561f24b",
+        "traceId": "TraceID_7620B6C81F33",
+        "OfferID": [
+            {
+                "@type": "Offer",
+                "id": "an_o1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "05f3522f-0c8e-44f0-99fa-3fc8e13697ea"
+                },
+                "ContentSource": "GDS",
+                "Product": [
+                    {
+                        "@type": "ProductAncillary",
+                        "id": "product_seat_Flight_01_1",
+                        "Ancillary": {
+                            "@type": "AncillaryAirSeat",
+                            "Description": [
+                                {
+                                    "code": "A",
+                                    "subCode": "0B5",
+                                    "codeContext": "ATPCO",
+                                    "value": "PREFERRED SEAT"
+                                }
+                            ],
+                            "FlightRef": [
+                                "Flight_01"
+                            ],
+                            "SeatAssignment": {
+                                "@type": "SeatAssignment",
+                                "Seat": "14A"
+                            }
+                        }
+                    }
+                ],
+                "Price": {
+                    "@type": "PriceDetail",
+                    "CurrencyCode": {
+                        "decimalPlace": 0,
+                        "value": "LKR"
+                    },
+                    "Base": 17711,
+                    "TotalTaxes": 0,
+                    "TotalPrice": 17711,
+                    "PriceBreakdown": [
+                        {
+                            "@type": "PriceBreakdownAncillaryAir",
+                            "Amount": {
+                                "@type": "Amount",
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "Tax": [
+                                        {
+                                            "value": 0
+                                        }
+                                    ]
+                                }
+                            },
+                            "Description": {
+                                "code": "A",
+                                "subCode": "0B5",
+                                "codeContext": "ATPCO",
+                                "value": "PREFERRED SEAT"
+                            },
+                            "TravelerIdentifierRef": {
+                                "name": "JOHN MR",
+                                "passengerTypeCode": "ADT",
+                                "id": "travelerRefId_1",
+                                "value": "DOE"
+                            }
+                        }
+                    ]
+                },
+                "TermsAndConditionsFull": [
+                    {
+                        "@type": "TermsAndConditionsFullAncillary",
+                        "ApplicationLimit": {
+                            "start": "1",
+                            "end": "1",
+                            "value": "PassengerSegment"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Result": {
+            "@type": "Result"
+        },
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "c7463cce-da91-4267-957d-682d68053088"
+        },
+        "ReferenceList": [
+            {
+                "@type": "ReferenceListFlight",
+                "Flight": [
+                    {
+                        "@type": "Flight",
+                        "duration": "PT4H50M",
+                        "carrier": "QR",
+                        "number": "659",
+                        "equipment": "789",
+                        "id": "Flight_01",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "6f44f453-2ab2-459a-a9d7-0c254063508a"
+                        },
+                        "Departure": {
+                            "@type": "Departure",
+                            "location": "CMB",
+                            "date": "2026-10-31",
+                            "time": "03:25:00"
+                        },
+                        "Arrival": {
+                            "@type": "Arrival",
+                            "location": "DOH",
+                            "date": "2026-10-31",
+                            "time": "05:45:00"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}

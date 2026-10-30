@@ -1,0 +1,172 @@
+{
+    "OfferListResponse": {
+        "@type": "OfferListResponse",
+        "transactionId": "7902ccb12308d18f1c9b80280927d111",
+        "traceId": "TraceID_B830DFF76522",
+        "OfferID": [
+            {
+                "@type": "Offer",
+                "id": "an_o1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "f1070612-0fd0-4ccf-9937-c7f78e3182b7"
+                },
+                "ContentSource": "GDS",
+                "Product": [
+                    {
+                        "@type": "ProductAncillary",
+                        "id": "product_nonbag_01_1",
+                        "Quantity": 1,
+                        "Ancillary": {
+                            "@type": "AncillaryAirBaggage",
+                            "soldByWeightInd": true,
+                            "quantity": 1,
+                            "Description": [
+                                {
+                                    "code": "BG",
+                                    "subCode": "0C1",
+                                    "ssrCode": "XBBJ",
+                                    "value": "UPTO33LB 15KG BAGGAGE"
+                                },
+                                {
+                                    "code": "ASVC",
+                                    "subCode": "SSR",
+                                    "value": "**HNFNMY/C/0C1/XBBJ/LKR/51089/0/UPTO33LB 15KG BAGGAGE"
+                                },
+                                {
+                                    "code": "XBBJ",
+                                    "subCode": "SSR",
+                                    "value": "**HNFNMY/"
+                                }
+                            ],
+                            "FlightRef": [
+                                "Flight_01"
+                            ],
+                            "Measurement": [
+                                {
+                                    "measurementType": "Weight",
+                                    "unit": "Kilograms",
+                                    "value": 15
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "Price": {
+                    "@type": "PriceDetail",
+                    "CurrencyCode": {
+                        "value": "LKR"
+                    },
+                    "Base": 51089,
+                    "TotalTaxes": 0,
+                    "TotalPrice": 51089,
+                    "PriceBreakdown": [
+                        {
+                            "@type": "PriceBreakdownAncillaryAir",
+                            "Amount": {
+                                "@type": "Amount",
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "Tax": [
+                                        {
+                                            "value": 0
+                                        }
+                                    ]
+                                }
+                            },
+                            "Commission": {
+                                "@type": "Commission",
+                                "application": "Non-paying"
+                            },
+                            "Description": {
+                                "issuanceReasonCode": "C",
+                                "geographicSpecification": "Portion",
+                                "value": "Associated to a flight coupon of a ticket"
+                            },
+                            "AncillaryPriceApplicationCode": {
+                                "application": "Per travel",
+                                "value": "4"
+                            },
+                            "TravelerIdentifierRef": {
+                                "name": "TEST MR",
+                                "passengerTypeCode": "ADT",
+                                "id": "travelerRefId_1",
+                                "value": "TRAVELER"
+                            }
+                        }
+                    ]
+                },
+                "TermsAndConditionsFull": [
+                    {
+                        "@type": "TermsAndConditionsFullAncillary",
+                        "fulfillmentType": "EMD-A Associated",
+                        "ApplicationLimit": {
+                            "start": "1",
+                            "end": "1",
+                            "value": "PassengerSegment"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "ad80deca-b537-4bed-9199-ac309b45de32"
+        },
+        "ReferenceList": [
+            {
+                "@type": "ReferenceListFlight",
+                "Flight": [
+                    {
+                        "@type": "Flight",
+                        "duration": "PT4H20M",
+                        "carrier": "UL",
+                        "number": "226",
+                        "equipment": "332",
+                        "id": "Flight_02",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "d1ea60b9-7e15-4de6-a54c-2a12331d82d1"
+                        },
+                        "Departure": {
+                            "@type": "Departure",
+                            "location": "DXB",
+                            "date": "2026-11-19",
+                            "time": "23:10:00"
+                        },
+                        "Arrival": {
+                            "@type": "Arrival",
+                            "location": "CMB",
+                            "date": "2026-11-20",
+                            "time": "05:00:00"
+                        }
+                    },
+                    {
+                        "@type": "Flight",
+                        "duration": "PT4H40M",
+                        "carrier": "UL",
+                        "number": "225",
+                        "equipment": "332",
+                        "id": "Flight_01",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "02b08f55-88f8-4bf5-b29e-0a95c4f50463"
+                        },
+                        "Departure": {
+                            "@type": "Departure",
+                            "location": "CMB",
+                            "date": "2026-11-12",
+                            "time": "18:40:00"
+                        },
+                        "Arrival": {
+                            "@type": "Arrival",
+                            "location": "DXB",
+                            "date": "2026-11-12",
+                            "time": "21:50:00"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}

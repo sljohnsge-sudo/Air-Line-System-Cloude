@@ -1,0 +1,268 @@
+{
+    "OfferListResponse": {
+        "@type": "OfferListResponse",
+        "transactionId": "b33911f0216b305cf9fba07c96c766b0",
+        "traceId": "TraceID_2CFD0426DF4C",
+        "OfferID": [
+            {
+                "@type": "Offer",
+                "id": "o0",
+                "ContentSource": "GDS",
+                "Product": [
+                    {
+                        "@type": "ProductAir",
+                        "totalDuration": "PT4H40M",
+                        "id": "p0",
+                        "FlightSegment": [
+                            {
+                                "@type": "FlightSegment",
+                                "id": "s1",
+                                "sequence": 1,
+                                "Flight": {
+                                    "@type": "FlightDetail",
+                                    "distance": 2061,
+                                    "duration": "PT4H40M",
+                                    "carrier": "EY",
+                                    "number": "395",
+                                    "operatingCarrier": "EY",
+                                    "operatingCarrierName": "Etihad Airways",
+                                    "equipment": "321",
+                                    "id": "f1",
+                                    "Departure": {
+                                        "@type": "DepartureDetail",
+                                        "location": "CMB",
+                                        "date": "2026-11-19",
+                                        "time": "04:00:00"
+                                    },
+                                    "Arrival": {
+                                        "@type": "ArrivalDetail",
+                                        "terminal": "A",
+                                        "location": "AUH",
+                                        "date": "2026-11-19",
+                                        "time": "07:10:00"
+                                    },
+                                    "AvailabilitySourceCode": "S"
+                                }
+                            }
+                        ],
+                        "PassengerFlight": [
+                            {
+                                "@type": "PassengerFlight",
+                                "passengerQuantity": 1,
+                                "passengerTypeCode": "ADT",
+                                "FlightProduct": [
+                                    {
+                                        "@type": "FlightProduct",
+                                        "segmentSequence": [
+                                            1
+                                        ],
+                                        "classOfService": "E",
+                                        "cabin": "Economy",
+                                        "fareBasisCode": "EN400V66",
+                                        "fareType": "PublicFare",
+                                        "fareTypeCode": "ERS"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "Price": {
+                    "@type": "PriceDetail",
+                    "id": "price0",
+                    "CurrencyCode": {
+                        "decimalPlace": 0,
+                        "value": "LKR"
+                    },
+                    "Base": 35800,
+                    "TotalTaxes": 20900,
+                    "TotalFees": 0,
+                    "TotalPrice": 56700,
+                    "PriceBreakdown": [
+                        {
+                            "@type": "PriceBreakdownAir",
+                            "quantity": 1,
+                            "requestedPassengerType": "ADT",
+                            "Amount": {
+                                "@type": "Amount",
+                                "CurrencyCode": {
+                                    "decimalPlace": 0,
+                                    "value": "LKR"
+                                },
+                                "Base": 35800,
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "TotalTaxes": 20900,
+                                    "Tax": [
+                                        {
+                                            "taxCode": "LK",
+                                            "description": "EMBARKATION TAX",
+                                            "value": 20436
+                                        },
+                                        {
+                                            "taxCode": "ZR",
+                                            "description": "INTERNATIONAL ADVANCED PASSENGER INFORMATION FEE ARRIVALS",
+                                            "value": 464
+                                        }
+                                    ]
+                                },
+                                "Fees": {
+                                    "@type": "FeesDetail",
+                                    "TotalFees": 0
+                                },
+                                "Total": 56700
+                            },
+                            "FiledAmount": {
+                                "currencyCode": "USD",
+                                "decimalPlace": 2,
+                                "value": 105
+                            },
+                            "FareCalculation": "CMB EY AUH 105.00EN400V66 NUC105.00END ROE1.0"
+                        }
+                    ]
+                },
+                "TermsAndConditionsFull": [
+                    {
+                        "@type": "TermsAndConditionsFullAir",
+                        "ExpiryDate": "2026-11-19T02:00:00Z",
+                        "BaggageAllowance": [
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "url": "http://VIEWTRIP.TRAVELPORT.COM/BAGGAGEPOLICY/EY",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "FirstCheckedBag",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByWeightInd": true,
+                                        "Measurement": [
+                                            {
+                                                "measurementType": "Weight",
+                                                "unit": "Kilograms",
+                                                "value": 25
+                                            }
+                                        ],
+                                        "Text": "CHGS MAY APPLY IF BAGS EXCEED TTL WT ALLOWANCE"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1
+                                ],
+                                "Text": [
+                                    "25K"
+                                ]
+                            },
+                            {
+                                "@type": "BaggageAllowanceDetail",
+                                "passengerTypeCodes": [
+                                    "ADT"
+                                ],
+                                "baggageType": "CarryOn",
+                                "ProductRef": [
+                                    "p0"
+                                ],
+                                "BaggageItem": [
+                                    {
+                                        "@type": "BaggageItem",
+                                        "quantity": 1,
+                                        "includedInOfferPrice": "Yes",
+                                        "soldByPieceInd": true,
+                                        "BaggageFee": {
+                                            "code": "LKR",
+                                            "approximateInd": true,
+                                            "value": 0
+                                        },
+                                        "Text": "UPTO15LB/7KG AND UPTO45LI/115LCM"
+                                    }
+                                ],
+                                "SegmentSequenceList": [
+                                    1
+                                ],
+                                "Text": [
+                                    "1P"
+                                ]
+                            }
+                        ],
+                        "Restriction": [
+                            {
+                                "value": "NON ENDO/ NONREF"
+                            }
+                        ],
+                        "ValidatingAirline": [
+                            {
+                                "@type": "ValidatingAirline",
+                                "ValidatingAirline": "EY"
+                            }
+                        ],
+                        "TicketingAgency": [
+                            {
+                                "@type": "TicketingAgency",
+                                "Code": "7F3C"
+                            }
+                        ],
+                        "PaymentTimeLimit": "2026-11-19T02:00:00Z",
+                        "Penalties": [
+                            {
+                                "@type": "Penalties",
+                                "Change": [
+                                    {
+                                        "@type": "ChangePermitted",
+                                        "penaltyTypes": [
+                                            "Anytime"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyAmount",
+                                                "Amount": {
+                                                    "code": "LKR",
+                                                    "minorUnit": 0,
+                                                    "value": 27300
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "Cancel": [
+                                    {
+                                        "@type": "CancelPermitted",
+                                        "penaltyTypes": [
+                                            "Anytime"
+                                        ],
+                                        "PenaltyAppliesTo": "PerTicket",
+                                        "Penalty": [
+                                            {
+                                                "@type": "PenaltyPercent",
+                                                "Percent": 100
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "PassengerTypeCodes": [
+                                    "ADT"
+                                ]
+                            }
+                        ],
+                        "FareGuaranteePolicy": [
+                            {
+                                "@type": "FareGuaranteePolicy",
+                                "Code": {
+                                    "value": "G"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "Identifier": {
+            "value": "29ce3a46-1f74-4ece-83bb-bc9bc09c1f6f_PC"
+        }
+    }
+}

@@ -1,41 +1,57 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/hotel/search/properties/search' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTE0MzgxMjAsImV4cCI6MTc5MTUyNDUyMCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ExDVl5Yy4UQ9JmDctCJ2NChUbX5MWLUb5btCoLMd6nvsv2gbxp9O8-ntheWKpkIOwUzs1ry4gN3jbEjJlKCnDlR0CXjoXDJoWzUKGzc1zyuheoyeO1Sdvkn2tszand7PoCVRkwhFbKGrTgsrQX4-B1r5L6jOEwz0FXNWGGmCWygWIaLFpd9kNJL_5qa_Vvz_P4WOrJgCIG929MCAN56oiy_mtvP-KWe4N3MG5KGvxZxQ5j6yX5V3xia_r_bum65e4CVgROuLghZCR3WDrk8fynji3Jlfeml52JLSd0RpGfIN9UsN-5UBe9FvovopzBPY_qzenDK1B9YEPFdTF9-BYA' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/catalog/search/catalogproductofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTI3MzE0MDIsImV4cCI6MTc5MjgxNzgwMiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.tNrndNB8Jfe3VJKmvbahf9tedgl6qulfKOKObxGkzuKCB2hAQBau08Nel9zrgH1JYzvv7q1o91ZxAJrInE8kVVS_4YzhIWQYdb54ic0uUry58uw3XcgSrTBiAV-x7L1LEHQQjzboOQcNV4m0Wt1JXC7fIutXl3Aple78GUerQveCAYWZjWDK_CoWvLUcabZbKPTACdy5asBNAk45oQUHobTJK-Hl1ApYAUD8tBzuTj1iYqjM70tX2hO8k5i633Pz_JaQc2BUu5Wh_wyufOrJzx-F8iePMx91rDNMvtby_RkE5MQcOXLgMTkxcmPylSYbXuLCTPHcRmqfCEZpG8Cr6A' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
 --header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
---header 'tvp-pcc-core: 7F3C_1G' \
---header 'traceid: TraceID_39568F1716A5' \
---header 'tvp-correlation-id: 5d3f8bd9-1d35-49e9-b35c-988431dc749a' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_63069AB353DB' \
+--header 'fareindicator: true' \
 --data-raw '{
-    "PropertiesQuerySearch": {
-        "@type": "PropertiesQuerySearch",
-        "CheckInDate": "2026-10-09",
-        "CheckOutDate": "2026-10-10",
-        "RequestedCurrency": "USD",
-        "RoomStayCandidate": [
+    "@type": "CatalogProductOfferingsQueryRequest",
+    "CatalogProductOfferingsRequest": {
+        "@type": "CatalogProductOfferingsRequestAir",
+        "maxNumberOfUpsellsToReturn": 4,
+        "offersPerPage": 999,
+        "contentSourceList": [
+            "GDS",
+            "NDC"
+        ],
+        "PassengerCriteria": [
             {
-                "@type": "RoomStayCandidate",
-                "GuestCounts": {
-                    "@type": "GuestCounts",
-                    "GuestCount": [
-                        {
-                            "@type": "GuestCount",
-                            "count": 2,
-                            "ageQualifyingCode": "10"
-                        }
-                    ]
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "SearchCriteriaFlight": [
+            {
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2026-10-24",
+                "From": {
+                    "value": "CMB"
+                },
+                "To": {
+                    "value": "DXB"
+                }
+            },
+            {
+                "@type": "SearchCriteriaFlight",
+                "departureDate": "2026-10-31",
+                "From": {
+                    "value": "DXB"
+                },
+                "To": {
+                    "value": "CMB"
                 }
             }
         ],
-        "SearchBy": {
-            "@type": "SearchByCity",
-            "SearchCity": "AUH",
-            "SearchRadius": {
-                "value": 30,
-                "unitOfDistance": "Kilometers"
-            }
-        },
-        "returnOnlyAvailablePropertiesInd": true
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "currencyCode": "LKR"
+        }
     }
 }'

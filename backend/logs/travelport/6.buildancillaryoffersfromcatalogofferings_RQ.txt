@@ -1,0 +1,37 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/fa83b16a-21bf-4526-9d34-62692dd8f565/offers/buildancillaryoffersfromcatalogofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTI3MzY2ODksImV4cCI6MTc5MjgyMzA4OSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ST2ej3WX47EYYKyjBesLmQS6AouNnwkcLCxRGjeeUJZFuMvVqCY7loIg1js2r0qO3Au-plDpiHmbj8nx-75DqvmdJchG7FCVMKrRemcuE9K7oHG5DKyahkbKRjznM0gw_ss19MWOfZdCYsvQ6_jBMCP9yzx-6wPWLMKbd-o4ObNg8X5MGJHZZPR6tuAwGNjDues8lW6jn0nsrcykEZcJzh89jUrskKk57vAo2eBH-WQpR93MWc2pihEuvP6tJ08NjLWIHqYcNRUOREeZ_640WMK6SfMMYaUZe8yECwSM4_3Y7V7U34q00BJNth6lmyjuCAKWZTv6vtD30wqFUqkN1A' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_F23D07869162' \
+--data-raw '{
+    "OfferQueryBuildAncillaryOffersFromCatalogOfferings": {
+        "@type": "OfferQueryBuildAncillaryOffersFromCatalogOfferings",
+        "BuildAncillaryOffersFromCatalogOfferings": [
+            {
+                "@type": "BuildAncillaryOffersFromCatalogOfferingsAirSeat",
+                "CatalogOfferingsIdentifier": {
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "c2d948c6-cb74-46df-904a-084c7dcb5946"
+                    }
+                },
+                "CatalogOfferingIdentifier": {
+                    "Identifier": {
+                        "authority": "SQ",
+                        "value": "UTJnMGFVaEVTV0ZEUVVsaFFsUkpkMDFVYTNkSloxVjVUVVJGTlUxRGIwSk5SRWxFVkVWMFUwOUJSbkZLVWtsRFZURkZZVUpHU2xKVk1WRnBRWHBDUTA1VWIwTlZNRVpoUVZWSFEwRlJlRkZWYTFaT1UxWldUa2xHVGtaUlZsRTl8UEFYMnxTRUcxfHRyYXZlbGVyUmVmSWRfMXxPZmZlcklEOlNFQVRfT0ZGRVI="
+                    }
+                },
+                "TravelerIdentifierRef": {
+                    "id": "travelerRefId_1",
+                    "value": "QURUfFBBWDJ8UHJlZml4Ok1SO0dpdmVuOkFNQUw7U3VybmFtZTpGRVJOQU5ETw=="
+                },
+                "SeatAssignment": "58H"
+            }
+        ]
+    }
+}'

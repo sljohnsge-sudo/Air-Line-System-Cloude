@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/a30f0e38-324c-425d-a6c4-a74ddd2d2290/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3ODk0NjQ0MTIsImV4cCI6MTc4OTU1MDgxMiwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.ex4p3ROdNm_Ui3Ie7CcPpJfGJ_tRox2PywYYgRWMIO-epvRnWZXS63_ks_R5zGMzuYIyT0lJ0dIW09exX-JWLgtIdtEXo1iwnQGmEi7YDPEKHgV2zOxP6y4gqdKkf6qbU12mvtVZGpJrbruRVDVltBXrJ8uWCCk8-E9Ij-D8c2TmygvRC-Qz5xnf9BEbdEvtEtsApGZN3iVf8VOKdjdvtMIVD8CFzJF5ue8Rbr-BDIpCvR-rsy73wxQCmD-B4F9umbKUe7pndMb64g33YWZcXj4BD7znh1djqxsrjrYXxpTlwtTQYGzYagByPIWIdZAzUosJT7T25KmqJktmIVviZQ' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/3ab5a6c2-c0b8-4e8e-97f3-a495965d9398/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTI2NzI1MDUsImV4cCI6MTc5Mjc1ODkwNSwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.O4akIeYWD4Jxbnue0DfNA2nugLwHajhPtyVXSAlvmHkqC77ievJxN0WVGaCxG3Vkyh2BRI0-42b2--QMqH4p2qr8bNbSCczbz7JyE1lAmFKnlBO7luf9eZl4MyhZjsEM6668K44GBOTE7Yl1VHZjIXvEga6bVY5wS_jNJ4AepMc4XqA7KNlApfWvfoW6241stpEd8MpUUC0-kOvZEp_DZI_dA-ZyKpY1cwJumBgWvrFXt2mTgFJu4gJQRsGKHn5sKMVCWxzgCP2ASiAs-Es1SuNPn2j4wZNbK8pfUKl4432TR1zvOEviHsT-1SDhrIK8mT6ZJ1DkpX42QtDbFocWnQ' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,32 +7,68 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/re
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_6D66DE563E8C' \
+--header 'traceid: TraceID_89675764E7BA' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "ac665d33-0223-4eff-8be3-a75f53849242"
-                }
-            },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "EK_CPO0"
-                        }
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "665",
+                        "from": "CMB",
+                        "to": "DOH",
+                        "departureDate": "2026-10-30",
+                        "segmentSequence": 1,
+                        "departureTime": "10:15:00",
+                        "arrivalDate": "2026-10-30",
+                        "arrivalTime": "12:35:00",
+                        "cabin": "Economy",
+                        "classOfService": "N",
+                        "AvailabilitySourceCode": "Q",
+                        "boundFlightsInd": true,
+                        "ContentSource": "GDS"
                     },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "EKp0"
-                            }
-                        }
-                    ]
-                }
-            ]
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "QR",
+                        "flightNumber": "1002",
+                        "from": "DOH",
+                        "to": "DXB",
+                        "departureDate": "2026-10-31",
+                        "segmentSequence": 2,
+                        "departureTime": "01:30:00",
+                        "arrivalDate": "2026-10-31",
+                        "arrivalTime": "03:50:00",
+                        "cabin": "Economy",
+                        "classOfService": "N",
+                        "AvailabilitySourceCode": "Q",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Economy Classic",
+                "BrandRef": "b29"
+            }
         }
     }
 }'

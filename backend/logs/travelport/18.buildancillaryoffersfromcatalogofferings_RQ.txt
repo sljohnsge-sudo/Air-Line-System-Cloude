@@ -1,0 +1,42 @@
+curl --location --globoff 'https://api.pp.travelport.net/11/air/book/airoffer/reservationworkbench/088a5018-bdde-4454-8c05-505b68a485d0/offers/buildancillaryoffersfromcatalogofferings' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTI2Njg1MzgsImV4cCI6MTc5Mjc1NDkzOCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.G60RiLeAPf1MadWHBPVCPxYt4szA-MOqmhivKGY9_JRT1f-4A_TfRKgp_smIVROT0gyPyoA-_NJYVXPhVT2bn8MIh-2xev3huHxSExSbr8XibZSLMPcl4bhZfqQ9my_8iBqUV9lD0tBTDt8l9MYPl28tGl5SbKNXj5ANfndMz10sV5NWCBzQzpJTphIVQKsQ-ZRNQjQMrfx-JS0N0Cepu8INzyJaK8tpv8RGDKl71OqRVdipJZ3n2CMTQ6QshwE4rVsC_19K-SKOjjLthTvZE9Ze6r7XOwEs4tEO0RqacDOo8dJGy9C1OoIPVEtZa-LnEX6M3dv_L3XKVqJZJzAr8w' \
+--header 'content-type: application/json' \
+--header 'accept: application/json' \
+--header 'cache-control: no-cache' \
+--header 'xauth_travelport_accessgroup: 8F3170D6-487F-46B2-8CEE-B3A200FE931F' \
+--header 'taxbreakdown: true' \
+--header 'accept-version: 11' \
+--header 'content-version: 11' \
+--header 'traceid: TraceID_057BD6C31AEE' \
+--data-raw '{
+    "OfferQueryBuildAncillaryOffersFromCatalogOfferings": {
+        "@type": "OfferQueryBuildAncillaryOffersFromCatalogOfferings",
+        "BuildAncillaryOffersFromCatalogOfferings": [
+            {
+                "@type": "BuildAncillaryOffersFromCatalogOfferingsAirSeat",
+                "CatalogOfferingsIdentifier": {
+                    "id": "travflight_h_1_1",
+                    "Identifier": {
+                        "value": "72307795-7799-4bf4-b664-f3e4fcadf5b8",
+                        "authority": "Travelport"
+                    }
+                },
+                "CatalogOfferingIdentifier": {
+                    "id": "ancillaryID_h_1_1_2",
+                    "Identifier": {
+                        "authority": "Travelport",
+                        "value": "e1182132-4bbe-4e1c-9ff7-d522100f9ccd"
+                    }
+                },
+                "ProductIdentifier": {
+                    "id": "productSeatID_h_2"
+                },
+                "TravelerIdentifierRef": {
+                    "id": "travelerRefId_1",
+                    "value": "be3912cc-f583-417a-b2fa-4080d7aa1550"
+                },
+                "SeatAssignment": "20C"
+            }
+        ]
+    }
+}'

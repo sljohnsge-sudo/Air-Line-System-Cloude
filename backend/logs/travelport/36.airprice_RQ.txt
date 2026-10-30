@@ -1,5 +1,5 @@
-curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromcatalogproductofferings' \
---header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTAyMzY3MjQsImV4cCI6MTc5MDMyMzEyNCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.szenH7-U596ama2duy6Tnr7LRetyhOa9-uGV06rOwImlxjU7PIsYhR5PZstq7bYsJCGLnGaZ4J8JwTkn7OxwEXJ3j_fNklC-g_9CimUGS2hdWLLI6NxLZ0qhHHKNAAXwvMsCujyAVBcAUNr23wMRUqRLE2qxH_OaTYRO9GTMGUSal4NZUcAA9n43aoyxWcw3ysPTv8QM5cu_KdIM6Vb_D19b2fDOYuD_OGpOSZO2Vjs_DrdtVT5lMomO4cnZpY5FS3kCHXIuC12awQNM_jyo-MEmSF7JKr3OlFsRgfj0YGi1N9Da4geGtJIllYco6qNXOFtUxm-YUnpnPGJ117Sh3w' \
+curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/buildfromproducts' \
+--header 'authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNra2p0LUVnYTVMcEp5aEN2bXRqYiJ9.eyJOYW1lSUQiOiJUUDkyODQxMDkwIiwidXNlcklkIjoiVFA5Mjg0MTA5MCIsImN1c3RvbWVyTnVtYmVyIjoiNjE1NjQ1IiwicHJlQXV0aG9yaXplZCI6ImZhbHNlIiwic291cmNlSWQiOiJUS1pNQVoiLCJzb3VyY2VUeXBlIjoiQyIsImlzcyI6Imh0dHBzOi8vYXV0aC5wcC50cmF2ZWxwb3J0Lm5ldC8iLCJzdWIiOiJhdXRoMHxUUDkyODQxMDkwIiwiYXVkIjoiaHR0cHM6Ly90cmFlZmlrLXBwLmVkZ2UtZGV2LnR2cHRjbG91ZC5pby8iLCJpYXQiOjE3OTI2Njg1MzgsImV4cCI6MTc5Mjc1NDkzOCwiZ3R5IjoicGFzc3dvcmQiLCJhenAiOiJKVW9zRjJBaHplZVc2bjJYRlRiM2lxQmM5M3VPTXNrMCJ9.G60RiLeAPf1MadWHBPVCPxYt4szA-MOqmhivKGY9_JRT1f-4A_TfRKgp_smIVROT0gyPyoA-_NJYVXPhVT2bn8MIh-2xev3huHxSExSbr8XibZSLMPcl4bhZfqQ9my_8iBqUV9lD0tBTDt8l9MYPl28tGl5SbKNXj5ANfndMz10sV5NWCBzQzpJTphIVQKsQ-ZRNQjQMrfx-JS0N0Cepu8INzyJaK8tpv8RGDKl71OqRVdipJZ3n2CMTQ6QshwE4rVsC_19K-SKOjjLthTvZE9Ze6r7XOwEs4tEO0RqacDOo8dJGy9C1OoIPVEtZa-LnEX6M3dv_L3XKVqJZJzAr8w' \
 --header 'content-type: application/json' \
 --header 'accept: application/json' \
 --header 'cache-control: no-cache' \
@@ -7,46 +7,51 @@ curl --location --globoff 'https://api.pp.travelport.net/11/air/price/offers/bui
 --header 'taxbreakdown: true' \
 --header 'accept-version: 11' \
 --header 'content-version: 11' \
---header 'traceid: TraceID_39F06C66D4DF' \
+--header 'traceid: TraceID_E79496783088' \
 --data-raw '{
-    "OfferQueryBuildFromCatalogProductOfferings": {
-        "BuildFromCatalogProductOfferingsRequest": {
-            "@type": "BuildFromCatalogProductOfferingsRequestAir",
-            "CatalogProductOfferingsIdentifier": {
-                "Identifier": {
-                    "value": "0f0d0514-8042-41c6-8339-1cc54b581bc1"
-                }
-            },
-            "CatalogProductOfferingSelection": [
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "AI_CPO0"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "AIp9"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "CatalogProductOfferingIdentifier": {
-                        "Identifier": {
-                            "value": "AI_CPO1"
-                        }
-                    },
-                    "ProductIdentifier": [
-                        {
-                            "Identifier": {
-                                "value": "AIp15"
-                            }
-                        }
-                    ]
-                }
-            ]
+    "@type": "OfferQueryBuildFromProducts",
+    "validateInventoryInd": true,
+    "BuildFromProductsRequest": {
+        "@type": "BuildFromProductsRequestAir",
+        "ProductCriteriaAir": [
+            {
+                "@type": "ProductCriteriaAir",
+                "sequence": 1,
+                "SpecificFlightCriteria": [
+                    {
+                        "@type": "SpecificFlightCriteria",
+                        "carrier": "UL",
+                        "flightNumber": "225",
+                        "from": "CMB",
+                        "to": "DXB",
+                        "departureDate": "2026-12-03",
+                        "segmentSequence": 1,
+                        "departureTime": "18:40:00",
+                        "arrivalDate": "2026-12-03",
+                        "arrivalTime": "21:50:00",
+                        "cabin": "Economy",
+                        "classOfService": "S",
+                        "AvailabilitySourceCode": "S",
+                        "ContentSource": "GDS"
+                    }
+                ]
+            }
+        ],
+        "PassengerCriteria": [
+            {
+                "@type": "PassengerCriteria",
+                "number": 1,
+                "age": 25,
+                "passengerTypeCode": "ADT"
+            }
+        ],
+        "PricingModifiersAir": {
+            "@type": "PricingModifiersAir",
+            "Brand": {
+                "@type": "Brand",
+                "name": "Econ Value",
+                "BrandRef": "b14"
+            }
         }
     }
 }'

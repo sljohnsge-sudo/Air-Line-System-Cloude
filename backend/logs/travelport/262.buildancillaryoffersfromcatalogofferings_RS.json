@@ -1,0 +1,151 @@
+{
+    "OfferListResponse": {
+        "@type": "OfferListResponse",
+        "transactionId": "25014fc8f06c2835960e7f28fc193c3f",
+        "traceId": "TraceID_52638F4E00A6",
+        "OfferID": [
+            {
+                "@type": "Offer",
+                "id": "an_o1",
+                "Identifier": {
+                    "authority": "Travelport",
+                    "value": "1e8da80e-6056-4c16-baa7-22ab6c07c308"
+                },
+                "ContentSource": "GDS",
+                "Product": [
+                    {
+                        "@type": "ProductAncillary",
+                        "id": "product_nonbag_01_1",
+                        "Quantity": 1,
+                        "Ancillary": {
+                            "@type": "AncillaryAirBaggage",
+                            "soldByPieceInd": true,
+                            "quantity": 1,
+                            "Description": [
+                                {
+                                    "code": "BG",
+                                    "subCode": "AHB",
+                                    "ssrCode": "AHBG",
+                                    "value": "FIRST CHECKED BAG 32KG"
+                                },
+                                {
+                                    "value": "C-RepriceRequired"
+                                },
+                                {
+                                    "code": "ASVC",
+                                    "subCode": "SSR",
+                                    "value": "**HNFNTY/C/AHB/AHBG/LKR/102178/0/FIRST CHECKED BAG 32KG"
+                                },
+                                {
+                                    "code": "AHBG",
+                                    "subCode": "SSR",
+                                    "value": "**HNFNTY/"
+                                }
+                            ],
+                            "FlightRef": [
+                                "Flight_01"
+                            ],
+                            "Measurement": [
+                                {
+                                    "measurementType": "Weight",
+                                    "unit": "Kilograms",
+                                    "value": 32
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "Price": {
+                    "@type": "PriceDetail",
+                    "CurrencyCode": {
+                        "value": "LKR"
+                    },
+                    "Base": 102178,
+                    "TotalTaxes": 0,
+                    "TotalPrice": 102178,
+                    "PriceBreakdown": [
+                        {
+                            "@type": "PriceBreakdownAncillaryAir",
+                            "Amount": {
+                                "@type": "Amount",
+                                "Taxes": {
+                                    "@type": "TaxesDetail",
+                                    "Tax": [
+                                        {
+                                            "value": 0
+                                        }
+                                    ]
+                                }
+                            },
+                            "Commission": {
+                                "@type": "Commission",
+                                "application": "Non-paying"
+                            },
+                            "Description": {
+                                "issuanceReasonCode": "C",
+                                "geographicSpecification": "Portion",
+                                "value": "Associated to a flight coupon of a ticket"
+                            },
+                            "AncillaryPriceApplicationCode": {
+                                "application": "Per travel",
+                                "value": "4"
+                            },
+                            "TravelerIdentifierRef": {
+                                "name": "TEST MR",
+                                "passengerTypeCode": "ADT",
+                                "id": "travelerRefId_1",
+                                "value": "TRAVELER"
+                            }
+                        }
+                    ]
+                },
+                "TermsAndConditionsFull": [
+                    {
+                        "@type": "TermsAndConditionsFullAncillary",
+                        "fulfillmentType": "EMD-A Associated",
+                        "ApplicationLimit": {
+                            "start": "1",
+                            "end": "1",
+                            "value": "PassengerSegment"
+                        }
+                    }
+                ]
+            }
+        ],
+        "Identifier": {
+            "authority": "Travelport",
+            "value": "56404db8-e6ee-4cf9-a2f9-f77e27ef7748"
+        },
+        "ReferenceList": [
+            {
+                "@type": "ReferenceListFlight",
+                "Flight": [
+                    {
+                        "@type": "Flight",
+                        "duration": "PT4H40M",
+                        "carrier": "EY",
+                        "number": "395",
+                        "equipment": "321",
+                        "id": "Flight_01",
+                        "Identifier": {
+                            "authority": "Travelport",
+                            "value": "c1affd5c-de39-4eb7-bb8a-e2ff07bdf9d6"
+                        },
+                        "Departure": {
+                            "@type": "Departure",
+                            "location": "CMB",
+                            "date": "2026-11-05",
+                            "time": "04:00:00"
+                        },
+                        "Arrival": {
+                            "@type": "Arrival",
+                            "location": "AUH",
+                            "date": "2026-11-05",
+                            "time": "07:10:00"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}

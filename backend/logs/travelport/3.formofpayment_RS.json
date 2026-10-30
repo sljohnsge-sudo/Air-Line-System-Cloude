@@ -1,12 +1,18 @@
 {
     "FormOfPaymentResponse": {
         "@type": "FormOfPaymentResponse",
-        "FormOfPayment": {
-            "@type": "FormOfPaymentIdentifier",
-            "Identifier": {
-                "authority": "Travelport",
-                "value": "b24a19d0-e68a-416c-b60f-b096d4368074"
-            }
+        "Result": {
+            "@type": "Result",
+            "Error": [
+                {
+                    "@type": "ErrorDetail",
+                    "category": "VALIDATION",
+                    "StatusCode": 200,
+                    "Message": "FORM OF PAYMENT REQUEST INVALID. DUPLICATE ID REFERENCE",
+                    "SourceID": "1G",
+                    "SourceCode": "4354"
+                }
+            ]
         }
     }
 }
