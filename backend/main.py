@@ -2302,7 +2302,7 @@ def live_booking_status(locator_code: str, principal: Optional[dict] = Depends(a
                 # 4247 — Travelport purges a PNR some time after its last flight.
                 raise HTTPException(status_code=404, detail=(
                     "Travelport no longer holds this booking — bookings are removed from Travelport some time "
-                    f"after the flight. Your ticket record is still under Ticket. (TraceId {trace_id})"))
+                    f"after the flight. Your ticket can still be opened with View / Print Ticket. (TraceId {trace_id})"))
             raise HTTPException(status_code=404, detail=f"Travelport: {e} (TraceId {trace_id})")
         except services.CancelError as e:
             raise HTTPException(status_code=502, detail=f"{e} (TraceId {trace_id})")

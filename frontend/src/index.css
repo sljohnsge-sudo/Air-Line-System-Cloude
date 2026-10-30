@@ -3093,3 +3093,87 @@ body {
   .booking-fullpage .pax-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .booking-fullpage .pax-form .pax-email { grid-column: 1 / -1; }
 }
+
+/* ── Customer Portal → My Bookings line items (BookingLineList.jsx) ───────── */
+/* Sized by the list's own width (container queries), since the portal sidebar
+   takes part of the screen. */
+.booking-lines { padding: 0; overflow: hidden; container-type: inline-size; container-name: booking-lines; }
+.booking-line {
+  display: grid;
+  grid-template-columns: minmax(115px, 1.2fr) minmax(88px, 0.8fr) 124px 108px minmax(100px, 1fr) minmax(100px, 0.9fr) minmax(130px, 1fr) 12px;
+  grid-template-areas: "flight route dep pnr pax fare status go";
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.booking-line:last-child { border-bottom: none; }
+.booking-line:hover, .booking-line:focus-visible { background: #f8fafc; outline: none; }
+.booking-line:focus-visible { box-shadow: inset 3px 0 0 var(--gs-red, #c8102e); }
+.booking-line.is-cancelled { opacity: 0.72; }
+.booking-line-head {
+  cursor: default; background: #f8fafc; padding-top: 0.45rem; padding-bottom: 0.45rem;
+  font-size: 0.6rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.booking-line-head:hover { background: #f8fafc; }
+.booking-line-head .bl-pnr { color: inherit; }
+.booking-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.booking-line small { display: block; font-size: 0.66rem; color: var(--text-muted); margin-top: 0.1rem; white-space: nowrap; }
+.booking-line .bl-flight { grid-area: flight; }
+.booking-line .bl-route { grid-area: route; white-space: nowrap; }
+.booking-line .bl-dep { grid-area: dep; white-space: nowrap; }
+.booking-line .bl-pnr { grid-area: pnr; color: var(--gs-red, #c8102e); }
+.booking-line .bl-ticket { font-family: monospace; font-size: 0.7rem; }
+.booking-line .bl-pax { grid-area: pax; white-space: nowrap; }
+.booking-line .bl-fare { grid-area: fare; text-align: right; white-space: nowrap; }
+.booking-line .bl-status { grid-area: status; }
+.booking-line .bl-status .pass-status-badge { font-size: 0.6rem; }
+.booking-line .bl-go { grid-area: go; color: var(--text-muted); font-size: 1.1rem; text-align: right; }
+
+/* Narrower list: drop the passenger column (it is in the detail view). */
+@container booking-lines (max-width: 860px) {
+  .booking-line {
+    grid-template-columns: minmax(100px, 1.2fr) minmax(88px, 0.9fr) 124px 108px minmax(100px, 0.9fr) minmax(130px, 1fr) 12px;
+    grid-template-areas: "flight route dep pnr fare status go";
+  }
+  .booking-line .bl-pax { display: none; }
+}
+
+/* Phone: each booking becomes two lines — flight, route, status / departure, PNR, fare. */
+@container booking-lines (max-width: 600px) {
+  .booking-line-head { display: none; }
+  .booking-line {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto 12px;
+    grid-template-areas:
+      "flight route status go"
+      "dep    pnr   fare   go";
+    gap: 0.2rem 0.5rem;
+    padding: 0.6rem 0.75rem;
+  }
+  .booking-line .bl-flight small, .booking-line .bl-ticket { display: none; }
+  .booking-line .bl-dep { font-size: 0.72rem; color: var(--text-secondary); }
+  .booking-line .bl-status { text-align: right; }
+  .booking-line .bl-status small { display: none; }
+}
+
+/* ── Booking detail view (BookingDetailView.jsx) ───────────────────────────── */
+.booking-detail-facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem 1rem;
+  margin-top: 0.8rem; font-size: 0.82rem;
+}
+.booking-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.9rem; }
+@media (max-width: 760px) { .booking-detail-grid { grid-template-columns: 1fr; } }
+
+/* Customer Portal: on a phone the section nav sits above the content as a
+   scrolling row of tabs, so My Bookings gets the full width. */
+@media (max-width: 760px) {
+  .customer-portal-layout { flex-direction: column; gap: 0.75rem !important; }
+  .customer-portal-nav {
+    width: 100% !important; position: static !important; flex-direction: row !important;
+    overflow-x: auto; gap: 0.3rem !important; padding-bottom: 0.2rem;
+  }
+  .customer-portal-nav > button { flex-shrink: 0; white-space: nowrap; gap: 0.4rem; }
+}

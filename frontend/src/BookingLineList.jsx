@@ -1,12 +1,13 @@
 // Customer Portal → My Bookings as compact line items (one row per booking)
-// instead of boarding-pass cards. "Live status" opens LiveBookingDialog,
-// which reads the booking straight from Travelport and the airline.
+// instead of boarding-pass cards. A row is a button: click / Enter / Space
+// opens that booking's detail view (BookingDetailView). Layout is a CSS grid
+// (.booking-lines in index.css) that stacks each row into two lines on a phone.
 import { cleanPassengerName } from './BookingCard.jsx';
 
 const CANCELLED = ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'];
 
 // A round trip is saved as CMB → CMB; its legs give the real destination.
-const routeOf = (b) => {
+export const routeOf = (b) => {
   const legs = Array.isArray(b.legs) ? b.legs : [];
   if (legs.length === 2 && legs[1].arrival_airport === legs[0].departure_airport) {
     return `${legs[0].departure_airport} ⇄ ${legs[0].arrival_airport}`;
@@ -17,9 +18,6 @@ const routeOf = (b) => {
   return `${b.departure_airport} → ${b.arrival_airport}`;
 };
 
-const cell = { padding: '0.5rem 0.6rem', borderBottom: '1px solid var(--border-color)', fontSize: '0.8rem', verticalAlign: 'middle' };
-const head = { ...cell, fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', background: '#f8fafc', textAlign: 'left', whiteSpace: 'nowrap' };
-
 // Same rule as the backend refresh: the trip's last flight is today or later.
 const isUpcoming = (b) => {
   const legs = Array.isArray(b.legs) ? b.legs : [];
@@ -29,71 +27,54 @@ const isUpcoming = (b) => {
 
 const time = (iso) => { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
 
-// liveStatuses: locator -> {checked, status, retrieved_at, error} from
-// /customers/me/bookings/refresh-status (upcoming bookings only).
-export default function BookingLineList({ bookings, liveStatuses = {}, refreshing = false, onLiveStatus, onViewTicket, onRequestCancellation }) {
+// liveStatuses: locator -> {checked, status, retrieved_at, missing, error}
+// from /customers/me/bookings/refresh-status (upcoming bookings only).
+export default function BookingLineList({ bookings, liveStatuses = {}, refreshing = false, onOpen }) {
   return (
-    <div className="glass-panel" style={{ overflowX: 'auto', padding: 0 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '880px' }}>
-        <thead>
-          <tr>
-            <th style={head}>Flight</th>
-            <th style={head}>Route</th>
-            <th style={head}>Departure</th>
-            <th style={head}>Passenger</th>
-            <th style={head}>PNR</th>
-            <th style={head}>Ticket</th>
-            <th style={head}>Status</th>
-            <th style={{ ...head, textAlign: 'right' }}>Fare</th>
-            <th style={{ ...head, textAlign: 'right' }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {bookings.map(b => {
-            const live = liveStatuses[b.locator_code];
-            const status = live?.checked ? live.status : b.status;
-            const cancelled = CANCELLED.includes(status);
-            return (
-              <tr key={b.id} style={{ opacity: cancelled ? 0.75 : 1 }}>
-                <td style={cell}>
-                  <div style={{ fontWeight: 700 }}>{b.airline}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{b.flight_number}{b.cabin_class ? ` · ${b.cabin_class}` : ''}</div>
-                </td>
-                <td style={{ ...cell, fontWeight: 700, whiteSpace: 'nowrap' }}>{routeOf(b)}</td>
-                <td style={{ ...cell, whiteSpace: 'nowrap' }}>{(b.departure_time || '').replace('T', ' ').slice(0, 16)}</td>
-                <td style={cell}>{cleanPassengerName(b.passenger_name)}</td>
-                <td style={{ ...cell, fontWeight: 700, color: 'var(--gs-red, #c8102e)' }}>{b.locator_code}</td>
-                <td style={{ ...cell, fontFamily: 'monospace', fontSize: '0.75rem' }}>{b.ticket_number || '—'}</td>
-                <td style={cell}>
-                  <span className={`pass-status-badge ${status?.toLowerCase()}`} style={{ fontSize: '0.62rem' }}>{status}</span>
-                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.15rem', whiteSpace: 'nowrap' }}>
-                    {live?.checked ? <span title="Checked live with Travelport and the airline">✓ Live {time(live.retrieved_at)}</span>
-                      : live?.missing ? <span style={{ color: '#b45309', fontWeight: 700 }} title="Travelport no longer holds this booking — please contact us">⚠ Not found on Travelport</span>
-                      : live ? <span title={live.error}>Couldn't check live</span>
-                      : refreshing && isUpcoming(b) && !CANCELLED.includes(b.status) ? 'Checking…' : ''}
-                  </div>
-                </td>
-                <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>
-                  {b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td style={{ ...cell, textAlign: 'right' }}>
-                  <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-                    <button className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap', fontSize: '0.72rem', padding: '0.3rem 0.55rem' }}
-                            title="Check seats, extras and ticket status live with Travelport and the airline"
-                            onClick={() => onLiveStatus(b)}>Live status</button>
-                    <button className="btn btn-secondary btn-sm" style={{ whiteSpace: 'nowrap', fontSize: '0.72rem', padding: '0.3rem 0.55rem' }}
-                            onClick={() => onViewTicket(b)}>Ticket</button>
-                    {!cancelled && onRequestCancellation && (
-                      <button className="btn btn-secondary btn-sm" style={{ whiteSpace: 'nowrap', fontSize: '0.72rem', padding: '0.3rem 0.55rem' }}
-                              onClick={() => onRequestCancellation(b)}>Cancel…</button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="booking-lines glass-panel">
+      <div className="booking-line booking-line-head" aria-hidden="true">
+        <span className="bl-flight">Flight</span>
+        <span className="bl-route">Route</span>
+        <span className="bl-dep">Departure</span>
+        <span className="bl-pnr">PNR / Ticket</span>
+        <span className="bl-pax">Passenger</span>
+        <span className="bl-fare">Fare</span>
+        <span className="bl-status">Status</span>
+        <span className="bl-go"></span>
+      </div>
+      {bookings.map(b => {
+        const live = liveStatuses[b.locator_code];
+        const status = live?.checked ? live.status : b.status;
+        const cancelled = CANCELLED.includes(status);
+        const open = () => onOpen(b);
+        return (
+          <div key={b.id} role="button" tabIndex={0}
+               className={`booking-line ${cancelled ? 'is-cancelled' : ''}`}
+               aria-label={`Booking ${b.locator_code}, ${b.airline} ${b.flight_number}, ${routeOf(b)}, ${status}. Open details.`}
+               onClick={open}
+               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}>
+            <span className="bl-flight">
+              <strong>{b.airline}</strong>
+              <small>{b.flight_number}{b.cabin_class ? ` · ${b.cabin_class}` : ''}</small>
+            </span>
+            <span className="bl-route"><strong>{routeOf(b)}</strong></span>
+            <span className="bl-dep">{(b.departure_time || '').replace('T', ' ').slice(0, 16)}</span>
+            <span className="bl-pnr"><strong>{b.locator_code}</strong><small className="bl-ticket">{b.ticket_number || 'Not ticketed'}</small></span>
+            <span className="bl-pax">{cleanPassengerName(b.passenger_name)}</span>
+            <span className="bl-fare"><strong>{b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+            <span className="bl-status">
+              <span className={`pass-status-badge ${status?.toLowerCase()}`}>{status}</span>
+              <small>
+                {live?.checked ? <span title="Checked live with Travelport and the airline">✓ Live {time(live.retrieved_at)}</span>
+                  : live?.missing ? <span style={{ color: '#b45309', fontWeight: 700 }} title="Travelport no longer holds this booking — please contact us">⚠ Not on Travelport</span>
+                  : live ? <span title={live.error}>Couldn't check live</span>
+                  : refreshing && isUpcoming(b) && !CANCELLED.includes(b.status) ? 'Checking…' : ''}
+              </small>
+            </span>
+            <span className="bl-go" aria-hidden="true">›</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

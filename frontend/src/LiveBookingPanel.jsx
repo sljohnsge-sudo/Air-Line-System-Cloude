@@ -1,4 +1,4 @@
-// "Live status" for one booking: everything here is read live from
+// Live status panel on a booking's detail view: everything here is read live from
 // Travelport and the airline (GET /api/bookings/{pnr}/live) — flights with
 // the airline's own segment status, tickets with coupon status, and every
 // seat, extra and special request with the airline's confirmation. Nothing
@@ -29,7 +29,7 @@ const muted = { color: 'var(--text-muted)', fontSize: '0.72rem' };
 // " · flight · passenger · EMD n" without dangling dots for missing parts.
 const details = (...parts) => parts.filter(Boolean).map(p => ` · ${p}`).join('');
 
-export default function LiveBookingDialog({ locator, apiBase, fetchWithRetry, authToken, onClose }) {
+export default function LiveBookingPanel({ locator, apiBase, fetchWithRetry, authToken }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -55,17 +55,16 @@ export default function LiveBookingDialog({ locator, apiBase, fetchWithRetry, au
   const empty = (list) => !list || list.length === 0;
 
   return (
-    <div className="modal-overlay animate-fade-only" onClick={() => !loading && onClose()}>
-      <div className="modal-content glass-panel animate-fade" style={{ maxWidth: '760px', width: '95%' }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
+    <section className="glass-panel" style={{ padding: '0.9rem 1.1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.6rem', flexWrap: 'wrap' }}>
           <div>
-            <h3 style={{ margin: 0 }}>Live status · {locator}</h3>
+            <h4 style={{ margin: 0 }}>Live status with the airline</h4>
             <div style={muted}>Straight from Travelport and the airline{retrieved ? ` · checked ${retrieved}` : ''}</div>
           </div>
-          <button type="button" className="close-btn" onClick={onClose}>×</button>
+          <button className="btn btn-secondary btn-sm" disabled={loading} onClick={load}>Check again</button>
         </div>
 
-        <div style={{ padding: '0.5rem 1.25rem 1.1rem', maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}>
+        <div>
           {loading && <div className="loading-state" style={{ padding: '1.5rem 0' }}><div className="spinner"></div><p>Asking Travelport and the airline…</p></div>}
           {error && !loading && <div className="error-banner">{error}</div>}
 
@@ -132,14 +131,10 @@ export default function LiveBookingDialog({ locator, apiBase, fetchWithRetry, au
                 </div>
               ))}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.9rem' }}>
-                <span style={{ ...muted, fontSize: '0.66rem' }}>Travelport TraceId {data.trace_id}</span>
-                <button className="btn btn-secondary btn-sm" onClick={load}>Check again</button>
-              </div>
+              <div style={{ ...muted, fontSize: '0.66rem', marginTop: '0.8rem' }}>Travelport TraceId {data.trace_id}</div>
             </>
           )}
         </div>
-      </div>
-    </div>
+    </section>
   );
 }
