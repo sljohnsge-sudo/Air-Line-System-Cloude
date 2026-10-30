@@ -1029,7 +1029,7 @@ function SegmentList({ segments, terminalConnections = [] }) {
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '1rem' }}>
             <span>{seg.carrier_name} • {seg.flight_number}</span>
-            <span>Dep: {seg.departure_time?.split('T')[1]?.slice(0,5)} | Arr: {seg.arrival_time?.split('T')[1]?.slice(0,5)}</span>
+            <span>Dep: {rcFmtTime(seg.departure_time)} | Arr: {rcFmtTime(seg.arrival_time)}</span>
           </div>
           {seg.layover_minutes !== undefined && (() => {
             const terminalInfo = lookupTerminalConnection(terminalConnections, seg.arrival_airport, seg.arrival_terminal, segments[sIdx + 1]?.departure_terminal);
