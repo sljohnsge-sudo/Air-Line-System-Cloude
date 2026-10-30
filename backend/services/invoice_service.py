@@ -13,6 +13,7 @@ import logging
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
+from utils import tp_logger
 from services.search_service import (
     parse_iso_duration, parse_naive_datetime,
     minutes_to_iso_duration, IATA_AIRLINE_NAMES
@@ -24,12 +25,12 @@ logger = logging.getLogger(__name__)
 
 def _api_get(url: str) -> dict:
     """Internal GET with automatic token retry."""
-    headers = get_auth_headers()
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT) as client:
+    headers = get_auth_headers(with_body=False)
+    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.get(url, headers=headers)
         if response.status_code == 401:
             invalidate_token()
-            response = client.get(url, headers=get_auth_headers())
+            response = client.get(url, headers=get_auth_headers(with_body=False))
         response.raise_for_status()
         return response.json()
 

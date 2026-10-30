@@ -16,6 +16,7 @@ from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
 from services.search_service import parse_iso_duration, parse_naive_datetime, minutes_to_iso_duration, IATA_AIRLINE_NAMES
+from services.special_services import ssr_code_of, ssr_kind
 from utils import tp_logger
 
 logger = logging.getLogger(__name__)
@@ -61,25 +62,30 @@ def _find_ticket_numbers(data) -> list[tuple[str, str]]:
 
 def _api_get(url: str) -> dict:
     """Internal helper for GET requests with automatic token retry."""
-    headers = get_auth_headers()
+    headers = get_auth_headers(with_body=False)
     with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
         response = client.get(url, headers=headers)
         if response.status_code == 401:
             invalidate_token()
-            response = client.get(url, headers=get_auth_headers())
+            response = client.get(url, headers=get_auth_headers(with_body=False))
         response.raise_for_status()
         return response.json()
 
 
-def _api_post(url: str, payload: dict | str) -> dict:
-    """Internal helper for POST requests with automatic token retry."""
-    headers = get_auth_headers()
+def _api_post(url: str, payload: dict | str | None) -> dict:
+    """Internal helper for POST requests with automatic token retry.
+    payload=None sends no body and no Content-Type (Post Commit Workbench)."""
+    with_body = payload is not None
+    headers = get_auth_headers(with_body=with_body)
     with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
-        kwargs = {"json": payload} if not isinstance(payload, str) else {"content": payload}
+        if payload is None:
+            kwargs = {}
+        else:
+            kwargs = {"json": payload} if not isinstance(payload, str) else {"content": payload}
         response = client.post(url, headers=headers, **kwargs)
         if response.status_code == 401:
             invalidate_token()
-            response = client.post(url, headers=get_auth_headers(), **kwargs)
+            response = client.post(url, headers=get_auth_headers(with_body=with_body), **kwargs)
         response.raise_for_status()
         return response.json()
 
@@ -264,6 +270,52 @@ def _parse_reservation_product(product: dict) -> dict | None:
         "cabin_class": cabin_class,
         "fare_basis": fare_basis
     }
+
+
+def _parse_special_services(reservation: dict) -> list[dict]:
+    """
+    Meal and wheelchair SSRs on a reservation, one row per passenger and
+    code: {passenger_name, kind, code, status}, status from the airline
+    ("confirmed", "pending", ...). Other SSRs are left out.
+
+    Confirmed live 2026-10-29 (UL PNR HNH8DW): the retrieve lists each SSR
+    twice — typed (SpecialServiceMeal / SpecialServiceWheelchairAirlineSupplied)
+    and by IATA code (SpecialService + SSRCode) — and once per flight, so
+    they're merged; a request counts as confirmed only when every copy is.
+    """
+    names = {}
+    for t in reservation.get("Traveler", []) or []:
+        name = t.get("PersonName", {})
+        full_name = clean_passenger_name(name.get("Given", ""), name.get("Surname", ""))
+        for ref in (t.get("id"), (t.get("Identifier") or {}).get("value")):
+            if ref:
+                names[ref] = full_name
+
+    rows: dict[tuple, dict] = {}
+    for item in reservation.get("SpecialService", []) or []:
+        code = ssr_code_of(item)
+        kind = ssr_kind(code)
+        if not kind:
+            continue
+        trav = item.get("TravelerIdentifier") or {}
+        ref = trav.get("TravelerRef") or trav.get("id") or (trav.get("Identifier") or {}).get("value")
+        name = names.get(ref) or names.get((trav.get("Identifier") or {}).get("value"), "")
+        status = ((item.get("Status") or {}).get("value") or "").lower()
+        row = rows.setdefault((name, code), {"passenger_name": name, "kind": kind, "code": code, "statuses": set()})
+        if status:
+            row["statuses"].add(status)
+
+    out = []
+    for row in rows.values():
+        statuses = row.pop("statuses")
+        if statuses == {"confirmed"}:
+            row["status"] = "confirmed"
+        elif "pending" in statuses or not statuses:
+            row["status"] = "pending"
+        else:
+            row["status"] = sorted(statuses - {"confirmed"})[0]
+        out.append(row)
+    return out
 
 
 def _parse_reservation(raw: dict, locator_code: str) -> dict:
@@ -483,7 +535,9 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
         #   - Airline PNR has source = airline IATA code (e.g. 'UL', 'FZ')
         receipts = reservation.get("Receipt", [])
         for receipt in receipts:
-            confirmation = receipt.get("Confirmation", {})
+            # A cancelled PNR's ReceiptCancellation carries the same Locator
+            # under "Cancellation" instead of "Confirmation".
+            confirmation = receipt.get("Confirmation") or receipt.get("Cancellation") or {}
             locator_info = confirmation.get("Locator", {})
             source = locator_info.get("source", "")
             value = locator_info.get("value", "")
@@ -505,11 +559,26 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                 ticket["airline_pnr"] = value
                 ticket["airline_pnr_source"] = source
 
+        # ── Cancelled PNR ─────────────────────────────────────────────────────
+        # Confirmed live 2026-10-29 (HNHCWB, HNHB47 — held GDS bookings
+        # cancelled through Cancel Workbench Items): the retrieve then has no
+        # Offer[] and only ReceiptCancellation entries (CancellationHold, one
+        # per PNR), and the "Confirmed" default above showed them as live on
+        # Check My Ticket Status. A live NDC PNR also comes back without
+        # Offer[] but always keeps its ReceiptConfirmation (65 of 65 retrieves
+        # in our logs), so that is checked too.
+        receipt_types = {r.get("@type") for r in receipts}
+        if not offers and "ReceiptCancellation" in receipt_types and "ReceiptConfirmation" not in receipt_types:
+            ticket["status"] = "Cancelled"
+
         # ── Seat ──────────────────────────────────────────────────────────────
         seats = reservation.get("Seat", [])
         if seats:
             seat = seats[0]
             ticket["seat_number"] = f"{seat.get('row', '')}{seat.get('column', '')}"
+
+        # ── Meal / wheelchair SSRs with the airline's status ──────────────────
+        ticket["special_services"] = _parse_special_services(reservation)
 
         # ── EMDs for paid seats/extras ────────────────────────────────────────
         # Confirmed live 2026-10-22 (PNR HNFNHK): the reservation retrieve
@@ -563,7 +632,7 @@ def issue_ticket(locator_code: str) -> dict:
         # ── Step 1: Create post-commit workbench from locator ─────────────────
         wb_url = TravelportEndpoints.create_workbench_from_locator(locator_code)
         logger.info(f"Step 1: POST buildfromlocator for PNR {locator_code}")
-        wb_result = _api_post(wb_url, {})
+        wb_result = _api_post(wb_url, None)
 
         reservation = (
             wb_result.get("ReservationResponse", {}).get("Reservation", {}) or
@@ -1065,7 +1134,7 @@ def cancel_reservation(locator_code: str) -> bool:
     logger.info(f"Cancelling reservation: {locator_code}")
     try:
         wb_url = TravelportEndpoints.create_workbench_from_locator(locator_code)
-        wb_result = _api_post(wb_url, {})
+        wb_result = _api_post(wb_url, None)
 
         reservation = (
             wb_result.get("ReservationResponse", {}).get("Reservation", {}) or

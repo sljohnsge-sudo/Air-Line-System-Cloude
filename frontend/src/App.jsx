@@ -6,6 +6,9 @@ import gsLogo from './assets/george_steuart_logo.png';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
+import CancelBookingDialog from './CancelBookingDialog.jsx';
+import FareRulesPanel from './FareRulesPanel.jsx';
+import { MEAL_OPTIONS, WHEELCHAIR_OPTIONS, ssrSupport, SsrStatusList } from './SpecialServices.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
@@ -15,16 +18,24 @@ import AirportSearchSelect from './AirportSearchSelect.jsx';
 // Use whatever host the page was loaded from (not a hardcoded 'localhost') so
 // this also works when someone on the same network opens this machine's LAN
 // IP instead of localhost — the backend runs on the same machine, port 8000.
-const API_BASE = `http://${window.location.hostname}:8000/api`;
+// Production sets VITE_API_BASE (e.g. https://api.example.lk/api) at build
+// time so the site talks to the API over HTTPS; see frontend/.env.example.
+const API_BASE = import.meta.env.VITE_API_BASE || `http://${window.location.hostname}:8000/api`;
 // Amadeus-only features (seat maps, fare rules, cancellation requests) call
 // amadeus-backend directly instead of going through the Travelport backend's
 // proxy -- its CORS allows this origin specifically for that purpose.
-const AMADEUS_API_BASE = `http://${window.location.hostname}:8002/api`;
+const AMADEUS_API_BASE = import.meta.env.VITE_AMADEUS_API_BASE || `http://${window.location.hostname}:8002/api`;
 
+// Retries only requests that are safe to repeat (GET/HEAD), or ones a caller
+// marks { retry: true }. A booking or payment POST that hit a network error
+// may still have reached the server, so resending it could book or charge twice.
 const fetchWithRetry = async (url, options = {}, retries = 3, delay = 1000) => {
-  for (let i = 0; i < retries; i++) {
+  const { retry, ...fetchOptions } = options;
+  const method = (fetchOptions.method || 'GET').toUpperCase();
+  const attempts = (retry ?? (method === 'GET' || method === 'HEAD')) ? retries : 1;
+  for (let i = 0; i < attempts; i++) {
     try {
-      return await fetch(url, options);
+      return await fetch(url, fetchOptions);
     } catch (err) {
       const isNetworkError = 
         err instanceof TypeError || 
@@ -36,8 +47,8 @@ const fetchWithRetry = async (url, options = {}, retries = 3, delay = 1000) => {
         err.message?.includes('Failed to connect') ||
         err.message?.includes('NetworkError when attempting to fetch resource');
                              
-      if (isNetworkError && i < retries - 1) {
-        console.warn(`Fetch to ${url} failed with network error: ${err.message}. Retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+      if (isNetworkError && i < attempts - 1) {
+        console.warn(`Fetch to ${url} failed with network error: ${err.message}. Retrying in ${delay}ms... (Attempt ${i + 1}/${attempts})`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -45,42 +56,6 @@ const fetchWithRetry = async (url, options = {}, retries = 3, delay = 1000) => {
     }
   }
 };
-
-// ── Popular IATA airport codes ──────────────────────────────────────────────
-const AIRPORTS = [
-  { code: 'CMB', name: 'Colombo (CMB)' },
-  { code: 'DXB', name: 'Dubai (DXB)' },
-  { code: 'LHR', name: 'London Heathrow (LHR)' },
-  { code: 'SIN', name: 'Singapore (SIN)' },
-  { code: 'JFK', name: 'New York JFK (JFK)' },
-  { code: 'LAX', name: 'Los Angeles (LAX)' },
-  { code: 'ORD', name: 'Chicago O\'Hare (ORD)' },
-  { code: 'SFO', name: 'San Francisco (SFO)' },
-  { code: 'ATL', name: 'Atlanta (ATL)' },
-  { code: 'BOM', name: 'Mumbai (BOM)' },
-  { code: 'DEL', name: 'Delhi (DEL)' },
-  { code: 'HND', name: 'Tokyo Haneda (HND)' },
-  { code: 'SYD', name: 'Sydney (SYD)' },
-  { code: 'CDG', name: 'Paris CDG (CDG)' },
-  { code: 'FRA', name: 'Frankfurt (FRA)' },
-  { code: 'AMS', name: 'Amsterdam (AMS)' },
-  { code: 'IST', name: 'Istanbul (IST)' },
-  { code: 'DOH', name: 'Doha (DOH)' },
-  { code: 'KUL', name: 'Kuala Lumpur (KUL)' },
-  { code: 'BKK', name: 'Bangkok (BKK)' },
-  { code: 'NRT', name: 'Tokyo Narita (NRT)' },
-  { code: 'ICN', name: 'Seoul Incheon (ICN)' },
-  { code: 'MIA', name: 'Miami (MIA)' },
-  { code: 'MCO', name: 'Orlando (MCO)' },
-];
-
-// ── Trending Destinations (display only) ───────────────────────────────────
-const trendingDestinations = [
-  { city: 'Dubai', country: 'UAE', code: 'DXB', image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=500&q=80', tag: 'Golden City' },
-  { city: 'Singapore', country: 'Southeast Asia', code: 'SIN', image: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=500&q=80', tag: 'Garden City' },
-  { city: 'London', country: 'United Kingdom', code: 'LHR', image: 'https://images.unsplash.com/photo-1513635269975-59663e0ca1ad?auto=format&fit=crop&w=500&q=80', tag: 'Royal Heritage' },
-  { city: 'New York', country: 'United States', code: 'JFK', image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=500&q=80', tag: 'Metro Hub' },
-];
 
 // COUNTRIES now imported from ./countries.js (shared with AdminPortal.jsx)
 
@@ -1017,6 +992,16 @@ const seatLegLabel = (legInfo, idx) => {
   return x.flight_number ? `${x.direction} ${x.flight_number}` : x.direction;
 };
 
+// Identifies one result card for its fare pop-up and cabin pick. offer_id
+// alone isn't unique: NDC carriers reuse it across offers (live CMB-DXB
+// search: "QR_CPO0" on 20 Qatar results, "EK_CPO0" on 15 Emirates), so
+// keying on it opened every one of those cards' pop-ups on one click.
+const fareCardKey = (flight, idx) => {
+  const legs = flight.legs?.length ? flight.legs : [flight];
+  const flights = legs.flatMap(l => (l.segments?.length ? l.segments : [l]).map(s => `${s.flight_number}@${s.departure_time}`));
+  return [flight.offer_id, flight.fare_source, ...flights].join('|') || idx;
+};
+
 function lookupTerminalConnection(connections, airportCode, fromTerminal, toTerminal) {
   if (!connections || connections.length === 0 || !airportCode) return null;
   const forAirport = connections.filter(c => c.airport_code === airportCode);
@@ -1044,7 +1029,7 @@ function SegmentList({ segments, terminalConnections = [] }) {
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '1rem' }}>
             <span>{seg.carrier_name} • {seg.flight_number}</span>
-            <span>Dep: {seg.departure_time?.split('T')[1]?.slice(0,5)} | Arr: {seg.arrival_time?.split('T')[1]?.slice(0,5)}</span>
+            <span>Dep: {rcFmtTime(seg.departure_time)} | Arr: {rcFmtTime(seg.arrival_time)}</span>
           </div>
           {seg.layover_minutes !== undefined && (() => {
             const terminalInfo = lookupTerminalConnection(terminalConnections, seg.arrival_airport, seg.arrival_terminal, segments[sIdx + 1]?.departure_terminal);
@@ -1251,20 +1236,20 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(() => tabFromPath(window.location.pathname));
 
   // Go-live module switches (Admin Portal -> Provider Control -> Go-Live
-  // Module Switches). Starts all-enabled so nothing flashes hidden before
-  // the fetch resolves; the backend's /api/feature-flags itself defaults
-  // to all-enabled too if settings haven't been saved yet. A disabled
-  // module's nav tab is hidden below, and its API routes are blocked
+  // Module Switches). Starts all-OFF (Phase 1 sells Travelport flights only),
+  // so a disabled module never flashes into view or fires requests before
+  // the fetch resolves, and stays hidden if the fetch fails. A module's nav
+  // tab appears once the backend says it's on; its API routes are blocked
   // server-side regardless of this flag (see main.py's module-gate
   // middleware) -- this state only decides what the UI offers.
   const [featureFlags, setFeatureFlags] = useState({
-    flights_amadeus_enabled: true, hotels_enabled: true, visa_enabled: true, packages_enabled: true,
+    flights_amadeus_enabled: false, hotels_enabled: false, visa_enabled: false, packages_enabled: false,
   });
   useEffect(() => {
     fetchWithRetry(`${API_BASE}/feature-flags`)
       .then(res => res.json())
       .then(setFeatureFlags)
-      .catch(() => {}); // keep the all-enabled default on failure, don't hide features over a transient error
+      .catch(() => {}); // keep everything optional hidden on failure
   }, []);
   // A disabled module's deep link (bookmark, old link) should land somewhere
   // real rather than show the (gated, now-broken) page.
@@ -1296,6 +1281,12 @@ export default function App() {
   // ── Admin / Customer auth state (persisted to localStorage) ──────────────
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || null);
   const [customerToken, setCustomerToken] = useState(() => localStorage.getItem('customerToken') || null);
+  // Staff or the signed-in customer see a booking's passport/contact details;
+  // without a token the backend masks them (see /api/bookings/retrieve).
+  const signedInHeaders = () => {
+    const token = adminToken || customerToken;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
   const [customerProfile, setCustomerProfile] = useState(() => {
     try {
       const raw = localStorage.getItem('customerProfile');
@@ -1332,7 +1323,10 @@ export default function App() {
   // there's no token exchange to do on this end, just pick it up and clear
   // the URL so a refresh doesn't try to "re-login" with a stale query string.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    // The token arrives in the URL fragment (#oauth_token=…), which is never
+    // sent to a server; the query string is still read for older links.
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const params = hashParams.get('oauth_token') ? hashParams : new URLSearchParams(window.location.search);
     const oauthToken = params.get('oauth_token');
     if (oauthToken) {
       handleCustomerLogin(oauthToken, {
@@ -2034,6 +2028,7 @@ export default function App() {
   const [myBookings, setMyBookings] = useState([]);
   const [searchEmail, setSearchEmail] = useState('');
   const [loadingBookings, setLoadingBookings] = useState(false);
+  const [cancelDialogLocator, setCancelDialogLocator] = useState(null);
 
   // Notification
   const [notification, setNotification] = useState(null);
@@ -2146,7 +2141,7 @@ export default function App() {
           if (!data.success) {
             throw new Error(data.message || 'Payment succeeded but Travelport did not issue a ticket.');
           }
-          const fullTicketRes = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${data.locator_code}`);
+          const fullTicketRes = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${data.locator_code}`, { headers: signedInHeaders() });
           const fullTicket = await handleApiResponse(fullTicketRes, 'Ticket issued but failed to load details');
           setIssuedTicket(fullTicket);
           setBookingStep('ticket');
@@ -2324,7 +2319,7 @@ export default function App() {
       if (locator && issuedTicket?.locator_code !== locator && issuedTicket?.pnr !== locator) {
         (async () => {
           try {
-            const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${locator}`);
+            const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${locator}`, { headers: signedInHeaders() });
             const data = await handleApiResponse(res, 'Failed to load ticket');
             setIssuedTicket(data);
             setBookingStep('ticket');
@@ -2349,7 +2344,7 @@ export default function App() {
     
     // Background PNR refresh
     try {
-      const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${ticket.locator_code || ticket.pnr}`);
+      const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${ticket.locator_code || ticket.pnr}`, { headers: signedInHeaders() });
       if (res.ok) {
         const updated = await res.json();
         setIssuedTicket(updated);
@@ -2415,6 +2410,7 @@ export default function App() {
     try {
       const searchPromise = fetchWithRetry(`${API_BASE}/flights/search`, {
         method: 'POST',
+        retry: true, // a search only reads, so it is safe to resend
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           origin: legs ? null : origin,
@@ -2556,32 +2552,32 @@ export default function App() {
     for (let i = 0; i < adultCount; i++) {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
-        gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'ADT',
+        gender: '', passport_number: '', passport_expiry: '',
+        nationality: '', passport_issue_country: '', email: '', phone: '', passenger_type: 'ADT',
         ...extraFields
       });
     }
     for (let i = 0; i < childCount; i++) {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
-        gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'CNN',
+        gender: '', passport_number: '', passport_expiry: '',
+        nationality: '', passport_issue_country: '', email: '', phone: '', passenger_type: 'CNN',
         ...extraFields
       });
     }
     for (let i = 0; i < infantCount; i++) {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
-        gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'INF',
+        gender: '', passport_number: '', passport_expiry: '',
+        nationality: '', passport_issue_country: '', email: '', phone: '', passenger_type: 'INF',
         ...extraFields
       });
     }
     for (let i = 0; i < studentCount; i++) {
       travelerList.push({
         first_name: '', last_name: '', date_of_birth: '',
-        gender: 'Male', passport_number: '', passport_expiry: '',
-        nationality: 'LK', passport_issue_country: 'LK', email: '', phone: '', passenger_type: 'STU',
+        gender: '', passport_number: '', passport_expiry: '',
+        nationality: '', passport_issue_country: '', email: '', phone: '', passenger_type: 'STU',
         ...extraFields
       });
     }
@@ -2648,7 +2644,7 @@ export default function App() {
 
   const handlePassengerNext = async (e) => {
     e.preventDefault();
-    const required = ['first_name', 'last_name', 'date_of_birth', 'passport_number', 'passport_expiry', 'passport_issue_country', 'email', 'phone'];
+    const required = ['first_name', 'last_name', 'date_of_birth', 'gender', 'passport_number', 'passport_expiry', 'nationality', 'passport_issue_country', 'email', 'phone'];
     // Collects every problem across every passenger in one pass (rather than
     // stopping at the first) so each gets shown right under its own field —
     // the customer fixes everything they can see at once instead of
@@ -2773,19 +2769,24 @@ export default function App() {
               travelers,
               selected_seats: selectedSeats,
               selected_ancillaries: selectedAncillaries,
+              // The quote the customer saw; the backend refuses if Travelport's
+              // priced fare (plus markup) is now higher.
+              quoted_price: selectedFlight.price,
             })
           });
           const bookData = await handleApiResponse(bookRes, 'Booking failed');
 
           // Fare only: Travelport's NDC Instant Pay workflow can't book seats
           // or extras, so the backend never books them — never charge for them.
+          // The amount comes from the backend (Travelport's priced fare), not
+          // from this page.
           const baseUrl = `${window.location.origin}${window.location.pathname}`;
           const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              amount: selectedFlight.price,
-              currency: selectedFlight.currency || 'LKR',
+              amount: bookData.amount ?? selectedFlight.price,
+              currency: bookData.currency || selectedFlight.currency || 'LKR',
               return_url: `${baseUrl}?ndc_pending=${bookData.pending_id}`,
               cancel_url: `${baseUrl}?ndc_pending=${bookData.pending_id}&payment=cancelled`,
               client_ref: bookData.pending_id,
@@ -3199,7 +3200,7 @@ export default function App() {
     setTicketStatusError('');
     setTicketStatusResult(null);
     try {
-      const res = await fetchWithRetry(`${API_BASE}/ticket-status?query=${encodeURIComponent(query)}`);
+      const res = await fetchWithRetry(`${API_BASE}/ticket-status?query=${encodeURIComponent(query)}`, { headers: signedInHeaders() });
       const data = await handleApiResponse(res, 'No booking found for that PNR or ticket number.');
       setTicketStatusResult(data);
     } catch (err) {
@@ -3409,18 +3410,8 @@ export default function App() {
     }
   };
 
-  const handleCancelBooking = async (locatorCode) => {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-    try {
-      const res = await fetchWithRetry(`${API_BASE}/bookings/${locatorCode}/cancel`, { method: 'POST' });
-      const data = await handleApiResponse(res, 'Cancellation failed');
-      showNotification('Booking cancelled successfully.', 'warning');
-      fetchBookings();
-    } catch (err) {
-      const errMsg = err.message || String(err);
-      showNotification(errMsg, 'error');
-    }
-  };
+  // Opens the two-step Check refund → Confirm cancel dialog (staff only).
+  const handleCancelBooking = (locatorCode) => setCancelDialogLocator(locatorCode);
 
   // ── PDF DOWNLOAD & SHARING HANDLERS ───────────────────────────────────────
   const handleDownloadPDF = () => {
@@ -3688,7 +3679,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           {/* Footer */}
           <footer className="footer">
             <div className="footer-brand" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <img src="https://georgesteuart.lk/img/footer-logo.jpg" alt="George Steuart logo" style={{ height: '35px', alignSelf: 'flex-start', objectFit: 'contain' }} />
+              <img src={gsLogo} alt="George Steuart logo" style={{ height: '35px', alignSelf: 'flex-start', objectFit: 'contain' }} />
               <span className="footer-copy">© {new Date().getFullYear()} George Steuart Travel Ltd. All rights reserved.</span>
             </div>
             <div className="footer-links">
@@ -5372,10 +5363,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <style dangerouslySetInnerHTML={{ __html: RC_RELAY_ANIMATION_CSS }} />
                 )}
                 {!loadingFlights && displayed.map((flight, idx) => {
-                  const isFareExpanded = !!expandedFareIds[flight.offer_id || idx];
+                  const isFareExpanded = !!expandedFareIds[fareCardKey(flight, idx)];
                   const totalPax = adultCount + childCount + infantCount + studentCount;
 
-                  const fId = flight.offer_id || idx;
+                  const fId = fareCardKey(flight, idx);
                   // When a cabin filter is active (e.g. "Business") and this
                   // card qualified for the filter because it has a matching
                   // fare option, show THAT cabin by default — not the card's
@@ -5520,7 +5511,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             carries the seats-remaining badge, when Travelport provides one. */}
                         {flight.seats_remaining != null && (
                           <div className="rc-details-col" style={{ cursor: 'pointer' }} onClick={() => {
-                            const fId = flight.offer_id || idx;
+                            const fId = fareCardKey(flight, idx);
                             setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
                           }}>
                             <div className="rc-seats" style={{ color: flight.seats_remaining < 5 ? '#c3122e' : '#0f766e', fontWeight: '700' }}>
@@ -5585,7 +5576,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             <button
                               type="button"
                               onClick={() => {
-                                const fId = flight.offer_id || idx;
+                                const fId = fareCardKey(flight, idx);
                                 setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
                                 if (flight.source === 'AD') fetchAmadeusFareRules(flight);
                               }}
@@ -5654,34 +5645,29 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           (Select Flight / "Other fares & cabins"). Rendered into
                           document.body so result-card styles can't clip it. ── */}
                       {isFareExpanded && createPortal(
-                        <div className="modal-overlay" style={{ animation: 'none' }}
+                        <div className="modal-overlay" style={{ animation: 'none', padding: '0.75rem' }}
                              onClick={() => setExpandedFareIds(prev => ({ ...prev, [fId]: false }))}>
-                        <div className="modal-content" style={{ maxWidth: '980px', width: '95%', animation: 'none' }}
+                        <div className="modal-content" style={{ maxWidth: '920px', width: '95%', maxHeight: 'calc(100vh - 1.5rem)', animation: 'none' }}
                              onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0' }}>
-                          <div>
-                            <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#1e293b' }}>Choose your fare</div>
-                            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.15rem' }}>
-                              {flight.departure_airport} → {flight.arrival_airport}
-                            </div>
+                        {/* Compact header: title, route, flight and aircraft on one line */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 1rem', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.2rem 0.6rem', fontSize: '0.72rem', color: '#64748b' }}>
+                            <span style={{ fontSize: '0.92rem', fontWeight: '800', color: '#1e293b' }}>Choose your fare</span>
+                            <span>{flight.departure_airport} → {flight.arrival_airport}</span>
+                            <span>•</span>
+                            <span style={{ fontWeight: '700', color: '#475569' }}>{(flight.flight_number || '').startsWith(flight.airline_code || '~') ? flight.flight_number : `${flight.airline_code}${flight.flight_number}`}</span>
+                            <span>✈ {flight.aircraft_type || 'Boeing 777-300ER'}</span>
                           </div>
                           <button type="button" aria-label="Close"
                                   onClick={() => setExpandedFareIds(prev => ({ ...prev, [fId]: false }))}
-                                  style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem', color: '#475569' }}>
+                                  style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '26px', height: '26px', flexShrink: 0, cursor: 'pointer', fontSize: '0.9rem', color: '#475569' }}>
                             ×
                           </button>
                         </div>
-                        <div style={{ background: '#ffffff', padding: '1.5rem', width: '100%', boxSizing: 'border-box', maxHeight: '75vh', overflowY: 'auto' }}>
-
-                          {/* Segment Summary or Airline Details */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1.25rem', color: '#64748b', fontSize: '0.78rem' }}>
-                            <span style={{ fontWeight: '800', color: '#1e293b' }}>✈ {flight.aircraft_type || 'Boeing 777-300ER'}</span>
-                            <span>•</span>
-                            <span style={{ fontWeight: '700', color: '#475569' }}>{(flight.flight_number || '').startsWith(flight.airline_code || '~') ? flight.flight_number : `${flight.airline_code}${flight.flight_number}`}</span>
-                          </div>
+                        <div style={{ background: '#ffffff', padding: '0.6rem 1rem 0.8rem', width: '100%', boxSizing: 'border-box', flex: 1, minHeight: 0, overflowY: 'auto' }}>
 
                           {/* Cabin Selector Tabs */}
-                          <div style={{ display: 'flex', borderBottom: '1.5px solid #e2e8f0', marginBottom: '1.5rem', gap: '2rem', boxSizing: 'border-box' }}>
+                          <div style={{ display: 'flex', borderBottom: '1.5px solid #e2e8f0', marginBottom: '0.7rem', gap: '1.5rem', boxSizing: 'border-box' }}>
                             {(() => {
                               const CABIN_ORDER = ['Economy', 'PremiumEconomy', 'Business', 'First'];
                               const allCabins = flight.fare_options ? Array.from(new Set(flight.fare_options.map(fo => fo.cabin_class))) : [];
@@ -5709,22 +5695,22 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                     style={{
                                       border: 'none',
                                       background: 'transparent',
-                                      padding: '0.75rem 0',
+                                      padding: '0.35rem 0',
                                       borderBottom: isSelected ? '3px solid #245d38' : '3px solid transparent',
                                       color: isSelected ? '#1e293b' : '#64748b',
                                       fontWeight: '700',
-                                      fontSize: '0.9rem',
+                                      fontSize: '0.8rem',
                                       cursor: 'pointer',
                                       display: 'flex',
                                       flexDirection: 'column',
                                       alignItems: 'flex-start',
-                                      gap: '0.2rem',
+                                      gap: '0.05rem',
                                       outline: 'none',
                                       transition: 'all 0.15s'
                                     }}
                                   >
                                     <span>{label}</span>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: '500', color: isSelected ? '#245d38' : '#94a3b8' }}>
+                                    <span style={{ fontSize: '0.66rem', fontWeight: '500', color: isSelected ? '#245d38' : '#94a3b8' }}>
                                       {priceText}
                                     </span>
                                   </button>
@@ -5736,8 +5722,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           {/* Fare Options Container */}
                           <div style={{
                             display: 'grid',
-                            gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))`,
-                            gap: '1.25rem',
+                            gridTemplateColumns: `repeat(auto-fit, minmax(215px, 1fr))`,
+                            gap: '0.6rem',
                             width: '100%',
                             boxSizing: 'border-box'
                           }}>
@@ -5751,25 +5737,25 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                   border: '1px solid #cbd5e1',
                                   overflow: 'hidden',
                                   background: '#ffffff',
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+                                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
                                   transition: 'transform 0.15s, box-shadow 0.15s'
                                 }}>
                                   {/* Card Header */}
                                   <div style={{
                                     background: isCheapest ? '#245d38' : '#1e293b',
-                                    padding: '1.25rem',
+                                    padding: '0.55rem 0.75rem',
                                     color: 'white',
                                     position: 'relative'
                                   }}>
-                                    <div style={{ fontSize: '1rem', fontWeight: '800', letterSpacing: '0.01em' }}>{fo.brand_name}</div>
-                                    <div style={{ fontSize: '1.35rem', fontWeight: '800', marginTop: '0.35rem' }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: '800', letterSpacing: '0.01em', paddingRight: '3.5rem' }}>{fo.brand_name}</div>
+                                    <div style={{ fontSize: '1.05rem', fontWeight: '800', marginTop: '0.1rem' }}>
                                       {fo.currency} {Math.floor(fo.price).toLocaleString()}
                                     </div>
                                     {isCheapest && (
                                       <div style={{
                                         position: 'absolute',
-                                        right: '12px',
-                                        top: '12px',
+                                        right: '8px',
+                                        top: '8px',
                                         background: '#34d399',
                                         color: '#064e3b',
                                         fontSize: '0.58rem',
@@ -5782,21 +5768,21 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                         Cheapest
                                       </div>
                                     )}
-                                    <div style={{ fontSize: '0.65rem', opacity: 0.9, marginTop: '0.25rem', fontWeight: '600', fontFamily: 'monospace' }}>
+                                    <div style={{ fontSize: '0.58rem', opacity: 0.9, marginTop: '0.1rem', fontWeight: '600', fontFamily: 'monospace' }}>
                                       Fare Basis: {(fo.fare_basis_codes || []).join(', ')} ({(fo.classes_of_service || []).join(', ')})
                                     </div>
                                   </div>
 
                                   {/* Card Body */}
-                                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '1rem', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                  <div style={{ padding: '0.55rem 0.75rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.4rem', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
 
                                       {/* Baggage Allowance Section */}
                                       {fo.baggage_allowance && fo.baggage_allowance.length > 0 && (
-                                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-                                          <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>Baggage Allowance</div>
+                                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.4rem' }}>
+                                          <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Baggage Allowance</div>
                                           {fo.baggage_allowance.map((bag, bIdx) => (
-                                            <div key={bIdx} style={{ fontSize: '0.78rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                                            <div key={bIdx} style={{ fontSize: '0.7rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.05rem' }}>
                                               <span>🧳</span>
                                               <span>{bag.type}: <strong>{bag.allowance}</strong></span>
                                             </div>
@@ -5805,27 +5791,33 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                       )}
 
                                       {/* Policies Section */}
-                                      <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-                                        <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>Rules & Policies</div>
-                                        <div style={{ fontSize: '0.75rem', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.35rem', marginTop: '0.2rem' }}>
-                                          <span style={{ fontSize: '0.8rem' }}>🔄</span>
+                                      <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.4rem' }}>
+                                        <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Rules & Policies</div>
+                                        <div style={{ fontSize: '0.68rem', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', marginTop: '0.05rem' }}>
+                                          <span style={{ fontSize: '0.7rem' }}>🔄</span>
                                           <div>
                                             <strong style={{ color: '#1e293b' }}>Changes:</strong> <span style={{ fontWeight: '500' }}>{fo.change_policy}</span>
                                           </div>
                                         </div>
-                                        <div style={{ fontSize: '0.75rem', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.35rem', marginTop: '0.35rem' }}>
-                                          <span style={{ fontSize: '0.8rem' }}>❌</span>
+                                        <div style={{ fontSize: '0.68rem', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', marginTop: '0.15rem' }}>
+                                          <span style={{ fontSize: '0.7rem' }}>❌</span>
                                           <div>
                                             <strong style={{ color: '#1e293b' }}>Cancellations:</strong> <span style={{ fontWeight: '500' }}>{fo.cancel_policy}</span>
                                           </div>
                                         </div>
+                                        {/* Full change/cancel conditions, live from Travelport's Fare Rules API */}
+                                        {flight.source !== 'AD' && fo.raw_offering && (
+                                          <div style={{ marginTop: '0.3rem' }}>
+                                            <FareRulesPanel apiBase={API_BASE} rawOffering={fo.raw_offering} title="Full fare rules" />
+                                          </div>
+                                        )}
                                       </div>
 
                                       {/* Brand Attributes Section */}
                                       {fo.brand_attributes && fo.brand_attributes.length > 0 && (
                                         <div>
-                                          <div style={{ fontSize: '0.65rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>Fare Benefits</div>
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                          <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Fare Benefits</div>
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem' }}>
                                             {fo.brand_attributes.map((attr, aIdx) => {
                                               const labelMap = {
                                                 'CheckedBag': 'Checked baggage allowance',
@@ -5862,17 +5854,17 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    width: '14px',
-                                                    height: '14px',
+                                                    width: '12px',
+                                                    height: '12px',
                                                     borderRadius: '50%',
                                                     background: bg,
                                                     border: `1px solid ${border}`,
                                                     color: color,
-                                                    fontSize: '0.62rem',
+                                                    fontSize: '0.55rem',
                                                     fontWeight: '800',
                                                     flexShrink: 0
                                                   }}>{icon}</span>
-                                                  <span style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '500' }}>
+                                                  <span style={{ fontSize: '0.66rem', color: '#475569', fontWeight: '500' }}>
                                                     {displayLabel}: <strong style={{ color: color }}>{attr.inclusion}</strong>
                                                   </span>
                                                 </div>
@@ -5896,14 +5888,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                         color: 'white',
                                         border: 'none',
                                         borderRadius: '6px',
-                                        padding: '0.65rem 1rem',
+                                        padding: '0.4rem 0.75rem',
                                         fontWeight: '700',
-                                        fontSize: '0.82rem',
+                                        fontSize: '0.75rem',
                                         cursor: 'pointer',
                                         width: '100%',
                                         transition: 'background 0.2s',
                                         outline: 'none',
-                                        marginTop: '1rem'
+                                        marginTop: '0.35rem'
                                       }}
                                       onMouseEnter={e => e.target.style.opacity = 0.9}
                                       onMouseLeave={e => e.target.style.opacity = 1}
@@ -6126,7 +6118,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   border: 'none', background: invoiceMode === 'report' ? 'white' : 'transparent',
                   color: invoiceMode === 'report' ? '#0f172a' : '#64748b', fontSize: '0.75rem', fontWeight: '700',
                   padding: '0.45rem 1rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.1s'
-                }}>Date-wise Report (PCC 7F3C)</button>
+                }}>Date-wise Report (PCC)</button>
               </div>
             )}
           </div>
@@ -6214,7 +6206,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   {reportLoading ? (
                     <><span className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }}></span> Compiling Report...</>
                   ) : (
-                    <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Fetch PCC Report (7F3C)</>
+                    <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Fetch PCC Report</>
                   )}
                 </button>
               </div>
@@ -6230,7 +6222,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" style={{ margin: '0 auto 0.75rem' }}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg>
                   <p style={{ fontWeight: '700', color: '#475569', fontSize: '0.9rem', marginBottom: '0.35rem' }}>No bookings found in this date range</p>
                   <p style={{ fontSize: '0.78rem', color: '#94a3b8', lineHeight: '1.6' }}>
-                    This report queries <strong>your local PCC 7F3C booking records</strong> from the Travelport database.<br/>
+                    This report queries <strong>your PCC's booking records</strong> from the Travelport database.<br/>
                     Only PNRs booked through this system appear here. Try a wider date range — all data is sourced live from Travelport, not generated locally.
                   </p>
                   <div style={{ marginTop: '0.85rem', display: 'flex', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -6748,7 +6740,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   Number(r.flight_fare||0).toFixed(2), Number(r.seat_charge||0).toFixed(2), Number(r.grand_total||0).toFixed(2), r.currency || 'LKR',
                   r.passenger_type || '', Number(r.pax_base_fare||0).toFixed(2), Number(r.pax_total_taxes||0).toFixed(2), Number(r.pax_total||0).toFixed(2),
                   ...allTaxCodes.map(c => Number(taxMap[c] || 0).toFixed(2)),
-                  r.fare_calculation || '', r.filed_usd_base ? r.filed_usd_base.toFixed(2) : '', 'Travelport GDS Live Retrieve (PCC 7F3C)',
+                  r.fare_calculation || '', r.filed_usd_base ? r.filed_usd_base.toFixed(2) : '', 'Travelport GDS Live Retrieve',
                   1, isAdult, isChild, isInfant, r.passenger_type_label || '', r.full_name || '', r.passport_number || '',
                   r.passport_expiry || '', r.date_of_birth || '', r.gender || '', r.nationality || '', r.email || '', r.phone || '',
                 ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
@@ -6766,7 +6758,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                   <span style={{ fontSize: '0.75rem', fontWeight: '700', padding: '0.25rem 0.75rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '20px' }}>
-                    🟢 Retrieved {reportData.length} Passenger Records Live from Travelport (PCC 7F3C)
+                    🟢 Retrieved {reportData.length} Passenger Records Live from Travelport
                   </span>
                   <button onClick={handleExportReportCSV} className="btn btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
@@ -6813,8 +6805,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               <td style={{ padding: '0.6rem 0.85rem' }}>
                                 <span style={{
                                   fontSize: '0.65rem', fontWeight: '700', padding: '0.15rem 0.4rem', borderRadius: '4px',
-                                  background: r.status === 'Ticketed' ? '#dcfce7' : r.status === 'Cancelled' ? '#fee2e2' : '#f1f5f9',
-                                  color: r.status === 'Ticketed' ? '#15803d' : r.status === 'Cancelled' ? '#b91c1c' : '#475569'
+                                  background: r.status === 'Ticketed' ? '#dcfce7' : ['Cancelled', 'Voided', 'Refunded'].includes(r.status) ? '#fee2e2' : '#f1f5f9',
+                                  color: r.status === 'Ticketed' ? '#15803d' : ['Cancelled', 'Voided', 'Refunded'].includes(r.status) ? '#b91c1c' : '#475569'
                                 }}>{r.status || 'Confirmed'}</span>
                               </td>
                               <td style={{ padding: '0.6rem 0.85rem', color: '#475569', fontWeight: '500' }}>{r.payment_method || 'Credit Card'}</td>
@@ -7619,6 +7611,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               const segments = isAD ? (r.segments || []) : (r.segments || r.legs || []);
               const ticketNumbers = isAD ? (r.ticketNumbers || []) : (r.ticket_number ? [r.ticket_number] : []);
               const ticketed = ticketNumbers.length > 0;
+              // Same statuses BookingCard treats as cancelled; a cancelled
+              // held booking has no ticket, so it read "Ticketing Pending".
+              const isCancelled = !isAD && ['Cancelled', 'Voided', 'Refunded'].includes(r.status);
               return (
                 <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1.25rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -7628,11 +7623,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </div>
                     <div style={{
                       fontSize: '0.72rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '4px',
-                      background: ticketed ? '#f0fdf4' : '#fffbeb',
-                      color: ticketed ? '#166534' : '#92400e',
-                      border: `1px solid ${ticketed ? '#bbf7d0' : '#fde68a'}`,
+                      background: isCancelled ? '#fef2f2' : ticketed ? '#f0fdf4' : '#fffbeb',
+                      color: isCancelled ? '#991b1b' : ticketed ? '#166534' : '#92400e',
+                      border: `1px solid ${isCancelled ? '#fecaca' : ticketed ? '#bbf7d0' : '#fde68a'}`,
                     }}>
-                      {ticketed ? '✓ Ticket Issued' : 'PNR Confirmed · Ticketing Pending'}
+                      {isCancelled
+                        ? { Cancelled: 'Booking Cancelled', Voided: 'Ticket Voided', Refunded: 'Ticket Refunded' }[r.status]
+                        : ticketed ? '✓ Ticket Issued' : 'PNR Confirmed · Ticketing Pending'}
                     </div>
                   </div>
 
@@ -7705,6 +7702,19 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </div>
               )}
             </section>
+            {cancelDialogLocator && (
+              <CancelBookingDialog
+                locator={cancelDialogLocator}
+                apiBase={API_BASE}
+                fetchWithRetry={fetchWithRetry}
+                authToken={adminToken}
+                onClose={() => setCancelDialogLocator(null)}
+                onCancelled={(r) => {
+                  showNotification(`Booking ${r.locator_code} ${r.status.toLowerCase()} on Travelport.`, 'warning');
+                  fetchBookings();
+                }}
+              />
+            )}
           </div>
         ) : (
           <div className="tab-content animate-fade">
@@ -8110,10 +8120,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                   <div className="form-group">
                     <label className="form-label">Gender *</label>
-                    <select className="form-select" value={travelers[activePassengerIdx]?.gender || 'Male'} onChange={e => handleTravelerChange('gender', e.target.value)}>
+                    <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'gender')} value={travelers[activePassengerIdx]?.gender || ''} onChange={e => handleTravelerChange('gender', e.target.value)}>
+                      <option value="">-- Select gender --</option>
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
                     </select>
+                    {renderFieldError(activePassengerIdx, 'gender')}
                   </div>
                 </div>
                 <div className="form-grid-2">
@@ -8130,13 +8142,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label">Nationality</label>
-                    <select className="form-select" value={travelers[activePassengerIdx]?.nationality || ''} onChange={e => handleNationalityChange(e.target.value)}>
+                    <label className="form-label">Nationality *</label>
+                    <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'nationality')} value={travelers[activePassengerIdx]?.nationality || ''} onChange={e => handleNationalityChange(e.target.value)}>
                       <option value="">-- Select nationality --</option>
                       {NATIONALITIES.map(n => (
                         <option key={n.code} value={n.code}>{n.name}</option>
                       ))}
                     </select>
+                    {renderFieldError(activePassengerIdx, 'nationality')}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Passport Issue Country *</label>
@@ -8181,6 +8194,35 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     {renderFieldError(activePassengerIdx, 'email')}
                   </div>
                 </div>
+
+                {/* Special assistance — sent to the airline as SSRs with the booking */}
+                {(() => {
+                  const support = ssrSupport(selectedFlight.raw_offering);
+                  const t = travelers[activePassengerIdx] || {};
+                  return (
+                    <div style={{ marginTop: '0.25rem' }}>
+                      <div className="form-grid-2">
+                        <div className="form-group">
+                          <label className="form-label">Special Meal</label>
+                          <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
+                            <option value="">No special meal</option>
+                            {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Wheelchair Assistance</label>
+                          <select className="form-select" disabled={!support.wheelchair} value={t.wheelchair || ''} onChange={e => handleTravelerChange('wheelchair', e.target.value || null)}>
+                            <option value="">Not needed</option>
+                            {WHEELCHAIR_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '-0.35rem', marginBottom: '0.5rem' }}>
+                        {support.note || 'Sent to the airline with your booking. Requests depend on the airline confirming them.'}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <button
                   type="button"
@@ -9374,13 +9416,20 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           <div><span style={{ color: 'var(--text-muted)' }}>Name: </span><strong>{t.first_name} {t.last_name}</strong></div>
                           <div><span style={{ color: 'var(--text-muted)' }}>DOB: </span><strong>{t.date_of_birth}</strong></div>
                           <div><span style={{ color: 'var(--text-muted)' }}>Passport: </span><strong>{t.passport_number}</strong></div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Nationality: </span><strong>{t.nationality || 'LK'}</strong></div>
+                          <div><span style={{ color: 'var(--text-muted)' }}>Nationality: </span><strong>{t.nationality || '—'}</strong></div>
                           <div><span style={{ color: 'var(--text-muted)' }}>Email: </span><strong>{t.email}</strong></div>
                           <div><span style={{ color: 'var(--text-muted)' }}>Phone: </span><strong>{t.phone}</strong></div>
+                          {t.meal_code && <div><span style={{ color: 'var(--text-muted)' }}>Special meal: </span><strong>{(MEAL_OPTIONS.find(o => o[0] === t.meal_code) || [, t.meal_code])[1]}</strong></div>}
+                          {t.wheelchair && <div><span style={{ color: 'var(--text-muted)' }}>Wheelchair: </span><strong>{t.wheelchair}</strong></div>}
                         </div>
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Fare conditions of the chosen fare, live from Travelport */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <FareRulesPanel apiBase={API_BASE} rawOffering={selectedFlight.raw_offering} title="Fare rules — changes & cancellations" defaultOpen />
                 </div>
 
                 {/* Flight Itinerary Details */}
@@ -9601,10 +9650,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       ['Date of birth', t.date_of_birth],
                       ['Passport number', t.passport_number],
                       ['Passport expiry', t.passport_expiry],
-                      ['Nationality', t.nationality || 'LK'],
-                      ['Passport issued by', t.passport_issue_country || t.nationality || 'LK'],
+                      ['Nationality', t.nationality || '—'],
+                      ['Passport issued by', t.passport_issue_country || t.nationality || '—'],
                       ['Email', t.email],
                       ['Phone', t.phone],
+                      ...(t.meal_code ? [['Special meal', (MEAL_OPTIONS.find(o => o[0] === t.meal_code) || [, t.meal_code])[1]]] : []),
+                      ...(t.wheelchair ? [['Wheelchair', (WHEELCHAIR_OPTIONS.find(o => o[0] === t.wheelchair) || [, t.wheelchair])[1]]] : []),
                     ];
                     return (
                       <div key={idx} style={{ marginBottom: idx < travelers.length - 1 ? '0.9rem' : 0, paddingBottom: idx < travelers.length - 1 ? '0.75rem' : 0, borderBottom: idx < travelers.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
@@ -9761,7 +9812,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
                     <strong>Booking Status:</strong> <span style={{ color: issuedTicket.status === 'Ticketed' ? '#0f766e' : '#b45309', fontWeight: '700' }}>{issuedTicket.status === 'Ticketed' ? 'ISSUED / CONFIRMED' : 'RESERVATION ON HOLD'}</span><br />
                     <strong>Date of Issue:</strong> {issuedTicket.booking_date || new Date().toISOString().split('T')[0]}<br />
-                    <strong>Issuing Agent:</strong> TripServices GDS (PCC: 7F3C)
+                    <strong>Issuing Agent:</strong> George Steuart Travel via Travelport TripServices
                   </div>
                 </div>
               </div>
@@ -9810,6 +9861,16 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       ⚠ Some seat/extra documents are still being issued by the airline. Our team has been notified and will contact you.
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Meal / wheelchair requests and the airline's status for each */}
+              <SsrStatusList items={issuedTicket.ssr_status} />
+
+              {/* This booking's fare conditions, live from Travelport (fromreservation) */}
+              {issuedTicket.locator_code && (
+                <div className="no-print" style={{ marginBottom: '1.5rem' }}>
+                  <FareRulesPanel apiBase={API_BASE} locator={issuedTicket.locator_code} title="Fare rules for this booking" />
                 </div>
               )}
 
@@ -9874,7 +9935,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               </tr>
                               <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={{ padding: '0.35rem 0.75rem', color: '#64748b', fontWeight: '500' }}>Nationality:</td>
-                                <td style={{ padding: '0.35rem 0.75rem', fontWeight: '600', color: '#1e293b' }}>{t.nationality || (pIdx === 0 ? issuedTicket.nationality : null) || 'LK'}</td>
+                                <td style={{ padding: '0.35rem 0.75rem', fontWeight: '600', color: '#1e293b' }}>{t.nationality || (pIdx === 0 ? issuedTicket.nationality : null) || '—'}</td>
                               </tr>
                               <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={{ padding: '0.35rem 0.75rem', color: '#64748b', fontWeight: '500' }}>Gender:</td>
@@ -10040,7 +10101,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                           passenger: cleanPassengerName(issuedTicket.passenger_name),
                           passport: issuedTicket.passport_number,
                           fast_track: true,
-                          verification: "GDS Live Verification 7F3C"
+                          verification: "GDS Live Verification"
                         })}
                         size={130}
                         level="H"

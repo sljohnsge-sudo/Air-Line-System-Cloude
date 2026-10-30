@@ -26,7 +26,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-ERP_BASE_URL = os.getenv("ERP_BASE_URL", "https://erp-dev.gsoptimize.lk").rstrip("/")
+# No default host: a missing ERP_BASE_URL used to fall back to the development
+# ERP, so production invoices could silently land there. Set it explicitly.
+ERP_BASE_URL = os.getenv("ERP_BASE_URL", "").rstrip("/")
 ERP_API_KEY = os.getenv("ERP_API_KEY")
 ERP_API_SECRET = os.getenv("ERP_API_SECRET")
 ERP_COMPANY = os.getenv("ERP_COMPANY", "Online Booking")
@@ -43,7 +45,7 @@ class ErpSyncError(Exception):
 
 
 def erp_configured() -> bool:
-    return bool(ERP_API_KEY and ERP_API_SECRET)
+    return bool(ERP_BASE_URL and ERP_API_KEY and ERP_API_SECRET)
 
 
 def _headers() -> dict:

@@ -24,6 +24,8 @@ Workflow Steps:
 To modify an endpoint: update only this file.
 """
 
+from urllib.parse import quote
+
 from config.travelport_config import TravelportConfig
 
 # Convenience aliases
@@ -81,6 +83,13 @@ class TravelportEndpoints:
     # full-payload method as Add Offer.
     AIRPRICE_FULL_PAYLOAD = f"{_air}/price/offers/buildfromproducts"
 
+    # ── Fare Rules (standalone) ────────────────────────────────────────────────
+    # GET, query parameters only (Fare Rules Guide). After search: the search
+    # Identifier + CatalogProductOffering id + ONE productIDs per request. For
+    # an existing booking: reservationIdentifier = the locator.
+    FARE_RULES_FROM_SEARCH = f"{_air}/farerule/farerules/fromcatalogproductofferings"
+    FARE_RULES_FROM_RESERVATION = f"{_air}/farerule/farerules/fromreservation"
+
     # ── STEP 4: Reservation Workbench ─────────────────────────────────────────
     CREATE_WORKBENCH = f"{_air}/book/session/reservationworkbench"
     # POST  → create a new reservation workbench session
@@ -128,6 +137,13 @@ class TravelportEndpoints:
         for AF/KL NDC bookings), but sent on GDS bookings to match Travelport's
         GDS full-payload certification reference."""
         return f"{_air}/ticket/travelagency/reservationworkbench/{workbench_id}/travelagency"
+
+    # ── STEP 6c: Special Service Requests (meal, wheelchair) ───────────────────
+    @staticmethod
+    def add_special_services(workbench_id: str) -> str:
+        """POST → SpecialServiceListRequest. One kind of SSR per request
+        (Remarks & Service Requests Guide): meals and wheelchairs go separately."""
+        return f"{_air}/book/specialservices/reservationworkbench/{workbench_id}/specialservices/list"
 
     # ── STEP 7: Commit Workbench → Generate PNR ───────────────────────────────
     @staticmethod
@@ -210,3 +226,28 @@ class TravelportEndpoints:
     def commit_postcommit_workbench(workbench_id: str) -> str:
         """POST -> commit the post-commit workbench to issue the ticket."""
         return f"{_air}/book/reservation/reservations/{workbench_id}"
+
+    # ── Void / Refund / Cancel of ticketed bookings ────────────────────────────
+    # Exchange, Refund, and Void Guide: GDS tickets are voided (same day as
+    # issue) with Batch Void, then the itinerary is cancelled like a held
+    # booking. NDC tickets and held NDC bookings go post-commit workbench ->
+    # Refund Quote (tickets only) -> Reservation Cancel. GDS refunds outside
+    # the void period are not supported by TripServices yet.
+
+    # Batch Void: tickets and EMDs on one GDS booking. No /air prefix.
+    BATCH_VOID = f"{_base}/documents/void"
+
+    @staticmethod
+    def void_ticket(ticket_number: str) -> str:
+        """PUT -> Single Ticket Void (legacy; Batch Void is preferred)."""
+        return f"{_air}/ticket/tickets/updatestatus/{ticket_number}"
+
+    @staticmethod
+    def ndc_refund_quote(workbench_id: str) -> str:
+        """POST -> NDC Refund Quote on a post-commit workbench."""
+        return f"{_air}/book/airoffer/reservationworkbench/{workbench_id}/offers/canceloffer"
+
+    @staticmethod
+    def reservation_cancel(workbench_id: str, offer_identifier: str) -> str:
+        """POST (no body, no Content-Type) -> Reservation Cancel for the offer."""
+        return f"{_air}/receipt/reservations/{workbench_id}/receipts?OfferIdentifier={quote(offer_identifier, safe='')}"

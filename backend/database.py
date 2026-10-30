@@ -256,6 +256,23 @@ def init_db():
     if row and row[0] is not None and row[0] < 255:
         cursor.execute("ALTER TABLE bookings MODIFY COLUMN seat_number VARCHAR(255)")
 
+    # bookings.refund_* / cancel_* — outcome of a staff cancellation through
+    # Travelport (services/cancel_service.py): status becomes Voided (GDS
+    # ticket voided), Refunded (NDC ticket cancelled with a refund) or
+    # Cancelled (held booking, or NDC ticket with nothing refundable).
+    # refund_amount is what Travelport confirmed, never our own estimate;
+    # cancel_details keeps the voided document numbers / receipt ids.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='bookings' AND COLUMN_NAME='refund_amount'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE bookings ADD COLUMN refund_amount DOUBLE NULL AFTER fare_source")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN refund_currency VARCHAR(5) NULL AFTER refund_amount")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN cancel_method VARCHAR(30) NULL AFTER refund_currency")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN cancelled_at DATETIME NULL AFTER cancel_method")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN cancel_details TEXT NULL AFTER cancelled_at")
+
     # ── Loyalty Program ──────────────────────────────────────────────────────
     # Single-row config table (same pattern as pricing_settings) — points
     # accrual rate per currency (fares are LKR or USD, never blended) and the
@@ -805,11 +822,13 @@ def init_db():
     # Single-row config table (same pattern as pricing_settings) — lets an
     # admin take one GDS out of the unified search entirely (e.g. a contract
     # lapse or an outage) without touching code. search_mode:
-    # 'both' | 'travelport_only' | 'amadeus_only'.
+    # 'both' | 'travelport_only' | 'amadeus_only'. Defaults to
+    # 'travelport_only' (Phase 1 go-live sells Travelport flights only) so a
+    # fresh database never starts merging Amadeus fares into search results.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS provider_settings (
             id          INT PRIMARY KEY,
-            search_mode VARCHAR(20) NOT NULL DEFAULT 'both',
+            search_mode VARCHAR(20) NOT NULL DEFAULT 'travelport_only',
             updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
@@ -829,9 +848,26 @@ def init_db():
         WHERE TABLE_SCHEMA=%s AND TABLE_NAME='provider_settings' AND COLUMN_NAME='hotels_enabled'
     """, (MYSQL_DATABASE,))
     if cursor.fetchone()[0] == 0:
-        cursor.execute("ALTER TABLE provider_settings ADD COLUMN hotels_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER search_mode")
-        cursor.execute("ALTER TABLE provider_settings ADD COLUMN visa_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER hotels_enabled")
-        cursor.execute("ALTER TABLE provider_settings ADD COLUMN packages_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER visa_enabled")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN hotels_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER search_mode")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN visa_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER hotels_enabled")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN packages_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER visa_enabled")
+
+    # ── Pending NDC Instant Pay bookings (Emirates) ──────────────────────────
+    # Instant Pay takes the card payment BEFORE the PNR and ticket exist, so
+    # the selected offer, travelers and the server-computed amount to charge
+    # must survive until PayCorp redirects back. These used to live only in
+    # process memory — a backend restart between payment and return left a
+    # paid customer with no booking. consumed_at makes completion single-use.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ndc_pending_payments (
+            pending_id    VARCHAR(64) PRIMARY KEY,
+            payload_json  LONGTEXT NOT NULL,
+            amount        DECIMAL(14,2) NOT NULL,
+            currency      VARCHAR(10) NOT NULL,
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            consumed_at   DATETIME NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
 
     conn.commit()
     cursor.close()
@@ -856,7 +892,8 @@ def save_booking(ticket: dict) -> dict:
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON DUPLICATE KEY UPDATE
                 pnr=VALUES(pnr), ticket_number=VALUES(ticket_number),
-                status=VALUES(status), passenger_name=VALUES(passenger_name),
+                status=IF(status IN ('Cancelled','Voided','Refunded'), status, VALUES(status)),
+                passenger_name=VALUES(passenger_name),
                 passenger_email=VALUES(passenger_email), customer_id=VALUES(customer_id),
                 passport_number=VALUES(passport_number),
                 flight_number=VALUES(flight_number), airline=VALUES(airline),
@@ -1619,7 +1656,7 @@ def get_provider_settings() -> dict:
     cursor.close()
     conn.close()
     if not row:
-        return {"search_mode": "both", "hotels_enabled": True, "visa_enabled": True, "packages_enabled": True}
+        return {"search_mode": "travelport_only", "hotels_enabled": False, "visa_enabled": False, "packages_enabled": False}
     row["hotels_enabled"] = bool(row.get("hotels_enabled", 1))
     row["visa_enabled"] = bool(row.get("visa_enabled", 1))
     row["packages_enabled"] = bool(row.get("packages_enabled", 1))
@@ -2401,6 +2438,51 @@ def get_ticket_shares() -> list[dict]:
     return rows
 
 
+def save_ndc_pending_payment(pending_id: str, payload: dict, amount: float, currency: str) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO ndc_pending_payments (pending_id, payload_json, amount, currency) VALUES (%s,%s,%s,%s)",
+        (pending_id, json.dumps(payload, default=str), amount, currency),
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def get_ndc_pending_payment(pending_id: str) -> dict | None:
+    """The pending Instant Pay booking, or None if unknown or already completed."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM ndc_pending_payments WHERE pending_id=%s AND consumed_at IS NULL", (pending_id,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not row:
+        return None
+    row["payload"] = json.loads(row.pop("payload_json"))
+    row["amount"] = float(row["amount"])
+    return row
+
+
+def consume_ndc_pending_payment(pending_id: str) -> bool:
+    """Atomically marks a pending Instant Pay booking as completed. True only
+    for the first caller, so a replayed return URL can't book twice."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE ndc_pending_payments SET consumed_at=NOW() WHERE pending_id=%s AND consumed_at IS NULL",
+        (pending_id,),
+    )
+    conn.commit()
+    claimed = cursor.rowcount == 1
+    cursor.close()
+    conn.close()
+    return claimed
+
+
 def claim_payment_reqid(reqid: str, client_ref: str, locator_code: str | None = None) -> bool:
     """Atomically marks a PayCorp reqid as consumed for one specific booking.
     Returns True the first (and only the first) time a given reqid is claimed;
@@ -2425,18 +2507,31 @@ def claim_payment_reqid(reqid: str, client_ref: str, locator_code: str | None = 
         conn.close()
 
 
-def cancel_booking(locator_code: str) -> bool:
-    """Mark a cached booking as Cancelled. Returns True if updated."""
+CANCELLED_STATUSES = ("Cancelled", "Voided", "Refunded")
+
+
+def record_cancellation(locator_code: str, status: str, cancel_method: str,
+                        refund_amount: float | None, refund_currency: str | None,
+                        details: dict) -> dict | None:
+    """Store the outcome of a Travelport-confirmed cancellation.
+    status: Voided / Refunded / Cancelled. Only called after Travelport
+    itself confirmed the void/cancel — see services/cancel_service.py."""
+    if status not in CANCELLED_STATUSES:
+        raise ValueError(f"Unknown cancellation status {status}")
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT status FROM bookings WHERE locator_code=%s",(locator_code,))
-        row = cursor.fetchone()
-        if not row or row["status"] == "Cancelled":
-            return False
-        cursor.execute("UPDATE bookings SET status='Cancelled' WHERE locator_code=%s",(locator_code,))
+        cursor.execute(
+            """UPDATE bookings SET status=%s, cancel_method=%s, refund_amount=%s,
+               refund_currency=%s, cancelled_at=NOW(), cancel_details=%s
+               WHERE locator_code=%s""",
+            (status, cancel_method, refund_amount, refund_currency,
+             json.dumps(details, default=str), locator_code),
+        )
         conn.commit()
-        return True
+        cursor.execute("SELECT * FROM bookings WHERE locator_code=%s", (locator_code,))
+        row = cursor.fetchone()
+        return _hydrate_bookings([row])[0] if row else None
     except Exception as e:
         conn.rollback()
         raise e
@@ -2769,7 +2864,7 @@ def get_sales_summary(start_date: str | None = None, end_date: str | None = None
 
         cursor.execute(
             f"""SELECT currency, COUNT(*) AS booking_count,
-                       SUM(CASE WHEN status='Cancelled' THEN 0 ELSE total_fare END) AS total_sales,
+                       SUM(CASE WHEN status IN ('Cancelled','Voided','Refunded') THEN 0 ELSE total_fare END) AS total_sales,
                        SUM(CASE WHEN ticket_number IS NOT NULL AND ticket_number != '' THEN 1 ELSE 0 END) AS ticket_count
                 FROM bookings {clause}
                 GROUP BY currency""",
@@ -2779,7 +2874,7 @@ def get_sales_summary(start_date: str | None = None, end_date: str | None = None
 
         cursor.execute(
             f"""SELECT COUNT(*) AS total_bookings,
-                       SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) AS total_cancelled
+                       SUM(CASE WHEN status IN ('Cancelled','Voided','Refunded') THEN 1 ELSE 0 END) AS total_cancelled
                 FROM bookings {clause}""",
             tuple(params),
         )

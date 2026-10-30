@@ -83,6 +83,18 @@ def get_optional_customer_id(credentials: HTTPAuthorizationCredentials = Depends
     return payload.get("customer_id")
 
 
+def get_optional_principal(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)) -> dict | None:
+    """Never raises. {"role", "customer_id", "admin_id"} for a valid admin or
+    customer token, otherwise None — for public endpoints that show more
+    detail to staff or to the booking's own customer."""
+    if credentials is None:
+        return None
+    payload = decode_token(credentials.credentials)
+    if payload is None or payload.get("role") not in ("admin", "customer"):
+        return None
+    return {"role": payload.get("role"), "customer_id": payload.get("customer_id"), "admin_id": payload.get("admin_id")}
+
+
 def get_admin_or_customer(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)) -> dict:
     """Accepts EITHER a valid admin or customer token — used by endpoints
     (like invoice lookup) that both portals share but that must never be

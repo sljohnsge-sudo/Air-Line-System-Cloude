@@ -240,14 +240,14 @@ def search_flights(
             # Travelport's own API docs assistant. 4 is the max GDS allows and
             # is what actually surfaces Business/First/PremiumEconomy upsell
             # brands/cabins for a route, instead of Economy-only results.
-            "maxNumberOfUpsellsToReturn": 4,
+            "maxNumberOfUpsellsToReturn": TravelportConfig.MAX_UPSELLS,
             # Travelport GDS certification guidance allows 0, 999, or omitting
             # this field. Empirically on this sandbox account, omitting it (or
             # sending 0) disables server-side caching for journey-based search,
             # which drops CatalogProductOfferings.Identifier from the response —
             # the reference the offer/price request needs downstream. 999 keeps
             # caching on while still satisfying the certification guidance.
-            "offersPerPage": 999,
+            "offersPerPage": TravelportConfig.OFFERS_PER_PAGE,
             # GDS and NDC were queried separately for Travelport's certification
             # (2026-09-16 call, since certified — see calls below). Now that
             # certification is complete, a plain search queries both content
@@ -255,7 +255,7 @@ def search_flights(
             # result set. An explicit content_source (e.g. "NDC" from the
             # dedicated /api/ndc/search endpoint) still restricts to just that
             # one source when a caller specifically wants it.
-            "contentSourceList": [content_source] if content_source else ["GDS", "NDC"],
+            "contentSourceList": [content_source] if content_source else TravelportConfig.CONTENT_SOURCES,
             "PassengerCriteria": passenger_criteria,
             "SearchCriteriaFlight": search_criteria_flight,
             # Without this, Travelport only applies the PCC's default
@@ -283,27 +283,24 @@ def search_flights(
         }
         cabin_val = cabin_map.get(cabin_preference)
         if cabin_val:
-            # Field name/shape matters: Travelport's schema wants PascalCase
-            # "CabinPreference" as an array of objects with a "cabins" array —
-            # the previous camelCase "cabinPreference": "<string>" shape doesn't
-            # match the schema and Travelport silently ignores it (confirmed
-            # via Travelport's own API docs assistant), which is why cabin
-            # filtering had no effect regardless of what value was sent.
-            # preferenceType "Permitted" strictly restricts to the requested
-            # cabin; "Preferred" would let Travelport fall back to a lower
-            # cabin (e.g. Economy) when the requested one isn't available.
-            payload["CatalogProductOfferingsRequest"]["SearchModifiersAir"] = [
-                {
-                    "@type": "SearchModifiersAir",
-                    "CabinPreference": [
-                        {
-                            "@type": "CabinPreference",
-                            "preferenceType": "Permitted",
-                            "cabins": [cabin_val]
-                        }
-                    ]
-                }
-            ]
+            # Shape matters: per the v11 spec SearchModifiersAir is a single
+            # OBJECT holding a "CabinPreference" array. Sent as a list (the
+            # previous shape) Travelport silently ignored it — confirmed live
+            # 2026-10-29, CMB-DXB Business: list shape returned the same
+            # Economy/Business/First mix as no filter at all; object shape
+            # returned Business only. preferenceType "Permitted" strictly
+            # restricts to the requested cabin; "Preferred" would let
+            # Travelport fall back to a lower cabin when it isn't available.
+            payload["CatalogProductOfferingsRequest"]["SearchModifiersAir"] = {
+                "@type": "SearchModifiersAir",
+                "CabinPreference": [
+                    {
+                        "@type": "CabinPreference",
+                        "preferenceType": "Permitted",
+                        "cabins": [cabin_val]
+                    }
+                ]
+            }
 
     # fareIndicator header — Travelport GDS certification requirement for the
     # search request only; not part of the shared auth headers used by every
