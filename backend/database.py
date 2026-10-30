@@ -2556,6 +2556,28 @@ def record_cancellation(locator_code: str, status: str, cancel_method: str,
         conn.close()
 
 
+AIRLINE_STATUSES = ("Confirmed", "Awaiting Airline", "Airline Cancelled")
+
+
+def set_airline_status(locator_code: str, status: str) -> None:
+    """Follow the airline's own flight status on an un-ticketed booking
+    (services/segment_status.py): Confirmed / Awaiting Airline / Airline
+    Cancelled. Never touches a ticketed or staff-cancelled booking."""
+    if status not in AIRLINE_STATUSES:
+        raise ValueError(f"Unknown airline status {status}")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE bookings SET status=%s WHERE locator_code=%s AND status IN (%s, %s, %s)",
+            (status, locator_code, *AIRLINE_STATUSES),
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def search_airports(query: str, limit: int = 15, country: str = "") -> list[dict]:
     """Search airports by IATA, city, or name. Exact IATA match ranked first.
     Optional country filters to a single ISO alpha-2 code (e.g. "AE") — used

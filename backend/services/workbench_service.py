@@ -17,6 +17,7 @@ from datetime import datetime
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services import seat_rules
+from services.segment_status import segment_statuses, is_confirmed, norm_flight_no as _norm_flight_no
 from services.auth_service import get_auth_headers, invalidate_token, flow_trace_id
 from services.pricing_service import get_settings as get_pricing_settings, apply_markup
 from utils import tp_logger
@@ -1910,12 +1911,6 @@ def book_ancillary_offer(workbench_id: str, ancillary: dict, quantity: int = 1) 
     return result
 
 
-def _norm_flight_no(carrier: str | None, number: str | None = None) -> str:
-    """"UL0225", ("UL", "0225") and "UL225" are the same flight."""
-    text = f"{carrier or ''}{number or ''}".upper().replace(" ", "")
-    return re.sub(r"^([A-Z0-9]{2})0+(?=\d)", r"\1", text)
-
-
 def _match_traveler_refs(workbench_travelers: list, travelers: list) -> dict:
     """passenger_idx (order the customer entered them) -> workbench Traveler.
     Travelport stores Given with the title appended ("TEST MR") and we add
@@ -1957,32 +1952,12 @@ def _ancillary_offer_statuses(commit_result: dict) -> dict:
     return statuses
 
 
-def segment_statuses(reservation: dict) -> dict:
-    """normalised flight number ("UL225") -> (code, value) from the PNR's
-    Receipt OfferStatusAir, e.g. ("HK", "Confirmed") or ("HX", "Cancelled").
-    Confirmed live 2026-10-30: UL's test system cancels (HX) a just-made
-    segment when it looks like a duplicate booking, and from then on every
-    Seat Book is refused ("SSR RESTRICTED ON SEGMENT STATUS") or silently
-    dropped at commit ("CONFIRM SEGMENT 01")."""
-    flights = {}
-    for o in reservation.get("Offer", []) or []:
-        for p in o.get("Product", []) or []:
-            for fs in p.get("FlightSegment", []) or []:
-                f = fs.get("Flight") or {}
-                if f.get("id"):
-                    flights[f["id"]] = _norm_flight_no(f.get("carrier"), f.get("number"))
-    out = {}
-    for r in reservation.get("Receipt", []) or []:
-        for s in (((r.get("Confirmation") or {}).get("OfferStatus") or {}).get("StatusAir") or []):
-            for ref in s.get("flightRefs") or []:
-                if ref in flights:
-                    out[flights[ref]] = (s.get("code"), s.get("value"))
-    return out
-
-
 def _segment_problem(status: tuple | None) -> str | None:
-    """Why the airline won't take a seat/extra on this flight, or None."""
-    if not status or status[0] in ("HK", "KK", "RR", "TK") or (status[1] or "").lower() == "confirmed":
+    """Why the airline won't take a seat/extra on this flight, or None.
+    UL's test system cancels (HX) a segment it sees as a duplicate booking;
+    after that a Seat Book is refused ("SSR RESTRICTED ON SEGMENT STATUS")
+    or silently dropped at commit ("CONFIRM SEGMENT 01")."""
+    if is_confirmed(status):
         return None
     code, value = status
     return (f"The airline has not confirmed this flight on the booking (status {code} {value or ''}).".replace(" )", ")")

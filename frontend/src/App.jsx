@@ -2822,6 +2822,12 @@ export default function App() {
       const data = await handleApiResponse(res, 'Booking failed');
       const pnrTicket = data.ticket; // PNR confirmed on Travelport — not yet ticketed
 
+      // The airline dropped or hasn't confirmed a flight (e.g. HX): the
+      // ticket couldn't be issued, so never send the customer to payment.
+      if (['Airline Cancelled', 'Awaiting Airline'].includes(pnrTicket.status)) {
+        throw new Error(`Booking ${pnrTicket.locator_code}: ${pnrTicket.airline_status_note || 'the airline has not confirmed this flight.'}`);
+      }
+
       // Seats/extras are booked with the airline right after the PNR. If any
       // came back as anything other than "confirmed" (requested-only, or not
       // available), stop here and show the customer exactly what the airline
@@ -6792,8 +6798,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               <td style={{ padding: '0.6rem 0.85rem' }}>
                                 <span style={{
                                   fontSize: '0.65rem', fontWeight: '700', padding: '0.15rem 0.4rem', borderRadius: '4px',
-                                  background: r.status === 'Ticketed' ? '#dcfce7' : ['Cancelled', 'Voided', 'Refunded'].includes(r.status) ? '#fee2e2' : '#f1f5f9',
-                                  color: r.status === 'Ticketed' ? '#15803d' : ['Cancelled', 'Voided', 'Refunded'].includes(r.status) ? '#b91c1c' : '#475569'
+                                  background: r.status === 'Ticketed' ? '#dcfce7' : ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'].includes(r.status) ? '#fee2e2' : '#f1f5f9',
+                                  color: r.status === 'Ticketed' ? '#15803d' : ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'].includes(r.status) ? '#b91c1c' : '#475569'
                                 }}>{r.status || 'Confirmed'}</span>
                               </td>
                               <td style={{ padding: '0.6rem 0.85rem', color: '#475569', fontWeight: '500' }}>{r.payment_method || 'Credit Card'}</td>

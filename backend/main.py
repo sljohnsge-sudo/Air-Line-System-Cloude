@@ -52,6 +52,7 @@ import services
 import auth
 import hotel_database
 from services import seat_rules
+from services import segment_status
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -536,6 +537,41 @@ def _notify_stuck_booking(locator_code: str, error_message: str, payment_txn_ref
         database.create_stuck_booking_notification(locator_code, error_message, payment_txn_ref, email_sent)
     except Exception as db_err:
         logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
+
+
+def _notify_airline_problem(locator_code: str, seg_codes: dict, txn_ref: Optional[str] = None) -> None:
+    """Stuck-booking alert: the airline hasn't confirmed (or has cancelled) a
+    flight on this PNR. txn_ref is set when a payment was already taken."""
+    flights = ", ".join(f"{f} {c}" for f, c in seg_codes.items()
+                        if not segment_status.is_confirmed((c, None)))
+    note = (f"Airline has not confirmed the flight on this booking ({flights}). "
+            + ("A payment WAS taken — refund it. " if txn_ref else "No payment taken. ")
+            + "Check the PNR in Smartpoint.")
+    try:
+        database.create_stuck_booking_notification(locator_code, note, txn_ref, False)
+    except Exception as db_err:
+        logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
+
+
+def _live_airline_problem(locator_code: str) -> Optional[dict]:
+    """Retrieve the PNR now and return segment_status.booking_problem (with
+    the flight codes) if the airline hasn't confirmed every flight, keeping
+    the saved booking's status in step either way. Raises HTTPException 503
+    if Travelport can't be asked — better than charging for a flight that
+    may be gone."""
+    try:
+        live = services.retrieve_reservation(locator_code)
+    except Exception as e:
+        logger.error(f"Airline status check for {locator_code} failed: {e}")
+        raise HTTPException(status_code=503, detail="We couldn't confirm this booking with the airline just now. "
+                                                    "No payment has been taken — please try again in a moment.")
+    codes = live.get("segment_statuses") or {}
+    problem = segment_status.booking_problem({f: (c, None) for f, c in codes.items()})
+    try:
+        database.set_airline_status(locator_code, problem["status"] if problem else "Confirmed")
+    except Exception as db_err:
+        logger.error(f"Could not save airline status for {locator_code}: {db_err}")
+    return {**problem, "codes": codes} if problem else None
 
 
 def _notify_cancel_failure(locator_code: str, error_message: str, recorded_status: Optional[str]) -> None:
@@ -1288,21 +1324,19 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
                     "seats": [{**s.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for s in selected_seats],
                     "extras": [{**a.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for a in selected_ancillaries],
                 }
-        # The seat/extras step reads the airline's segment status off the PNR.
-        # Anything but confirmed (e.g. UL's HX after its duplicate-booking
-        # check) means the airline dropped the flight — staff must look at it.
-        unconfirmed = {f: c for f, c in (addon_results.get("segment_statuses") or {}).items()
-                       if c not in ("HK", "KK", "RR", "TK")}
-        if unconfirmed:
-            try:
-                database.create_stuck_booking_notification(
-                    locator_code,
-                    "Airline has not confirmed the flight on this booking ("
-                    + ", ".join(f"{f} {c}" for f, c in unconfirmed.items())
-                    + "), so seats/extras were not added. Check the PNR in Smartpoint before taking payment.",
-                    None, False)
-            except Exception as db_err:
-                logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
+        # The airline's own status per flight, from the retrieve and again
+        # from the seats/extras step a few seconds later (UL cancelled
+        # duplicate test bookings — HX — in between). Not confirmed means the
+        # booking is not "Confirmed" and the frontend must not take payment;
+        # /api/payments/init checks again live in case it changes later.
+        seg_codes = {**(ticket.get("segment_statuses") or {}), **(addon_results.get("segment_statuses") or {})}
+        airline_problem = segment_status.booking_problem({f: (c, None) for f, c in seg_codes.items()})
+        if seg_codes:
+            ticket["segment_statuses"] = seg_codes
+        if airline_problem:
+            ticket["status"] = airline_problem["status"]
+            ticket["airline_status_note"] = airline_problem["message"]
+            _notify_airline_problem(locator_code, seg_codes)
 
         # Only items the airline CONFIRMED are charged. "pending" = requested
         # on the PNR but not yet answered by the airline: not charged, no seat
@@ -1505,6 +1539,14 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
         request.reqid, expected_client_ref=locator_code, locator_code=locator_code,
         expected_amount=existing["total_fare"], expected_currency=existing.get("currency"),
     )
+    # The airline may have dropped the flight after payment started; a ticket
+    # can't be issued then, so alert staff to refund instead of trying.
+    problem = _live_airline_problem(locator_code)
+    if problem:
+        _notify_airline_problem(locator_code, problem["codes"], payment_result.get("txn_reference") or "paid")
+        raise HTTPException(status_code=409, detail=(
+            "The airline has not confirmed (or has cancelled) the flight on this booking, so the ticket "
+            "can't be issued. Your payment was received and our team will contact you to refund it."))
     return _issue_and_save_ticket(locator_code, payment_result)
 
 
@@ -2783,6 +2825,13 @@ def payments_init(request: PaymentInitRequestBody):
             amount, currency = pending["amount"], pending["currency"]
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
             amount, currency = float(booking["total_fare"]), booking.get("currency") or currency
+            # Never take payment for a flight the airline has dropped — the
+            # ticket could not be issued. Checked live, right now.
+            problem = _live_airline_problem(ref.upper())
+            if problem:
+                if problem["status"] == segment_status.AIRLINE_CANCELLED:
+                    _notify_airline_problem(ref.upper(), problem["codes"])
+                raise HTTPException(status_code=409, detail=problem["message"])
         if (amount, currency) != (request.amount, request.currency):
             logger.warning(f"Payment init for {ref}: browser sent {request.currency} {request.amount}, "
                            f"charging the server-side {currency} {amount} instead.")

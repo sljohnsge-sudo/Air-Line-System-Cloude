@@ -16,6 +16,7 @@ from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
 from services.search_service import parse_iso_duration, parse_naive_datetime, minutes_to_iso_duration, IATA_AIRLINE_NAMES
+from services.segment_status import segment_statuses, booking_problem
 from utils import tp_logger
 
 logger = logging.getLogger(__name__)
@@ -534,6 +535,17 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                     })
         if emds:
             ticket["emd_numbers"] = emds
+
+        # ── Airline status per flight (HK confirmed, HX cancelled, ...) ──────
+        # A PNR can still exist after the airline dropped its flight; it is
+        # then not "Confirmed" (see services/segment_status.py).
+        statuses = segment_statuses(reservation)
+        if statuses:
+            ticket["segment_statuses"] = {f: s[0] for f, s in statuses.items()}
+        problem = booking_problem(statuses)
+        if problem:
+            ticket["status"] = problem["status"]
+            ticket["airline_status_note"] = problem["message"]
 
     except Exception as e:
         logger.warning(f"Partial reservation parse error: {e}", exc_info=True)
