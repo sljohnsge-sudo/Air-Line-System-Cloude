@@ -7,7 +7,7 @@
 // anyone's itinerary. Manage My Booking (ManageMyBooking.jsx) opens below.
 import { useEffect, useState } from 'react';
 import { LiveStatusDetails } from './LiveBookingPanel.jsx';
-import ManageMyBooking from './ManageMyBooking.jsx';
+import ManageMyBooking, { startAddonPayment } from './ManageMyBooking.jsx';
 
 // prefill: {query, lastName, key} — set when opened from a My Bookings detail page; looks it up at once.
 export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, prefill }) {
@@ -17,6 +17,26 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [paying, setPaying] = useState(false);
+
+  // Seats/extras the airline confirmed after they were requested, on a
+  // ticketed booking: price fixed server-side, then the usual card payment.
+  const payDue = async () => {
+    setPaying(true);
+    setError('');
+    try {
+      const res = await fetchWithRetry(`${apiBase}/manage-booking/pay-due`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ manage_token: data.manage_token }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Could not start the payment');
+      await startAddonPayment({ apiBase, fetchWithRetry, addon: body });
+    } catch (err) {
+      setError(err.message || String(err));
+      setPaying(false);
+    }
+  };
 
   const lookup = async (e, q = query, ln = lastName) => {
     e?.preventDefault?.();
@@ -87,6 +107,18 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
               )}
             </div>
           </div>
+          {data.payment_due && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.7rem 0.9rem', margin: '0.7rem 0 0.2rem', fontSize: '0.82rem', color: '#78350f' }}>
+              <strong>Payment due:</strong> the airline has now confirmed{' '}
+              {data.payment_due.items.map(i => `${i.name} (${data.payment_due.currency} ${Number(i.price).toLocaleString(undefined, { minimumFractionDigits: 2 })})`).join(', ')}.
+              Pay to keep {data.payment_due.items.length > 1 ? 'them' : 'it'} — the airline then issues the document.
+              <div style={{ marginTop: '0.45rem' }}>
+                <button className="btn btn-primary btn-sm" disabled={paying} onClick={payDue}>
+                  {paying ? 'Opening payment…' : `Pay ${data.payment_due.currency} ${Number(data.payment_due.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                </button>
+              </div>
+            </div>
+          )}
           <LiveStatusDetails data={data} />
         </section>
       )}

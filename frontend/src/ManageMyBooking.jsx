@@ -9,6 +9,22 @@ const money = (cur, amt) => `${cur || ''} ${Number(amt || 0).toLocaleString(unde
 const box = { border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 0.9rem', marginTop: '0.75rem', background: 'white' };
 const h5 = { margin: '0 0 0.5rem', fontSize: '0.88rem' };
 const muted = { color: 'var(--text-muted)', fontSize: '0.74rem' };
+// Card payment for an add-on on PayCorp's hosted page. The backend takes the
+// amount from the add-on record (never this page's figure); on return
+// CustomerPortal completes it and the airline issues the EMD.
+export async function startAddonPayment({ apiBase, fetchWithRetry, addon }) {
+  const base = `${window.location.origin}/account`;
+  const res = await fetchWithRetry(`${apiBase}/payments/init`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount: addon.amount, currency: addon.currency, client_ref: addon.addon_id,
+                           return_url: `${base}?addon=${addon.addon_id}`, cancel_url: `${base}?addon=${addon.addon_id}&payment=cancelled`,
+                           comment: `George Steuart Travel - seats/extras ${addon.addon_id}` }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not start the payment');
+  window.location.href = data.payment_page_url;
+}
+
 const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Requested — not charged unless the airline confirms', sent: 'Sent to the airline', failed: 'Not added' };
 
 function SeatMap({ map, chosen, onPick }) {
@@ -119,22 +135,11 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
     setBusy('');
   };
 
-  // Paid add-ons on a ticketed booking: card payment on PayCorp's page. The
-  // backend sets the amount from the add-on record; on return
-  // CustomerPortal completes it (EMD issued).
+  // Paid add-ons on a ticketed booking: card payment, then EMD issued.
   const payAddons = async () => {
     setBusy('pay'); setError('');
     try {
-      const base = `${window.location.origin}/account`;
-      const res = await fetchWithRetry(`${apiBase}/payments/init`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: result.amount, currency: result.currency, client_ref: result.addon_id,
-                               return_url: `${base}?addon=${result.addon_id}`, cancel_url: `${base}?addon=${result.addon_id}&payment=cancelled`,
-                               comment: `George Steuart Travel - seats/extras ${result.addon_id}` }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not start the payment');
-      window.location.href = data.payment_page_url;
+      await startAddonPayment({ apiBase, fetchWithRetry, addon: result });
     } catch (e) { setError(e.message); setBusy(''); }
   };
 
