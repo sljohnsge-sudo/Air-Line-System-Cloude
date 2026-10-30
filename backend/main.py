@@ -3447,6 +3447,10 @@ class ProviderSettingsRequest(BaseModel):
     # Unpaid confirmed seats/extras on ticketed bookings (services/addon_deadlines.py)
     extras_pay_hours: int = Field(24, ge=1, le=168)
     extras_pay_before_departure_hours: int = Field(24, ge=0, le=168)
+    # Automatic customer emails / SMS about seats/extras (services/customer_notify.py)
+    notify_email_enabled: bool = True
+    notify_sms_enabled: bool = True
+    extras_reminder_hours: int = Field(6, ge=0, le=72)
 
 
 @app.get("/api/admin/go-live-checks")
@@ -3466,6 +3470,7 @@ def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = De
     return database.update_provider_settings(
         body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled,
         body.ticketed_cancel_enabled, body.extras_pay_hours, body.extras_pay_before_departure_hours,
+        body.notify_email_enabled, body.notify_sms_enabled, body.extras_reminder_hours,
     )
 
 

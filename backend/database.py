@@ -877,6 +877,19 @@ def init_db():
         cursor.execute("ALTER TABLE provider_settings ADD COLUMN extras_pay_hours INT NOT NULL DEFAULT 24 AFTER ticketed_cancel_enabled")
         cursor.execute("ALTER TABLE provider_settings ADD COLUMN extras_pay_before_departure_hours INT NOT NULL DEFAULT 24 AFTER extras_pay_hours")
 
+    # provider_settings.notify_email_enabled / notify_sms_enabled /
+    # extras_reminder_hours — automatic customer emails and SMS about
+    # seats/extras (services/customer_notify.py): payment due, a reminder this
+    # many hours before the deadline, removed, paid, refused by the airline.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='provider_settings' AND COLUMN_NAME='notify_email_enabled'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN notify_email_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER extras_pay_before_departure_hours")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN notify_sms_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER notify_email_enabled")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN extras_reminder_hours INT NOT NULL DEFAULT 6 AFTER notify_sms_enabled")
+
     # ── Manage My Booking: paid seats/extras added to a ticketed booking ─────
     # Booked on the PNR first (Travelport's price), then paid by card; only
     # after the payment is verified are their EMDs issued. The amount to
@@ -931,6 +944,27 @@ def init_db():
             closed_utc            DATETIME     NULL,
             PRIMARY KEY (locator_code, offer_key),
             KEY idx_addon_holds_due (status, deadline_utc)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── Customer notifications (email / SMS) ─────────────────────────────────
+    # One row per booking + event + item + channel: the unique key is what
+    # stops a message ever going twice (services/customer_notify.py).
+    # status: pending / sent / not_configured / no_address / failed.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS customer_notifications (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            locator_code  VARCHAR(10)  NOT NULL,
+            event         VARCHAR(20)  NOT NULL,
+            item_key      VARCHAR(80)  NOT NULL,
+            channel       VARCHAR(10)  NOT NULL,
+            recipient     VARCHAR(200) NULL,
+            status        VARCHAR(20)  NOT NULL DEFAULT 'pending',
+            subject       VARCHAR(250) NULL,
+            body          TEXT         NULL,
+            error         VARCHAR(500) NULL,
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_customer_notification (locator_code, event, item_key, channel)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
 
@@ -1781,13 +1815,17 @@ def get_provider_settings() -> dict:
     conn.close()
     if not row:
         return {"search_mode": "travelport_only", "hotels_enabled": False, "visa_enabled": False, "packages_enabled": False,
-                "ticketed_cancel_enabled": False, "extras_pay_hours": 24, "extras_pay_before_departure_hours": 24}
+                "ticketed_cancel_enabled": False, "extras_pay_hours": 24, "extras_pay_before_departure_hours": 24,
+                "notify_email_enabled": True, "notify_sms_enabled": True, "extras_reminder_hours": 6}
     row["hotels_enabled"] = bool(row.get("hotels_enabled", 1))
     row["visa_enabled"] = bool(row.get("visa_enabled", 1))
     row["packages_enabled"] = bool(row.get("packages_enabled", 1))
     row["ticketed_cancel_enabled"] = bool(row.get("ticketed_cancel_enabled", 0))
     row["extras_pay_hours"] = int(row.get("extras_pay_hours") or 24)
     row["extras_pay_before_departure_hours"] = int(row.get("extras_pay_before_departure_hours") or 24)
+    row["notify_email_enabled"] = bool(row.get("notify_email_enabled", 1))
+    row["notify_sms_enabled"] = bool(row.get("notify_sms_enabled", 1))
+    row["extras_reminder_hours"] = int(row["extras_reminder_hours"]) if row.get("extras_reminder_hours") is not None else 6
     return row
 
 
@@ -1799,15 +1837,20 @@ def update_provider_settings(
     ticketed_cancel_enabled: bool = False,
     extras_pay_hours: int = 24,
     extras_pay_before_departure_hours: int = 24,
+    notify_email_enabled: bool = True,
+    notify_sms_enabled: bool = True,
+    extras_reminder_hours: int = 6,
 ) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
             "UPDATE provider_settings SET search_mode=%s, hotels_enabled=%s, visa_enabled=%s, packages_enabled=%s,"
-            " ticketed_cancel_enabled=%s, extras_pay_hours=%s, extras_pay_before_departure_hours=%s WHERE id=1",
+            " ticketed_cancel_enabled=%s, extras_pay_hours=%s, extras_pay_before_departure_hours=%s,"
+            " notify_email_enabled=%s, notify_sms_enabled=%s, extras_reminder_hours=%s WHERE id=1",
             (search_mode, int(hotels_enabled), int(visa_enabled), int(packages_enabled), int(ticketed_cancel_enabled),
-             int(extras_pay_hours), int(extras_pay_before_departure_hours)),
+             int(extras_pay_hours), int(extras_pay_before_departure_hours),
+             int(notify_email_enabled), int(notify_sms_enabled), int(extras_reminder_hours)),
         )
         conn.commit()
         return get_provider_settings()
@@ -3283,6 +3326,60 @@ def record_emds(locator_code: str, numbers: list, origin: str) -> None:
         cursor.executemany("INSERT IGNORE INTO emd_ledger (emd_number, locator_code, origin) VALUES (%s,%s,%s)",
                            [(n, locator_code, origin) for n in numbers])
         conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Customer notifications (services/customer_notify.py) ─────────────────────
+
+def claim_notification(locator_code: str, event: str, item_key: str, channel: str) -> bool:
+    """True only the first time for this booking/event/item/channel."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT IGNORE INTO customer_notifications (locator_code, event, item_key, channel) VALUES (%s,%s,%s,%s)",
+                       (locator_code, event, str(item_key)[:80], channel))
+        conn.commit()
+        return cursor.rowcount == 1
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def finish_notifications(locator_code: str, event: str, item_keys: list, channel: str, status: str,
+                         recipient: str | None, subject: str | None, body: str | None, error: str | None) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.executemany(
+            "UPDATE customer_notifications SET status=%s, recipient=%s, subject=%s, body=%s, error=%s "
+            "WHERE locator_code=%s AND event=%s AND item_key=%s AND channel=%s",
+            [(status, recipient, (subject or "")[:250] or None, body, (error or "")[:500] or None,
+              locator_code, event, str(k)[:80], channel) for k in item_keys])
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_customer_notifications(locator_code: str) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM customer_notifications WHERE locator_code=%s ORDER BY id", (locator_code,))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_customer_by_id(customer_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, email, full_name, phone FROM customers WHERE id=%s", (customer_id,))
+        return cursor.fetchone()
     finally:
         cursor.close()
         conn.close()

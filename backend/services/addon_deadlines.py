@@ -45,7 +45,7 @@ from datetime import datetime, timedelta
 import database
 from config.api_endpoints import TravelportEndpoints
 from config.travelport_config import TravelportConfig
-from services import addon_billing
+from services import addon_billing, customer_notify, live_booking_service, segment_status
 from services.cancel_service import _call, _errors, _msg, _reservation, CancelError
 
 logger = logging.getLogger(__name__)
@@ -200,13 +200,71 @@ def _ancillary_cancel(wb: str, oid: str, state: dict) -> str:
     return "Ancillary Cancel sent"
 
 
+def _snapshot(locator: str, res: dict, skip_key: str) -> dict:
+    """What a release must never change: flight segment statuses, ticket
+    numbers, ticket coupon statuses, and every other seat/extra that is
+    confirmed or has an EMD."""
+    tickets = sorted(d["Number"] for r in res.get("Receipt") or [] if r.get("@type") == "ReceiptPayment"
+                     for d in r.get("Document") or [] if d.get("@type") != "DocumentEMD" and d.get("Number"))
+    ndc = any(o.get("ContentSource") == "NDC" for o in res.get("Offer") or [])
+    coupons = {}
+    for number in tickets:
+        detail = live_booking_service._ticket_coupons(number, locator, ndc)
+        coupons[number] = None if detail.get("error") else [(c["flight"], c["status"]) for c in detail["coupons"]]
+    # Compared by what the item is, not its Identifier: an unpriced seat's
+    # Identifier changes on every retrieve (seen live on HNHN40).
+    others = {}
+    for st in addon_billing.offer_states(res).values():
+        if st["key"] != skip_key and ((st["status"] or "").lower() == "confirmed" or st["emd"]):
+            sig = (st["kind"], (st["seat"] or "").lstrip("0") or st["description"], tuple(st["flight_refs"]),
+                   tuple(st["traveler_refs"]), st["supplier_price"])
+            others[sig] = others.get(sig, ()) + ((st["status"], st["emd"]),)
+    return {"segments": {f: c for f, (c, _) in segment_status.segment_statuses(res).items()},
+            "tickets": tickets, "coupons": coupons, "others": others}
+
+
+def _unhealthy(snap: dict) -> str | None:
+    """Why a booking isn't safe to touch: a flight not confirmed (HK), or a
+    ticket coupon that isn't open for use (checked in, used, exchanged…)."""
+    bad = [f"{f} {c}" for f, c in snap["segments"].items() if not segment_status.is_confirmed((c, None))]
+    if bad:
+        return f"flight segment(s) not confirmed: {', '.join(bad)}"
+    closed = [f"{n} {f} {s}" for n, cs in snap["coupons"].items() for f, s in cs or [] if s != "OpenForUse"]
+    if closed:
+        return f"ticket coupon(s) not open for use: {', '.join(closed)}"
+    return None
+
+
+def _changes(before: dict, after: dict) -> list:
+    out = []
+    if after["segments"] != before["segments"]:
+        out.append(f"flight segments {before['segments']} → {after['segments']}")
+    if after["tickets"] != before["tickets"]:
+        out.append(f"tickets {before['tickets']} → {after['tickets']}")
+    for number, cs in before["coupons"].items():
+        if cs is not None and after["coupons"].get(number) != cs:
+            out.append(f"ticket {number} coupons {cs} → {after['coupons'].get(number)}")
+    lost = [k for k, v in before["others"].items() if after["others"].get(k) != v]
+    if lost:
+        out.append(f"{len(lost)} other paid/confirmed seat(s)/extra(s) changed")
+    return out
+
+
 def release(locator: str, hold: dict, res: dict) -> dict:
-    """Take one unpaid seat/extra off the PNR and check it's gone.
-    Returns {"released": bool, "how"/"error", "trace": …}."""
+    """Take one unpaid seat/extra off the PNR and check it's gone — and that
+    nothing else moved: the ticket, its coupons, the flights and every other
+    seat/extra must be exactly as before (_snapshot). Only that one SSR or
+    ancillary offer is ever cancelled; the ticket and flights are never
+    touched. Returns {"released": bool, "how"/"error", "integrity": …}."""
+    res = addon_billing.retrieve(locator)  # fresh, right before the change
     states = addon_billing.offer_states(res)
     oid, state = addon_billing.resolve(states, {"offer_key": hold["offer_key"]})
     if not state:
         return {"released": True, "how": "no longer on the booking"}
+    before = _snapshot(locator, res, hold["offer_key"])
+    problem = _unhealthy(before)
+    if problem:
+        return {"released": False, "error": f"not released — {problem}", "before": before}
     wb = _open_workbench(locator)
     committed = False
     try:
@@ -223,11 +281,19 @@ def release(locator: str, hold: dict, res: dict) -> dict:
     finally:
         if not committed:
             _discard(wb)
-    after = addon_billing.offer_states(addon_billing.retrieve(locator))
-    _, still = addon_billing.resolve(after, {"offer_key": hold["offer_key"]})
+    res_after = addon_billing.retrieve(locator)
+    after = _snapshot(locator, res_after, hold["offer_key"])
+    changed = _changes(before, after)
+    integrity = {"tickets": after["tickets"], "segments": after["segments"], "coupons": after["coupons"],
+                 "other_items_unchanged": len(before["others"])}
+    if changed:
+        return {"released": False, "integrity_broken": True, "integrity": integrity,
+                "error": f"{how} and committed, but something else on the booking changed: {'; '.join(changed)}"}
+    _, still = addon_billing.resolve(addon_billing.offer_states(res_after), {"offer_key": hold["offer_key"]})
     if still and (still["status"] or "").lower() == "confirmed":
-        return {"released": False, "error": f"{how} and committed, but the airline still shows it confirmed on the booking"}
-    return {"released": True, "how": how}
+        return {"released": False, "integrity": integrity,
+                "error": f"{how} and committed, but the airline still shows it confirmed on the booking"}
+    return {"released": True, "how": how, "integrity": integrity}
 
 
 # ── The check: run on Booking Status lookup and by the background sweep ─────
@@ -241,16 +307,87 @@ def check_booking(locator: str, res: dict | None = None, release_overdue: bool =
     booking = database.get_booking_by_locator(locator)
     if not booking:
         return out
+    messages = []  # (event, items, info) — sent after the PNR lock is released
+    try:
+        _check_locked(locator, booking, res, release_overdue, out, messages)
+    finally:
+        for event, items, info in messages:
+            customer_notify.notify(locator, event, items, **info)
+    return out
+
+
+def _friendly_names(locator: str, booking: dict, states: dict) -> dict:
+    """offer key -> the name the customer saw when asking for it."""
+    try:
+        raw = json.loads(booking.get("raw_ticket_json") or "{}") or {}
+    except ValueError:
+        raw = {}
+    items = [i for kind in ("seats", "extras") for i in (raw.get("addon_results") or {}).get(kind) or []]
+    items += [i for row in database.get_addon_payments_for_locator(locator) for i in row["items"]]
+    names = {}
+    for i in items:
+        _, st = addon_billing.resolve(states, i)
+        name = i.get("name") or (f"Seat {i['seat_number']}" if i.get("seat_number") else None)
+        if st and name:
+            names.setdefault(st["key"], name)
+    return names
+
+
+def _msg_item(hold: dict, names: dict) -> dict:
+    price = addon_billing._price({"supplier_price": hold["supplier_price"]}, hold["kind"], addon_billing.get_pricing_settings())
+    return {"key": hold["offer_key"], "name": names.get(hold["offer_key"]) or hold["description"] or hold["kind"],
+            "price": price, "currency": hold["currency"]}
+
+
+REFUSED_STATUSES = ("rejected", "cancelled", "unable", "notconfirmed")
+
+
+def _refused_requests(locator: str, booking: dict, states: dict, holds: dict) -> list:
+    """Seats/extras the customer asked for that the airline has refused:
+    an explicit refusal status, or (tracked by Identifier) gone from the PNR
+    without ever being confirmed."""
+    try:
+        raw = json.loads(booking.get("raw_ticket_json") or "{}") or {}
+    except ValueError:
+        raw = {}
+    requested = [i for kind in ("seats", "extras") for i in (raw.get("addon_results") or {}).get(kind) or []
+                 if i.get("status") == "pending"]
+    requested += [i for row in database.get_addon_payments_for_locator(locator) if row["status"] == "awaiting_airline"
+                  for i in row["items"]]
+    out = []
+    for i in requested:
+        _, st = addon_billing.resolve(states, i)
+        key = i.get("offer_key") or i.get("offer_id")
+        if not key:
+            continue
+        refused = (st and (st["status"] or "").lower() in REFUSED_STATUSES) or \
+                  (not st and i.get("offer_key") and i["offer_key"] not in holds)
+        if refused:
+            out.append({"key": key, "name": i.get("name") or (f"Seat {i['seat_number']}" if i.get("seat_number") else "Extra")})
+    return out
+
+
+def _check_locked(locator: str, booking: dict, res: dict | None, release_overdue: bool, out: dict, messages: list) -> None:
     with locator_lock(locator):
         res = res or addon_billing.retrieve(locator)
         out["foreign_emds"] = _flag_foreign_emds(locator, res)
         if not _is_ticketed(res, booking):
-            return out
+            return
         states = addon_billing.offer_states(res)
         flights = _flights(res)
         now = _utcnow()
         holds = {h["offer_key"]: h for h in database.get_addon_holds(locator)}
         paid_with_ticket = _paid_with_ticket(booking, states)
+        names = _friendly_names(locator, booking, states)
+        new_holds = []
+        settings = database.get_provider_settings()
+        reminder_before = timedelta(hours=settings["extras_reminder_hours"])
+        # Only while every flight is confirmed: if the airline dropped the
+        # flight itself, that's the airline-cancelled flow, not "refused".
+        flights_ok = not segment_status.booking_problem({f: (c, v) for f, (c, v) in segment_status.segment_statuses(res).items()})
+        refused = _refused_requests(locator, booking, states, holds) if flights_ok else []
+        if refused:
+            messages.append(("refused", refused, {}))
         for key in paid_with_ticket & set(holds):
             database.close_addon_hold(locator, key, "paid", {"note": "charged with the ticket (EMD pending — see Stuck Bookings)"})
         for oid, st in states.items():
@@ -262,6 +399,11 @@ def check_booking(locator: str, res: dict | None = None, release_overdue: bool =
                     locator, st["key"], oid, st["kind"], st["description"] or (f"Seat {st['seat']}" if st["seat"] else None),
                     st["ssr_code"], st["supplier_price"], st["currency"], departure, now, _deadline(now, departure))
                 logger.info(f"{locator}: unpaid {st['kind']} {st['description']} confirmed — pay by {holds[st['key']]['deadline_utc']} UTC")
+                new_holds.append(holds[st["key"]])
+        if new_holds:
+            messages.append(("payment_due", [_msg_item(h, names) for h in new_holds],
+                             {"deadline_utc": min(h["deadline_utc"] for h in new_holds)}))
+        reminders = []
         by_key = {st["key"]: st for st in states.values()}
         for key, hold in holds.items():
             if hold["status"] not in ("unpaid", "release_failed") or key in paid_with_ticket:
@@ -271,10 +413,21 @@ def check_booking(locator: str, res: dict | None = None, release_overdue: bool =
                 database.close_addon_hold(locator, key, "paid", {"emd": st["emd"]})
                 continue
             if not st or (st["status"] or "").lower() != "confirmed":
-                database.close_addon_hold(locator, key, "gone", {"airline_status": (st or {}).get("status")})
+                if hold["status"] == "release_failed" and "committed" in ((hold.get("result") or {}).get("error") or ""):
+                    # Our earlier change went through after all.
+                    database.close_addon_hold(locator, key, "released", {**(hold.get("result") or {}), "released": True})
+                    out["released"].append(hold)
+                    messages.append(("removed", [_msg_item(hold, names)], {}))
+                else:
+                    database.close_addon_hold(locator, key, "gone", {"airline_status": (st or {}).get("status")})
                 continue
             if not release_overdue or now < hold["deadline_utc"]:
                 out["holds"].append(hold)
+                # Reminder — unless the item was first seen inside the
+                # reminder window (the payment-due message had the deadline).
+                due_from = hold["deadline_utc"] - reminder_before
+                if reminder_before and now >= due_from and hold["first_confirmed_utc"] < due_from and now < hold["deadline_utc"]:
+                    reminders.append(hold)
                 continue
             payment = _payment_state(locator, hold, states)
             if payment == "paid":
@@ -296,6 +449,7 @@ def check_booking(locator: str, res: dict | None = None, release_overdue: bool =
                 database.close_addon_hold(locator, key, "released", result)
                 out["released"].append({**hold, "result": result})
                 logger.info(f"{locator}: released unpaid {_hold_label(hold)} — {result['how']}")
+                messages.append(("removed", [_msg_item(hold, names)], {}))
                 res = addon_billing.retrieve(locator)  # offer ids move after a change
                 states = addon_billing.offer_states(res)
             else:
@@ -303,12 +457,17 @@ def check_booking(locator: str, res: dict | None = None, release_overdue: bool =
                 database.close_addon_hold(locator, key, "release_failed", result)
                 out["failed"].append({**hold, "result": result})
                 logger.warning(f"{locator}: could not release unpaid {_hold_label(hold)}: {result['error']}")
-                if first_failure:
+                if result.get("integrity_broken"):
+                    _alert(locator, f"URGENT: removing unpaid {_hold_label(hold)} changed something else on this booking: "
+                                    f"{result['error']}. Check the ticket, flights and paid seats/extras in Smartpoint now.")
+                elif first_failure:
                     _alert(locator, f"Unpaid {_hold_label(hold)} on this ticketed booking passed its payment deadline "
                                     f"({hold['deadline_utc']} UTC) but could not be removed through Travelport: "
                                     f"{result['error']}. Remove it in Smartpoint (seat: release the seat; extra: delete its SSR) "
                                     f"so it can't be used or billed unpaid. No payment was taken.")
-    return out
+        if reminders:
+            messages.append(("reminder", [_msg_item(h, names) for h in reminders],
+                             {"deadline_utc": min(h["deadline_utc"] for h in reminders)}))
 
 
 def _flag_foreign_emds(locator: str, res: dict) -> list:
@@ -370,10 +529,15 @@ def check_payable(locator: str, items: list, expected_supplier_total: float, at_
 
 def mark_paid(locator: str, items: list, emds: list) -> None:
     """After EMDs were issued for a paid add-on: our EMDs, holds closed."""
-    database.record_emds(locator, [e.get("number") for e in emds], "ours_addon")
+    numbers = [e.get("number") for e in emds]
+    database.record_emds(locator, numbers, "ours_addon")
     for item in items:
         if item.get("offer_key"):
-            database.close_addon_hold(locator, item["offer_key"], "paid", {"emds": [e.get("number") for e in emds]})
+            database.close_addon_hold(locator, item["offer_key"], "paid", {"emds": numbers})
+    customer_notify.notify(locator, "paid", [{"key": i.get("offer_key") or i.get("offer_id"), "name": i.get("name") or i.get("description")
+                                              or (f"Seat {i['seat_number']}" if i.get("seat_number") else "Extra"),
+                                              "price": i.get("price"), "currency": i.get("currency")} for i in items],
+                           emds=numbers)
 
 
 # ── Background sweep ─────────────────────────────────────────────────────────

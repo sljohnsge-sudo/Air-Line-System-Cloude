@@ -486,6 +486,9 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         ticketed_cancel_enabled: providerSettings?.ticketed_cancel_enabled ?? false,
         extras_pay_hours: providerSettings?.extras_pay_hours ?? 24,
         extras_pay_before_departure_hours: providerSettings?.extras_pay_before_departure_hours ?? 24,
+        notify_email_enabled: providerSettings?.notify_email_enabled ?? true,
+        notify_sms_enabled: providerSettings?.notify_sms_enabled ?? true,
+        extras_reminder_hours: providerSettings?.extras_reminder_hours ?? 6,
         ...partialUpdate,
       };
       const res = await fetchWithRetry(`${API_BASE}/admin/provider-settings`, {
@@ -2038,21 +2041,50 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         {!providerSettingsLoading && providerSettings && (
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', maxWidth: '520px' }}>
             {[
-              { key: 'extras_pay_hours', label: 'Hours to pay after the airline confirms', min: 1 },
-              { key: 'extras_pay_before_departure_hours', label: 'Hours before departure, at the latest', min: 0 },
+              { key: 'extras_pay_hours', label: 'Hours to pay after the airline confirms', min: 1, max: 168 },
+              { key: 'extras_pay_before_departure_hours', label: 'Hours before departure, at the latest', min: 0, max: 168 },
+              { key: 'extras_reminder_hours', label: 'Reminder this many hours before the deadline (0 = none)', min: 0, max: 72 },
             ].map(f => (
               <label key={f.key} style={{ flex: '1 1 220px', fontSize: '0.82rem', fontWeight: 600 }}>
                 {f.label}
                 <input
-                  type="number" min={f.min} max={168} className="form-input"
+                  type="number" min={f.min} max={f.max} className="form-input"
                   defaultValue={providerSettings[f.key] ?? 24}
                   disabled={providerSettingsSaving}
                   onBlur={e => {
-                    const v = Math.max(f.min, Math.min(168, parseInt(e.target.value, 10) || 0));
+                    const v = Math.max(f.min, Math.min(f.max, parseInt(e.target.value, 10) || 0));
                     if (v !== providerSettings[f.key]) updateProviderSettings({ [f.key]: v });
                   }}
                   style={{ display: 'block', width: '100%', marginTop: '0.3rem' }}
                 />
+              </label>
+            ))}
+          </div>
+        )}
+
+        <h3 className="results-heading" style={{ marginTop: '2rem' }}>Customer Notifications</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1.25rem' }}>
+          Automatic messages to the customer about seats/extras: payment due (with the deadline), the reminder above,
+          removed because unpaid, paid (EMD issued), and refused by the airline. Each goes once. Email needs SMTP_USER /
+          SMTP_PASSWORD and SMS needs an SMS gateway (SMS_PROVIDER…) in the backend .env; until then they are recorded but not sent.
+        </p>
+        {!providerSettingsLoading && providerSettings && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxWidth: '520px' }}>
+            {[
+              { key: 'notify_email_enabled', label: 'Email the customer' },
+              { key: 'notify_sms_enabled', label: 'SMS the customer' },
+            ].map(f => (
+              <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#f8fafc', cursor: providerSettingsSaving ? 'default' : 'pointer', fontWeight: 700, fontSize: '0.88rem' }}>
+                <input
+                  type="checkbox"
+                  checked={!!providerSettings[f.key]}
+                  disabled={providerSettingsSaving}
+                  onChange={e => updateProviderSettings({ [f.key]: e.target.checked })}
+                />
+                {f.label}
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'white', borderRadius: '3px', padding: '0.1rem 0.4rem', background: providerSettings[f.key] ? '#16a34a' : '#64748b' }}>
+                  {providerSettings[f.key] ? 'ON' : 'OFF'}
+                </span>
               </label>
             ))}
           </div>

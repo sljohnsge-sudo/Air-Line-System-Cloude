@@ -158,6 +158,17 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     } catch { /* non-critical, ignore */ }
   };
 
+  // Link from a payment-due / reminder email or SMS (?status=PNR): open
+  // Booking Status with the reference filled in (the customer adds the last name).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pnr = params.get('status');
+    if (!pnr || !customerToken) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    setStatusPrefill({ query: pnr.toUpperCase(), lastName: '', key: Date.now() });
+    setActiveSection('status');
+  }, [customerToken]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Back from PayCorp for a Manage My Booking add-on (?addon=...&reqid=...):
   // the backend verifies the payment and has the airline issue the EMD.
   useEffect(() => {

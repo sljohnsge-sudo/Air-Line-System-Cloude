@@ -64,6 +64,8 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
       setQuery(prefill.query);
       setLastName(prefill.lastName);
       lookup(null, prefill.query, prefill.lastName);
+    } else if (prefill?.query) {
+      setQuery(prefill.query);
     }
   }, [prefill?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 

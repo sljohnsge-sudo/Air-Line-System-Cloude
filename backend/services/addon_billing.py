@@ -128,7 +128,10 @@ def reconcile_held_booking(locator: str) -> dict:
                if i.get("status") == "pending" and i.get("offer_id")]
     if not pending:
         return out
-    states = live_offer_states(locator)
+    res = retrieve(locator)
+    states = offer_states(res)
+    from services import segment_status
+    flights_ok = not segment_status.booking_problem(segment_status.segment_statuses(res))
     settings = get_pricing_settings()
     for kind, item in pending:
         state = states.get(item["offer_id"])
@@ -147,6 +150,11 @@ def reconcile_held_booking(locator: str) -> dict:
                 raw.setdefault("ancillaries", []).append(
                     {k: item.get(k) for k in ("passenger_idx", "name", "price", "currency", "service_type", "offer_id", "refundable", "status")})
             raw["seat_charge"] = round(float(raw.get("seat_charge") or 0) + price, 2)
+    if out["refused"] and flights_ok:  # a dropped flight isn't "refused extras"
+        from services import customer_notify
+        customer_notify.notify(locator, "refused", [{"key": i["offer_id"], "name": i.get("name") or
+                                                     (f"Seat {i['seat_number']}" if i.get("seat_number") else "Extra")}
+                                                    for i in out["refused"]])
     if out["confirmed"] or out["refused"]:
         raw["addon_results"] = addons
         raw["total_fare"] = round(float(raw.get("total_fare") or 0) + out["added"], 2)
