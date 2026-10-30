@@ -39,6 +39,7 @@ import os
 import time
 import uuid
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import httpx
 from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File, Request
@@ -53,6 +54,8 @@ import auth
 import hotel_database
 from services import seat_rules, fare_rule_service
 from services.special_services import MEAL_SSR_TYPES, merge_ssr_status
+from services import segment_status
+from services import live_booking_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -552,6 +555,41 @@ def _notify_stuck_booking(locator_code: str, error_message: str, payment_txn_ref
         database.create_stuck_booking_notification(locator_code, error_message, payment_txn_ref, email_sent)
     except Exception as db_err:
         logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
+
+
+def _notify_airline_problem(locator_code: str, seg_codes: dict, txn_ref: Optional[str] = None) -> None:
+    """Stuck-booking alert: the airline hasn't confirmed (or has cancelled) a
+    flight on this PNR. txn_ref is set when a payment was already taken."""
+    flights = ", ".join(f"{f} {c}" for f, c in seg_codes.items()
+                        if not segment_status.is_confirmed((c, None)))
+    note = (f"Airline has not confirmed the flight on this booking ({flights}). "
+            + ("A payment WAS taken — refund it. " if txn_ref else "No payment taken. ")
+            + "Check the PNR in Smartpoint.")
+    try:
+        database.create_stuck_booking_notification(locator_code, note, txn_ref, False)
+    except Exception as db_err:
+        logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
+
+
+def _live_airline_problem(locator_code: str) -> Optional[dict]:
+    """Retrieve the PNR now and return segment_status.booking_problem (with
+    the flight codes) if the airline hasn't confirmed every flight, keeping
+    the saved booking's status in step either way. Raises HTTPException 503
+    if Travelport can't be asked — better than charging for a flight that
+    may be gone."""
+    try:
+        live = services.retrieve_reservation(locator_code)
+    except Exception as e:
+        logger.error(f"Airline status check for {locator_code} failed: {e}")
+        raise HTTPException(status_code=503, detail="We couldn't confirm this booking with the airline just now. "
+                                                    "No payment has been taken — please try again in a moment.")
+    codes = live.get("segment_statuses") or {}
+    problem = segment_status.booking_problem({f: (c, None) for f, c in codes.items()})
+    try:
+        database.set_airline_status(locator_code, problem["status"] if problem else "Confirmed")
+    except Exception as db_err:
+        logger.error(f"Could not save airline status for {locator_code}: {db_err}")
+    return {**problem, "codes": codes} if problem else None
 
 
 def _notify_cancel_failure(locator_code: str, error_message: str, recorded_status: Optional[str]) -> None:
@@ -1342,6 +1380,20 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
                     "seats": [{**s.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for s in selected_seats],
                     "extras": [{**a.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for a in selected_ancillaries],
                 }
+        # The airline's own status per flight, from the retrieve and again
+        # from the seats/extras step a few seconds later (UL cancelled
+        # duplicate test bookings — HX — in between). Not confirmed means the
+        # booking is not "Confirmed" and the frontend must not take payment;
+        # /api/payments/init checks again live in case it changes later.
+        seg_codes = {**(ticket.get("segment_statuses") or {}), **(addon_results.get("segment_statuses") or {})}
+        airline_problem = segment_status.booking_problem({f: (c, None) for f, c in seg_codes.items()})
+        if seg_codes:
+            ticket["segment_statuses"] = seg_codes
+        if airline_problem:
+            ticket["status"] = airline_problem["status"]
+            ticket["airline_status_note"] = airline_problem["message"]
+            _notify_airline_problem(locator_code, seg_codes)
+
         # Only items the airline CONFIRMED are charged. "pending" = requested
         # on the PNR but not yet answered by the airline: not charged, no seat
         # number recorded, and not paid at ticketing (see issue_ticket).
@@ -1544,6 +1596,14 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
         request.reqid, expected_client_ref=locator_code, locator_code=locator_code,
         expected_amount=existing["total_fare"], expected_currency=existing.get("currency"),
     )
+    # The airline may have dropped the flight after payment started; a ticket
+    # can't be issued then, so alert staff to refund instead of trying.
+    problem = _live_airline_problem(locator_code)
+    if problem:
+        _notify_airline_problem(locator_code, problem["codes"], payment_result.get("txn_reference") or "paid")
+        raise HTTPException(status_code=409, detail=(
+            "The airline has not confirmed (or has cancelled) the flight on this booking, so the ticket "
+            "can't be issued. Your payment was received and our team will contact you to refund it."))
     return _issue_and_save_ticket(locator_code, payment_result)
 
 
@@ -2297,6 +2357,36 @@ def _can_see_private(principal: Optional[dict], booking: Optional[dict]) -> bool
         and booking.get("customer_id") == principal.get("customer_id")
 
 
+@app.get("/api/bookings/{locator_code}/live")
+def live_booking_status(locator_code: str, principal: Optional[dict] = Depends(auth.get_optional_principal)):
+    """
+    My Bookings → "Live status": the booking straight from Travelport and the
+    airline — flights with the airline's segment status, tickets with coupon
+    status, seats/extras/special requests with their confirmation — never
+    from our database (services/live_booking_service.py). Only the booking's
+    own customer or staff.
+    """
+    locator_code = locator_code.upper().strip()
+    if not principal:
+        raise HTTPException(status_code=401, detail="Sign in to see this booking's live status.")
+    if not _can_see_private(principal, database.get_booking_by_locator(locator_code)):
+        raise HTTPException(status_code=403, detail="This booking isn't on your account.")
+    with services.flow_trace_id() as trace_id:
+        try:
+            data = live_booking_service.get_live_booking(locator_code)
+        except live_booking_service.LiveBookingError as e:
+            if "DOES NOT EXIST" in str(e).upper():
+                # 4247 — Travelport purges a PNR some time after its last flight.
+                raise HTTPException(status_code=404, detail=(
+                    "Travelport no longer holds this booking — bookings are removed from Travelport some time "
+                    f"after the flight. Your ticket can still be opened with View / Print Ticket. (TraceId {trace_id})"))
+            raise HTTPException(status_code=404, detail=f"Travelport: {e} (TraceId {trace_id})")
+        except services.CancelError as e:
+            raise HTTPException(status_code=502, detail=f"{e} (TraceId {trace_id})")
+    data["trace_id"] = trace_id
+    return data
+
+
 @app.get("/api/bookings/retrieve/{locator_code}")
 def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth.get_optional_principal)):
     """
@@ -2415,6 +2505,25 @@ def booking_history(email: Optional[str] = Query(None, description="Filter by pa
 # after Travelport confirms (services/cancel_service.py) — anything that fails
 # at Travelport is raised as a stuck-booking alert.
 
+TICKETED_CANCEL_ACTIONS = ("void", "refund")
+TICKETED_CANCEL_OFF = ("Void and refund are switched off (Admin Portal → Provider Control). "
+                       "Nothing was changed on Travelport.")
+
+
+def _ticketed_cancel_enabled() -> bool:
+    return bool(database.get_provider_settings().get("ticketed_cancel_enabled", False))
+
+
+def _hold_ticketed_quote(quote: dict) -> dict:
+    """While the void/refund switch is off, a quote still shows what
+    Travelport would do but can't be confirmed. Held-booking cancels pass."""
+    if quote.get("action") in TICKETED_CANCEL_ACTIONS and quote.get("can_cancel") and not _ticketed_cancel_enabled():
+        quote["can_cancel"] = False
+        quote["switched_off"] = True
+        quote["message"] = f"{quote.get('message', '')} {TICKETED_CANCEL_OFF}".strip()
+    return quote
+
+
 class CancelConfirmRequest(BaseModel):
     action: Literal["void", "refund", "cancel"]
     amount: Optional[float] = None  # the amount shown on the quote staff confirmed
@@ -2434,7 +2543,7 @@ def quote_booking_cancellation(locator_code: str, _admin: dict = Depends(auth.ge
             logger.error(f"Cancel quote for {locator_code} failed at {e.step}: {e}")
             raise HTTPException(status_code=502, detail=f"{e} (TraceId {trace_id})")
     quote["trace_id"] = trace_id
-    return quote
+    return _hold_ticketed_quote(quote)
 
 
 @app.post("/api/bookings/{locator_code}/cancel")
@@ -2447,9 +2556,12 @@ def cancel_booking(locator_code: str, body: CancelConfirmRequest, admin: dict = 
     409 because Cancel Workbench Items alone neither voids nor refunds a
     ticket. GDS tickets past their void period are still refused (409):
     TripServices has no automated GDS refund yet, so those are refunded in
-    Smartpoint.
+    Smartpoint. Void and refund are also refused while the Provider Control
+    switch (ticketed_cancel_enabled) is off; held-booking cancels aren't.
     """
     locator_code = locator_code.upper().strip()
+    if body.action in TICKETED_CANCEL_ACTIONS and not _ticketed_cancel_enabled():
+        raise HTTPException(status_code=409, detail=TICKETED_CANCEL_OFF)
     with services.flow_trace_id() as trace_id:
         try:
             result = services.cancel_travelport_booking(locator_code, body.action, body.amount)
@@ -2459,7 +2571,7 @@ def cancel_booking(locator_code: str, body: CancelConfirmRequest, admin: dict = 
             e.quote["trace_id"] = trace_id
             raise HTTPException(status_code=409, detail={
                 "message": "Travelport's answer changed since you checked — review the new quote and confirm again.",
-                "quote": e.quote,
+                "quote": _hold_ticketed_quote(e.quote),
             })
         except services.CancelError as e:
             recorded = e.done.get("status")
@@ -2829,6 +2941,13 @@ def payments_init(request: PaymentInitRequestBody):
             amount, currency = pending["amount"], pending["currency"]
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
             amount, currency = float(booking["total_fare"]), booking.get("currency") or currency
+            # Never take payment for a flight the airline has dropped — the
+            # ticket could not be issued. Checked live, right now.
+            problem = _live_airline_problem(ref.upper())
+            if problem:
+                if problem["status"] == segment_status.AIRLINE_CANCELLED:
+                    _notify_airline_problem(ref.upper(), problem["codes"])
+                raise HTTPException(status_code=409, detail=problem["message"])
         if (amount, currency) != (request.amount, request.currency):
             logger.warning(f"Payment init for {ref}: browser sent {request.currency} {request.amount}, "
                            f"charging the server-side {currency} {amount} instead.")
@@ -3277,6 +3396,7 @@ class ProviderSettingsRequest(BaseModel):
     hotels_enabled: bool = True
     visa_enabled: bool = True
     packages_enabled: bool = True
+    ticketed_cancel_enabled: bool = False  # staff void/refund (see cancel_booking)
 
 
 @app.get("/api/admin/go-live-checks")
@@ -3294,7 +3414,8 @@ def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
 @app.put("/api/admin/provider-settings")
 def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
     return database.update_provider_settings(
-        body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled
+        body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled,
+        body.ticketed_cancel_enabled,
     )
 
 
@@ -3867,6 +3988,61 @@ def customer_oauth_callback(provider: str, code: Optional[str] = None, state: Op
 def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
     bookings = database.get_bookings_for_customer(current["customer_id"])
     return {"bookings": bookings, "count": len(bookings)}
+
+
+# Travelport's view of a booking -> the status shown in My Bookings. A
+# confirmed/ticketed booking keeps its own status (Confirmed / Ticketed).
+_LIVE_LIST_STATUS = {
+    "airline_cancelled": segment_status.AIRLINE_CANCELLED,
+    "airline_problem": segment_status.AWAITING_AIRLINE,
+    "cancelled": "Cancelled",
+}
+
+
+def _last_departure(b: dict) -> str:
+    legs = b.get("legs") if isinstance(b.get("legs"), list) else []
+    return str((legs[-1].get("departure_time") if legs else None) or b.get("departure_time") or "")
+
+
+@app.post("/api/customers/me/bookings/refresh-status")
+def customer_refresh_booking_status(current: dict = Depends(auth.get_current_customer)):
+    """
+    My Bookings asks this right after loading the list: every upcoming,
+    not-cancelled booking is retrieved live from Travelport (flights and the
+    airline's segment status only — no ticket calls) and its list status
+    comes back from that, so an airline cancellation shows in the list
+    itself. Bookings still between Confirmed / Awaiting Airline / Airline
+    Cancelled are saved back; ticketed and staff-cancelled ones are never
+    rewritten here (database.set_airline_status).
+    """
+    today = datetime.now().strftime("%Y-%m-%d")
+    due = [b for b in database.get_bookings_for_customer(current["customer_id"])
+           if b.get("locator_code") and b.get("status") not in database.CANCELLED_STATUSES
+           and _last_departure(b)[:10] >= today]
+
+    def check(b: dict) -> tuple[str, dict]:
+        locator = b["locator_code"]
+        try:
+            live = live_booking_service.get_live_booking(locator, with_coupons=False)
+        except Exception as e:
+            # 4247: Travelport no longer holds the PNR — worth flagging on an upcoming trip.
+            return locator, {"checked": False, "missing": "DOES NOT EXIST" in str(e).upper(), "error": str(e)[:200]}
+        state = live.get("booking_status")
+        status = _LIVE_LIST_STATUS.get(state) or (
+            "Confirmed" if b.get("status") in database.AIRLINE_STATUSES else b.get("status"))
+        if status in database.AIRLINE_STATUSES:
+            try:
+                database.set_airline_status(locator, status)
+            except Exception as db_err:
+                logger.error(f"Could not save live status for {locator}: {db_err}")
+        return locator, {
+            "checked": True, "status": status, "retrieved_at": live.get("retrieved_at"),
+            "flights": {f["flight"]: f.get("airline_status_code") for f in live.get("flights") or []},
+        }
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = dict(pool.map(check, due))
+    return {"statuses": results, "checked": sum(1 for r in results.values() if r.get("checked")), "upcoming": len(due)}
 
 
 # ── Loyalty Program (Customer) ────────────────────────────────────────────────

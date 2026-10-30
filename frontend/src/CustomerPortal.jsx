@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import BookingCard from './BookingCard.jsx';
+import BookingLineList from './BookingLineList.jsx';
+import BookingDetailView from './BookingDetailView.jsx';
 import { COUNTRIES } from './countries.js';
 
 export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation, visaEnabled }) {
@@ -16,6 +17,10 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState('');
+  // The booking opened from the My Bookings list (its detail view), by PNR.
+  const [openLocator, setOpenLocator] = useState(null);
+  const [liveStatuses, setLiveStatuses] = useState({});
+  const [refreshingStatuses, setRefreshingStatuses] = useState(false);
 
   const [loyalty, setLoyalty] = useState(null);
 
@@ -64,10 +69,35 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       if (res.status === 401) return handleSessionExpired();
       const data = await handleApiResponse(res, 'Failed to load your bookings');
       setBookings(data.bookings || []);
+      refreshLiveStatuses();
     } catch (err) {
       setBookingsError(err.message);
     } finally {
       setLoadingBookings(false);
+    }
+  };
+
+  // Upcoming bookings' status checked live with Travelport (and saved back),
+  // so an airline cancellation shows in the list itself, not only in Live status.
+  const openBooking = openLocator ? bookings.find(b => b.locator_code === openLocator) : null;
+  const openBookingDetail = (b) => { setOpenLocator(b.locator_code); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const closeBooking = () => setOpenLocator(null);
+
+  const refreshLiveStatuses = async () => {
+    setRefreshingStatuses(true);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/customers/me/bookings/refresh-status`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${customerToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLiveStatuses(data.statuses || {});
+      }
+    } catch {
+      // Best effort: the list still shows the saved statuses.
+    } finally {
+      setRefreshingStatuses(false);
     }
   };
 
@@ -315,13 +345,13 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
         </div>
       </section>
 
-      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-        <nav style={{ width: '220px', flexShrink: 0, position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+      <div className="customer-portal-layout" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+        <nav className="customer-portal-nav" style={{ width: '220px', flexShrink: 0, position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
           {customerNavItems.map(item => (
             <button
               key={item.id}
               type="button"
-              onClick={() => setActiveSection(item.id)}
+              onClick={() => { setActiveSection(item.id); setOpenLocator(null); }}
               style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
                 padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
@@ -345,7 +375,13 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
         </nav>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          {activeSection === 'bookings' && (
+          {activeSection === 'bookings' && openBooking && (
+            <BookingDetailView booking={openBooking} liveStatus={liveStatuses[openBooking.locator_code]}
+                               onBack={closeBooking} onViewTicket={onViewTicket} onRequestCancellation={onRequestCancellation}
+                               apiBase={API_BASE} fetchWithRetry={fetchWithRetry} authToken={customerToken} />
+          )}
+
+          {activeSection === 'bookings' && !openBooking && (
             <section className="bookings-list-section">
               <h3 className="results-heading">
                 {loadingBookings ? 'Loading...' : `My Bookings (${bookings.length})`}
@@ -363,11 +399,8 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
                   <p>No bookings yet under this account. Bookings you make while signed in, or made previously under this account's email, will appear here.</p>
                 </div>
               ) : (
-                <div className="bookings-grid">
-                  {bookings.map((b) => (
-                    <BookingCard key={b.id} booking={b} onViewTicket={onViewTicket} onRequestCancellation={onRequestCancellation} />
-                  ))}
-                </div>
+                <BookingLineList bookings={bookings} liveStatuses={liveStatuses} refreshing={refreshingStatuses}
+                                 onOpen={openBookingDetail} />
               )}
             </section>
           )}

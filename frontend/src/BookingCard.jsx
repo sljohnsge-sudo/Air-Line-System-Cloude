@@ -1,7 +1,7 @@
 // Shared boarding-pass card — used by both the guest "My Bookings" tab and
 // the logged-in Customer Portal, so the markup only exists in one place.
 
-const cleanPassengerName = (name) => {
+export const cleanPassengerName = (name) => {
   if (!name) return '';
   const parts = name.trim().toUpperCase().split(/\s+/);
   const titles = ['MR', 'MRS', 'MS', 'MSTR', 'DR', 'PROF', 'MISS'];
@@ -39,8 +39,10 @@ const itineraryStillOpen = (b) => {
 };
 
 export default function BookingCard({ booking: b, onViewTicket, onCancelBooking, onRequestCancellation }) {
-  const isCancelled = ['Cancelled', 'Voided', 'Refunded'].includes(b.status);
-  const canCancel = !isCancelled || itineraryStillOpen(b);
+  // "Airline Cancelled": the airline dropped the flight (e.g. HX) but the
+  // PNR is still open, so staff can still cancel it.
+  const isCancelled = ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'].includes(b.status);
+  const canCancel = !isCancelled || itineraryStillOpen(b) || b.status === 'Airline Cancelled';
   return (
     <div className={`boarding-pass glass-panel ${isCancelled ? 'cancelled-pass' : ''} animate-fade`}>
       <div className="pass-row header-row">

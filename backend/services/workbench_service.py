@@ -17,6 +17,7 @@ from datetime import datetime
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services import seat_rules
+from services.segment_status import segment_statuses, is_confirmed, norm_flight_no as _norm_flight_no
 from services.auth_service import get_auth_headers, invalidate_token, flow_trace_id
 from services.pricing_service import get_settings as get_pricing_settings, apply_markup
 from services.special_services import MEAL_SSR_TYPES, WHEELCHAIR_SSR_FLAGS, NDC_MEAL_SSR_CARRIERS
@@ -2020,12 +2021,6 @@ def book_ancillary_offer(workbench_id: str, ancillary: dict, quantity: int = 1) 
     return result
 
 
-def _norm_flight_no(carrier: str | None, number: str | None = None) -> str:
-    """"UL0225", ("UL", "0225") and "UL225" are the same flight."""
-    text = f"{carrier or ''}{number or ''}".upper().replace(" ", "")
-    return re.sub(r"^([A-Z0-9]{2})0+(?=\d)", r"\1", text)
-
-
 def _match_traveler_refs(workbench_travelers: list, travelers: list) -> dict:
     """passenger_idx (order the customer entered them) -> workbench Traveler.
     Travelport stores Given with the title appended ("TEST MR") and we add
@@ -2065,6 +2060,18 @@ def _ancillary_offer_statuses(commit_result: dict) -> dict:
             elif value and value != "pending":
                 statuses[ref] = value  # e.g. "rejected" — reported, never charged
     return statuses
+
+
+def _segment_problem(status: tuple | None) -> str | None:
+    """Why the airline won't take a seat/extra on this flight, or None.
+    UL's test system cancels (HX) a segment it sees as a duplicate booking;
+    after that a Seat Book is refused ("SSR RESTRICTED ON SEGMENT STATUS")
+    or silently dropped at commit ("CONFIRM SEGMENT 01")."""
+    if is_confirmed(status):
+        return None
+    code, value = status
+    return (f"The airline has not confirmed this flight on the booking (status {code} {value or ''}).".replace(" )", ")")
+            + " Seats and extras can only be added once the flight is confirmed.")
 
 
 def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_seats: list, selected_ancillaries: list) -> dict:
@@ -2107,6 +2114,8 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
     air_offer = next((o for o in reservation.get("Offer", []) or [] if (o.get("id") or "").startswith("offer")), None)
     air_offer_uuid = (air_offer or {}).get("Identifier", {}).get("value")
     traveler_map = _match_traveler_refs(reservation.get("Traveler", []) or [], travelers)
+    seg_status = segment_statuses(reservation)
+    result["segment_statuses"] = {k: v[0] for k, v in seg_status.items()}
     booked = []   # (out_item, kind, offer_id) for everything Travelport accepted
 
     def _offer_from_book_response(resp: dict) -> dict:
@@ -2146,6 +2155,10 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
                 group = next((g for g in groups
                               if _norm_flight_no((g.get("Flight") or [{}])[0].get("carrier"), (g.get("Flight") or [{}])[0].get("number")) == want
                               and any(r.get("id") == wt.get("id") for r in g.get("TravelerIdentifierRef", []) or [])), None)
+                problem = _segment_problem(seg_status.get(want))
+                if problem:
+                    item["reason"] = problem
+                    continue
                 if not group:
                     item["reason"] = "Seat map for this flight is no longer available"
                     continue
@@ -2203,11 +2216,20 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
 
         # ── Extras: re-shop on this workbench, book each chosen item ──
         if extras_out:
+            flight_by_sequence = {
+                fs.get("sequence"): _norm_flight_no((fs.get("Flight") or {}).get("carrier"), (fs.get("Flight") or {}).get("number"))
+                for o in reservation.get("Offer", []) or [] for p in o.get("Product", []) or []
+                for fs in p.get("FlightSegment", []) or []}
             shop = get_ancillary_offers(workbench_id, air_offer_uuid)
             for item in extras_out:
                 wt = traveler_map.get(item.get("passenger_idx"))
                 if not wt:
                     item["reason"] = "Passenger not found on the booking"
+                    continue
+                problem = next((p for p in (_segment_problem(seg_status.get(flight_by_sequence.get(n)))
+                                            for n in item.get("segment_numbers") or []) if p), None)
+                if problem:
+                    item["reason"] = problem
                     continue
                 match = next((s for s in shop
                               if s.get("traveler_identifier_ref") == wt.get("id")
@@ -2248,6 +2270,17 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
     commit_errors = [e.get("Message") for e in (
         (commit.get("Result") or {}).get("Error", []) +
         ((commit.get("ReservationResponse") or {}).get("Result") or {}).get("Error", []))]
+    # A seat Travelport accepted can still be dropped at commit with no error
+    # — only a warning such as "CONFIRM SEGMENT 01" — when the airline has
+    # cancelled the flight in the meantime; say so instead of a bare failure.
+    commit_res = commit.get("Reservation") or (commit.get("ReservationResponse") or {}).get("Reservation") or {}
+    commit_seg_status = segment_statuses(commit_res)
+    if commit_seg_status:
+        result["segment_statuses"] = {k: v[0] for k, v in commit_seg_status.items()}
+    seg_problem = next((p for p in map(_segment_problem, commit_seg_status.values()) if p), None)
+    commit_warnings = [w.get("Message") or w.get("SourceDescription") for w in (
+        (commit.get("Result") or {}).get("Warning", []) +
+        ((commit.get("ReservationResponse") or {}).get("Result") or {}).get("Warning", []))]
     for item, kind, offer_id in booked:
         status = statuses.get(offer_id)
         if status in ("confirmed", "pending"):
@@ -2258,7 +2291,9 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
             item["reason"] = None if status == "confirmed" else "Requested from the airline — not charged unless the airline confirms it"
         else:
             item["reason"] = (f"Airline status: {status}" if status else None) or \
-                "; ".join(m for m in commit_errors if m) or "Not added to the booking by the airline"
+                "; ".join(m for m in commit_errors if m) or seg_problem or \
+                ("Not added to the booking by the airline"
+                 + (f" (Travelport: {'; '.join(m for m in commit_warnings if m)})" if any(commit_warnings) else ""))
     logger.info(
         f"Seats/extras on {locator_code}: " + ", ".join(
             f"{i.get('seat_number') or i.get('name')}={i['status']}" for i in seats_out + extras_out)
@@ -2392,8 +2427,15 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
                 "position": pos
             })
 
-    # 3. Parse Catalog Offerings for seat pricing & availability
+    # 3. Parse Catalog Offerings for seat pricing & availability. A seat's
+    # status comes only from these SeatAvailability lists — never from its
+    # Characteristic codes: "O" there is the IATA code for a PREFERRED seat,
+    # not occupied (confirmed live: UL225 21C is "O" and listed Available at
+    # LKR 10,218, and UL confirmed it on PNR HNHK24). "NoSeat" positions are
+    # gaps in the cabin (galleys, narrowing rows), not seats.
     reserved_seats = set()
+    blocked_seats = set()
+    no_seats = set()
     available_seats = set()
     seat_prices = {}
     seat_currencies = {}
@@ -2422,8 +2464,12 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
                         status = avail.get("seatAvailabilityStatus")
                         seats_list = avail.get("value", [])
                         for seat_num in seats_list:
-                            if status == "Reserved":
+                            if status in ("Reserved", "Occupied"):
                                 reserved_seats.add(seat_num)
+                            elif status == "Blocked":
+                                blocked_seats.add(seat_num)
+                            elif status == "NoSeat":
+                                no_seats.add(seat_num)
                             elif status == "Available":
                                 available_seats.add(seat_num)
                                 seat_prices[seat_num] = price
@@ -2441,8 +2487,10 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
             seat_num = f"{row_label}{col}"
             characteristics = space.get("Characteristic", [])
             
-            # Check if it is a seat (it has chair characteristic "CH", or matches layout columns)
-            is_seat = "CH" in characteristics or col in [c["value"] for c in columns]
+            # A seat unless Travelport says NoSeat or IATA "8" (no seat at
+            # this location); otherwise it has "CH" or is a layout column.
+            is_seat = seat_num not in no_seats and "8" not in characteristics and (
+                "CH" in characteristics or col in [c["value"] for c in columns])
             if not is_seat:
                 seats.append({
                     "col": col,
@@ -2461,10 +2509,10 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
                 seat_type = "Extra Legroom"
                 
             status = "blocked"
-            if seat_num in reserved_seats or "O" in characteristics:
-                status = "occupied"
-            elif seat_num in available_seats:
+            if seat_num in available_seats:
                 status = "available"
+            elif seat_num in reserved_seats:
+                status = "occupied"
                 
             seats.append({
                 "col": col,

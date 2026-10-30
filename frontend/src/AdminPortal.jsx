@@ -483,6 +483,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         hotels_enabled: providerSettings?.hotels_enabled ?? true,
         visa_enabled: providerSettings?.visa_enabled ?? true,
         packages_enabled: providerSettings?.packages_enabled ?? true,
+        ticketed_cancel_enabled: providerSettings?.ticketed_cancel_enabled ?? false,
         ...partialUpdate,
       };
       const res = await fetchWithRetry(`${API_BASE}/admin/provider-settings`, {
@@ -1992,6 +1993,36 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                 </div>
               </label>
             ))}
+          </div>
+        )}
+
+        <h3 className="results-heading" style={{ marginTop: '2rem' }}>Staff Cancellations</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1.25rem' }}>
+          While this is off, "Check refund" still shows what Travelport would do, but staff can't confirm a void or
+          refund of a ticketed booking — the backend refuses it too. Cancelling a held (unticketed) booking always works.
+        </p>
+        {!providerSettingsLoading && providerSettings && (
+          <div style={{ maxWidth: '520px' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#f8fafc', cursor: providerSettingsSaving ? 'default' : 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={!!providerSettings.ticketed_cancel_enabled}
+                disabled={providerSettingsSaving}
+                onChange={e => updateProviderSettings({ ticketed_cancel_enabled: e.target.checked })}
+                style={{ marginTop: '0.2rem' }}
+              />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>
+                  Void &amp; refund ticketed bookings{' '}
+                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'white', borderRadius: '3px', padding: '0.1rem 0.4rem', letterSpacing: '0.03em', background: providerSettings.ticketed_cancel_enabled ? '#16a34a' : '#64748b' }}>
+                    {providerSettings.ticketed_cancel_enabled ? 'ON' : 'ON HOLD'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  Same-day GDS ticket void, and NDC Refund Quote + cancel, from All Bookings and Cancellation Requests.
+                </div>
+              </div>
+            </label>
           </div>
         )}
       </section>
