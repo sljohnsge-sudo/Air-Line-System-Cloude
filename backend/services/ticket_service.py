@@ -535,7 +535,9 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
         #   - Airline PNR has source = airline IATA code (e.g. 'UL', 'FZ')
         receipts = reservation.get("Receipt", [])
         for receipt in receipts:
-            confirmation = receipt.get("Confirmation", {})
+            # A cancelled PNR's ReceiptCancellation carries the same Locator
+            # under "Cancellation" instead of "Confirmation".
+            confirmation = receipt.get("Confirmation") or receipt.get("Cancellation") or {}
             locator_info = confirmation.get("Locator", {})
             source = locator_info.get("source", "")
             value = locator_info.get("value", "")
@@ -556,6 +558,18 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                 # This is the airline's own PNR
                 ticket["airline_pnr"] = value
                 ticket["airline_pnr_source"] = source
+
+        # ── Cancelled PNR ─────────────────────────────────────────────────────
+        # Confirmed live 2026-10-29 (HNHCWB, HNHB47 — held GDS bookings
+        # cancelled through Cancel Workbench Items): the retrieve then has no
+        # Offer[] and only ReceiptCancellation entries (CancellationHold, one
+        # per PNR), and the "Confirmed" default above showed them as live on
+        # Check My Ticket Status. A live NDC PNR also comes back without
+        # Offer[] but always keeps its ReceiptConfirmation (65 of 65 retrieves
+        # in our logs), so that is checked too.
+        receipt_types = {r.get("@type") for r in receipts}
+        if not offers and "ReceiptCancellation" in receipt_types and "ReceiptConfirmation" not in receipt_types:
+            ticket["status"] = "Cancelled"
 
         # ── Seat ──────────────────────────────────────────────────────────────
         seats = reservation.get("Seat", [])

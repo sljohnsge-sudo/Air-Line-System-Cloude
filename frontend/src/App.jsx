@@ -7611,6 +7611,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               const segments = isAD ? (r.segments || []) : (r.segments || r.legs || []);
               const ticketNumbers = isAD ? (r.ticketNumbers || []) : (r.ticket_number ? [r.ticket_number] : []);
               const ticketed = ticketNumbers.length > 0;
+              // Same statuses BookingCard treats as cancelled; a cancelled
+              // held booking has no ticket, so it read "Ticketing Pending".
+              const isCancelled = !isAD && ['Cancelled', 'Voided', 'Refunded'].includes(r.status);
               return (
                 <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1.25rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -7620,11 +7623,13 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     </div>
                     <div style={{
                       fontSize: '0.72rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '4px',
-                      background: ticketed ? '#f0fdf4' : '#fffbeb',
-                      color: ticketed ? '#166534' : '#92400e',
-                      border: `1px solid ${ticketed ? '#bbf7d0' : '#fde68a'}`,
+                      background: isCancelled ? '#fef2f2' : ticketed ? '#f0fdf4' : '#fffbeb',
+                      color: isCancelled ? '#991b1b' : ticketed ? '#166534' : '#92400e',
+                      border: `1px solid ${isCancelled ? '#fecaca' : ticketed ? '#bbf7d0' : '#fde68a'}`,
                     }}>
-                      {ticketed ? '✓ Ticket Issued' : 'PNR Confirmed · Ticketing Pending'}
+                      {isCancelled
+                        ? { Cancelled: 'Booking Cancelled', Voided: 'Ticket Voided', Refunded: 'Ticket Refunded' }[r.status]
+                        : ticketed ? '✓ Ticket Issued' : 'PNR Confirmed · Ticketing Pending'}
                     </div>
                   </div>
 

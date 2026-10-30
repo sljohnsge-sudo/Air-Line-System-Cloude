@@ -2163,6 +2163,12 @@ def _merge_cached_ticket_fields(ticket: dict, cached: Optional[dict]) -> dict:
     dropped seat numbers that /api/bookings/retrieve/{locator} preserved."""
     if not cached:
         return ticket
+    # A cancel, void or refund done here is final even when Travelport's
+    # retrieve still looks live (a voided ticket keeps its Ticket[] entry, so
+    # the parse says "Ticketed") — the same rule save_booking() applies to the
+    # stored status.
+    if cached.get("status") in database.CANCELLED_STATUSES:
+        ticket["status"] = cached["status"]
     # Seat label saved at /confirm holds every confirmed seat with its flight
     # ("Departure UL225: 20C, Return UL226: 4A"); since GDS seats are now
     # really on the PNR the live retrieve returns only the first one ("20C").
@@ -2217,6 +2223,19 @@ def _merge_cached_ticket_fields(ticket: dict, cached: Optional[dict]) -> dict:
         ticket["fare_source"] = cached["fare_source"]
     _backfill_terminals(ticket, _cached_segments(cached))
     return ticket
+
+
+def _cancelled_status(cached: Optional[dict], err: Exception) -> Optional[str]:
+    """Status to show when Travelport's live retrieve fails for a booking that
+    is cancelled: the stored Cancelled/Voided/Refunded, or "Cancelled" when
+    Travelport says so itself. Confirmed live 2026-10-29: a cancelled SQ NDC
+    PNR (HNHB4H) can't be retrieved at all — "RESERVATION IS CANCELLED AND
+    CANNOT BE RETRIEVED (4422)" — so Check My Ticket Status answered 502."""
+    if cached and cached.get("status") in database.CANCELLED_STATUSES:
+        return cached["status"]
+    if "RESERVATION IS CANCELLED" in str(err).upper():
+        return "Cancelled"
+    return None
 
 
 # ── Public booking views: personal data is only for staff or the owner ───────
@@ -2312,6 +2331,9 @@ def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth
         # worse than no data at all, so it's treated the same as no cache.
         cached = database.get_booking_by_locator(locator_code)
         if cached and (cached.get("flight_number") or cached.get("passenger_name")):
+            status = _cancelled_status(cached, e)
+            if status:
+                cached = {**cached, "status": status}
             return cached if _can_see_private(principal, cached) else _public_booking_view(cached)
         raise HTTPException(status_code=404, detail=f"Reservation not found: {str(e)}")
 
@@ -2342,9 +2364,13 @@ async def ticket_status(query: str = Query(..., min_length=3, max_length=20),
         try:
             ticket = services.retrieve_reservation(locator)
         except Exception as e:
-            logger.error(f"Ticket-status: found {locator} locally but Travelport live retrieve failed: {e}")
-            raise HTTPException(status_code=502, detail=f"Found this booking but Travelport's live lookup failed: {str(e)[:300]}")
-        _merge_cached_ticket_fields(ticket, tp_cached)
+            status = _cancelled_status(tp_cached, e)
+            if not status:
+                logger.error(f"Ticket-status: found {locator} locally but Travelport live retrieve failed: {e}")
+                raise HTTPException(status_code=502, detail=f"Found this booking but Travelport's live lookup failed: {str(e)[:300]}")
+            ticket = {**tp_cached, "status": status}
+        else:
+            _merge_cached_ticket_fields(ticket, tp_cached)
         ticket["source"] = "TP"
         return ticket if _can_see_private(principal, tp_cached) else _public_booking_view(ticket)
 
