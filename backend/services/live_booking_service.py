@@ -45,16 +45,34 @@ def _segment_state(status: tuple | None) -> str:
     return "confirmed" if is_confirmed(status) else "pending"
 
 
-def _ticket_coupons(number: str) -> dict:
-    """Ticket Retrieve: coupon status per flight. GDS only; some carriers'
-    pre-prod tickets answer "TICKET IS NOT VALID" — reported, not hidden."""
+# Shown instead of Travelport's raw error when it has no coupon detail for a
+# ticket — the ticket itself is still on the booking.
+TICKET_DETAIL_UNAVAILABLE = ("The airline's ticket system didn't return flight-by-flight details for this ticket "
+                             "just now. Your ticket is issued and on the booking.")
+
+
+def _ticket_coupons(number: str, locator_code: str, ndc: bool) -> dict:
+    """Ticket Retrieve: coupon status per flight. GET /air/ticket/tickets/{n}
+    is GDS only — for an NDC ticket it answers 4239 "TICKET IS NOT VALID"
+    (seen on QR HNHLDC), so NDC tickets use getbylocator with contentSource
+    NDC, which returns the coupons. Some carriers' pre-prod GDS tickets
+    (UL 603, QR 157...) also answer 4239 to the GET; getbylocator refuses GDS
+    ("CARRIER CODE IS MISSING OR INVALID"), so those show a plain message."""
     try:
-        body = _call("GET", TravelportEndpoints.retrieve_ticket_by_number(number))
+        if ndc:
+            body = _call("POST", TravelportEndpoints.TICKET_RETRIEVE_BY_LOCATOR, {
+                "@type": "TicketQueryGetByLocator", "detailViewInd": True,
+                "Locator": {"value": locator_code, "locatorType": "Locator"},
+                "TicketNumber": [{"value": number, "contentSource": "NDC"}]})
+        else:
+            body = _call("GET", TravelportEndpoints.retrieve_ticket_by_number(number))
     except CancelError as e:
-        return {"error": str(e)}
+        logger.warning(f"Ticket Retrieve for {number} failed: {e}")
+        return {"error": TICKET_DETAIL_UNAVAILABLE}
     tickets = (body.get("TicketListResponse") or {}).get("TicketID") or []
     if not tickets:
-        return {"error": _msg(_errors(body)) or "Travelport returned no ticket"}
+        logger.info(f"Ticket Retrieve for {number}: {_msg(_errors(body))}")
+        return {"error": TICKET_DETAIL_UNAVAILABLE}
     t = tickets[0]
     return {
         "issued": (t.get("AgencyInfo") or {}).get("ticketedDate"),
@@ -87,6 +105,7 @@ def get_live_booking(locator_code: str, with_coupons: bool = True) -> dict:
     for t in res.get("Traveler") or []:
         name = t.get("PersonName") or {}
         travelers[t.get("id")] = {"id": t.get("id"), "name": f"{name.get('Given', '')} {name.get('Surname', '')}".strip(),
+                                  "given": name.get("Given", ""), "surname": name.get("Surname", ""),
                                   "type": t.get("passengerTypeCode")}
 
     # ── Flights, with the airline's own status ───────────────────────────────
@@ -119,15 +138,21 @@ def get_live_booking(locator_code: str, with_coupons: bool = True) -> dict:
     flights.sort(key=lambda x: x.get("sequence") or 0)
 
     # Airline record locators. A hosted airline's record carries its host
-    # system's code (UL -> "1A", Amadeus), so name the airline instead.
+    # system's code (UL -> "1A", Amadeus), so name the airline instead. An
+    # NDC booking returns the same reference twice — VendorLocator "7OKULH"
+    # and OrderId "QR_7OKULH" (QR HNHLDC) — so the order id is skipped.
     carriers = list(dict.fromkeys(f["flight"][:2] for f in flights))
-    airline_locators = []
+    airline_locators, seen_locators = [], set()
     for r in res.get("Receipt") or []:
         loc = (r.get("Confirmation") or {}).get("Locator") or {}
-        if loc.get("value") and loc.get("source") != "1G" and loc["value"] != locator_code:
-            source = loc.get("source")
-            airline = carriers[0] if source in ("1A", "1S", "1P", "1V", "1B") and len(carriers) == 1 else source
-            airline_locators.append({"airline": airline, "locator": loc["value"]})
+        if not loc.get("value") or loc.get("source") == "1G" or loc["value"] == locator_code                 or loc.get("sourceContext") == "OrderId":
+            continue
+        source = loc.get("source")
+        value = loc["value"].split("_", 1)[1] if loc["value"].startswith(f"{source}_") else loc["value"]
+        airline = carriers[0] if source in ("1A", "1S", "1P", "1V", "1B") and len(carriers) == 1 else source
+        if (airline, value) not in seen_locators:
+            seen_locators.add((airline, value))
+            airline_locators.append({"airline": airline, "locator": value})
 
     # ── Tickets / EMDs from the payment receipts ─────────────────────────────
     tickets, emd_by_offer = [], {}
@@ -141,9 +166,10 @@ def get_live_booking(locator_code: str, with_coupons: bool = True) -> dict:
             elif d.get("@type") == "DocumentEMD" and d.get("Number"):
                 for ref in r.get("OfferRef") or []:
                     emd_by_offer[ref] = d["Number"]
+    content_source = next((o.get("ContentSource") for o in res.get("Offer") or [] if o.get("ContentSource")), None) or "GDS"
     if with_coupons:
         for t in tickets:
-            t.update(_ticket_coupons(t["number"]))
+            t.update(_ticket_coupons(t["number"], locator_code, content_source == "NDC"))
 
     # ── Seats and extras, each with the airline's confirmation ───────────────
     product_status, traveler_of = {}, {}
@@ -204,6 +230,7 @@ def get_live_booking(locator_code: str, with_coupons: bool = True) -> dict:
         "locator_code": locator_code,
         "retrieved_at": retrieved_at,
         "booking_status": booking_status,
+        "content_source": content_source,
         "airline_locators": airline_locators,
         "travelers": list(travelers.values()),
         "flights": flights,
