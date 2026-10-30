@@ -7,7 +7,7 @@
 // anyone's itinerary. Manage My Booking (ManageMyBooking.jsx) opens below.
 import { useEffect, useState } from 'react';
 import { LiveStatusDetails } from './LiveBookingPanel.jsx';
-import ManageMyBooking, { startAddonPayment } from './ManageMyBooking.jsx';
+import ManageMyBooking, { startAddonPayment, formatDeadline } from './ManageMyBooking.jsx';
 
 // prefill: {query, lastName, key} — set when opened from a My Bookings detail page; looks it up at once.
 export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, prefill }) {
@@ -107,11 +107,23 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
               )}
             </div>
           </div>
+          {data.released_extras?.length > 0 && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.7rem 0.9rem', margin: '0.7rem 0 0.2rem', fontSize: '0.82rem', color: '#991b1b' }}>
+              <strong>Removed from your booking:</strong> {data.released_extras.join(', ')} — not paid by the deadline, so the airline no longer
+              has {data.released_extras.length > 1 ? 'them' : 'it'} for you. You have not been charged. You can add it again from Manage my booking.
+            </div>
+          )}
           {data.payment_due && (
             <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.7rem 0.9rem', margin: '0.7rem 0 0.2rem', fontSize: '0.82rem', color: '#78350f' }}>
-              <strong>Payment due:</strong> the airline has now confirmed{' '}
+              <strong>Payment due:</strong> the airline has confirmed{' '}
               {data.payment_due.items.map(i => `${i.name} (${data.payment_due.currency} ${Number(i.price).toLocaleString(undefined, { minimumFractionDigits: 2 })})`).join(', ')}.
               Pay to keep {data.payment_due.items.length > 1 ? 'them' : 'it'} — the airline then issues the document.
+              {data.payment_due.deadline_utc && (
+                <div style={{ marginTop: '0.35rem' }}>
+                  Pay by <strong>{formatDeadline(data.payment_due.deadline_utc)}</strong>. If {data.payment_due.items.length > 1 ? 'they aren’t' : 'it isn’t'} paid
+                  by then, {data.payment_due.items.length > 1 ? 'they are' : 'it is'} removed from your booking and can’t be used at the airport.
+                </div>
+              )}
               <div style={{ marginTop: '0.45rem' }}>
                 <button className="btn btn-primary btn-sm" disabled={paying} onClick={payDue}>
                   {paying ? 'Opening payment…' : `Pay ${data.payment_due.currency} ${Number(data.payment_due.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}

@@ -167,7 +167,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     setActiveSection('status');
     window.history.replaceState({}, '', window.location.pathname);
     if (params.get('payment') === 'cancelled' || !params.get('reqid')) {
-      setAddonPaymentResult({ ok: false, message: 'Payment was cancelled — your seat/extra stays on the booking unpaid. Contact us to pay for it or remove it.' });
+      setAddonPaymentResult({ ok: false, message: 'Payment was cancelled — you have not been charged. Your seat/extra stays on the booking unpaid only until its payment deadline: pay for it from Booking Status before then, or it will be removed.' });
       return;
     }
     (async () => {
@@ -178,7 +178,13 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not complete the payment');
-        setAddonPaymentResult({ ok: true, message: `Paid — the airline issued ${(data.emds || []).map(e => `EMD ${e.number}`).join(', ') || 'your document'}.` });
+        if (data.status === 'completed') {
+          setAddonPaymentResult({ ok: true, message: `Paid — the airline issued ${(data.emds || []).map(e => `EMD ${e.number}`).join(', ') || 'your document'}.` });
+        } else if (data.status === 'emd_failed') {
+          setAddonPaymentResult({ ok: false, message: 'Your payment was received but the airline didn\u2019t issue the document yet. Our team has been alerted and will complete it or refund you.' });
+        } else {
+          setAddonPaymentResult({ ok: false, message: 'This payment is no longer open (the payment deadline passed or it was replaced) — you have not been charged. Check Booking Status for what is still due.' });
+        }
       } catch (err) {
         setAddonPaymentResult({ ok: false, message: err.message });
       }
