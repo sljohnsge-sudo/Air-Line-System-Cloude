@@ -25,6 +25,12 @@ export async function startAddonPayment({ apiBase, fetchWithRetry, addon }) {
   window.location.href = data.payment_page_url;
 }
 
+// A payment deadline from the backend (UTC ISO) in the customer's own time.
+export function formatDeadline(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
 const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Requested — not charged unless the airline confirms', sent: 'Sent to the airline', failed: 'Not added' };
 
 function SeatMap({ map, chosen, onPick }) {
@@ -161,7 +167,11 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
           )}
           {result.payment_required && (
             <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.85rem' }}>To finish, pay <strong>{money(result.currency, result.amount)}</strong>. The airline then issues the document for your seat/extra.</span>
+              <span style={{ fontSize: '0.85rem' }}>
+                To finish, pay <strong>{money(result.currency, result.amount)}</strong>
+                {result.deadline_utc ? <> by <strong>{formatDeadline(result.deadline_utc)}</strong></> : null}. The airline then issues the document for your seat/extra.
+                {result.deadline_utc ? ' If it isn’t paid by then it is removed from your booking and can’t be used at the airport.' : ''}
+              </span>
               <button className="btn btn-primary btn-sm" disabled={busy === 'pay'} onClick={payAddons}>Pay {money(result.currency, result.amount)}</button>
             </div>
           )}

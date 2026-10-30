@@ -864,6 +864,32 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         cursor.execute("ALTER TABLE provider_settings ADD COLUMN ticketed_cancel_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER packages_enabled")
 
+    # provider_settings.extras_pay_hours / extras_pay_before_departure_hours —
+    # how long a customer has to pay for a seat/extra the airline confirmed on
+    # a ticketed booking before it is taken off the PNR
+    # (services/addon_deadlines.py): N hours after we first see it confirmed,
+    # or M hours before the flight it covers, whichever comes first.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='provider_settings' AND COLUMN_NAME='extras_pay_hours'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN extras_pay_hours INT NOT NULL DEFAULT 24 AFTER ticketed_cancel_enabled")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN extras_pay_before_departure_hours INT NOT NULL DEFAULT 24 AFTER extras_pay_hours")
+
+    # provider_settings.notify_email_enabled / notify_sms_enabled /
+    # extras_reminder_hours — automatic customer emails and SMS about
+    # seats/extras (services/customer_notify.py): payment due, a reminder this
+    # many hours before the deadline, removed, paid, refused by the airline.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='provider_settings' AND COLUMN_NAME='notify_email_enabled'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN notify_email_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER extras_pay_before_departure_hours")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN notify_sms_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER notify_email_enabled")
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN extras_reminder_hours INT NOT NULL DEFAULT 6 AFTER notify_sms_enabled")
+
     # ── Manage My Booking: paid seats/extras added to a ticketed booking ─────
     # Booked on the PNR first (Travelport's price), then paid by card; only
     # after the payment is verified are their EMDs issued. The amount to
@@ -884,6 +910,105 @@ def init_db():
             completed_at    DATETIME NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
+
+    # addon_payments.payment_reqid / payment_started_at — set when the
+    # customer is sent to PayCorp, so an unpaid item is never released while a
+    # payment for it may be going through (services/addon_deadlines.py).
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='addon_payments' AND COLUMN_NAME='payment_reqid'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE addon_payments ADD COLUMN payment_reqid VARCHAR(64) NULL AFTER status")
+        cursor.execute("ALTER TABLE addon_payments ADD COLUMN payment_started_at DATETIME NULL AFTER payment_reqid")
+
+    # ── Confirmed-but-unpaid seats/extras on ticketed bookings ───────────────
+    # One row per seat/extra offer (keyed by Travelport's offer Identifier):
+    # when we first saw the airline confirm it, the payment deadline, and
+    # whether it was paid or released from the PNR. Times are UTC.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS addon_holds (
+            locator_code          VARCHAR(10)  NOT NULL,
+            offer_key             VARCHAR(80)  NOT NULL,
+            offer_id              VARCHAR(40)  NULL,
+            kind                  VARCHAR(10)  NOT NULL,
+            description           VARCHAR(200) NULL,
+            ssr_code              VARCHAR(10)  NULL,
+            supplier_price        DECIMAL(14,2) NOT NULL DEFAULT 0,
+            currency              VARCHAR(10)  NULL,
+            departure_utc         DATETIME     NULL,
+            first_confirmed_utc   DATETIME     NOT NULL,
+            deadline_utc          DATETIME     NOT NULL,
+            status                VARCHAR(20)  NOT NULL DEFAULT 'unpaid',
+            result_json           LONGTEXT     NULL,
+            closed_utc            DATETIME     NULL,
+            PRIMARY KEY (locator_code, offer_key),
+            KEY idx_addon_holds_due (status, deadline_utc)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── Customer notifications (email / SMS) ─────────────────────────────────
+    # One row per booking + event + item + channel: the unique key is what
+    # stops a message ever going twice (services/customer_notify.py).
+    # status: pending / sent / not_configured / no_address / failed.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS customer_notifications (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            locator_code  VARCHAR(10)  NOT NULL,
+            event         VARCHAR(20)  NOT NULL,
+            item_key      VARCHAR(80)  NOT NULL,
+            channel       VARCHAR(10)  NOT NULL,
+            recipient     VARCHAR(200) NULL,
+            status        VARCHAR(20)  NOT NULL DEFAULT 'pending',
+            subject       VARCHAR(250) NULL,
+            body          TEXT         NULL,
+            error         VARCHAR(500) NULL,
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_customer_notification (locator_code, event, item_key, channel)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
+    # ── EMDs we issued ourselves ─────────────────────────────────────────────
+    # Any EMD on a PNR that isn't in here was issued by someone else (the
+    # airline or another agent) and may be billed to the agency — the sweep in
+    # services/addon_deadlines.py flags it (origin 'not_ours') for staff.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=%s AND TABLE_NAME='emd_ledger'
+    """, (MYSQL_DATABASE,))
+    emd_ledger_is_new = cursor.fetchone()[0] == 0
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS emd_ledger (
+            emd_number    VARCHAR(20) PRIMARY KEY,
+            locator_code  VARCHAR(10) NOT NULL,
+            origin        VARCHAR(20) NOT NULL,
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_emd_ledger_locator (locator_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    if emd_ledger_is_new:
+        # EMDs issued before the ledger existed: the ones saved with the
+        # ticket at issuance and the ones from completed add-on payments.
+        cursor.execute("SELECT locator_code, raw_ticket_json FROM bookings WHERE raw_ticket_json LIKE %s", ("%emd_numbers%",))
+        for locator, raw in cursor.fetchall():
+            try:
+                emds = (json.loads(raw or "{}") or {}).get("emd_numbers") or []
+            except ValueError:
+                continue
+            for e in emds:
+                number = e.get("number") if isinstance(e, dict) else e
+                if number:
+                    cursor.execute("INSERT IGNORE INTO emd_ledger (emd_number, locator_code, origin) VALUES (%s,%s,'ours_backfill')",
+                                   (str(number), locator))
+        cursor.execute("SELECT locator_code, result_json FROM addon_payments WHERE status='completed'")
+        for locator, result in cursor.fetchall():
+            try:
+                emds = (json.loads(result or "{}") or {}).get("emds") or []
+            except ValueError:
+                continue
+            for e in emds:
+                if e.get("number"):
+                    cursor.execute("INSERT IGNORE INTO emd_ledger (emd_number, locator_code, origin) VALUES (%s,%s,'ours_backfill')",
+                                   (str(e["number"]), locator))
 
     # ── Pending NDC Instant Pay bookings (Emirates) ──────────────────────────
     # Instant Pay takes the card payment BEFORE the PNR and ticket exist, so
@@ -1690,11 +1815,17 @@ def get_provider_settings() -> dict:
     conn.close()
     if not row:
         return {"search_mode": "travelport_only", "hotels_enabled": False, "visa_enabled": False, "packages_enabled": False,
-                "ticketed_cancel_enabled": False}
+                "ticketed_cancel_enabled": False, "extras_pay_hours": 24, "extras_pay_before_departure_hours": 24,
+                "notify_email_enabled": True, "notify_sms_enabled": True, "extras_reminder_hours": 6}
     row["hotels_enabled"] = bool(row.get("hotels_enabled", 1))
     row["visa_enabled"] = bool(row.get("visa_enabled", 1))
     row["packages_enabled"] = bool(row.get("packages_enabled", 1))
     row["ticketed_cancel_enabled"] = bool(row.get("ticketed_cancel_enabled", 0))
+    row["extras_pay_hours"] = int(row.get("extras_pay_hours") or 24)
+    row["extras_pay_before_departure_hours"] = int(row.get("extras_pay_before_departure_hours") or 24)
+    row["notify_email_enabled"] = bool(row.get("notify_email_enabled", 1))
+    row["notify_sms_enabled"] = bool(row.get("notify_sms_enabled", 1))
+    row["extras_reminder_hours"] = int(row["extras_reminder_hours"]) if row.get("extras_reminder_hours") is not None else 6
     return row
 
 
@@ -1704,14 +1835,22 @@ def update_provider_settings(
     visa_enabled: bool = True,
     packages_enabled: bool = True,
     ticketed_cancel_enabled: bool = False,
+    extras_pay_hours: int = 24,
+    extras_pay_before_departure_hours: int = 24,
+    notify_email_enabled: bool = True,
+    notify_sms_enabled: bool = True,
+    extras_reminder_hours: int = 6,
 ) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
             "UPDATE provider_settings SET search_mode=%s, hotels_enabled=%s, visa_enabled=%s, packages_enabled=%s,"
-            " ticketed_cancel_enabled=%s WHERE id=1",
-            (search_mode, int(hotels_enabled), int(visa_enabled), int(packages_enabled), int(ticketed_cancel_enabled)),
+            " ticketed_cancel_enabled=%s, extras_pay_hours=%s, extras_pay_before_departure_hours=%s,"
+            " notify_email_enabled=%s, notify_sms_enabled=%s, extras_reminder_hours=%s WHERE id=1",
+            (search_mode, int(hotels_enabled), int(visa_enabled), int(packages_enabled), int(ticketed_cancel_enabled),
+             int(extras_pay_hours), int(extras_pay_before_departure_hours),
+             int(notify_email_enabled), int(notify_sms_enabled), int(extras_reminder_hours)),
         )
         conn.commit()
         return get_provider_settings()
@@ -2651,6 +2790,19 @@ def get_addon_payments_for_locator(locator_code: str) -> list[dict]:
     return [_addon_row(r) for r in rows]
 
 
+def set_addon_payment_started(addon_id: str, reqid: str | None) -> None:
+    """The customer was sent to PayCorp for this add-on (UTC time)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE addon_payments SET payment_reqid=%s, payment_started_at=%s WHERE addon_id=%s",
+                       (reqid, datetime.utcnow(), addon_id))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def finish_addon_payment(addon_id: str, status: str, result: dict) -> bool:
     """Single use: only an 'awaiting_payment' row moves on (returns False if
     another request already claimed it)."""
@@ -3069,3 +3221,165 @@ def populate_airports_table(conn):
 
 # Auto-init on import
 init_db()
+
+
+# ── Seat/extra payment deadlines (services/addon_deadlines.py) ───────────────
+
+def _hold_row(row: dict | None) -> dict | None:
+    if row:
+        row["supplier_price"] = float(row["supplier_price"] or 0)
+        row["result"] = json.loads(row.pop("result_json") or "null")
+    return row
+
+
+def start_addon_hold(locator_code: str, offer_key: str, offer_id: str | None, kind: str, description: str | None,
+                     ssr_code: str | None, supplier_price: float, currency: str | None,
+                     departure_utc, first_confirmed_utc, deadline_utc) -> dict:
+    """First sighting of a confirmed, unpaid seat/extra starts its clock;
+    later sightings only refresh the offer id (Travelport renumbers them)."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """INSERT INTO addon_holds (locator_code, offer_key, offer_id, kind, description, ssr_code, supplier_price,
+               currency, departure_utc, first_confirmed_utc, deadline_utc)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON DUPLICATE KEY UPDATE offer_id=VALUES(offer_id)""",
+            (locator_code, offer_key, offer_id, kind, (description or "")[:200] or None, ssr_code, supplier_price,
+             currency, departure_utc, first_confirmed_utc, deadline_utc))
+        conn.commit()
+        cursor.execute("SELECT * FROM addon_holds WHERE locator_code=%s AND offer_key=%s", (locator_code, offer_key))
+        return _hold_row(cursor.fetchone())
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_addon_holds(locator_code: str) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM addon_holds WHERE locator_code=%s ORDER BY first_confirmed_utc", (locator_code,))
+        return [_hold_row(r) for r in cursor.fetchall()]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def close_addon_hold(locator_code: str, offer_key: str, status: str, result: dict | None = None) -> bool:
+    """unpaid -> paid / released / release_failed / gone. A release_failed
+    row stays open: it can still be released or paid later."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE addon_holds SET status=%s, result_json=%s, closed_utc=%s "
+            "WHERE locator_code=%s AND offer_key=%s AND status IN ('unpaid','release_failed')",
+            (status, json.dumps(result, default=str) if result is not None else None, datetime.utcnow(),
+             locator_code, offer_key))
+        conn.commit()
+        return cursor.rowcount == 1
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_locators_for_extras_sweep() -> list[str]:
+    """Ticketed, not cancelled bookings that haven't flown yet, plus any
+    booking with an open hold — what the background sweep checks."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        cursor.execute(
+            "SELECT locator_code FROM bookings WHERE ticket_number IS NOT NULL AND ticket_number<>'' "
+            "AND status NOT IN ('Cancelled','Voided','Refunded') AND departure_time >= %s", (today,))
+        locators = {r[0] for r in cursor.fetchall()}
+        cursor.execute("SELECT DISTINCT locator_code FROM addon_holds WHERE status IN ('unpaid','release_failed')")
+        locators |= {r[0] for r in cursor.fetchall()}
+        return sorted(locators)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_emd_origins(locator_code: str) -> dict:
+    """emd_number -> origin for this PNR's EMDs in the ledger."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT emd_number, origin FROM emd_ledger WHERE locator_code=%s", (locator_code,))
+        return dict(cursor.fetchall())
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def record_emds(locator_code: str, numbers: list, origin: str) -> None:
+    """origin: ours_ticketing / ours_addon / not_ours (flagged to staff)."""
+    numbers = [str(n) for n in numbers if n]
+    if not numbers:
+        return
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.executemany("INSERT IGNORE INTO emd_ledger (emd_number, locator_code, origin) VALUES (%s,%s,%s)",
+                           [(n, locator_code, origin) for n in numbers])
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ── Customer notifications (services/customer_notify.py) ─────────────────────
+
+def claim_notification(locator_code: str, event: str, item_key: str, channel: str) -> bool:
+    """True only the first time for this booking/event/item/channel."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT IGNORE INTO customer_notifications (locator_code, event, item_key, channel) VALUES (%s,%s,%s,%s)",
+                       (locator_code, event, str(item_key)[:80], channel))
+        conn.commit()
+        return cursor.rowcount == 1
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def finish_notifications(locator_code: str, event: str, item_keys: list, channel: str, status: str,
+                         recipient: str | None, subject: str | None, body: str | None, error: str | None) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.executemany(
+            "UPDATE customer_notifications SET status=%s, recipient=%s, subject=%s, body=%s, error=%s "
+            "WHERE locator_code=%s AND event=%s AND item_key=%s AND channel=%s",
+            [(status, recipient, (subject or "")[:250] or None, body, (error or "")[:500] or None,
+              locator_code, event, str(k)[:80], channel) for k in item_keys])
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_customer_notifications(locator_code: str) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM customer_notifications WHERE locator_code=%s ORDER BY id", (locator_code,))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_customer_by_id(customer_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, email, full_name, phone FROM customers WHERE id=%s", (customer_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()

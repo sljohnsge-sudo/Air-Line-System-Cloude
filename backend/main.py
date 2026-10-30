@@ -59,6 +59,7 @@ from services import segment_status
 from services import live_booking_service
 from services import manage_booking_service
 from services import addon_billing
+from services import addon_deadlines
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -79,6 +80,15 @@ app = FastAPI(
     description="Live Travelport TripServices v11 integration. No mock data.",
     version="2.0.0"
 )
+
+
+@app.on_event("startup")
+def _start_extras_deadline_sweep():
+    """Unpaid seats/extras on ticketed bookings are released when their
+    payment deadline passes even if the customer never comes back
+    (services/addon_deadlines.py). EXTRAS_SWEEP_MINUTES=0 turns it off —
+    run one process with it on if the API is scaled to several workers."""
+    addon_deadlines.start_sweeper(int(os.getenv("EXTRAS_SWEEP_MINUTES", "15")))
 
 # ── Go-live module gate (server-side enforcement of the feature flags) ────────
 # Nov 1 launch ships Travelport flights only. Hotels/Visa/Packages are built
@@ -1616,7 +1626,12 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
     # (buildfromlocator -> formofpayment -> payment -> commit-with-ticketing).
     trace_token = services.start_flow_trace_id()
     try:
-        ticket = services.issue_ticket(locator_code)
+        # Held under the PNR's lock so the unpaid-EMD check can't see these
+        # EMDs before they are recorded as ours.
+        with addon_deadlines.locator_lock(locator_code):
+            ticket = services.issue_ticket(locator_code)
+            database.record_emds(locator_code, [e.get("number") for e in ticket.get("emd_numbers") or []
+                                                if isinstance(e, dict)], "ours_ticketing")
     except Exception as e:
         logger.error(f"Ticket issuance failed for {locator_code}: {e}")
         txn_ref = payment_result.get("txn_reference") if payment_result else None
@@ -2947,6 +2962,20 @@ def payments_init(request: PaymentInitRequestBody):
             # Manage My Booking add-on: amount fixed when the seats/extras were booked.
             if addon["status"] != "awaiting_payment":
                 raise HTTPException(status_code=409, detail="This add-on has already been paid or closed.")
+            # Never take payment for an item already released or no longer
+            # confirmed: checked live, and marked as being paid (under the
+            # PNR's lock) so the deadline sweep leaves it alone meanwhile.
+            with addon_deadlines.locator_lock(addon["locator_code"]):
+                try:
+                    addon_deadlines.check_payable(addon["locator_code"], addon["items"], addon["supplier_total"])
+                except addon_deadlines.NotPayable as e:
+                    database.finish_addon_payment(addon["addon_id"], "expired", {"reason": str(e)})
+                    raise HTTPException(status_code=409, detail=str(e))
+                except services.CancelError as e:
+                    logger.error(f"Add-on {addon['addon_id']}: live check before payment failed: {e}")
+                    raise HTTPException(status_code=503, detail="We couldn't check your booking with the airline just now. "
+                                                                "No payment has been taken — please try again in a moment.")
+                database.set_addon_payment_started(addon["addon_id"], None)
             amount, currency = addon["amount"], addon["currency"]
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
             # Never take payment for a flight the airline has dropped — the
@@ -2976,6 +3005,8 @@ def payments_init(request: PaymentInitRequestBody):
             client_ref=request.client_ref,
             comment=request.comment,
         )
+        if ref.startswith("ADD") and result.get("reqid"):
+            database.set_addon_payment_started(ref, result["reqid"])
         return {"success": True, **result, "amount": amount, "currency": currency}
     except services.PayCorpError as e:
         logger.error(f"PayCorp init failed: {e}")
@@ -3413,6 +3444,13 @@ class ProviderSettingsRequest(BaseModel):
     visa_enabled: bool = True
     packages_enabled: bool = True
     ticketed_cancel_enabled: bool = False  # staff void/refund (see cancel_booking)
+    # Unpaid confirmed seats/extras on ticketed bookings (services/addon_deadlines.py)
+    extras_pay_hours: int = Field(24, ge=1, le=168)
+    extras_pay_before_departure_hours: int = Field(24, ge=0, le=168)
+    # Automatic customer emails / SMS about seats/extras (services/customer_notify.py)
+    notify_email_enabled: bool = True
+    notify_sms_enabled: bool = True
+    extras_reminder_hours: int = Field(6, ge=0, le=72)
 
 
 @app.get("/api/admin/go-live-checks")
@@ -3431,7 +3469,8 @@ def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
 def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
     return database.update_provider_settings(
         body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled,
-        body.ticketed_cancel_enabled,
+        body.ticketed_cancel_enabled, body.extras_pay_hours, body.extras_pay_before_departure_hours,
+        body.notify_email_enabled, body.notify_sms_enabled, body.extras_reminder_hours,
     )
 
 
@@ -4123,19 +4162,33 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
             raise HTTPException(status_code=502, detail=f"Travelport didn't answer: {e} (TraceId {trace_id})")
     live["trace_id"] = trace_id
     live["manage_token"] = auth.create_manage_booking_token(live["locator_code"], current["customer_id"])
-    # Seats/extras the airline confirmed after they were requested.
+    # Confirmed seats/extras without payment: deadlines started, overdue ones
+    # released from the PNR, the rest shown as payment due.
     try:
         if live["ticketed"]:
+            check = addon_deadlines.check_booking(live["locator_code"])
+            if check["released"]:
+                fresh = live_booking_service.get_live_booking(live["locator_code"], with_coupons=False)
+                live.update({k: fresh.get(k) for k in ("seats", "extras", "special_services", "retrieved_at")})
+                live["released_extras"] = [h["description"] or h["kind"] for h in check["released"]]
             due = addon_billing.payable_after_ticketing(live["locator_code"])
             if due["items"]:
-                live["payment_due"] = {"amount": due["amount"], "currency": due["currency"],
-                                       "items": [{"name": i.get("name") or i.get("description") or (f"Seat {i.get('seat_number')}" if i.get("seat_number") else "Extra"),
-                                                  "price": i["price"]} for i in due["items"]]}
+                live["payment_due"] = _payment_due_view(due)
         else:
             addon_billing.reconcile_held_booking(live["locator_code"])
     except Exception as e:
         logger.warning(f"Pending seats/extras check for {live['locator_code']} failed: {e}")
     return live
+
+
+def _item_name(i: dict) -> str:
+    return i.get("name") or i.get("description") or (f"Seat {i.get('seat_number')}" if i.get("seat_number") else "Extra")
+
+
+def _payment_due_view(due: dict) -> dict:
+    deadlines = [i["deadline_utc"] for i in due["items"] if i.get("deadline_utc")]
+    return {"amount": due["amount"], "currency": due["currency"], "deadline_utc": min(deadlines) if deadlines else None,
+            "items": [{"name": _item_name(i), "price": i["price"], "deadline_utc": i.get("deadline_utc")} for i in due["items"]]}
 
 
 def _manage_context(token: str, current: dict) -> tuple[str, dict]:
@@ -4227,6 +4280,18 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
     response = {"seats": result["seats"], "extras": result["extras"], "trace_id": trace_id, "payment_required": False}
     if not paid and not pending:
         return response
+    res_after = None
+    if live["ticketed"]:
+        # Travelport renumbers offer ids as items come and go; its offer
+        # Identifier is what the payment and the deadline track.
+        try:
+            res_after = addon_billing.retrieve(locator)
+            states = addon_billing.offer_states(res_after)
+            for i in paid + pending:
+                if i["offer_id"] in states:
+                    i["offer_key"] = states[i["offer_id"]]["key"]
+        except services.CancelError as e:
+            logger.warning(f"{locator}: could not read offer identifiers after adding seats/extras: {e}")
 
     amount = round(sum(i["price"] for i in paid), 2)
     supplier_total = round(sum(i.get("supplier_price") or 0 for i in paid), 2)
@@ -4242,6 +4307,13 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
             database.create_addon_payment(addon_id, locator, current["customer_id"], paid,
                                           [i["offer_id"] for i in paid], amount, supplier_total, currency)
             response.update(payment_required=True, addon_id=addon_id, amount=amount, currency=currency)
+            try:
+                check = addon_deadlines.check_booking(locator, res=res_after, release_overdue=False)
+                deadlines = [h["deadline_utc"] for h in check["holds"] if h["offer_key"] in {i.get("offer_key") for i in paid}]
+                if deadlines:
+                    response["deadline_utc"] = min(deadlines).isoformat() + "Z"
+            except Exception as e:
+                logger.warning(f"{locator}: could not start payment deadlines: {e}")
         return response
 
     # Held booking made through us: confirmed items are charged with the
@@ -4269,14 +4341,22 @@ def manage_booking_pay_due(request: ManageTokenRequest, current: dict = Depends(
     if not live["ticketed"]:
         raise HTTPException(status_code=409, detail="This booking isn't ticketed yet — confirmed seats and extras are paid with the ticket.")
     with services.flow_trace_id() as trace_id:
-        due = addon_billing.payable_after_ticketing(locator)
-    if not due["items"]:
-        raise HTTPException(status_code=409, detail="Nothing is waiting for payment on this booking.")
-    addon_id = f"ADD{uuid.uuid4().hex[:17].upper()}"
-    database.create_addon_payment(addon_id, locator, current["customer_id"], due["items"],
-                                  [i["offer_id"] for i in due["items"]], due["amount"], due["supplier_total"], due["currency"])
+        addon_deadlines.check_booking(locator)  # overdue items are released, not offered
+        with addon_deadlines.locator_lock(locator):
+            due = addon_billing.payable_after_ticketing(locator)
+            if not due["items"]:
+                raise HTTPException(status_code=409, detail="Nothing is waiting for payment on this booking.")
+            # An earlier add-on payment for the same items that the customer
+            # left unpaid is closed, so the items can only be paid once.
+            keys = {i["offer_key"] for i in due["items"]}
+            for row in database.get_addon_payments_for_locator(locator):
+                if row["status"] == "awaiting_payment" and keys & {i.get("offer_key") for i in row["items"]}:
+                    database.finish_addon_payment(row["addon_id"], "superseded", {"reason": "replaced by a new payment"})
+            addon_id = f"ADD{uuid.uuid4().hex[:17].upper()}"
+            database.create_addon_payment(addon_id, locator, current["customer_id"], due["items"],
+                                          [i["offer_id"] for i in due["items"]], due["amount"], due["supplier_total"], due["currency"])
     return {"payment_required": True, "addon_id": addon_id, "amount": due["amount"], "currency": due["currency"],
-            "items": due["items"], "trace_id": trace_id}
+            "items": due["items"], "deadline_utc": _payment_due_view(due)["deadline_utc"], "trace_id": trace_id}
 
 
 @app.post("/api/manage-booking/complete-payment")
@@ -4287,19 +4367,36 @@ def manage_booking_complete_payment(request: AddonPaymentCompleteRequest, curren
     addon = database.get_addon_payment(request.addon_id)
     if not addon or addon.get("customer_id") != current["customer_id"]:
         raise HTTPException(status_code=404, detail="Payment not found.")
-    if addon["status"] != "awaiting_payment":
-        return {"status": addon["status"], "result": json.loads(addon.get("result_json") or "{}")}
-    payment = _verify_and_claim_payment(request.reqid, expected_client_ref=addon["addon_id"], locator_code=addon["locator_code"],
-                                        expected_amount=addon["amount"], expected_currency=addon["currency"])
-    with services.flow_trace_id() as trace_id:
+    locator = addon["locator_code"]
+    # Under the PNR's lock: the deadline sweep can't release these items
+    # between the check below and the EMDs being issued.
+    with addon_deadlines.locator_lock(locator):
+        addon = database.get_addon_payment(request.addon_id)
+        if addon["status"] != "awaiting_payment":
+            return {"status": addon["status"], "result": json.loads(addon.get("result_json") or "{}")}
+        # Checked BEFORE the PayCorp payment is completed (no money is taken
+        # until then): an item released or no longer confirmed isn't charged.
         try:
-            issued = manage_booking_service.issue_emds(addon["locator_code"], addon["offer_ids"], addon["supplier_total"], addon["currency"])
-        except (manage_booking_service.Refused, services.CancelError) as e:
-            database.finish_addon_payment(addon["addon_id"], "emd_failed", {"error": str(e), "trace_id": trace_id})
-            _notify_stuck_booking(addon["locator_code"], f"Add-on paid but EMD not issued: {e} (TraceId {trace_id})",
-                                  payment.get("txn_reference"))
-            raise HTTPException(status_code=502, detail="Your payment was received but the airline didn't issue the document yet. "
-                                                        "Our team has been alerted and will complete it or refund you.")
+            addon_deadlines.check_payable(locator, addon["items"], addon["supplier_total"], at_completion=True)
+        except addon_deadlines.NotPayable as e:
+            database.finish_addon_payment(addon["addon_id"], "expired", {"reason": str(e)})
+            raise HTTPException(status_code=409, detail=f"{e} You have not been charged.")
+        except services.CancelError as e:
+            logger.error(f"Add-on {addon['addon_id']}: live check before completing payment failed: {e}")
+            raise HTTPException(status_code=503, detail="We couldn't check your booking with the airline just now. "
+                                                        "You have not been charged — please try again in a moment.")
+        payment = _verify_and_claim_payment(request.reqid, expected_client_ref=addon["addon_id"], locator_code=locator,
+                                            expected_amount=addon["amount"], expected_currency=addon["currency"])
+        with services.flow_trace_id() as trace_id:
+            try:
+                issued = manage_booking_service.issue_emds(locator, addon["items"], addon["supplier_total"], addon["currency"])
+            except (manage_booking_service.Refused, services.CancelError) as e:
+                database.finish_addon_payment(addon["addon_id"], "emd_failed", {"error": str(e), "trace_id": trace_id})
+                _notify_stuck_booking(locator, f"Add-on paid but EMD not issued: {e} (TraceId {trace_id})",
+                                      payment.get("txn_reference"))
+                raise HTTPException(status_code=502, detail="Your payment was received but the airline didn't issue the document yet. "
+                                                            "Our team has been alerted and will complete it or refund you.")
+            addon_deadlines.mark_paid(locator, addon["items"], issued["emds"])
     database.finish_addon_payment(addon["addon_id"], "completed", {**issued, "trace_id": trace_id})
     return {"status": "completed", "emds": issued["emds"], "trace_id": trace_id}
 

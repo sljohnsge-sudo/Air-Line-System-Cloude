@@ -213,17 +213,22 @@ def add_special_requests(locator: str, live: dict, requests: list) -> list:
     return rows
 
 
-def issue_emds(locator: str, offer_ids: list, expected_supplier_total: float, currency: str) -> dict:
+def issue_emds(locator: str, items: list, expected_supplier_total: float, currency: str) -> dict:
     """Pay Travelport for already-booked seat/extra offers on a ticketed PNR
     so the airline issues their EMDs: post-commit workbench → Cash FOP →
     Payment on just those offers (Travelport's own prices, which must add up
     to what the customer was charged before markup) → commit with Issuance.
-    Same steps as ticket_service.issue_ticket, minus the air offer."""
+    Same steps as ticket_service.issue_ticket, minus the air offer.
+    items: the add-on's saved items — matched on Travelport's offer
+    Identifier (offer_key) when saved, since offer ids get renumbered."""
     wb, res = _open_workbench(locator)
-    offers = [o for o in res.get("Offer") or [] if o.get("id") in offer_ids and (o.get("Identifier") or {}).get("value")]
-    if len(offers) != len(offer_ids):
+    keys = {i["offer_key"] for i in items if i.get("offer_key")}
+    ids = {i["offer_id"] for i in items if not i.get("offer_key") and i.get("offer_id")}
+    offers = [o for o in res.get("Offer") or [] if (o.get("Identifier") or {}).get("value")
+              and ((o["Identifier"]["value"] in keys) or (o.get("id") in ids))]
+    if len(offers) != len(items):
         _discard(wb)
-        raise Refused(f"Travelport no longer shows every item on the booking ({len(offers)} of {len(offer_ids)}).")
+        raise Refused(f"Travelport no longer shows every item on the booking ({len(offers)} of {len(items)}).")
     supplier_total = round(sum(float((o.get("Price") or {}).get("TotalPrice") or 0) for o in offers), 2)
     if abs(supplier_total - expected_supplier_total) > 0.01:
         _discard(wb)
