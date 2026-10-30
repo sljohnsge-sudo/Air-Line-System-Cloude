@@ -36,36 +36,57 @@ const segsOf = (leg) => leg.segments?.length ? leg.segments : [leg];
 export const flightIdentity = (flight) =>
   legsOf(flight).map(l => segsOf(l).map(s => s.flight_number).join('.')).join('-');
 
-// Summary of one fare card, as the customer sees it now.
+const fmtMinutes = (m) => m > 0 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`.replace(/^0h /, '') : '';
+const minutesBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 60000);
+const terminal = (t) => t ? ` T${t}` : '';
+// "SecondCheckedBag" -> "Second Checked Bag"
+const bagName = (t) => (t || 'Baggage').replace(/([a-z])([A-Z])/g, '$1 $2');
+
+// Everything on one fare card, as the customer sees it now: each flight of
+// each leg with times, terminals, aircraft and stopover, plus fare, baggage,
+// seat selection and price.
 export function buildShareItem({ flight, cabin, fareOption, price, currency, grandTotal, paxLabel }) {
   const legs = legsOf(flight).map((leg, i, all) => {
     const segs = segsOf(leg);
     const first = segs[0];
     const last = segs[segs.length - 1];
-    const dayDiff = Math.round((new Date(isoDay(last.arrival_time)) - new Date(isoDay(first.departure_time))) / 86400000);
     return {
       outbound: i === 0,
       label: all.length === 2 ? (i === 0 ? 'Depart' : 'Return') : all.length > 2 ? `Flight ${i + 1}` : 'Depart',
       from: first.departure_airport,
       to: last.arrival_airport,
       date: fmtDate(first.departure_time),
-      dep: fmtTime(first.departure_time),
-      arr: fmtTime(last.arrival_time) + (dayDiff > 0 ? ` (+${dayDiff})` : ''),
-      stops: segs.length === 1 ? 'Non-stop' : `${segs.length - 1} stop (${segs.slice(0, -1).map(s => s.arrival_airport).join(', ')})`,
+      stops: segs.length === 1 ? 'Non-stop' : `${segs.length - 1} stop${segs.length > 2 ? 's' : ''}`,
       duration: fmtDuration(leg.duration),
-      flights: segs.map(s => s.flight_number).filter(Boolean).join(', '),
+      segments: segs.map((s, k) => {
+        const next = segs[k + 1];
+        const stopMinutes = next ? (s.layover_minutes ?? minutesBetween(s.arrival_time, next.departure_time)) : 0;
+        return {
+          flightNo: s.flight_number,
+          // Another airline's flight on this ticket (a 2-letter code alone adds nothing to the flight number).
+          carrier: s.carrier_name && s.carrier_name.length > 3 && s.carrier_name !== flight.airline ? s.carrier_name : null,
+          aircraft: s.aircraft_type || (segs.length === 1 ? leg.aircraft_type || flight.aircraft_type : null),
+          dep: `${fmtTime(s.departure_time)} ${s.departure_airport}${terminal(s.departure_terminal)}`,
+          arr: `${fmtTime(s.arrival_time)} ${s.arrival_airport}${terminal(s.arrival_terminal)}`,
+          arrDate: isoDay(s.arrival_time) !== isoDay(first.departure_time) ? fmtDate(s.arrival_time) : null,
+          duration: fmtDuration(s.duration),
+          stopover: next ? `${s.arrival_airport}${fmtMinutes(stopMinutes) ? ` · ${fmtMinutes(stopMinutes)}` : ''}` : null,
+        };
+      }),
     };
   });
-  const bags = (fareOption?.baggage_allowance || [])
-    .map(b => `${b.allowance} ${/carry|cabin|hand/i.test(b.type || '') ? 'cabin' : 'checked'}`);
+  const bags = (fareOption?.baggage_allowance || []).map(b => `${bagName(b.type)}: ${b.allowance}`);
   const total = `${currency} ${Math.round(grandTotal || price).toLocaleString()}`;
   return {
     key: flightIdentity(flight),
-    airline: flight.airline,
+    airline: `${flight.airline}${flight.airline_code ? ` (${flight.airline_code})` : ''}`,
     // "Economy Classic" says the cabin already; "Saver" alone doesn't.
     fare: fareOption?.brand_name
       ? (titleCase(fareOption.brand_name).includes(cabinName(cabin)) ? titleCase(fareOption.brand_name) : `${cabinName(cabin)} · ${titleCase(fareOption.brand_name)}`)
       : cabinName(cabin),
+    cabin: `${cabinName(cabin)} Class`,
+    seats: flight.seat_map_heuristic === true ? 'Seat selection available' : 'Seat selection not available',
+    seatsLeft: flight.seats_remaining != null && flight.seats_remaining < 5 ? `Only ${flight.seats_remaining} seats left` : null,
     legs,
     bags,
     total,
@@ -82,14 +103,23 @@ function shareLink(items, search) {
 }
 
 // WhatsApp shows *text* as bold and _text_ as italic; email gets plain text.
-function shareText(items, link, { bold, italic }) {
+export function shareText(items, link, { bold, italic }) {
+  const pad = '      ';
   const blocks = items.map((it, n) => [
-    `${bold(`${items.length > 1 ? `${n + 1}. ` : ''}${it.airline}`)} · ${it.fare}`,
+    `${bold(`${items.length > 1 ? `${n + 1}. ` : ''}${it.airline}`)}`,
+    `${it.fare}`,
     ...it.legs.flatMap(l => [
-      `${l.outbound ? '🛫' : '🛬'} ${bold(`${l.from} → ${l.to}`)} · ${l.date}`,
-      `      ${l.dep} → ${l.arr} · ${l.stops}${l.duration ? ` · ${l.duration}` : ''}`,
-      `      ${l.flights}`,
+      '',
+      `${l.outbound ? '🛫' : '🛬'} ${bold(`${l.label.toUpperCase()} · ${l.from} → ${l.to}`)}`,
+      `${pad}${l.date} · ${l.stops}${l.duration ? ` · ${l.duration} total` : ''}`,
+      ...l.segments.flatMap(s => [
+        `${pad}${bold(s.flightNo)}${s.carrier ? ` · ${s.carrier}` : ''}${s.aircraft ? ` · ${s.aircraft}` : ''}`,
+        `${pad}${s.dep} → ${s.arr}${s.arrDate ? ` (${s.arrDate})` : ''}${s.duration ? ` · ${s.duration}` : ''}`,
+        ...(s.stopover ? [`${pad}⏳ Stopover in ${s.stopover}`] : []),
+      ]),
     ]),
+    '',
+    `💺 ${it.cabin} · ${it.seats}${it.seatsLeft ? ` · ${it.seatsLeft}` : ''}`,
     ...(it.bags.length ? [`🧳 ${it.bags.join(' · ')}`] : []),
     `💰 ${bold(it.total)}${it.paxLabel ? ` for ${it.paxLabel}` : ''}`,
   ].join('\n'));
@@ -101,7 +131,7 @@ function shareText(items, link, { bold, italic }) {
       link,
       italic('Prices shown are from when this was shared and change with seat availability. The live price on the link is the price you pay.'),
     ].join('\n'),
-  ].join('\n\n');
+  ].join(items.length > 1 ? '\n\n━━━━━━━━━━\n\n' : '\n\n');
 }
 
 // The tick box on a fare card.
