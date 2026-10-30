@@ -1288,6 +1288,22 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
                     "seats": [{**s.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for s in selected_seats],
                     "extras": [{**a.model_dump(), "status": "failed", "reason": NON_GDS_ADDONS_NOTE} for a in selected_ancillaries],
                 }
+        # The seat/extras step reads the airline's segment status off the PNR.
+        # Anything but confirmed (e.g. UL's HX after its duplicate-booking
+        # check) means the airline dropped the flight — staff must look at it.
+        unconfirmed = {f: c for f, c in (addon_results.get("segment_statuses") or {}).items()
+                       if c not in ("HK", "KK", "RR", "TK")}
+        if unconfirmed:
+            try:
+                database.create_stuck_booking_notification(
+                    locator_code,
+                    "Airline has not confirmed the flight on this booking ("
+                    + ", ".join(f"{f} {c}" for f, c in unconfirmed.items())
+                    + "), so seats/extras were not added. Check the PNR in Smartpoint before taking payment.",
+                    None, False)
+            except Exception as db_err:
+                logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
+
         # Only items the airline CONFIRMED are charged. "pending" = requested
         # on the PNR but not yet answered by the airline: not charged, no seat
         # number recorded, and not paid at ticketing (see issue_ticket).
