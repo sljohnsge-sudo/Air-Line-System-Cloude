@@ -14,7 +14,7 @@ import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
-import { buildShareItem, ShareToggle, ShareFaresBar } from './ShareFares.jsx';
+import { buildShareItem, flightIdentity, ShareToggle, ShareFaresBar, SharedFaresBanner } from './ShareFares.jsx';
 
 // Use whatever host the page was loaded from (not a hardcoded 'localhost') so
 // this also works when someone on the same network opens this machine's LAN
@@ -1881,6 +1881,9 @@ export default function App() {
   const [expandedFareIds, setExpandedFareIds] = useState({});
   // Fare cards ticked to share by WhatsApp / email — fareCardKey -> text summary.
   const [shareFares, setShareFares] = useState({});
+  // Opened from a shared link: these flights (flightIdentity) are shown
+  // first, at their live price. Cleared by "Show all flights" or a new search.
+  const [sharedFlightKeys, setSharedFlightKeys] = useState(() => initialResultsPayload?.shared || null);
   // "More Information" popup — holds the flight whose segment breakdown is
   // being shown (null when closed). A single value (not a per-card map)
   // since only one of these popups is ever open at a time.
@@ -2315,7 +2318,8 @@ export default function App() {
         if (payload.infants) setInfantCount(Number(payload.infants) || 0);
         if (payload.students) setStudentCount(Number(payload.students) || 0);
         if (payload.cabin) setCabinPref(payload.cabin);
-        handleSearch(null, { origin, destination, date });
+        if (payload.shared) setSharedFlightKeys(payload.shared);
+        handleSearch(null, { origin, destination, date, type: payload.type === 'roundtrip' ? 'roundtrip' : null, returnDate: payload.returnDate || null });
       }
     } else if (path.startsWith('/booking/')) {
       const token = path.split('/')[2] || '';
@@ -2362,6 +2366,7 @@ export default function App() {
   // ── STEP 2: Search Flights ───────────────────────────────────────────────
   const handleSearch = async (e, overrides = {}) => {
     if (e) e.preventDefault();
+    if (e) setSharedFlightKeys(null);
 
     // The departure/return date fields are the custom MiniCalendar popovers
     // now, not native <input type="date" required> — so that validation has
@@ -2388,8 +2393,10 @@ export default function App() {
     const date = overrides.date || searchDate;
 
     let legs = null;
-    let effectiveSearchType = searchType;
-    if (overrides.origin || overrides.destination) {
+    // A results link restored from the URL passes its own trip type, so a
+    // round-trip link isn't turned into a one-way search.
+    let effectiveSearchType = overrides.type || searchType;
+    if (!overrides.type && (overrides.origin || overrides.destination)) {
       effectiveSearchType = 'oneway';
       setSearchType('oneway');
     }
@@ -2397,7 +2404,7 @@ export default function App() {
     if (effectiveSearchType === 'roundtrip') {
       legs = [
         { origin, destination, departure_date: date },
-        { origin: destination, destination: origin, departure_date: returnDate || date }
+        { origin: destination, destination: origin, departure_date: overrides.returnDate || returnDate || date }
       ];
     } else if (effectiveSearchType === 'multicity') {
       legs = multiCityLegs.map(l => ({
@@ -4514,6 +4521,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
         // side, not scattered apart by price), then balance those groups so
         // GDS/NDC-only stretches don't dominate long runs of the list either.
         displayed = groupFlightsBySameFlight(displayed);
+        // Opened from a shared link: the shared flights go first.
+        const sharedSet = sharedFlightKeys ? new Set(sharedFlightKeys) : null;
+        const sharedFound = sharedSet ? displayed.filter(f => sharedSet.has(flightIdentity(f))).length : 0;
+        if (sharedSet) displayed = [...displayed.filter(f => sharedSet.has(flightIdentity(f))), ...displayed.filter(f => !sharedSet.has(flightIdentity(f)))];
 
         const handleAirlineCheckboxChange = (airlineName) => {
           setFilterAirlines(prev => 
@@ -5317,7 +5328,19 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <div className="results-live-badge">● Live GDS Data</div>
                 </div>
                 {!loadingFlights && (
-                  <ShareFaresBar items={Object.values(shareFares)} onClear={() => setShareFares({})} />
+                  <ShareFaresBar
+                    items={Object.values(shareFares)}
+                    search={{
+                      origin: searchOrigin, destination: searchDest, date: searchDate,
+                      returnDate: searchType === 'roundtrip' ? returnDate : null,
+                      type: searchType, adults: adultCount, children: childCount,
+                      infants: infantCount, students: studentCount, cabin: cabinPref,
+                    }}
+                    onClear={() => setShareFares({})}
+                  />
+                )}
+                {!loadingFlights && !searchError && sharedSet && flights.length > 0 && (
+                  <SharedFaresBanner count={sharedFlightKeys.length} found={sharedFound} onDismiss={() => setSharedFlightKeys(null)} />
                 )}
                 {!loadingFlights && !searchError && flights.length > 0 && (
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -5404,7 +5427,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     : displayPrice * totalPax;
                   const hasBreakdown = bdKeys.length > 0;
                   return (
-                    <div key={idx} className="result-card animate-fade" style={{ flexDirection: 'column' }}>
+                    <div key={idx} className="result-card animate-fade" style={{ flexDirection: 'column', ...(sharedSet?.has(flightIdentity(flight)) ? { outline: '2px solid #22c55e', outlineOffset: '-2px' } : {}) }}>
+                      {sharedSet?.has(flightIdentity(flight)) && (
+                        <div style={{ alignSelf: 'flex-start', margin: '0.5rem 0 0 0.9rem', fontSize: '0.65rem', fontWeight: 800, color: '#14532d', background: '#dcfce7', borderRadius: '999px', padding: '0.15rem 0.6rem' }}>
+                          🔗 Shared with you · live price
+                        </div>
+                      )}
                       {/* Total Duration — top of the card, centered and prominent. */}
                       {flight.duration && (
                         <div style={{ display: 'flex', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '0.5rem 0.9rem 0' }}>
@@ -5616,7 +5644,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                               checked={!!shareFares[fId]}
                               onChange={on => setShareFares(prev => {
                                 const next = { ...prev };
-                                if (on) next[fId] = buildShareItem({ flight, cabin: activeCabin, fareOption: selectedFareOption, price: displayPrice, currency: displayCurrency, grandTotal, totalPax });
+                                if (on) next[fId] = buildShareItem({ flight, cabin: activeCabin, fareOption: selectedFareOption, price: displayPrice, currency: displayCurrency, grandTotal,
+                                  paxLabel: [[adultCount, 'adult'], [childCount, 'child'], [infantCount, 'infant'], [studentCount, 'student']]
+                                    .filter(([n]) => n > 0).map(([n, w]) => `${n} ${w}${n > 1 ? (w === 'child' ? 'ren' : 's') : ''}`).join(', ') });
                                 else delete next[fId];
                                 return next;
                               })}
