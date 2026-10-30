@@ -18,6 +18,8 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState('');
   const [liveLocator, setLiveLocator] = useState(null);
+  const [liveStatuses, setLiveStatuses] = useState({});
+  const [refreshingStatuses, setRefreshingStatuses] = useState(false);
 
   const [loyalty, setLoyalty] = useState(null);
 
@@ -66,10 +68,31 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       if (res.status === 401) return handleSessionExpired();
       const data = await handleApiResponse(res, 'Failed to load your bookings');
       setBookings(data.bookings || []);
+      refreshLiveStatuses();
     } catch (err) {
       setBookingsError(err.message);
     } finally {
       setLoadingBookings(false);
+    }
+  };
+
+  // Upcoming bookings' status checked live with Travelport (and saved back),
+  // so an airline cancellation shows in the list itself, not only in Live status.
+  const refreshLiveStatuses = async () => {
+    setRefreshingStatuses(true);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/customers/me/bookings/refresh-status`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${customerToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLiveStatuses(data.statuses || {});
+      }
+    } catch {
+      // Best effort: the list still shows the saved statuses.
+    } finally {
+      setRefreshingStatuses(false);
     }
   };
 
@@ -365,7 +388,8 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
                   <p>No bookings yet under this account. Bookings you make while signed in, or made previously under this account's email, will appear here.</p>
                 </div>
               ) : (
-                <BookingLineList bookings={bookings} onLiveStatus={b => setLiveLocator(b.locator_code)}
+                <BookingLineList bookings={bookings} liveStatuses={liveStatuses} refreshing={refreshingStatuses}
+                                 onLiveStatus={b => setLiveLocator(b.locator_code)}
                                  onViewTicket={onViewTicket} onRequestCancellation={onRequestCancellation} />
               )}
               {liveLocator && (

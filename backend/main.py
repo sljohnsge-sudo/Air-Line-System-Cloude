@@ -39,6 +39,7 @@ import os
 import time
 import uuid
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import httpx
 from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File, Request
@@ -3903,6 +3904,61 @@ def customer_oauth_callback(provider: str, code: Optional[str] = None, state: Op
 def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
     bookings = database.get_bookings_for_customer(current["customer_id"])
     return {"bookings": bookings, "count": len(bookings)}
+
+
+# Travelport's view of a booking -> the status shown in My Bookings. A
+# confirmed/ticketed booking keeps its own status (Confirmed / Ticketed).
+_LIVE_LIST_STATUS = {
+    "airline_cancelled": segment_status.AIRLINE_CANCELLED,
+    "airline_problem": segment_status.AWAITING_AIRLINE,
+    "cancelled": "Cancelled",
+}
+
+
+def _last_departure(b: dict) -> str:
+    legs = b.get("legs") if isinstance(b.get("legs"), list) else []
+    return str((legs[-1].get("departure_time") if legs else None) or b.get("departure_time") or "")
+
+
+@app.post("/api/customers/me/bookings/refresh-status")
+def customer_refresh_booking_status(current: dict = Depends(auth.get_current_customer)):
+    """
+    My Bookings asks this right after loading the list: every upcoming,
+    not-cancelled booking is retrieved live from Travelport (flights and the
+    airline's segment status only — no ticket calls) and its list status
+    comes back from that, so an airline cancellation shows in the list
+    itself. Bookings still between Confirmed / Awaiting Airline / Airline
+    Cancelled are saved back; ticketed and staff-cancelled ones are never
+    rewritten here (database.set_airline_status).
+    """
+    today = datetime.now().strftime("%Y-%m-%d")
+    due = [b for b in database.get_bookings_for_customer(current["customer_id"])
+           if b.get("locator_code") and b.get("status") not in database.CANCELLED_STATUSES
+           and _last_departure(b)[:10] >= today]
+
+    def check(b: dict) -> tuple[str, dict]:
+        locator = b["locator_code"]
+        try:
+            live = live_booking_service.get_live_booking(locator, with_coupons=False)
+        except Exception as e:
+            # 4247: Travelport no longer holds the PNR — worth flagging on an upcoming trip.
+            return locator, {"checked": False, "missing": "DOES NOT EXIST" in str(e).upper(), "error": str(e)[:200]}
+        state = live.get("booking_status")
+        status = _LIVE_LIST_STATUS.get(state) or (
+            "Confirmed" if b.get("status") in database.AIRLINE_STATUSES else b.get("status"))
+        if status in database.AIRLINE_STATUSES:
+            try:
+                database.set_airline_status(locator, status)
+            except Exception as db_err:
+                logger.error(f"Could not save live status for {locator}: {db_err}")
+        return locator, {
+            "checked": True, "status": status, "retrieved_at": live.get("retrieved_at"),
+            "flights": {f["flight"]: f.get("airline_status_code") for f in live.get("flights") or []},
+        }
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = dict(pool.map(check, due))
+    return {"statuses": results, "checked": sum(1 for r in results.values() if r.get("checked")), "upcoming": len(due)}
 
 
 # ── Loyalty Program (Customer) ────────────────────────────────────────────────

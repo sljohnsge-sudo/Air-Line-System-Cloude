@@ -20,7 +20,18 @@ const routeOf = (b) => {
 const cell = { padding: '0.5rem 0.6rem', borderBottom: '1px solid var(--border-color)', fontSize: '0.8rem', verticalAlign: 'middle' };
 const head = { ...cell, fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', background: '#f8fafc', textAlign: 'left', whiteSpace: 'nowrap' };
 
-export default function BookingLineList({ bookings, onLiveStatus, onViewTicket, onRequestCancellation }) {
+// Same rule as the backend refresh: the trip's last flight is today or later.
+const isUpcoming = (b) => {
+  const legs = Array.isArray(b.legs) ? b.legs : [];
+  const last = String((legs.length ? legs[legs.length - 1].departure_time : null) || b.departure_time || '');
+  return last.slice(0, 10) >= new Date().toISOString().slice(0, 10);
+};
+
+const time = (iso) => { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+
+// liveStatuses: locator -> {checked, status, retrieved_at, error} from
+// /customers/me/bookings/refresh-status (upcoming bookings only).
+export default function BookingLineList({ bookings, liveStatuses = {}, refreshing = false, onLiveStatus, onViewTicket, onRequestCancellation }) {
   return (
     <div className="glass-panel" style={{ overflowX: 'auto', padding: 0 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '880px' }}>
@@ -39,7 +50,9 @@ export default function BookingLineList({ bookings, onLiveStatus, onViewTicket, 
         </thead>
         <tbody>
           {bookings.map(b => {
-            const cancelled = CANCELLED.includes(b.status);
+            const live = liveStatuses[b.locator_code];
+            const status = live?.checked ? live.status : b.status;
+            const cancelled = CANCELLED.includes(status);
             return (
               <tr key={b.id} style={{ opacity: cancelled ? 0.75 : 1 }}>
                 <td style={cell}>
@@ -52,7 +65,13 @@ export default function BookingLineList({ bookings, onLiveStatus, onViewTicket, 
                 <td style={{ ...cell, fontWeight: 700, color: 'var(--gs-red, #c8102e)' }}>{b.locator_code}</td>
                 <td style={{ ...cell, fontFamily: 'monospace', fontSize: '0.75rem' }}>{b.ticket_number || '—'}</td>
                 <td style={cell}>
-                  <span className={`pass-status-badge ${b.status?.toLowerCase()}`} style={{ fontSize: '0.62rem' }}>{b.status}</span>
+                  <span className={`pass-status-badge ${status?.toLowerCase()}`} style={{ fontSize: '0.62rem' }}>{status}</span>
+                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.15rem', whiteSpace: 'nowrap' }}>
+                    {live?.checked ? <span title="Checked live with Travelport and the airline">✓ Live {time(live.retrieved_at)}</span>
+                      : live?.missing ? <span style={{ color: '#b45309', fontWeight: 700 }} title="Travelport no longer holds this booking — please contact us">⚠ Not found on Travelport</span>
+                      : live ? <span title={live.error}>Couldn't check live</span>
+                      : refreshing && isUpcoming(b) && !CANCELLED.includes(b.status) ? 'Checking…' : ''}
+                  </div>
                 </td>
                 <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>
                   {b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
