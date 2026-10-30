@@ -2600,19 +2600,31 @@ def set_airline_status(locator_code: str, status: str) -> None:
 
 
 def create_addon_payment(addon_id: str, locator_code: str, customer_id: int | None, items: list,
-                         offer_ids: list, amount: float, supplier_total: float, currency: str) -> None:
+                         offer_ids: list, amount: float, supplier_total: float, currency: str,
+                         status: str = "awaiting_payment") -> None:
+    """status "awaiting_payment" (card payment pending) or "awaiting_airline"
+    (items the airline hasn't confirmed yet — billed later, see
+    services/addon_billing.py)."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
             """INSERT INTO addon_payments (addon_id, locator_code, customer_id, items_json, offer_ids_json,
-               amount, supplier_total, currency) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+               amount, supplier_total, currency, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (addon_id, locator_code, customer_id, json.dumps(items, default=str), json.dumps(offer_ids),
-             amount, supplier_total, currency))
+             amount, supplier_total, currency, status))
         conn.commit()
     finally:
         cursor.close()
         conn.close()
+
+
+def _addon_row(row: dict | None) -> dict | None:
+    if row:
+        row["items"] = json.loads(row.pop("items_json") or "[]")
+        row["offer_ids"] = json.loads(row.pop("offer_ids_json") or "[]")
+        row["amount"], row["supplier_total"] = float(row["amount"]), float(row["supplier_total"])
+    return row
 
 
 def get_addon_payment(addon_id: str) -> dict | None:
@@ -2624,11 +2636,19 @@ def get_addon_payment(addon_id: str) -> dict | None:
     finally:
         cursor.close()
         conn.close()
-    if row:
-        row["items"] = json.loads(row.pop("items_json") or "[]")
-        row["offer_ids"] = json.loads(row.pop("offer_ids_json") or "[]")
-        row["amount"], row["supplier_total"] = float(row["amount"]), float(row["supplier_total"])
-    return row
+    return _addon_row(row)
+
+
+def get_addon_payments_for_locator(locator_code: str) -> list[dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM addon_payments WHERE locator_code=%s ORDER BY created_at", (locator_code,))
+        rows = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+    return [_addon_row(r) for r in rows]
 
 
 def finish_addon_payment(addon_id: str, status: str, result: dict) -> bool:

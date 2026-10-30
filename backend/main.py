@@ -58,6 +58,7 @@ from services.special_services import MEAL_SSR_TYPES, merge_ssr_status
 from services import segment_status
 from services import live_booking_service
 from services import manage_booking_service
+from services import addon_billing
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -2948,7 +2949,6 @@ def payments_init(request: PaymentInitRequestBody):
                 raise HTTPException(status_code=409, detail="This add-on has already been paid or closed.")
             amount, currency = addon["amount"], addon["currency"]
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
-            amount, currency = float(booking["total_fare"]), booking.get("currency") or currency
             # Never take payment for a flight the airline has dropped — the
             # ticket could not be issued. Checked live, right now.
             problem = _live_airline_problem(ref.upper())
@@ -2956,6 +2956,14 @@ def payments_init(request: PaymentInitRequestBody):
                 if problem["status"] == segment_status.AIRLINE_CANCELLED:
                     _notify_airline_problem(ref.upper(), problem["codes"])
                 raise HTTPException(status_code=409, detail=problem["message"])
+            # Seats/extras the airline only "requested" at booking but has
+            # confirmed since are charged now (and paid with the ticket).
+            try:
+                if addon_billing.reconcile_held_booking(ref.upper())["confirmed"]:
+                    booking = database.get_booking_by_locator(ref.upper())
+            except Exception as e:
+                logger.warning(f"Pending seats/extras check for {ref} failed (charging the saved total): {e}")
+            amount, currency = float(booking["total_fare"]), booking.get("currency") or currency
         if (amount, currency) != (request.amount, request.currency):
             logger.warning(f"Payment init for {ref}: browser sent {request.currency} {request.amount}, "
                            f"charging the server-side {currency} {amount} instead.")
@@ -4115,6 +4123,18 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
             raise HTTPException(status_code=502, detail=f"Travelport didn't answer: {e} (TraceId {trace_id})")
     live["trace_id"] = trace_id
     live["manage_token"] = auth.create_manage_booking_token(live["locator_code"], current["customer_id"])
+    # Seats/extras the airline confirmed after they were requested.
+    try:
+        if live["ticketed"]:
+            due = addon_billing.payable_after_ticketing(live["locator_code"])
+            if due["items"]:
+                live["payment_due"] = {"amount": due["amount"], "currency": due["currency"],
+                                       "items": [{"name": i.get("name") or i.get("description") or (f"Seat {i.get('seat_number')}" if i.get("seat_number") else "Extra"),
+                                                  "price": i["price"]} for i in due["items"]]}
+        else:
+            addon_billing.reconcile_held_booking(live["locator_code"])
+    except Exception as e:
+        logger.warning(f"Pending seats/extras check for {live['locator_code']} failed: {e}")
     return live
 
 
@@ -4201,31 +4221,62 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
         elif "INTERNAL SERVER ERROR" in reason:
             i["reason"] = "The airline's system couldn't book this seat just now. Please try another seat or contact us."
     paid = [i for i in items if i["status"] == "confirmed" and (i.get("price") or 0) > 0]
+    # "Requested" (pending) items are kept so they're billed if the airline
+    # confirms them later (services/addon_billing.py) — never charged before.
+    pending = [i for i in items if i["status"] == "pending" and i.get("offer_id")]
     response = {"seats": result["seats"], "extras": result["extras"], "trace_id": trace_id, "payment_required": False}
-    if not paid:
+    if not paid and not pending:
         return response
 
     amount = round(sum(i["price"] for i in paid), 2)
     supplier_total = round(sum(i.get("supplier_price") or 0 for i in paid), 2)
-    currency = paid[0].get("currency") or "LKR"
+    currency = (paid or pending)[0].get("currency") or "LKR"
     if live["ticketed"]:
-        addon_id = f"ADD{uuid.uuid4().hex[:17].upper()}"
-        database.create_addon_payment(addon_id, locator, current["customer_id"], paid,
-                                      [i["offer_id"] for i in paid], amount, supplier_total, currency)
-        response.update(payment_required=True, addon_id=addon_id, amount=amount, currency=currency)
+        if pending:
+            database.create_addon_payment(
+                f"ADD{uuid.uuid4().hex[:17].upper()}", locator, current["customer_id"], pending,
+                [i["offer_id"] for i in pending], round(sum(i.get("price") or 0 for i in pending), 2),
+                round(sum(i.get("supplier_price") or 0 for i in pending), 2), currency, status="awaiting_airline")
+        if paid:
+            addon_id = f"ADD{uuid.uuid4().hex[:17].upper()}"
+            database.create_addon_payment(addon_id, locator, current["customer_id"], paid,
+                                          [i["offer_id"] for i in paid], amount, supplier_total, currency)
+            response.update(payment_required=True, addon_id=addon_id, amount=amount, currency=currency)
         return response
 
-    # Held booking made through us: charge with the ticket (issue_ticket pays
-    # the confirmed offers listed in addon_results).
+    # Held booking made through us: confirmed items are charged with the
+    # ticket (issue_ticket pays the confirmed offers in addon_results);
+    # pending ones wait in addon_results for the airline's answer.
     raw = json.loads(cached.get("raw_ticket_json") or "{}") or dict(cached)
     addons = raw.get("addon_results") or {"seats": [], "extras": []}
-    addons["seats"] = (addons.get("seats") or []) + [i for i in paid if i in result["seats"]]
-    addons["extras"] = (addons.get("extras") or []) + [i for i in paid if i in result["extras"]]
+    keep = paid + pending
+    addons["seats"] = (addons.get("seats") or []) + [i for i in keep if i in result["seats"]]
+    addons["extras"] = (addons.get("extras") or []) + [i for i in keep if i in result["extras"]]
     raw.update(addon_results=addons, total_fare=round(float(raw.get("total_fare") or 0) + amount, 2),
                seat_charge=round(float(raw.get("seat_charge") or 0) + amount, 2))
     database.save_booking(raw)
-    response.update(added_to_booking_total=amount, currency=currency, new_total=raw["total_fare"])
+    if paid:
+        response.update(added_to_booking_total=amount, currency=currency, new_total=raw["total_fare"])
     return response
+
+
+@app.post("/api/manage-booking/pay-due")
+def manage_booking_pay_due(request: ManageTokenRequest, current: dict = Depends(auth.get_current_customer)):
+    """Ticketed booking: seats/extras the airline confirmed after they were
+    requested, still without an EMD. Priced now from Travelport; creates the
+    add-on payment the customer then pays (same PayCorp + EMD flow)."""
+    locator, live = _manage_context(request.manage_token, current)
+    if not live["ticketed"]:
+        raise HTTPException(status_code=409, detail="This booking isn't ticketed yet — confirmed seats and extras are paid with the ticket.")
+    with services.flow_trace_id() as trace_id:
+        due = addon_billing.payable_after_ticketing(locator)
+    if not due["items"]:
+        raise HTTPException(status_code=409, detail="Nothing is waiting for payment on this booking.")
+    addon_id = f"ADD{uuid.uuid4().hex[:17].upper()}"
+    database.create_addon_payment(addon_id, locator, current["customer_id"], due["items"],
+                                  [i["offer_id"] for i in due["items"]], due["amount"], due["supplier_total"], due["currency"])
+    return {"payment_required": True, "addon_id": addon_id, "amount": due["amount"], "currency": due["currency"],
+            "items": due["items"], "trace_id": trace_id}
 
 
 @app.post("/api/manage-booking/complete-payment")
