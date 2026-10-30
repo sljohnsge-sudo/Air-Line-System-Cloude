@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import BookingLineList from './BookingLineList.jsx';
 import BookingDetailView from './BookingDetailView.jsx';
+import BookingStatusPage from './BookingStatusPage.jsx';
 import { COUNTRIES } from './countries.js';
 
 export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation, visaEnabled }) {
@@ -19,6 +20,10 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [bookingsError, setBookingsError] = useState('');
   // The booking opened from the My Bookings list (its detail view), by PNR.
   const [openLocator, setOpenLocator] = useState(null);
+  // Booking Status page opened from a booking's detail view, pre-filled.
+  const [statusPrefill, setStatusPrefill] = useState(null);
+  // Result of a Manage My Booking add-on payment, after returning from PayCorp.
+  const [addonPaymentResult, setAddonPaymentResult] = useState(null);
   const [liveStatuses, setLiveStatuses] = useState({});
   const [refreshingStatuses, setRefreshingStatuses] = useState(false);
 
@@ -82,6 +87,14 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const openBooking = openLocator ? bookings.find(b => b.locator_code === openLocator) : null;
   const openBookingDetail = (b) => { setOpenLocator(b.locator_code); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const closeBooking = () => setOpenLocator(null);
+  const openBookingStatus = (b) => {
+    const t = (Array.isArray(b.travelers) && b.travelers[0]) || {};
+    const lastName = t.last_name || t.surname || (b.passenger_name || '').trim().split(/\s+/).pop() || '';
+    setStatusPrefill({ query: b.locator_code, lastName, key: Date.now() });
+    setOpenLocator(null);
+    setActiveSection('status');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const refreshLiveStatuses = async () => {
     setRefreshingStatuses(true);
@@ -144,6 +157,33 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       setVisaHistory(data.consultations || []);
     } catch { /* non-critical, ignore */ }
   };
+
+  // Back from PayCorp for a Manage My Booking add-on (?addon=...&reqid=...):
+  // the backend verifies the payment and has the airline issue the EMD.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const addon = params.get('addon');
+    if (!addon || !customerToken) return;
+    setActiveSection('status');
+    window.history.replaceState({}, '', window.location.pathname);
+    if (params.get('payment') === 'cancelled' || !params.get('reqid')) {
+      setAddonPaymentResult({ ok: false, message: 'Payment was cancelled — your seat/extra stays on the booking unpaid. Contact us to pay for it or remove it.' });
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetchWithRetry(`${API_BASE}/manage-booking/complete-payment`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
+          body: JSON.stringify({ addon_id: addon, reqid: params.get('reqid') }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not complete the payment');
+        setAddonPaymentResult({ ok: true, message: `Paid — the airline issued ${(data.emds || []).map(e => `EMD ${e.number}`).join(', ') || 'your document'}.` });
+      } catch (err) {
+        setAddonPaymentResult({ ok: false, message: err.message });
+      }
+    })();
+  }, [customerToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (customerToken) {
@@ -319,6 +359,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
 
   const customerNavItems = [
     { id: 'bookings', label: 'My Bookings', count: bookings.length },
+    { id: 'status', label: 'Booking Status' },
     { id: 'loyalty', label: 'Loyalty Program' },
     ...(visaEnabled ? [{ id: 'visa', label: 'Visa Status' }] : []),
     { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
@@ -378,7 +419,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
           {activeSection === 'bookings' && openBooking && (
             <BookingDetailView booking={openBooking} liveStatus={liveStatuses[openBooking.locator_code]}
                                onBack={closeBooking} onViewTicket={onViewTicket} onRequestCancellation={onRequestCancellation}
-                               apiBase={API_BASE} fetchWithRetry={fetchWithRetry} authToken={customerToken} />
+                               onLiveStatus={openBookingStatus} />
           )}
 
           {activeSection === 'bookings' && !openBooking && (
@@ -403,6 +444,17 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
                                  onOpen={openBookingDetail} />
               )}
             </section>
+          )}
+
+          {activeSection === 'status' && (
+            <>
+              {addonPaymentResult && (
+                <div className={addonPaymentResult.ok ? '' : 'error-banner'} style={addonPaymentResult.ok ? { background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.7rem 0.9rem', marginBottom: '0.9rem', fontSize: '0.85rem', color: '#166534' } : { marginBottom: '0.9rem' }}>
+                  {addonPaymentResult.message}
+                </div>
+              )}
+              <BookingStatusPage apiBase={API_BASE} fetchWithRetry={fetchWithRetry} authToken={customerToken} prefill={statusPrefill} />
+            </>
           )}
 
           {activeSection === 'loyalty' && (

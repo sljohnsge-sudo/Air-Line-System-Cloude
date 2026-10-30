@@ -1,10 +1,9 @@
 // Customer Portal → My Bookings → one booking. Opened by clicking a row in
 // BookingLineList. Shows the saved booking (passengers, flights, tickets,
-// fare, seats and extras as booked) and, below it, the live status read
-// straight from Travelport and the airline (LiveBookingPanel). The ticket
-// and cancellation actions live here rather than on the list row.
+// fare, seats and extras as booked). "Live status & manage booking" opens the
+// Booking Status page (BookingStatusPage) pre-filled for this booking. The
+// ticket and cancellation actions live here rather than on the list row.
 import { cleanPassengerName } from './BookingCard.jsx';
-import LiveBookingPanel from './LiveBookingPanel.jsx';
 
 const CANCELLED = ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'];
 
@@ -30,7 +29,7 @@ const legsOf = (b) => {
 
 const travelerName = (t) => cleanPassengerName(t.confirmed_name || t.full_name || `${t.first_name || t.given_name || ''} ${t.last_name || t.surname || ''}`);
 
-export default function BookingDetailView({ booking: b, liveStatus, onBack, onViewTicket, onRequestCancellation, apiBase, fetchWithRetry, authToken }) {
+export default function BookingDetailView({ booking: b, liveStatus, onBack, onViewTicket, onRequestCancellation, onLiveStatus }) {
   const status = liveStatus?.checked ? liveStatus.status : b.status;
   const cancelled = CANCELLED.includes(status);
   const legs = legsOf(b);
@@ -65,7 +64,8 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           <div><div style={label}>Payment</div>{b.payment_method || '—'}</div>
         </div>
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.8rem' }}>
-          <button className="btn btn-primary btn-sm" onClick={() => onViewTicket(b)}>📋 View / Print Ticket</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onLiveStatus(b)}>Live status & manage booking</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onViewTicket(b)}>📋 View / Print Ticket</button>
           {!cancelled && onRequestCancellation && (
             <button className="btn btn-secondary btn-sm" onClick={() => onRequestCancellation(b)}>Request Cancellation</button>
           )}
@@ -134,11 +134,10 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
               <span style={{ fontSize: '0.75rem' }}>{x.status === 'confirmed' ? 'Confirmed at booking' : x.status === 'pending' ? 'Requested' : `Not added${x.reason ? ` — ${x.reason}` : ''}`}</span>
             </div>
           ))}
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>This is what was booked. The airline's current answer is in Live status below.</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>This is what was booked. The airline's current answer is under Live status & manage booking.</div>
         </section>
       )}
 
-      <LiveBookingPanel locator={b.locator_code} apiBase={apiBase} fetchWithRetry={fetchWithRetry} authToken={authToken} />
     </div>
   );
 }

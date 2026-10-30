@@ -20,7 +20,9 @@ const Chip = ({ children, status }) => {
   );
 };
 
-const COUPON_LABELS = { OpenForUse: 'Open for use', Void: 'Void', Refunded: 'Refunded', Used: 'Used', Flown: 'Flown', Exchanged: 'Exchanged' };
+// OtherAirlineControl: the airline has taken the coupon over for check-in / departure.
+const COUPON_LABELS = { OpenForUse: 'Open for use', OtherAirlineControl: 'With the airline (check-in)', Void: 'Void', Refunded: 'Refunded',
+                        Used: 'Used', Flown: 'Flown', Exchanged: 'Exchanged' };
 
 const section = { fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0.9rem 0 0.35rem' };
 const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
@@ -28,6 +30,80 @@ const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'cen
 const muted = { color: 'var(--text-muted)', fontSize: '0.72rem' };
 // " · flight · passenger · EMD n" without dangling dots for missing parts.
 const details = (...parts) => parts.filter(Boolean).map(p => ` · ${p}`).join('');
+
+
+const empty = (list) => !list || list.length === 0;
+
+// The booking as Travelport and the airline hold it — shared by the My
+// Bookings detail view (this panel) and the Booking Status page.
+export function LiveStatusDetails({ data }) {
+  return (
+    <>
+      {data.booking_status === 'cancelled' && (
+        <div className="error-banner" style={{ marginTop: '0.5rem' }}>This booking is cancelled on Travelport{data.message ? ` — ${data.message}` : ''}.</div>
+      )}
+      {data.booking_status === 'airline_cancelled' && (
+        <div className="error-banner" style={{ marginTop: '0.5rem' }}>The airline has cancelled the flights on this booking — please contact us.</div>
+      )}
+      {data.booking_status === 'airline_problem' && (
+        <div className="error-banner" style={{ marginTop: '0.5rem' }}>The airline has not confirmed every flight on this booking — please contact us.</div>
+      )}
+
+      {!empty(data.airline_locators) && (
+        <div style={{ ...muted, marginTop: '0.5rem' }}>
+          Airline reference: {data.airline_locators.map(a => <strong key={a.locator} style={{ color: 'var(--gs-dark)' }}>{a.airline} {a.locator} </strong>)}
+        </div>
+      )}
+
+      {!empty(data.flights) && <div style={section}>Flights</div>}
+      {(data.flights || []).map(f => (
+        <div key={`${f.flight}-${f.sequence}`} style={row}>
+          <span><strong>{f.flight}</strong> {f.from} → {f.to} <span style={muted}>· {f.departure?.slice(0, 16)}{f.cabin ? ` · ${f.cabin}${f.class ? ` (${f.class})` : ''}` : ''}</span></span>
+          <Chip status={f.state}>{f.airline_status || 'No airline status'}{f.airline_status_code ? ` · ${f.airline_status_code}` : ''}</Chip>
+        </div>
+      ))}
+
+      <div style={section}>Tickets</div>
+      {empty(data.tickets) ? <div style={muted}>No ticket issued yet.</div> : data.tickets.map(t => (
+        <div key={t.number} style={{ ...row, alignItems: 'flex-start' }}>
+          <span><strong style={{ fontFamily: 'monospace' }}>{t.number}</strong> <span style={muted}>{details(t.passenger, t.issued && `issued ${t.issued}`)}</span></span>
+          <span style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+            {t.error ? <span style={muted}>{t.error}</span>
+              : (t.coupons || []).map((c, i) => (
+                <Chip key={i} status={c.status}>{c.flight} {COUPON_LABELS[c.status] || c.status}</Chip>
+              ))}
+          </span>
+        </div>
+      ))}
+
+      <div style={section}>Seats</div>
+      {empty(data.seats) ? <div style={muted}>No seats on the booking with the airline.</div> : data.seats.map((s, i) => (
+        <div key={i} style={row}>
+          <span><strong>Seat {s.seat}</strong> <span style={muted}>{details(s.flights.join(', '), s.passenger, s.emd && `EMD ${s.emd}`)}</span></span>
+          <Chip status={s.status}>{s.status}</Chip>
+        </div>
+      ))}
+
+      <div style={section}>Extras</div>
+      {empty(data.extras) ? <div style={muted}>No extras on the booking with the airline.</div> : data.extras.map((x, i) => (
+        <div key={i} style={row}>
+          <span><strong>{x.description}</strong> <span style={muted}>{details(x.flights.join(', '), x.passenger, x.emd && `EMD ${x.emd}`)}</span></span>
+          <Chip status={x.status}>{x.status}</Chip>
+        </div>
+      ))}
+
+      <div style={section}>Special requests</div>
+      {empty(data.special_services) && <div style={muted}>No special requests on the booking with the airline.</div>}
+      {(data.special_services || []).map((s, i) => (
+        <div key={i} style={row}>
+          <span><strong>{s.description}</strong> <span style={muted}>{details(s.flights.join(', '), s.passenger)}</span></span>
+          <Chip status={s.status}>{s.status}</Chip>
+        </div>
+      ))}
+
+    </>
+  );
+}
 
 export default function LiveBookingPanel({ locator, apiBase, fetchWithRetry, authToken }) {
   const [data, setData] = useState(null);
@@ -52,7 +128,6 @@ export default function LiveBookingPanel({ locator, apiBase, fetchWithRetry, aut
   useEffect(() => { load(); }, [locator]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const retrieved = data?.retrieved_at ? new Date(data.retrieved_at).toLocaleString() : '';
-  const empty = (list) => !list || list.length === 0;
 
   return (
     <section className="glass-panel" style={{ padding: '0.9rem 1.1rem' }}>
@@ -70,67 +145,7 @@ export default function LiveBookingPanel({ locator, apiBase, fetchWithRetry, aut
 
           {data && !loading && (
             <>
-              {data.booking_status === 'cancelled' && (
-                <div className="error-banner" style={{ marginTop: '0.5rem' }}>This booking is cancelled on Travelport{data.message ? ` — ${data.message}` : ''}.</div>
-              )}
-              {data.booking_status === 'airline_cancelled' && (
-                <div className="error-banner" style={{ marginTop: '0.5rem' }}>The airline has cancelled the flights on this booking — please contact us.</div>
-              )}
-              {data.booking_status === 'airline_problem' && (
-                <div className="error-banner" style={{ marginTop: '0.5rem' }}>The airline has not confirmed every flight on this booking — please contact us.</div>
-              )}
-
-              {!empty(data.airline_locators) && (
-                <div style={{ ...muted, marginTop: '0.5rem' }}>
-                  Airline reference: {data.airline_locators.map(a => <strong key={a.locator} style={{ color: 'var(--gs-dark)' }}>{a.airline} {a.locator} </strong>)}
-                </div>
-              )}
-
-              {!empty(data.flights) && <div style={section}>Flights</div>}
-              {(data.flights || []).map(f => (
-                <div key={`${f.flight}-${f.sequence}`} style={row}>
-                  <span><strong>{f.flight}</strong> {f.from} → {f.to} <span style={muted}>· {f.departure?.slice(0, 16)}{f.cabin ? ` · ${f.cabin}${f.class ? ` (${f.class})` : ''}` : ''}</span></span>
-                  <Chip status={f.state}>{f.airline_status || 'No airline status'}{f.airline_status_code ? ` · ${f.airline_status_code}` : ''}</Chip>
-                </div>
-              ))}
-
-              <div style={section}>Tickets</div>
-              {empty(data.tickets) ? <div style={muted}>No ticket issued yet.</div> : data.tickets.map(t => (
-                <div key={t.number} style={{ ...row, alignItems: 'flex-start' }}>
-                  <span><strong style={{ fontFamily: 'monospace' }}>{t.number}</strong> <span style={muted}>{details(t.passenger, t.issued && `issued ${t.issued}`)}</span></span>
-                  <span style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                    {t.error ? <span style={muted}>Coupon status not available ({t.error})</span>
-                      : (t.coupons || []).map((c, i) => (
-                        <Chip key={i} status={c.status}>{c.flight} {COUPON_LABELS[c.status] || c.status}</Chip>
-                      ))}
-                  </span>
-                </div>
-              ))}
-
-              <div style={section}>Seats</div>
-              {empty(data.seats) ? <div style={muted}>No seats on the booking with the airline.</div> : data.seats.map((s, i) => (
-                <div key={i} style={row}>
-                  <span><strong>Seat {s.seat}</strong> <span style={muted}>{details(s.flights.join(', '), s.passenger, s.emd && `EMD ${s.emd}`)}</span></span>
-                  <Chip status={s.status}>{s.status}</Chip>
-                </div>
-              ))}
-
-              <div style={section}>Extras</div>
-              {empty(data.extras) ? <div style={muted}>No extras on the booking with the airline.</div> : data.extras.map((x, i) => (
-                <div key={i} style={row}>
-                  <span><strong>{x.description}</strong> <span style={muted}>{details(x.flights.join(', '), x.passenger, x.emd && `EMD ${x.emd}`)}</span></span>
-                  <Chip status={x.status}>{x.status}</Chip>
-                </div>
-              ))}
-
-              {!empty(data.special_services) && <div style={section}>Special requests</div>}
-              {(data.special_services || []).map((s, i) => (
-                <div key={i} style={row}>
-                  <span><strong>{s.description}</strong> <span style={muted}>{details(s.flights.join(', '), s.passenger)}</span></span>
-                  <Chip status={s.status}>{s.status}</Chip>
-                </div>
-              ))}
-
+              <LiveStatusDetails data={data} />
               <div style={{ ...muted, fontSize: '0.66rem', marginTop: '0.8rem' }}>Travelport TraceId {data.trace_id}</div>
             </>
           )}

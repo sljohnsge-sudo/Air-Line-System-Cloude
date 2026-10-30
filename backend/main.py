@@ -34,6 +34,7 @@ Booking Workflow:
 
 import asyncio
 import hashlib
+import json
 import logging
 import os
 import time
@@ -56,6 +57,7 @@ from services import seat_rules, fare_rule_service
 from services.special_services import MEAL_SSR_TYPES, merge_ssr_status
 from services import segment_status
 from services import live_booking_service
+from services import manage_booking_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -2936,9 +2938,15 @@ def payments_init(request: PaymentInitRequestBody):
     ref = (request.client_ref or "").strip()
     if ref:
         pending = database.get_ndc_pending_payment(ref)
-        booking = None if pending else database.get_booking_by_locator(ref.upper())
+        addon = None if pending else (database.get_addon_payment(ref) if ref.startswith("ADD") else None)
+        booking = None if (pending or addon) else database.get_booking_by_locator(ref.upper())
         if pending:
             amount, currency = pending["amount"], pending["currency"]
+        elif addon:
+            # Manage My Booking add-on: amount fixed when the seats/extras were booked.
+            if addon["status"] != "awaiting_payment":
+                raise HTTPException(status_code=409, detail="This add-on has already been paid or closed.")
+            amount, currency = addon["amount"], addon["currency"]
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
             amount, currency = float(booking["total_fare"]), booking.get("currency") or currency
             # Never take payment for a flight the airline has dropped — the
@@ -4043,6 +4051,206 @@ def customer_refresh_booking_status(current: dict = Depends(auth.get_current_cus
     with ThreadPoolExecutor(max_workers=6) as pool:
         results = dict(pool.map(check, due))
     return {"statuses": results, "checked": sum(1 for r in results.values() if r.get("checked")), "upcoming": len(due)}
+
+# ── Booking Status / Manage My Booking (Customer Portal) ──────────────────────
+# Booking Status looks a booking up by PNR or ticket number AND the
+# passenger's last name, live from Travelport (services/
+# manage_booking_service.py) — it does not need the booking in our database
+# or on this account. A match returns a 30-minute manage token; every
+# Manage My Booking call needs it, and re-reads the booking live.
+
+class BookingStatusLookupRequest(BaseModel):
+    query: str = Field(..., min_length=5, max_length=20)
+    last_name: str = Field(..., min_length=1, max_length=60)
+
+
+class ManageTokenRequest(BaseModel):
+    manage_token: str
+
+
+class ManageSpecialRequestItem(BaseModel):
+    traveler_id: str
+    code: str
+
+
+class ManageSpecialRequestsRequest(ManageTokenRequest):
+    requests: List[ManageSpecialRequestItem]
+
+
+class ManageSeatItem(BaseModel):
+    traveler_id: str
+    flight_number: str
+    seat_number: str
+
+
+class ManageExtraItem(BaseModel):
+    traveler_id: str
+    airline_name: str
+    segment_numbers: List[int] = []
+    name: Optional[str] = None
+
+
+class ManageSeatsExtrasRequest(ManageTokenRequest):
+    seats: List[ManageSeatItem] = []
+    extras: List[ManageExtraItem] = []
+
+
+class AddonPaymentCompleteRequest(BaseModel):
+    addon_id: str
+    reqid: str
+
+
+LOOKUP_NOT_FOUND = ("We couldn't find a booking with that reference and last name. Check the PNR or ticket number "
+                    "and the passenger's last name as on the ticket.")
+
+
+@app.post("/api/booking-status/lookup")
+def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = Depends(auth.get_current_customer)):
+    with services.flow_trace_id() as trace_id:
+        try:
+            live = manage_booking_service.lookup(request.query, request.last_name)
+        except manage_booking_service.NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e) or LOOKUP_NOT_FOUND)
+        except services.CancelError as e:
+            raise HTTPException(status_code=502, detail=f"Travelport didn't answer: {e} (TraceId {trace_id})")
+    live["trace_id"] = trace_id
+    live["manage_token"] = auth.create_manage_booking_token(live["locator_code"], current["customer_id"])
+    return live
+
+
+def _manage_context(token: str, current: dict) -> tuple[str, dict]:
+    claims = auth.decode_manage_booking_token(token)
+    if not claims or claims.get("customer_id") != current["customer_id"]:
+        raise HTTPException(status_code=401, detail="Please look the booking up again — the check has expired.")
+    locator = claims["locator"]
+    try:
+        live = live_booking_service.get_live_booking(locator, with_coupons=False)
+    except (live_booking_service.LiveBookingError, services.CancelError) as e:
+        raise HTTPException(status_code=502, detail=f"Travelport: {e}")
+    if live.get("booking_status") not in ("confirmed", "ticketed"):
+        raise HTTPException(status_code=409, detail="This booking can't be changed online — the airline hasn't confirmed every flight.")
+    live["ticketed"] = bool(live.get("tickets"))
+    return locator, live
+
+
+@app.post("/api/manage-booking/options")
+def manage_booking_options(request: ManageTokenRequest, current: dict = Depends(auth.get_current_customer)):
+    locator, live = _manage_context(request.manage_token, current)
+    with services.flow_trace_id() as trace_id:
+        try:
+            options = manage_booking_service.get_options(locator, live)
+        except manage_booking_service.Refused as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        except services.CancelError as e:
+            raise HTTPException(status_code=502, detail=f"Travelport didn't answer: {e} (TraceId {trace_id})")
+    options.update(trace_id=trace_id, travelers=live.get("travelers"), flights=live.get("flights"),
+                   ticketed=live["ticketed"], content_source=live.get("content_source"))
+    return options
+
+
+@app.post("/api/manage-booking/special-requests")
+def manage_booking_special_requests(request: ManageSpecialRequestsRequest, current: dict = Depends(auth.get_current_customer)):
+    locator, live = _manage_context(request.manage_token, current)
+    with services.flow_trace_id() as trace_id:
+        try:
+            rows = manage_booking_service.add_special_requests(locator, live, [r.model_dump() for r in request.requests])
+        except manage_booking_service.Refused as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        except services.CancelError as e:
+            raise HTTPException(status_code=502, detail=f"Travelport didn't answer: {e} (TraceId {trace_id})")
+        after = live_booking_service.get_live_booking(locator, with_coupons=False)
+    return {"results": rows, "special_services": after.get("special_services"), "trace_id": trace_id}
+
+
+@app.post("/api/manage-booking/seats-extras")
+def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict = Depends(auth.get_current_customer)):
+    """
+    Book seats/extras on the PNR (Travelport's live price, never the
+    browser's). Free items are done. Paid items:
+    - ticketed booking: a pending add-on payment is created with the amount
+      fixed server-side; the customer pays by card, then EMDs are issued
+      (/api/manage-booking/complete-payment);
+    - held booking made here: added to the booking total, paid with the
+      ticket in the normal flow.
+    """
+    locator, live = _manage_context(request.manage_token, current)
+    if live.get("content_source") == "NDC":
+        raise HTTPException(status_code=409, detail=manage_booking_service.NDC_ADDONS_REFUSED)
+    cached = database.get_booking_by_locator(locator)
+    if not live["ticketed"] and not cached:
+        raise HTTPException(status_code=409, detail="Seats and extras for this booking have to be arranged with our team — please contact us.")
+    travelers = manage_booking_service.travelers_of(live)
+    idx = {t["id"]: i for i, t in enumerate(travelers)}
+    seats = [{"passenger_idx": idx[s.traveler_id], "flight_number": s.flight_number, "seat_number": s.seat_number, "price": 0}
+             for s in request.seats if s.traveler_id in idx]
+    extras = [{"passenger_idx": idx[x.traveler_id], "airline_name": x.airline_name, "segment_numbers": x.segment_numbers,
+               "name": x.name or x.airline_name, "price": 0} for x in request.extras if x.traveler_id in idx]
+    if not seats and not extras:
+        raise HTTPException(status_code=422, detail="Nothing to add.")
+
+    with services.flow_trace_id() as trace_id:
+        result = services.add_seats_and_extras_to_pnr(locator, travelers, seats, extras)
+    items = result["seats"] + result["extras"]
+    for i in items:  # airline wording customers can act on (seen live on UL, 2026-10-30)
+        reason = (i.get("reason") or "").upper()
+        if "SEAT DATA ALREADY EXISTS" in reason:
+            i["reason"] = "This passenger already has a seat on this flight. Changing a seat online isn't available yet — please contact us."
+        elif "PAID SEAT IS NOT AVAILABLE" in reason:
+            i["reason"] = ("The airline won't sell this seat to this passenger (for example with a wheelchair request, "
+                           "or a seat it keeps for other travellers). Please choose another seat or contact us.")
+        elif "INTERNAL SERVER ERROR" in reason:
+            i["reason"] = "The airline's system couldn't book this seat just now. Please try another seat or contact us."
+    paid = [i for i in items if i["status"] == "confirmed" and (i.get("price") or 0) > 0]
+    response = {"seats": result["seats"], "extras": result["extras"], "trace_id": trace_id, "payment_required": False}
+    if not paid:
+        return response
+
+    amount = round(sum(i["price"] for i in paid), 2)
+    supplier_total = round(sum(i.get("supplier_price") or 0 for i in paid), 2)
+    currency = paid[0].get("currency") or "LKR"
+    if live["ticketed"]:
+        addon_id = f"ADD{uuid.uuid4().hex[:17].upper()}"
+        database.create_addon_payment(addon_id, locator, current["customer_id"], paid,
+                                      [i["offer_id"] for i in paid], amount, supplier_total, currency)
+        response.update(payment_required=True, addon_id=addon_id, amount=amount, currency=currency)
+        return response
+
+    # Held booking made through us: charge with the ticket (issue_ticket pays
+    # the confirmed offers listed in addon_results).
+    raw = json.loads(cached.get("raw_ticket_json") or "{}") or dict(cached)
+    addons = raw.get("addon_results") or {"seats": [], "extras": []}
+    addons["seats"] = (addons.get("seats") or []) + [i for i in paid if i in result["seats"]]
+    addons["extras"] = (addons.get("extras") or []) + [i for i in paid if i in result["extras"]]
+    raw.update(addon_results=addons, total_fare=round(float(raw.get("total_fare") or 0) + amount, 2),
+               seat_charge=round(float(raw.get("seat_charge") or 0) + amount, 2))
+    database.save_booking(raw)
+    response.update(added_to_booking_total=amount, currency=currency, new_total=raw["total_fare"])
+    return response
+
+
+@app.post("/api/manage-booking/complete-payment")
+def manage_booking_complete_payment(request: AddonPaymentCompleteRequest, current: dict = Depends(auth.get_current_customer)):
+    """After PayCorp: verify the card payment for this add-on (amount and
+    reference), then pay Travelport so the airline issues the EMDs. A failure
+    after payment raises a stuck-booking alert for a refund."""
+    addon = database.get_addon_payment(request.addon_id)
+    if not addon or addon.get("customer_id") != current["customer_id"]:
+        raise HTTPException(status_code=404, detail="Payment not found.")
+    if addon["status"] != "awaiting_payment":
+        return {"status": addon["status"], "result": json.loads(addon.get("result_json") or "{}")}
+    payment = _verify_and_claim_payment(request.reqid, expected_client_ref=addon["addon_id"], locator_code=addon["locator_code"],
+                                        expected_amount=addon["amount"], expected_currency=addon["currency"])
+    with services.flow_trace_id() as trace_id:
+        try:
+            issued = manage_booking_service.issue_emds(addon["locator_code"], addon["offer_ids"], addon["supplier_total"], addon["currency"])
+        except (manage_booking_service.Refused, services.CancelError) as e:
+            database.finish_addon_payment(addon["addon_id"], "emd_failed", {"error": str(e), "trace_id": trace_id})
+            _notify_stuck_booking(addon["locator_code"], f"Add-on paid but EMD not issued: {e} (TraceId {trace_id})",
+                                  payment.get("txn_reference"))
+            raise HTTPException(status_code=502, detail="Your payment was received but the airline didn't issue the document yet. "
+                                                        "Our team has been alerted and will complete it or refund you.")
+    database.finish_addon_payment(addon["addon_id"], "completed", {**issued, "trace_id": trace_id})
+    return {"status": "completed", "emds": issued["emds"], "trace_id": trace_id}
 
 
 # ── Loyalty Program (Customer) ────────────────────────────────────────────────

@@ -42,6 +42,19 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(payload, AuthConfig.JWT_SECRET_KEY, algorithm=AuthConfig.JWT_ALGORITHM)
 
 
+def create_manage_booking_token(locator_code: str, customer_id: int | None) -> str:
+    """Issued by Booking Status after the PNR/ticket and last name matched a
+    traveler on Travelport; required by every Manage My Booking call. 30 min."""
+    return jwt.encode({"role": "manage_booking", "locator": locator_code, "customer_id": customer_id,
+                       "exp": datetime.now(timezone.utc) + timedelta(minutes=30)},
+                      AuthConfig.JWT_SECRET_KEY, algorithm=AuthConfig.JWT_ALGORITHM)
+
+
+def decode_manage_booking_token(token: str) -> dict | None:
+    payload = decode_token(token or "")
+    return payload if payload and payload.get("role") == "manage_booking" and payload.get("locator") else None
+
+
 def decode_token(token: str) -> dict | None:
     try:
         return jwt.decode(token, AuthConfig.JWT_SECRET_KEY, algorithms=[AuthConfig.JWT_ALGORITHM])

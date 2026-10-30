@@ -864,6 +864,27 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         cursor.execute("ALTER TABLE provider_settings ADD COLUMN ticketed_cancel_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER packages_enabled")
 
+    # ── Manage My Booking: paid seats/extras added to a ticketed booking ─────
+    # Booked on the PNR first (Travelport's price), then paid by card; only
+    # after the payment is verified are their EMDs issued. The amount to
+    # charge is fixed here server-side — /api/payments/init reads it.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS addon_payments (
+            addon_id        VARCHAR(40) PRIMARY KEY,
+            locator_code    VARCHAR(10) NOT NULL,
+            customer_id     INT NULL,
+            items_json      LONGTEXT NOT NULL,
+            offer_ids_json  TEXT NOT NULL,
+            amount          DECIMAL(14,2) NOT NULL,
+            supplier_total  DECIMAL(14,2) NOT NULL,
+            currency        VARCHAR(10) NOT NULL,
+            status          VARCHAR(20) NOT NULL DEFAULT 'awaiting_payment',
+            result_json     LONGTEXT NULL,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at    DATETIME NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     # ── Pending NDC Instant Pay bookings (Emirates) ──────────────────────────
     # Instant Pay takes the card payment BEFORE the PNR and ticket exist, so
     # the selected offer, travelers and the server-computed amount to charge
@@ -2573,6 +2594,55 @@ def set_airline_status(locator_code: str, status: str) -> None:
             (status, locator_code, *AIRLINE_STATUSES),
         )
         conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def create_addon_payment(addon_id: str, locator_code: str, customer_id: int | None, items: list,
+                         offer_ids: list, amount: float, supplier_total: float, currency: str) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """INSERT INTO addon_payments (addon_id, locator_code, customer_id, items_json, offer_ids_json,
+               amount, supplier_total, currency) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (addon_id, locator_code, customer_id, json.dumps(items, default=str), json.dumps(offer_ids),
+             amount, supplier_total, currency))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_addon_payment(addon_id: str) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM addon_payments WHERE addon_id=%s", (addon_id,))
+        row = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+    if row:
+        row["items"] = json.loads(row.pop("items_json") or "[]")
+        row["offer_ids"] = json.loads(row.pop("offer_ids_json") or "[]")
+        row["amount"], row["supplier_total"] = float(row["amount"]), float(row["supplier_total"])
+    return row
+
+
+def finish_addon_payment(addon_id: str, status: str, result: dict) -> bool:
+    """Single use: only an 'awaiting_payment' row moves on (returns False if
+    another request already claimed it)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE addon_payments SET status=%s, result_json=%s, completed_at=NOW() "
+            "WHERE addon_id=%s AND status='awaiting_payment'",
+            (status, json.dumps(result, default=str), addon_id))
+        conn.commit()
+        return cursor.rowcount == 1
     finally:
         cursor.close()
         conn.close()
