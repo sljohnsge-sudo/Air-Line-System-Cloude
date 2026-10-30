@@ -2196,7 +2196,7 @@ export default function App() {
       // state" pass for the first one put the screen back on the loading
       // step — the customer was left stuck on "Please wait...".
       const urlStep = bookingStep === 'seats_loading' ? 'passenger'
-        : bookingStep === 'processing' ? 'payment' : bookingStep;
+        : bookingStep === 'processing' ? 'review' : bookingStep;
       const payload = {
         // Amadeus booking steps are deliberately NOT round-tripped through
         // the URL the way Travelport's wizard steps are: encoding them here
@@ -2290,7 +2290,8 @@ export default function App() {
       if (navigationType !== 'PUSH') setBookingStep(current => {
         if (typeof current === 'string' && current.startsWith('amadeus')) return current;
         if (sub) {
-          if (selectedFlight) return sub;
+          // The old separate Payment step is now part of Review.
+          if (selectedFlight) return sub === 'payment' ? 'review' : sub;
           const strippedToken = encryptForUrl(JSON.stringify({ ...payload, step: null }));
           navigate({ pathname: strippedToken ? `/results/${strippedToken}` : '/results', search: '' }, { replace: true });
           return null;
@@ -2800,7 +2801,7 @@ export default function App() {
       } catch (err) {
         const errMsg = err.message || String(err);
         setBookingError(errMsg);
-        setBookingStep('payment');
+        setBookingStep('review');
         showNotification(errMsg, 'error');
       } finally {
         confirmBookingInFlightRef.current = false;
@@ -2855,7 +2856,7 @@ export default function App() {
     } catch (err) {
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
-      setBookingStep('payment');
+      setBookingStep('review');
       showNotification(errMsg, 'error');
     } finally {
       confirmBookingInFlightRef.current = false;
@@ -7780,13 +7781,12 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 const steps = [
                   { key: 'passenger', label: 'Passenger Details' },
                   { key: 'options', label: 'Options' },
-                  { key: 'review', label: 'Review Booking' },
-                  { key: 'payment', label: 'Payment' }
+                  { key: 'review', label: 'Review & Pay' }
                 ];
                 return steps.map((step, idx) => {
                   const isActive = bookingStep === step.key ||
                                   (step.key === 'options' && ['seats_loading', 'seats', 'ancillaries'].includes(bookingStep)) ||
-                                  (step.key === 'payment' && bookingStep === 'processing');
+                                  (step.key === 'review' && bookingStep === 'processing');
                   const isSkipped = false;
                   return (
                     <div key={step.key} style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', color: isSkipped ? '#94a3b8' : isActive ? 'var(--gs-crimson)' : 'var(--text-muted)', fontWeight: isActive ? '700' : '400', position: 'relative' }}>
@@ -7810,7 +7810,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                  bookingStep === 'ancillaries' ? 'Optional Extras' :
                  bookingStep === 'options' ? 'Options' :
                  bookingStep === 'review' ? 'Review Your Booking' :
-                 bookingStep === 'payment' ? 'Payment Details' :
                  bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
                  bookingStep === 'amadeus_processing' ? 'Confirming with Amadeus...' :
                  bookingStep === 'addons_result' ? 'Seats & Extras — Airline Response' :
@@ -7892,38 +7891,6 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 );
               })()}
 
-              {/* Payment step only: every flight with its departure/arrival
-                  time and aircraft, so the customer confirms exactly what
-                  they are paying for. */}
-              {bookingStep === 'payment' && (() => {
-                const legs = selectedFlight.legs && selectedFlight.legs.length >= 2
-                  ? [...selectedFlight.legs].sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
-                  : [selectedFlight];
-                const hm = (iso) => iso?.split('T')[1]?.slice(0, 5) || iso?.split(' ')[1]?.slice(0, 5) || '--:--';
-                const ymd = (iso) => iso?.split('T')[0] || iso?.split(' ')[0] || '';
-                return (
-                  <div style={{ flexBasis: '100%', borderTop: '1px dashed #e2e8f0', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {legs.map((leg, lIdx) => {
-                      const segs = leg.segments && leg.segments.length ? leg.segments : [leg];
-                      return (
-                        <div key={lIdx}>
-                          {legs.length > 1 && (
-                            <div className="label" style={{ marginBottom: '0.2rem' }}>{legs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`}</div>
-                          )}
-                          {segs.map((seg, sIdx) => (
-                            <div key={sIdx} style={{ fontSize: '0.8rem', color: 'var(--gs-dark)', display: 'flex', flexWrap: 'wrap', gap: '0.15rem 0.9rem', alignItems: 'baseline' }}>
-                              <strong>{seg.flight_number}</strong>
-                              <span>{seg.departure_airport} <strong>{hm(seg.departure_time)}</strong> → {seg.arrival_airport} <strong>{hm(seg.arrival_time)}</strong></span>
-                              <span style={{ color: 'var(--text-muted)' }}>{ymd(seg.departure_time)}{ymd(seg.arrival_time) && ymd(seg.arrival_time) !== ymd(seg.departure_time) ? ` → ${ymd(seg.arrival_time)}` : ''}</span>
-                              <span>✈ {seg.aircraft_type || 'Aircraft not provided'}</span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
             </div>
 
             {bookingError && (
@@ -9402,16 +9369,36 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             {/* STEP: Review */}
             {bookingStep === 'review' && (
               <div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1rem', maxHeight: '280px', overflowY: 'auto' }}>
-                  <h4 style={{ marginBottom: '1rem', color: 'var(--gs-dark)', fontSize: '0.95rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem' }}>Passenger Information</h4>
+                {/* Everything the customer typed, shown in full so they agree
+                    to exactly what will be sent to the airline. */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem 1.1rem', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem', marginBottom: '0.75rem' }}>
+                    <h4 style={{ margin: 0, color: 'var(--gs-dark)', fontSize: '0.95rem' }}>Please check your passenger details</h4>
+                    <button type="button" className="btn btn-secondary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }} onClick={() => setBookingStep('passenger')}>Edit details</button>
+                  </div>
                   {travelers.map((t, idx) => {
-                    // Show every leg's seat for this passenger (not just one) —
-                    // a round trip can have a different seat outbound vs. return.
+                    const ptc = t.passenger_type;
+                    const typeLabel = ptc === 'CNN' ? 'Child' : ptc === 'INF' ? 'Infant' : ptc === 'STU' ? 'Student' : 'Adult';
+                    // Every leg's seat for this passenger — a round trip can
+                    // have a different seat outbound vs. return.
                     const passengerSeats = selectedSeats.filter(s => s.passenger_idx === idx);
+                    const rows = [
+                      ['Name (as on passport)', `${t.first_name || ''} ${t.last_name || ''}`.trim()],
+                      ['Gender', t.gender],
+                      ['Date of birth', t.date_of_birth],
+                      ['Passport number', t.passport_number],
+                      ['Passport expiry', t.passport_expiry],
+                      ['Nationality', t.nationality || '—'],
+                      ['Passport issued by', t.passport_issue_country || t.nationality || '—'],
+                      ['Email', t.email],
+                      ['Phone', t.phone],
+                      ...(t.meal_code ? [['Special meal', (MEAL_OPTIONS.find(o => o[0] === t.meal_code) || [, t.meal_code])[1]]] : []),
+                      ...(t.wheelchair ? [['Wheelchair', (WHEELCHAIR_OPTIONS.find(o => o[0] === t.wheelchair) || [, t.wheelchair])[1]]] : []),
+                    ];
                     return (
-                      <div key={idx} style={{ marginBottom: idx < travelers.length - 1 ? '1.25rem' : '0', borderBottom: idx < travelers.length - 1 ? '1px dashed #e2e8f0' : 'none', paddingBottom: idx < travelers.length - 1 ? '1rem' : '0' }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.3rem', marginBottom: '0.5rem' }}>
-                          <div style={{ fontWeight: '700', fontSize: '0.82rem', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Passenger {idx + 1}</div>
+                      <div key={idx} style={{ marginBottom: idx < travelers.length - 1 ? '0.9rem' : 0, paddingBottom: idx < travelers.length - 1 ? '0.75rem' : 0, borderBottom: idx < travelers.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.3rem', marginBottom: '0.4rem' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Passenger {idx + 1} · {typeLabel}</div>
                           <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                             {passengerSeats.map((s, sIdx) => (
                               <span key={sIdx} style={{ fontSize: '0.75rem', color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: '700' }}>
@@ -9420,24 +9407,20 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                             ))}
                           </div>
                         </div>
-                        <div className="form-grid-2" style={{ fontSize: '0.85rem', gap: '0.5rem 1rem' }}>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Name: </span><strong>{t.first_name} {t.last_name}</strong></div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>DOB: </span><strong>{t.date_of_birth}</strong></div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Passport: </span><strong>{t.passport_number}</strong></div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Nationality: </span><strong>{t.nationality || '—'}</strong></div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Email: </span><strong>{t.email}</strong></div>
-                          <div><span style={{ color: 'var(--text-muted)' }}>Phone: </span><strong>{t.phone}</strong></div>
-                          {t.meal_code && <div><span style={{ color: 'var(--text-muted)' }}>Special meal: </span><strong>{(MEAL_OPTIONS.find(o => o[0] === t.meal_code) || [, t.meal_code])[1]}</strong></div>}
-                          {t.wheelchair && <div><span style={{ color: 'var(--text-muted)' }}>Wheelchair: </span><strong>{t.wheelchair}</strong></div>}
+                        <div className="form-grid-2" style={{ fontSize: '0.83rem', gap: '0.3rem 1rem' }}>
+                          {rows.map(([label, value]) => (
+                            <div key={label}><span style={{ color: 'var(--text-muted)' }}>{label}: </span><strong style={{ wordBreak: 'break-word' }}>{value || '—'}</strong></div>
+                          ))}
                         </div>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Fare conditions of the chosen fare, live from Travelport */}
+                {/* Fare conditions of the chosen fare, live from Travelport,
+                    always shown in full before the customer confirms. */}
                 <div style={{ marginBottom: '1rem' }}>
-                  <FareRulesPanel apiBase={API_BASE} rawOffering={selectedFlight.raw_offering} title="Fare rules — changes & cancellations" defaultOpen />
+                  <FareRulesPanel apiBase={API_BASE} rawOffering={selectedFlight.raw_offering} title="Fare rules — changes & cancellations" alwaysOpen />
                 </div>
 
                 {/* Flight Itinerary Details */}
@@ -9562,120 +9545,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   );
                 })()}
 
-                <div className="modal-actions">
-                  <button className="btn btn-secondary" onClick={() => setBookingStep('options')}>← Back to Options</button>
-                  <button className="btn btn-primary" onClick={() => setBookingStep('payment')}>Proceed to Payment →</button>
-                </div>
-              </div>
-            )}
-
-            {/* STEP: Payment Details Checkout */}
-            {bookingStep === 'payment' && (
-              <div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1rem' }}>
-                  <h4 style={{ marginBottom: '1rem', color: 'var(--gs-dark)', fontSize: '0.95rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem' }}>Payment</h4>
-
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.6', background: 'white', padding: '1rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                    <p style={{ fontWeight: '700', color: 'var(--gs-crimson)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>💳 Credit / Debit Card Payment</p>
-                    <p style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '0.5rem' }}>
-                      Your reservation is confirmed with <strong>Travelport GDS</strong> first (PNR generated), then you'll be redirected to our secure payment partner <strong>Sampath PayCorp</strong> to complete payment.
-                    </p>
-                    <p style={{ fontSize: '0.78rem', color: '#475569' }}>
-                      Your ticket is issued automatically the moment payment is confirmed.
-                    </p>
-                    <div style={{ marginTop: '0.75rem', fontSize: '0.72rem', color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
-                      ℹ️ Card details are entered on PayCorp's own secure payment page — this site never receives or stores your card number.
-                    </div>
-                  </div>
-                </div>
-
-{(() => {
-                  const bdkPay = selectedFlight.price_breakdown ? Object.keys(selectedFlight.price_breakdown) : [];
-                  const flightGrandTotalPay = bdkPay.length > 0
-                    ? bdkPay.reduce((s, k) => s + (selectedFlight.price_breakdown[k].total_price || 0), 0)
-                    : (selectedFlight.price || 0);
-                  const sumPbFieldPay = (field) => bdkPay.reduce((s, k) => {
-                    const pb = selectedFlight.price_breakdown[k];
-                    return s + (pb[field] || 0) * (pb.quantity || 1);
-                  }, 0);
-                  const hasTaxBreakdownPay = bdkPay.length > 0 && bdkPay.every(k => selectedFlight.price_breakdown[k].fuel_surcharge !== undefined);
-                  const seatChargesPay = selectedSeats.reduce((acc, s) => acc + s.price, 0);
-                  const ancillaryChargesPay = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
-                  return (
-                    <div style={{ background: '#fff8f8', border: '1px solid var(--gs-crimson)', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
-                      {hasTaxBreakdownPay && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px dashed #cbd5e1' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            <span>Base Airline Fare:</span>
-                            <span>{selectedFlight.currency} {sumPbFieldPay('base_price').toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            <span>Fuel Surcharge:</span>
-                            <span>{selectedFlight.currency} {sumPbFieldPay('fuel_surcharge').toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            <span>Airline &amp; Government Taxes:</span>
-                            <span>{selectedFlight.currency} {sumPbFieldPay('other_taxes').toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                          </div>
-                          {sumPbFieldPay('fees') > 0 && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                              <span>Other Airline Fees:</span>
-                              <span>{selectedFlight.currency} {sumPbFieldPay('fees').toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                            </div>
-                          )}
-                          {(seatChargesPay > 0 || ancillaryChargesPay > 0) && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                              <span>Seats &amp; Extras:</span>
-                              <span>{selectedFlight.currency} {(seatChargesPay + ancillaryChargesPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '700', color: 'var(--gs-crimson)' }}>
-                        <span style={{ fontSize: '0.88rem' }}>Amount to Charge:</span>
-                        <span style={{ fontSize: '1.3rem' }}>
-                          {selectedFlight.currency} {(flightGrandTotalPay + seatChargesPay + ancillaryChargesPay).toLocaleString(undefined, {minimumFractionDigits: 2})}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Everything the customer typed, shown right above the
-                    confirmation so they agree to exactly what will be sent
-                    to the airline. */}
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem 1.1rem', marginBottom: '0.75rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', borderBottom: '2px solid var(--gs-crimson)', paddingBottom: '0.4rem', marginBottom: '0.75rem' }}>
-                    <h4 style={{ margin: 0, color: 'var(--gs-dark)', fontSize: '0.92rem' }}>Please check your passenger details</h4>
-                    <button type="button" className="btn btn-secondary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }} onClick={() => setBookingStep('passenger')}>Edit details</button>
-                  </div>
-                  {travelers.map((t, idx) => {
-                    const ptc = t.passenger_type;
-                    const typeLabel = ptc === 'CNN' ? 'Child' : ptc === 'INF' ? 'Infant' : ptc === 'STU' ? 'Student' : 'Adult';
-                    const rows = [
-                      ['Name (as on passport)', `${t.first_name || ''} ${t.last_name || ''}`.trim()],
-                      ['Gender', t.gender],
-                      ['Date of birth', t.date_of_birth],
-                      ['Passport number', t.passport_number],
-                      ['Passport expiry', t.passport_expiry],
-                      ['Nationality', t.nationality || '—'],
-                      ['Passport issued by', t.passport_issue_country || t.nationality || '—'],
-                      ['Email', t.email],
-                      ['Phone', t.phone],
-                      ...(t.meal_code ? [['Special meal', (MEAL_OPTIONS.find(o => o[0] === t.meal_code) || [, t.meal_code])[1]]] : []),
-                      ...(t.wheelchair ? [['Wheelchair', (WHEELCHAIR_OPTIONS.find(o => o[0] === t.wheelchair) || [, t.wheelchair])[1]]] : []),
-                    ];
-                    return (
-                      <div key={idx} style={{ marginBottom: idx < travelers.length - 1 ? '0.9rem' : 0, paddingBottom: idx < travelers.length - 1 ? '0.75rem' : 0, borderBottom: idx < travelers.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--gs-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Passenger {idx + 1} · {typeLabel}</div>
-                        <div className="form-grid-2" style={{ fontSize: '0.83rem', gap: '0.3rem 1rem' }}>
-                          {rows.map(([label, value]) => (
-                            <div key={label}><span style={{ color: 'var(--text-muted)' }}>{label}: </span><strong style={{ wordBreak: 'break-word' }}>{value || '—'}</strong></div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div style={{ fontSize: '0.78rem', color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.6rem 0.9rem', marginBottom: '0.75rem' }}>
+                  💳 Your booking is confirmed with the airline first, then you go to <strong>Sampath PayCorp</strong>'s secure page to pay by card. Your ticket is issued as soon as payment goes through. This site never sees your card number.
                 </div>
 
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
@@ -9684,7 +9555,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 </label>
 
                 <div className="modal-actions">
-                  <button className="btn btn-secondary" onClick={() => setBookingStep('review')}>← Back to Review</button>
+                  <button className="btn btn-secondary" onClick={() => setBookingStep('options')}>← Back to Options</button>
                   <button className="btn btn-primary" disabled={!dataConfirmAgreed} onClick={handleConfirmBooking}>
                     {paymentMethod === 'card' ? 'Confirm Booking → Proceed to Payment' : 'Confirm Booking'}
                   </button>

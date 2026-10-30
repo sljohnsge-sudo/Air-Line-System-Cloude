@@ -32,8 +32,9 @@ function penaltyLabel(p) {
   return label;
 }
 
-export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 'Fare rules', defaultOpen = false }) {
-  const [open, setOpen] = useState(false);
+// alwaysOpen: the Review step shows the rules in full, with no collapse toggle.
+export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 'Fare rules', defaultOpen = false, alwaysOpen = false }) {
+  const [open, setOpen] = useState(alwaysOpen);
   const [state, setState] = useState({ loading: false, error: '', fares: null });
   const [showAll, setShowAll] = useState({});
 
@@ -63,12 +64,15 @@ export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 
 
   // Opened by default (Review step): load once when shown.
   useEffect(() => {
-    if (defaultOpen) { setOpen(true); load(); }
+    if (defaultOpen || alwaysOpen) { setOpen(true); load(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', background: '#ffffff' }}>
+      {alwaysOpen ? (
+        <div style={{ padding: '0.5rem 0.75rem 0.4rem', fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>📄 {title}</div>
+      ) : (
       <button
         type="button"
         onClick={toggle}
@@ -77,6 +81,7 @@ export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 
         <span>📄 {title}</span>
         <span style={{ color: '#64748b' }}>{open ? '▾' : '▸'}</span>
       </button>
+      )}
       {open && (
         <div style={{ padding: '0 0.75rem 0.75rem', fontSize: '0.76rem', color: '#334155' }}>
           {state.loading && <div style={{ color: '#64748b' }}>Loading the airline's fare rules…</div>}
@@ -117,10 +122,10 @@ export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 
                     {key && <div style={{ marginBottom: '0.25rem' }}><strong>{key.name}:</strong> <span style={{ fontFamily: 'monospace' }}>{key.value}</span></div>}
                     {rest.length > 0 && (
                       <>
-                        <button type="button" onClick={() => setShowAll(s => ({ ...s, [i]: !s[i] }))} style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', padding: 0, fontSize: '0.74rem', fontWeight: 600 }}>
-                          {showAll[i] ? 'Hide' : 'Show'} all conditions ({rest.length})
+                        <button type="button" onClick={() => setShowAll(s => ({ ...s, [i]: !(s[i] ?? alwaysOpen) }))} style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', padding: 0, fontSize: '0.74rem', fontWeight: 600 }}>
+                          {(showAll[i] ?? alwaysOpen) ? 'Hide' : 'Show'} all conditions ({rest.length})
                         </button>
-                        {showAll[i] && (
+                        {(showAll[i] ?? alwaysOpen) && (
                           <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                             {rest.map((s, k) => (
                               <div key={k}><strong>{s.name}:</strong> <span style={{ fontFamily: 'monospace' }}>{s.value}</span></div>
