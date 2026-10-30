@@ -2331,6 +2331,25 @@ def booking_history(email: Optional[str] = Query(None, description="Filter by pa
 # after Travelport confirms (services/cancel_service.py) — anything that fails
 # at Travelport is raised as a stuck-booking alert.
 
+TICKETED_CANCEL_ACTIONS = ("void", "refund")
+TICKETED_CANCEL_OFF = ("Void and refund are switched off (Admin Portal → Provider Control). "
+                       "Nothing was changed on Travelport.")
+
+
+def _ticketed_cancel_enabled() -> bool:
+    return bool(database.get_provider_settings().get("ticketed_cancel_enabled", False))
+
+
+def _hold_ticketed_quote(quote: dict) -> dict:
+    """While the void/refund switch is off, a quote still shows what
+    Travelport would do but can't be confirmed. Held-booking cancels pass."""
+    if quote.get("action") in TICKETED_CANCEL_ACTIONS and quote.get("can_cancel") and not _ticketed_cancel_enabled():
+        quote["can_cancel"] = False
+        quote["switched_off"] = True
+        quote["message"] = f"{quote.get('message', '')} {TICKETED_CANCEL_OFF}".strip()
+    return quote
+
+
 class CancelConfirmRequest(BaseModel):
     action: Literal["void", "refund", "cancel"]
     amount: Optional[float] = None  # the amount shown on the quote staff confirmed
@@ -2350,7 +2369,7 @@ def quote_booking_cancellation(locator_code: str, _admin: dict = Depends(auth.ge
             logger.error(f"Cancel quote for {locator_code} failed at {e.step}: {e}")
             raise HTTPException(status_code=502, detail=f"{e} (TraceId {trace_id})")
     quote["trace_id"] = trace_id
-    return quote
+    return _hold_ticketed_quote(quote)
 
 
 @app.post("/api/bookings/{locator_code}/cancel")
@@ -2363,9 +2382,12 @@ def cancel_booking(locator_code: str, body: CancelConfirmRequest, admin: dict = 
     409 because Cancel Workbench Items alone neither voids nor refunds a
     ticket. GDS tickets past their void period are still refused (409):
     TripServices has no automated GDS refund yet, so those are refunded in
-    Smartpoint.
+    Smartpoint. Void and refund are also refused while the Provider Control
+    switch (ticketed_cancel_enabled) is off; held-booking cancels aren't.
     """
     locator_code = locator_code.upper().strip()
+    if body.action in TICKETED_CANCEL_ACTIONS and not _ticketed_cancel_enabled():
+        raise HTTPException(status_code=409, detail=TICKETED_CANCEL_OFF)
     with services.flow_trace_id() as trace_id:
         try:
             result = services.cancel_travelport_booking(locator_code, body.action, body.amount)
@@ -2375,7 +2397,7 @@ def cancel_booking(locator_code: str, body: CancelConfirmRequest, admin: dict = 
             e.quote["trace_id"] = trace_id
             raise HTTPException(status_code=409, detail={
                 "message": "Travelport's answer changed since you checked — review the new quote and confirm again.",
-                "quote": e.quote,
+                "quote": _hold_ticketed_quote(e.quote),
             })
         except services.CancelError as e:
             recorded = e.done.get("status")
@@ -3193,6 +3215,7 @@ class ProviderSettingsRequest(BaseModel):
     hotels_enabled: bool = True
     visa_enabled: bool = True
     packages_enabled: bool = True
+    ticketed_cancel_enabled: bool = False  # staff void/refund (see cancel_booking)
 
 
 @app.get("/api/admin/go-live-checks")
@@ -3210,7 +3233,8 @@ def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
 @app.put("/api/admin/provider-settings")
 def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
     return database.update_provider_settings(
-        body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled
+        body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled,
+        body.ticketed_cancel_enabled,
     )
 
 

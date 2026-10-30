@@ -852,6 +852,18 @@ def init_db():
         cursor.execute("ALTER TABLE provider_settings ADD COLUMN visa_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER hotels_enabled")
         cursor.execute("ALTER TABLE provider_settings ADD COLUMN packages_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER visa_enabled")
 
+    # provider_settings.ticketed_cancel_enabled — the staff void/refund switch
+    # (services/cancel_service.py). Off by default: Check refund still shows
+    # what Travelport would do, but Confirm is refused for a void or refund
+    # until an admin turns it on in Provider Control. Held-booking cancels
+    # aren't affected.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='provider_settings' AND COLUMN_NAME='ticketed_cancel_enabled'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE provider_settings ADD COLUMN ticketed_cancel_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER packages_enabled")
+
     # ── Pending NDC Instant Pay bookings (Emirates) ──────────────────────────
     # Instant Pay takes the card payment BEFORE the PNR and ticket exist, so
     # the selected offer, travelers and the server-computed amount to charge
@@ -1656,10 +1668,12 @@ def get_provider_settings() -> dict:
     cursor.close()
     conn.close()
     if not row:
-        return {"search_mode": "travelport_only", "hotels_enabled": False, "visa_enabled": False, "packages_enabled": False}
+        return {"search_mode": "travelport_only", "hotels_enabled": False, "visa_enabled": False, "packages_enabled": False,
+                "ticketed_cancel_enabled": False}
     row["hotels_enabled"] = bool(row.get("hotels_enabled", 1))
     row["visa_enabled"] = bool(row.get("visa_enabled", 1))
     row["packages_enabled"] = bool(row.get("packages_enabled", 1))
+    row["ticketed_cancel_enabled"] = bool(row.get("ticketed_cancel_enabled", 0))
     return row
 
 
@@ -1668,13 +1682,15 @@ def update_provider_settings(
     hotels_enabled: bool = True,
     visa_enabled: bool = True,
     packages_enabled: bool = True,
+    ticketed_cancel_enabled: bool = False,
 ) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            "UPDATE provider_settings SET search_mode=%s, hotels_enabled=%s, visa_enabled=%s, packages_enabled=%s WHERE id=1",
-            (search_mode, int(hotels_enabled), int(visa_enabled), int(packages_enabled)),
+            "UPDATE provider_settings SET search_mode=%s, hotels_enabled=%s, visa_enabled=%s, packages_enabled=%s,"
+            " ticketed_cancel_enabled=%s WHERE id=1",
+            (search_mode, int(hotels_enabled), int(visa_enabled), int(packages_enabled), int(ticketed_cancel_enabled)),
         )
         conn.commit()
         return get_provider_settings()
