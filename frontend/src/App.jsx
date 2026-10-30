@@ -14,6 +14,7 @@ import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
+import { buildShareItem, ShareToggle, ShareFaresBar } from './ShareFares.jsx';
 
 // Use whatever host the page was loaded from (not a hardcoded 'localhost') so
 // this also works when someone on the same network opens this machine's LAN
@@ -1878,6 +1879,8 @@ export default function App() {
   const [showSearchForm, setShowSearchForm] = useState(true);
   const [searchError, setSearchError] = useState('');
   const [expandedFareIds, setExpandedFareIds] = useState({});
+  // Fare cards ticked to share by WhatsApp / email — fareCardKey -> text summary.
+  const [shareFares, setShareFares] = useState({});
   // "More Information" popup — holds the flight whose segment breakdown is
   // being shown (null when closed). A single value (not a per-card map)
   // since only one of these popups is ever open at a time.
@@ -2377,6 +2380,7 @@ export default function App() {
     setLoadingFlights(true);
     setSearchError('');
     setFlights([]);
+    setShareFares({});
     setShowSearchForm(false);
 
     const origin = overrides.origin || searchOrigin;
@@ -5312,7 +5316,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                   <div className="results-live-badge">● Live GDS Data</div>
                 </div>
-
+                {!loadingFlights && (
+                  <ShareFaresBar items={Object.values(shareFares)} onClear={() => setShareFares({})} />
+                )}
                 {!loadingFlights && !searchError && flights.length > 0 && (
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                     {[['any', 'All Classes'], ['Economy', 'Economy'], ['PremiumEconomy', 'Premium Economy'], ['Business', 'Business'], ['First', 'First Class']].map(([val, lbl]) => (
@@ -5606,6 +5612,15 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                                 <path d="M6 9l6 6 6-6" />
                               </svg>
                             </button>
+                            <ShareToggle
+                              checked={!!shareFares[fId]}
+                              onChange={on => setShareFares(prev => {
+                                const next = { ...prev };
+                                if (on) next[fId] = buildShareItem({ flight, cabin: activeCabin, fareOption: selectedFareOption, price: displayPrice, currency: displayCurrency, grandTotal, totalPax });
+                                else delete next[fId];
+                                return next;
+                              })}
+                            />
                           </div>
                         </div>
                       </div>
