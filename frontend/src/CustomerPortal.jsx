@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import BookingCard from './BookingCard.jsx';
+import BookingLineList from './BookingLineList.jsx';
+import LiveBookingDialog from './LiveBookingDialog.jsx';
 import { COUNTRIES } from './countries.js';
 
 export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation, visaEnabled }) {
@@ -16,6 +17,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState('');
+  const [liveLocator, setLiveLocator] = useState(null);
 
   const [loyalty, setLoyalty] = useState(null);
 
@@ -363,11 +365,12 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
                   <p>No bookings yet under this account. Bookings you make while signed in, or made previously under this account's email, will appear here.</p>
                 </div>
               ) : (
-                <div className="bookings-grid">
-                  {bookings.map((b) => (
-                    <BookingCard key={b.id} booking={b} onViewTicket={onViewTicket} onRequestCancellation={onRequestCancellation} />
-                  ))}
-                </div>
+                <BookingLineList bookings={bookings} onLiveStatus={b => setLiveLocator(b.locator_code)}
+                                 onViewTicket={onViewTicket} onRequestCancellation={onRequestCancellation} />
+              )}
+              {liveLocator && (
+                <LiveBookingDialog locator={liveLocator} apiBase={API_BASE} fetchWithRetry={fetchWithRetry}
+                                   authToken={customerToken} onClose={() => setLiveLocator(null)} />
               )}
             </section>
           )}

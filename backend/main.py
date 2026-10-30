@@ -53,6 +53,7 @@ import auth
 import hotel_database
 from services import seat_rules
 from services import segment_status
+from services import live_booking_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -2276,6 +2277,36 @@ def _can_see_private(principal: Optional[dict], booking: Optional[dict]) -> bool
         return True
     return bool(booking) and principal.get("customer_id") is not None \
         and booking.get("customer_id") == principal.get("customer_id")
+
+
+@app.get("/api/bookings/{locator_code}/live")
+def live_booking_status(locator_code: str, principal: Optional[dict] = Depends(auth.get_optional_principal)):
+    """
+    My Bookings → "Live status": the booking straight from Travelport and the
+    airline — flights with the airline's segment status, tickets with coupon
+    status, seats/extras/special requests with their confirmation — never
+    from our database (services/live_booking_service.py). Only the booking's
+    own customer or staff.
+    """
+    locator_code = locator_code.upper().strip()
+    if not principal:
+        raise HTTPException(status_code=401, detail="Sign in to see this booking's live status.")
+    if not _can_see_private(principal, database.get_booking_by_locator(locator_code)):
+        raise HTTPException(status_code=403, detail="This booking isn't on your account.")
+    with services.flow_trace_id() as trace_id:
+        try:
+            data = live_booking_service.get_live_booking(locator_code)
+        except live_booking_service.LiveBookingError as e:
+            if "DOES NOT EXIST" in str(e).upper():
+                # 4247 — Travelport purges a PNR some time after its last flight.
+                raise HTTPException(status_code=404, detail=(
+                    "Travelport no longer holds this booking — bookings are removed from Travelport some time "
+                    f"after the flight. Your ticket record is still under Ticket. (TraceId {trace_id})"))
+            raise HTTPException(status_code=404, detail=f"Travelport: {e} (TraceId {trace_id})")
+        except services.CancelError as e:
+            raise HTTPException(status_code=502, detail=f"{e} (TraceId {trace_id})")
+    data["trace_id"] = trace_id
+    return data
 
 
 @app.get("/api/bookings/retrieve/{locator_code}")

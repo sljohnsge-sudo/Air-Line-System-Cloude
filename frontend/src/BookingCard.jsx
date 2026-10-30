@@ -1,7 +1,7 @@
 // Shared boarding-pass card — used by both the guest "My Bookings" tab and
 // the logged-in Customer Portal, so the markup only exists in one place.
 
-const cleanPassengerName = (name) => {
+export const cleanPassengerName = (name) => {
   if (!name) return '';
   const parts = name.trim().toUpperCase().split(/\s+/);
   const titles = ['MR', 'MRS', 'MS', 'MSTR', 'DR', 'PROF', 'MISS'];
