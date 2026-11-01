@@ -11,10 +11,14 @@ import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
 //   'cruise'  — glides in from the clouds, cruises, climbs out, comes back
 //   'still'   — the original still plane in the sky picture
 const HERO_PLANE_MODE = 'takeoff';
-// Take-off spot: 'travel-further' (emerges from behind the headline's cyan
-// words, cruises beside the headline, flies out of the picture on the right)
-// or 'travel-services' (from the service links, climbs out towards Sign In).
-const HERO_PLANE_TAKEOFF_FROM = 'travel-further';
+// Take-off spot:
+//   'both'            — two planes take turns: one out of "Book Smarter," flying
+//                       off to the left, one out of "Travel Further." flying off
+//                       to the right (never both in the air at once)
+//   'travel-further'  — just the right-hand plane
+//   'travel-services' — from the service links, climbs out towards Sign In
+const HERO_PLANE_TAKEOFF_FROM = 'both';
+const HERO_PLANE_FROM_FURTHER = HERO_PLANE_TAKEOFF_FROM === 'travel-further' || HERO_PLANE_TAKEOFF_FROM === 'both';
 const HERO_PLANE_ANIMATED = HERO_PLANE_MODE !== 'still';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
@@ -1906,20 +1910,22 @@ export default function App() {
   // and lay the vapour trail from the start to where it cruises. Measured (not
   // hard-coded) because the hero text is centred and moves with screen width.
   const heroTravelFurtherRef = useRef(null);
+  const heroBookSmarterRef = useRef(null);
   const heroTravelServicesRef = useRef(null);
   const heroPlaneRef = useRef(null);
   const heroTrailRef = useRef(null);
+  const heroPlaneLeftRef = useRef(null);
+  const heroTrailLeftRef = useRef(null);
   useEffect(() => {
     if (!showHomePage || HERO_PLANE_MODE !== 'takeoff') return undefined;
-    const aim = () => {
-      const from = HERO_PLANE_TAKEOFF_FROM === 'travel-further' ? heroTravelFurtherRef.current : heroTravelServicesRef.current;
-      const plane = heroPlaneRef.current, trail = heroTrailRef.current;
+    // side 'right': start behind the last letters of the words; 'left': behind
+    // the first letters (the left-hand plane is mirrored and flies leftwards).
+    const aimOne = (from, plane, trail, side) => {
       if (!from || !plane) return;
       const hero = plane.offsetParent;
       if (!hero) return;
       const h = hero.getBoundingClientRect(), w = from.getBoundingClientRect(), p = plane.getBoundingClientRect();
-      // start: tucked behind the last letters of the take-off words
-      const sx = w.right - w.width * 0.12, sy = w.top + w.height * 0.55;
+      const sx = side === 'left' ? w.left + w.width * 0.12 : w.right - w.width * 0.12, sy = w.top + w.height * 0.55;
       const px = p.left + p.width * 0.5, py = p.top + p.height * 0.5;
       plane.style.setProperty('--tf-x', `${sx - px}px`);
       plane.style.setProperty('--tf-y', `${sy - py}px`);
@@ -1932,13 +1938,18 @@ export default function App() {
       }
       if (trail) {
         // trail runs from the start point to the plane's tail at cruise
-        const tx = p.left + p.width * 0.22, ty = p.top + p.height * 0.5;
+        const tx = side === 'left' ? p.right - p.width * 0.22 : p.left + p.width * 0.22, ty = p.top + p.height * 0.5;
         const len = Math.hypot(tx - sx, ty - sy), ang = Math.atan2(ty - sy, tx - sx) * 180 / Math.PI;
         trail.style.left = `${sx - h.left}px`;
         trail.style.top = `${sy - h.top}px`;
         trail.style.width = `${len}px`;
         trail.style.transform = `rotate(${ang}deg)`;
       }
+    };
+    const aim = () => {
+      const rightFrom = HERO_PLANE_FROM_FURTHER ? heroTravelFurtherRef.current : heroTravelServicesRef.current;
+      aimOne(rightFrom, heroPlaneRef.current, heroTrailRef.current, 'right');
+      if (HERO_PLANE_TAKEOFF_FROM === 'both') aimOne(heroBookSmarterRef.current, heroPlaneLeftRef.current, heroTrailLeftRef.current, 'left');
     };
     const t = setTimeout(aim, 900);   // after the hero fade-in and web fonts settle
     window.addEventListener('resize', aim);
@@ -3643,7 +3654,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <span className="hero-tagline">
                 Flights · Hotels · Visa Assistance · More
               </span>
-              <h1 className="hero-title">Book Smarter, <span className="title-gradient-red" ref={heroTravelFurtherRef}>Travel Further.</span></h1>
+              <h1 className="hero-title"><span ref={heroBookSmarterRef}>Book Smarter,</span> <span className="title-gradient-red" ref={heroTravelFurtherRef}>Travel Further.</span></h1>
               <p className="hero-subtitle">
                 Global flights, perfect stays and travel assistance at competitive fares — all in one place.
               </p>
@@ -3668,10 +3679,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 "Travel Further.", grows out of it with a vapour trail, cruises,
                 climbs out, pauses, repeats. Both have blinking lights. */}
             {HERO_PLANE_ANIMATED && HERO_PLANE_MODE === 'takeoff' && (
-              <span className="hero-plane-trail" ref={heroTrailRef} aria-hidden="true" />
+              <span className={`hero-plane-trail${HERO_PLANE_TAKEOFF_FROM === 'both' ? ' take-turns' : ''}`} ref={heroTrailRef} aria-hidden="true" />
             )}
             {HERO_PLANE_ANIMATED && (
-              <div className={`hero-plane${HERO_PLANE_MODE === 'takeoff' && HERO_PLANE_TAKEOFF_FROM === 'travel-further' ? ' from-further' : ''}`} ref={heroPlaneRef} aria-hidden="true">
+              <div className={`hero-plane${HERO_PLANE_MODE === 'takeoff' && HERO_PLANE_FROM_FURTHER ? ' from-further' : ''}${HERO_PLANE_MODE === 'takeoff' && HERO_PLANE_TAKEOFF_FROM === 'both' ? ' take-turns' : ''}`} ref={heroPlaneRef} aria-hidden="true">
                 <div className={`hero-plane-fly${HERO_PLANE_MODE === 'takeoff' ? ' takeoff' : ''}`}>
                   <img src={heroPlaneOnly} alt="" />
                   <span className="plane-light plane-light-red" style={{ left: '12%', top: '41%' }} />
@@ -3679,6 +3690,24 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <span className="plane-light plane-light-strobe" style={{ left: '41%', top: '9%' }} />
                 </div>
               </div>
+            )}
+            {/* Second plane for 'both': mirrored, out of "Book Smarter," and off
+                to the left, half a cycle after the right-hand one. The light
+                colours swap so red/green stay on the correct wings. */}
+            {HERO_PLANE_ANIMATED && HERO_PLANE_MODE === 'takeoff' && HERO_PLANE_TAKEOFF_FROM === 'both' && (
+              <>
+                <span className="hero-plane-trail trail-left take-turns" ref={heroTrailLeftRef} aria-hidden="true" />
+                <div className="hero-plane from-smarter take-turns" ref={heroPlaneLeftRef} aria-hidden="true">
+                  <div className="hero-plane-fly takeoff">
+                    <div className="hero-plane-mirror">
+                      <img src={heroPlaneOnly} alt="" />
+                      <span className="plane-light plane-light-green" style={{ left: '12%', top: '41%' }} />
+                      <span className="plane-light plane-light-red" style={{ left: '98.5%', top: '76%' }} />
+                      <span className="plane-light plane-light-strobe" style={{ left: '41%', top: '9%' }} />
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </section>
         </div>
