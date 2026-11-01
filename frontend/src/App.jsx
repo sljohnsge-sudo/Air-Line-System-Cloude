@@ -14,6 +14,7 @@ import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
+import * as Ico from './WizardIcons.jsx';
 import { buildShareItem, flightIdentity, ShareToggle, ShareFaresBar, SharedFaresBanner } from './ShareFares.jsx';
 
 // Use whatever host the page was loaded from (not a hardcoded 'localhost') so
@@ -550,6 +551,12 @@ const handleApiResponse = async (res, defaultError) => {
 // round-trip result card.
 const rcFmtTime = (iso) => iso?.split('T')[1]?.slice(0, 5) || iso?.split(' ')[1]?.slice(0, 5) || '--:--';
 const rcFmtDate = (iso) => iso?.split('T')[0] || iso?.split(' ')[0] || '';
+const yfDate = (iso) => {
+  const d = iso?.split('T')[0];
+  const dt = d ? new Date(`${d}T00:00:00`) : null;
+  if (!dt || isNaN(dt)) return d || '';
+  return `${dt.toLocaleDateString('en-GB', { weekday: 'short' })}, ${dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+};
 const rcFmtDuration = (iso) => iso ? iso.replace('PT', '').replace('H', 'h ').replace('M', 'm') : '';
 
 // "DD Mon" (e.g. "30 Oct") — used only for the connecting airport's
@@ -7819,7 +7826,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             {/* Progress Steps — this stepper is shaped for Travelport's own step sequence; Amadeus
                 offers use a shorter flow (passenger details → seats → processing → ticket) and
                 are kept on their own step titles below instead of this (mismatched) step dial. */}
-            <div className="booking-stepper" style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
+            <div className="booking-stepper wz-stepper" style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
   {(() => {
                 // Seats and extras now live together on one Options step (the
                 // seat map opens from it), like emirates.com's Options page.
@@ -7828,25 +7835,31 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   { key: 'options', label: 'Options' },
                   { key: 'review', label: 'Review & Pay' }
                 ];
+                const activeIdx = steps.findIndex(st => bookingStep === st.key ||
+                  (st.key === 'options' && ['seats_loading', 'seats', 'ancillaries'].includes(bookingStep)) ||
+                  (st.key === 'review' && bookingStep === 'processing'));
+                const icons = { passenger: Ico.IconUser, options: Ico.IconSeat, review: Ico.IconCard };
                 return steps.map((step, idx) => {
-                  const isActive = bookingStep === step.key ||
-                                  (step.key === 'options' && ['seats_loading', 'seats', 'ancillaries'].includes(bookingStep)) ||
-                                  (step.key === 'review' && bookingStep === 'processing');
-                  const isSkipped = false;
+                  const StepIcon = icons[step.key];
+                  const state = idx === activeIdx ? 'active' : idx < activeIdx ? 'done' : 'todo';
                   return (
-                    <div key={step.key} style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', color: isSkipped ? '#94a3b8' : isActive ? 'var(--gs-crimson)' : 'var(--text-muted)', fontWeight: isActive ? '700' : '400', position: 'relative' }}>
-                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: isSkipped ? '#e2e8f0' : isActive ? 'var(--gs-crimson)' : 'var(--border-color)', color: isSkipped ? '#94a3b8' : 'white', margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '700' }}>
-                        {isSkipped ? '—' : idx + 1}
+                    <React.Fragment key={step.key}>
+                      {idx > 0 && <div className={`wz-step-line ${idx <= activeIdx ? 'done' : ''}`} />}
+                      <div className={`wz-step ${state}`}>
+                        <span className="wz-step-num">{idx + 1}</span>
+                        <StepIcon size={22} className="wz-step-icon" />
+                        <span className="wz-step-label">{step.label}</span>
                       </div>
-                      {step.label}
-                      {isSkipped && <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '1px' }}>N/A</div>}
-                    </div>
+                    </React.Fragment>
                   );
                 });
               })()}
             </div>
 
             <div className="modal-header">
+              <div className="wz-title">
+              {bookingStep === 'passenger' && <Ico.IconUsers size={40} className="wz-title-icon" />}
+              <div>
               <h3>
                 {bookingStep === 'passenger' ? 'Passenger Details' :
                  bookingStep === 'seats_loading' ? 'Checking Seats & Services...' :
@@ -7860,27 +7873,38 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                  bookingStep === 'addons_result' ? 'Seats & Extras — Airline Response' :
                  'Issuing Ticket...'}
               </h3>
+              {bookingStep === 'passenger' && <p className="wz-subtitle">Enter passenger information as per passport / travel document.</p>}
+              </div>
+              </div>
               {bookingStep !== 'processing' && bookingStep !== 'amadeus_processing' && <button className="close-btn" onClick={closeBookingFlow}>×</button>}
             </div>
 
             {/* Flight Summary */}
-            <div className="modal-flight-summary" style={{ marginBottom: '1.25rem' }}>
+            <div className="modal-flight-summary yf-card" style={{ marginBottom: '1.25rem' }}>
+              <div className="yf-head"><span className="yf-head-icon"><Ico.IconPlane size={20} /></span>Your Flight</div>
               {selectedFlight.legs && selectedFlight.legs.length >= 2 ? (
                 <>
                   {[...selectedFlight.legs]
                     .sort((a, b) => (a.departure_time || '').localeCompare(b.departure_time || ''))
                     .map((leg, lIdx, sortedLegs) => (
-                      <div className="summary-col" key={lIdx}>
-                        <span className="label">{sortedLegs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`}</span>
-                        <span className="val">{leg.flight_number} ({leg.airline}) — {leg.departure_airport}{leg.departure_terminal && ` (Terminal ${leg.departure_terminal})`} → {leg.arrival_airport}{leg.arrival_terminal && ` (Terminal ${leg.arrival_terminal})`} ({leg.departure_time?.split('T')[0]})</span>
+                      <div className="summary-col yf-leg" key={lIdx}>
+                        <Ico.IconPlane size={22} className={`yf-leg-icon ${lIdx > 0 ? 'return' : ''}`} />
+                        <div className="yf-leg-body">
+                          <span className="label">{sortedLegs.length === 2 ? (lIdx === 0 ? 'Departure' : 'Return') : `Leg ${lIdx + 1}`}</span>
+                          <span className="val">{leg.flight_number} ({leg.airline})</span>
+                          <span className="val">{leg.departure_airport}{leg.departure_terminal && ` (Terminal ${leg.departure_terminal})`} → {leg.arrival_airport}{leg.arrival_terminal && ` (Terminal ${leg.arrival_terminal})`}</span>
+                          <span className="yf-date"><Ico.IconCalendar size={14} />{yfDate(leg.departure_time)}</span>
+                        </div>
                       </div>
                     ))}
                 </>
               ) : (
                 <>
-                  <div className="summary-col"><span className="label">Flight</span><span className="val">{selectedFlight.flight_number} ({selectedFlight.airline})</span></div>
-                  <div className="summary-col">
-                    <span className="label">Route</span>
+                  <div className="summary-col yf-leg">
+                    <Ico.IconPlane size={22} className="yf-leg-icon" />
+                    <div className="yf-leg-body">
+                    <span className="label">Departure</span>
+                    <span className="val">{selectedFlight.flight_number} ({selectedFlight.airline})</span>
                     <span className="val">
                       {selectedFlight.departure_airport}{selectedFlight.departure_terminal && ` (Terminal ${selectedFlight.departure_terminal})`} → {selectedFlight.arrival_airport}{selectedFlight.arrival_terminal && ` (Terminal ${selectedFlight.arrival_terminal})`}
                       {selectedFlight.segments && selectedFlight.segments.length > 1 && (
@@ -7889,17 +7913,18 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                         </span>
                       )}
                     </span>
+                    <span className="yf-date"><Ico.IconCalendar size={14} />{yfDate(selectedFlight.departure_time)}</span>
+                    </div>
                   </div>
-                  <div className="summary-col"><span className="label">Date</span><span className="val">{selectedFlight.departure_time?.split('T')[0]}</span></div>
                 </>
               )}
-              <div className="summary-col"><span className="label">Cabin</span><span className="val">{selectedFlight.cabin_class}</span></div>
-              <div className="summary-col"><span className="label">Brand</span><span className="val">{selectedFlight.fare_family}</span></div>
-              <div className="summary-col">
-                <span className="label">Baggage</span>
-                <span className="val" style={{ fontSize: '0.75rem', fontWeight: '600' }}>
+              <div className="summary-col yf-row"><span className="label"><Ico.IconSeat size={17} />Cabin</span><span className="val">{selectedFlight.cabin_class}</span></div>
+              {selectedFlight.fare_family && <div className="summary-col yf-row"><span className="label"><Ico.IconTag size={17} />Brand</span><span className="val">{selectedFlight.fare_family}</span></div>}
+              <div className="summary-col yf-row">
+                <span className="label"><Ico.IconBag size={17} />Baggage</span>
+                <span className="val">
                   {selectedFlight.baggage_allowance && selectedFlight.baggage_allowance.length > 0
-                    ? selectedFlight.baggage_allowance.map(b => `${b.type}: ${b.allowance}`).join(', ')
+                    ? selectedFlight.baggage_allowance.map((bg, i) => <span key={i} style={{ display: 'block' }}>{bg.type}: {bg.allowance}</span>)
                     : '—'}
                 </span>
               </div>
@@ -7915,8 +7940,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 ];
                 const total = fare + lines.reduce((sum, l) => sum + l.price, 0);
                 return (
-                  <div className="summary-col">
-                    <span className="label">{lines.length > 0 ? 'Total amount' : 'Price'}</span>
+                  <div className="summary-col yf-total">
+                    <span className="label">Total price</span>
                     <span className="val highlight">{money(total)}</span>
                     {lines.length > 0 && (
                       <div style={{ marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
@@ -8083,6 +8108,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
             {/* STEP: Passenger Details Form */}
             {bookingStep === 'passenger' && (
               <form onSubmit={handlePassengerNext} className="booking-modal-form pax-form">
+                <div className="pax-section-head"><span className="pax-section-icon"><Ico.IconUser size={18} /></span>Passenger Information</div>
                 {travelers.length > 1 && (
                   <div className="passenger-tabs" style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.65rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
                     {travelers.map((t, idx) => {
@@ -8122,80 +8148,107 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                 )}
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label">First Name *</label>
-                    <input type="text" className="form-input" required placeholder="John" style={fieldErrorStyle(activePassengerIdx, 'first_name')} value={travelers[activePassengerIdx]?.first_name || ''} onChange={e => handleTravelerChange('first_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                    <label className="form-label"><Ico.IconUser size={15} />First Name <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconUser size={16} className="pax-control-icon" />
+                      <input type="text" className="form-input" required placeholder="John" style={fieldErrorStyle(activePassengerIdx, 'first_name')} value={travelers[activePassengerIdx]?.first_name || ''} onChange={e => handleTravelerChange('first_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                    </div>
                     {renderFieldError(activePassengerIdx, 'first_name')}
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Last Name *</label>
-                    <input type="text" className="form-input" required placeholder="Doe" style={fieldErrorStyle(activePassengerIdx, 'last_name')} value={travelers[activePassengerIdx]?.last_name || ''} onChange={e => handleTravelerChange('last_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                    <label className="form-label"><Ico.IconUser size={15} />Last Name <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconUser size={16} className="pax-control-icon" />
+                      <input type="text" className="form-input" required placeholder="Doe" style={fieldErrorStyle(activePassengerIdx, 'last_name')} value={travelers[activePassengerIdx]?.last_name || ''} onChange={e => handleTravelerChange('last_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
+                    </div>
                     {renderFieldError(activePassengerIdx, 'last_name')}
                   </div>
                 </div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label">Date of Birth *</label>
-                    <input type="date" className="form-input" required max={getToday()} style={fieldErrorStyle(activePassengerIdx, 'date_of_birth')} value={travelers[activePassengerIdx]?.date_of_birth || ''} onChange={e => handleTravelerChange('date_of_birth', e.target.value)} />
+                    <label className="form-label"><Ico.IconCalendar size={15} />Date of Birth <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconCalendar size={16} className="pax-control-icon" />
+                      <input type="date" className="form-input" required max={getToday()} style={fieldErrorStyle(activePassengerIdx, 'date_of_birth')} value={travelers[activePassengerIdx]?.date_of_birth || ''} onChange={e => handleTravelerChange('date_of_birth', e.target.value)} />
+                    </div>
                     {renderFieldError(activePassengerIdx, 'date_of_birth')}
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Gender *</label>
-                    <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'gender')} value={travelers[activePassengerIdx]?.gender || ''} onChange={e => handleTravelerChange('gender', e.target.value)}>
-                      <option value="">-- Select gender --</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                    </select>
+                    <label className="form-label"><Ico.IconGender size={15} />Gender <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconGender size={16} className="pax-control-icon" />
+                      <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'gender')} value={travelers[activePassengerIdx]?.gender || ''} onChange={e => handleTravelerChange('gender', e.target.value)}>
+                        <option value="">Select gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </div>
                     {renderFieldError(activePassengerIdx, 'gender')}
                   </div>
                 </div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label">Passport Number *</label>
-                    <input type="text" className="form-input" required placeholder="N1234567" style={fieldErrorStyle(activePassengerIdx, 'passport_number')} value={travelers[activePassengerIdx]?.passport_number || ''} onChange={e => handleTravelerChange('passport_number', e.target.value)} />
+                    <label className="form-label"><Ico.IconPassport size={15} />Passport Number <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconPassport size={16} className="pax-control-icon" />
+                      <input type="text" className="form-input" required placeholder="N1234567" style={fieldErrorStyle(activePassengerIdx, 'passport_number')} value={travelers[activePassengerIdx]?.passport_number || ''} onChange={e => handleTravelerChange('passport_number', e.target.value)} />
+                    </div>
                     {renderFieldError(activePassengerIdx, 'passport_number')}
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Passport Expiry *</label>
-                    <input type="date" className="form-input" required min={getTomorrow()} style={fieldErrorStyle(activePassengerIdx, 'passport_expiry')} value={travelers[activePassengerIdx]?.passport_expiry || ''} onChange={e => handleTravelerChange('passport_expiry', e.target.value)} />
+                    <label className="form-label"><Ico.IconCalendar size={15} />Passport Expiry <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconCalendar size={16} className="pax-control-icon" />
+                      <input type="date" className="form-input" required min={getTomorrow()} style={fieldErrorStyle(activePassengerIdx, 'passport_expiry')} value={travelers[activePassengerIdx]?.passport_expiry || ''} onChange={e => handleTravelerChange('passport_expiry', e.target.value)} />
+                    </div>
                     {renderFieldError(activePassengerIdx, 'passport_expiry')}
                   </div>
                 </div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label">Nationality *</label>
-                    <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'nationality')} value={travelers[activePassengerIdx]?.nationality || ''} onChange={e => handleNationalityChange(e.target.value)}>
-                      <option value="">-- Select nationality --</option>
-                      {NATIONALITIES.map(n => (
-                        <option key={n.code} value={n.code}>{n.name}</option>
-                      ))}
-                    </select>
+                    <label className="form-label"><Ico.IconFlag size={15} />Nationality <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconFlag size={16} className="pax-control-icon" />
+                      <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'nationality')} value={travelers[activePassengerIdx]?.nationality || ''} onChange={e => handleNationalityChange(e.target.value)}>
+                        <option value="">Select nationality</option>
+                        {NATIONALITIES.map(n => (
+                          <option key={n.code} value={n.code}>{n.name}</option>
+                        ))}
+                      </select>
+                    </div>
                     {renderFieldError(activePassengerIdx, 'nationality')}
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Passport Issue Country *</label>
-                    <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'passport_issue_country')} value={travelers[activePassengerIdx]?.passport_issue_country || ''} onChange={e => handleTravelerChange('passport_issue_country', e.target.value)}>
-                      <option value="">-- Select issue country --</option>
-                      {NATIONALITIES.map(n => (
-                        <option key={n.code} value={n.code}>{n.name}</option>
-                      ))}
-                    </select>
+                    <label className="form-label"><Ico.IconGlobe size={15} />Passport Issue Country <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconGlobe size={16} className="pax-control-icon" />
+                      <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'passport_issue_country')} value={travelers[activePassengerIdx]?.passport_issue_country || ''} onChange={e => handleTravelerChange('passport_issue_country', e.target.value)}>
+                        <option value="">Select issue country</option>
+                        {NATIONALITIES.map(n => (
+                          <option key={n.code} value={n.code}>{n.name}</option>
+                        ))}
+                      </select>
+                    </div>
                     {renderFieldError(activePassengerIdx, 'passport_issue_country')}
                   </div>
                 </div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label">Phone *</label>
+                    <label className="form-label"><Ico.IconPhone size={15} />Phone <span className="req">*</span></label>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      <select
-                        className="form-input"
-                        style={{ flex: '0 0 92px', paddingLeft: '0.4rem', paddingRight: '0.2rem' }}
-                        value={splitPhone(travelers[activePassengerIdx]?.phone).dial}
-                        onChange={e => handleTravelerPhoneDialChange(e.target.value)}
-                      >
-                        {DIAL_CODES.map(c => (
-                          <option key={c.code} value={c.dial}>+{c.dial} {c.code}</option>
-                        ))}
-                      </select>
+                      <div className="pax-control" style={{ flex: '0 0 112px' }}>
+                        <Ico.IconPhone size={16} className="pax-control-icon" />
+                        <select
+                          className="form-input"
+                          style={{ paddingRight: '0.2rem' }}
+                          value={splitPhone(travelers[activePassengerIdx]?.phone).dial}
+                          onChange={e => handleTravelerPhoneDialChange(e.target.value)}
+                        >
+                          {DIAL_CODES.map(c => (
+                            <option key={c.code} value={c.dial}>+{c.dial} {c.code}</option>
+                          ))}
+                        </select>
+                      </div>
                       <input
                         type="tel"
                         className="form-input"
@@ -8209,8 +8262,11 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     {renderFieldError(activePassengerIdx, 'phone')}
                   </div>
                   <div className="form-group pax-email">
-                    <label className="form-label">Email Address *</label>
-                    <input type="email" className="form-input" required placeholder="john@example.com" style={fieldErrorStyle(activePassengerIdx, 'email')} value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
+                    <label className="form-label"><Ico.IconMail size={15} />Email Address <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconMail size={16} className="pax-control-icon" />
+                      <input type="email" className="form-input" required placeholder="john@example.com" style={fieldErrorStyle(activePassengerIdx, 'email')} value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
+                    </div>
                     {renderFieldError(activePassengerIdx, 'email')}
                   </div>
                 </div>
@@ -8223,37 +8279,36 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     <div style={{ marginTop: '0.25rem' }}>
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label className="form-label">Special Meal</label>
-                          <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
-                            <option value="">No special meal</option>
-                            {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
-                          </select>
+                          <label className="form-label"><Ico.IconMeal size={15} />Special Meal</label>
+                          <div className="pax-control">
+                            <Ico.IconMeal size={16} className="pax-control-icon" />
+                            <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
+                              <option value="">No special meal</option>
+                              {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                            </select>
+                          </div>
                         </div>
                         <div className="form-group">
-                          <label className="form-label">Wheelchair Assistance</label>
-                          <select className="form-select" disabled={!support.wheelchair} value={t.wheelchair || ''} onChange={e => handleTravelerChange('wheelchair', e.target.value || null)}>
-                            <option value="">Not needed</option>
-                            {WHEELCHAIR_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
-                          </select>
+                          <label className="form-label"><Ico.IconWheelchair size={15} />Wheelchair Assistance</label>
+                          <div className="pax-control">
+                            <Ico.IconWheelchair size={16} className="pax-control-icon" />
+                            <select className="form-select" disabled={!support.wheelchair} value={t.wheelchair || ''} onChange={e => handleTravelerChange('wheelchair', e.target.value || null)}>
+                              <option value="">Not needed</option>
+                              {WHEELCHAIR_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                            </select>
+                          </div>
                         </div>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '-0.35rem', marginBottom: '0.5rem' }}>
-                        {support.note || 'Sent to the airline with your booking. Requests depend on the airline confirming them.'}
+                      <div className="pax-note">
+                        <Ico.IconInfo size={14} />{support.note || 'Sent to the airline with your booking. Requests depend on the airline confirming them.'}
                       </div>
                     </div>
                   );
                 })()}
 
-                <button
-                  type="button"
-                  onClick={() => setShowExtraTravelerFields(v => !v)}
-                  style={{
-                    background: 'none', border: 'none', padding: '0.5rem 0', marginTop: '0.25rem',
-                    color: 'var(--gs-crimson)', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '0.35rem'
-                  }}
-                >
-                  {showExtraTravelerFields ? '▾' : '▸'} Additional Document &amp; Contact Details (optional)
+                <button type="button" className="pax-more" onClick={() => setShowExtraTravelerFields(v => !v)}>
+                  <Ico.IconChevronDown size={18} style={{ transform: showExtraTravelerFields ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
+                  Additional Document &amp; Contact Details (optional)
                 </button>
 
                 {showExtraTravelerFields && (
@@ -8328,9 +8383,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   </div>
                 )}
 
-                <div className="modal-actions">
-                  <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">Continue to Options →</button>
+                <div className="modal-actions pax-actions">
+                  <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}><Ico.IconChevronLeft size={18} />Cancel</button>
+                  <button type="submit" className="btn btn-primary">Continue to Options<Ico.IconChevronRight size={18} /></button>
                 </div>
               </form>
             )}
