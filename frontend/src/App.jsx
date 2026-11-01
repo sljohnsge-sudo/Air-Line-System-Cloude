@@ -8149,9 +8149,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     })}
                   </div>
                 )}
+                <div className="pax-subhead">Personal details <span>Exactly as shown on the passport</span></div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconUser size={15} />First Name <span className="req">*</span></label>
+                    <label className="form-label">First name <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconUser size={16} className="pax-control-icon" />
                       <input type="text" className="form-input" required placeholder="John" style={fieldErrorStyle(activePassengerIdx, 'first_name')} value={travelers[activePassengerIdx]?.first_name || ''} onChange={e => handleTravelerChange('first_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
@@ -8159,7 +8160,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'first_name')}
                   </div>
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconUser size={15} />Last Name <span className="req">*</span></label>
+                    <label className="form-label">Last name <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconUser size={16} className="pax-control-icon" />
                       <input type="text" className="form-input" required placeholder="Doe" style={fieldErrorStyle(activePassengerIdx, 'last_name')} value={travelers[activePassengerIdx]?.last_name || ''} onChange={e => handleTravelerChange('last_name', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
@@ -8169,7 +8170,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 </div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconCalendar size={15} />Date of Birth <span className="req">*</span></label>
+                    <label className="form-label">Date of birth <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconCalendar size={16} className="pax-control-icon" />
                       <input type="date" className="form-input" required max={getToday()} style={fieldErrorStyle(activePassengerIdx, 'date_of_birth')} value={travelers[activePassengerIdx]?.date_of_birth || ''} onChange={e => handleTravelerChange('date_of_birth', e.target.value)} />
@@ -8177,7 +8178,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'date_of_birth')}
                   </div>
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconGender size={15} />Gender <span className="req">*</span></label>
+                    <label className="form-label">Gender <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconGender size={16} className="pax-control-icon" />
                       <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'gender')} value={travelers[activePassengerIdx]?.gender || ''} onChange={e => handleTravelerChange('gender', e.target.value)}>
@@ -8189,9 +8190,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'gender')}
                   </div>
                 </div>
+                <div className="pax-subhead">Passport details</div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconPassport size={15} />Passport Number <span className="req">*</span></label>
+                    <label className="form-label">Passport number <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconPassport size={16} className="pax-control-icon" />
                       <input type="text" className="form-input" required placeholder="N1234567" style={fieldErrorStyle(activePassengerIdx, 'passport_number')} value={travelers[activePassengerIdx]?.passport_number || ''} onChange={e => handleTravelerChange('passport_number', e.target.value)} />
@@ -8199,7 +8201,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'passport_number')}
                   </div>
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconCalendar size={15} />Passport Expiry <span className="req">*</span></label>
+                    <label className="form-label">Passport expiry <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconCalendar size={16} className="pax-control-icon" />
                       <input type="date" className="form-input" required min={getTomorrow()} style={fieldErrorStyle(activePassengerIdx, 'passport_expiry')} value={travelers[activePassengerIdx]?.passport_expiry || ''} onChange={e => handleTravelerChange('passport_expiry', e.target.value)} />
@@ -8209,7 +8211,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 </div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconFlag size={15} />Nationality <span className="req">*</span></label>
+                    <label className="form-label">Nationality <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconFlag size={16} className="pax-control-icon" />
                       <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'nationality')} value={travelers[activePassengerIdx]?.nationality || ''} onChange={e => handleNationalityChange(e.target.value)}>
@@ -8222,7 +8224,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'nationality')}
                   </div>
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconGlobe size={15} />Passport Issue Country <span className="req">*</span></label>
+                    <label className="form-label">Issuing country <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconGlobe size={16} className="pax-control-icon" />
                       <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'passport_issue_country')} value={travelers[activePassengerIdx]?.passport_issue_country || ''} onChange={e => handleTravelerChange('passport_issue_country', e.target.value)}>
@@ -8235,9 +8237,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'passport_issue_country')}
                   </div>
                 </div>
+                <div className="pax-subhead">Contact details <span>We send the e-ticket and flight updates here</span></div>
                 <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label"><Ico.IconPhone size={15} />Phone <span className="req">*</span></label>
+                    <label className="form-label">Mobile number <span className="req">*</span></label>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                       <div className="pax-control" style={{ flex: '0 0 112px' }}>
                         <Ico.IconPhone size={16} className="pax-control-icon" />
@@ -8265,7 +8268,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'phone')}
                   </div>
                   <div className="form-group pax-email">
-                    <label className="form-label"><Ico.IconMail size={15} />Email Address <span className="req">*</span></label>
+                    <label className="form-label">Email address <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconMail size={16} className="pax-control-icon" />
                       <input type="email" className="form-input" required placeholder="john@example.com" style={fieldErrorStyle(activePassengerIdx, 'email')} value={travelers[activePassengerIdx]?.email || ''} onChange={e => handleTravelerChange('email', e.target.value)} />
@@ -8280,9 +8283,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   const t = travelers[activePassengerIdx] || {};
                   return (
                     <div style={{ marginTop: '0.25rem' }}>
+                      <div className="pax-subhead">Special assistance <span>Optional · sent to the airline with your booking</span></div>
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label className="form-label"><Ico.IconMeal size={15} />Special Meal</label>
+                          <label className="form-label">Special meal</label>
                           <div className="pax-control">
                             <Ico.IconMeal size={16} className="pax-control-icon" />
                             <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
@@ -8292,7 +8296,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           </div>
                         </div>
                         <div className="form-group">
-                          <label className="form-label"><Ico.IconWheelchair size={15} />Wheelchair Assistance</label>
+                          <label className="form-label">Wheelchair assistance</label>
                           <div className="pax-control">
                             <Ico.IconWheelchair size={16} className="pax-control-icon" />
                             <select className="form-select" disabled={!support.wheelchair} value={t.wheelchair || ''} onChange={e => handleTravelerChange('wheelchair', e.target.value || null)}>
