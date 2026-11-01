@@ -3873,3 +3873,20 @@ body {
 #flight-search .home-scroll-cue { position: relative; z-index: 3; margin-top: -19px; }
 #home-more { padding-top: 0; }
 #home-more > .hf-section { padding-top: 0.6rem; }
+
+/* Home search: "Popular from Colombo" chips beside the Search button */
+#flight-search .search-buttons { justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.popular-routes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.popular-routes-label { font-size: 0.8rem; font-weight: 600; color: #64748b; margin-right: 0.15rem; }
+.popular-route {
+  font-family: var(--font-body); font-size: 0.8rem; font-weight: 600;
+  padding: 0.32rem 0.8rem; border-radius: 999px; cursor: pointer;
+  background: #f4f7fb; border: 1px solid #d3dce8; color: #0B3A75;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.popular-route:hover { background: #e8f0fa; border-color: #9db4cf; }
+.popular-route.active { background: #0B3A75; border-color: #0B3A75; color: #ffffff; }
+@media (max-width: 768px) {
+  .popular-routes { order: 2; }
+  .popular-routes-label { width: 100%; }
+}

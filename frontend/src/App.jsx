@@ -21,6 +21,12 @@ const HERO_PLANE_MODE = 'takeoff';
 const HERO_PLANE_TAKEOFF_FROM = 'both';
 const HERO_PLANE_FROM_FURTHER = HERO_PLANE_TAKEOFF_FROM === 'travel-further' || HERO_PLANE_TAKEOFF_FROM === 'both';
 const HERO_PLANE_ANIMATED = HERO_PLANE_MODE !== 'still';
+
+// One-tap routes under the home flight search (from Colombo)
+const POPULAR_ROUTES = [
+  ['DXB', 'Dubai'], ['SIN', 'Singapore'], ['MLE', 'Maldives'],
+  ['BKK', 'Bangkok'], ['DOH', 'Doha'], ['LHR', 'London'],
+];
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
@@ -3637,18 +3643,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
       {showHomePage && (
         <div className="home-layout animate-fade">
           <section className={`hero-section${HERO_PLANE_ANIMATED ? ' hero-animated' : ''}`}>
-            <div className="hero-visual">
-              <div className="hero-visual-side right">
-                <lottie-player
-                  src="https://assets-v2.lottiefiles.com/a/cc98d310-116a-11ee-9baa-434a3bdd76b7/Gqbk5P02sM.json"
-                  background="transparent"
-                  speed="1.25"
-                  style={{ width: '100%', height: '100%' }}
-                  loop
-                  autoplay
-                ></lottie-player>
-              </div>
-            </div>
+            {/* The old world-map animation that sat behind the hero text was
+                removed (it was hidden by the sky design and still downloaded).
+                The search loading screen keeps its own map animation. */}
             <div className="hero-content">
               <span className="hero-tagline">
                 Flights · Hotels · Visa Assistance · More
@@ -4290,6 +4287,18 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               </div>
 
               <div className="search-buttons">
+                {searchType !== 'multicity' && (
+                  <div className="popular-routes" aria-label="Popular routes from Colombo">
+                    <span className="popular-routes-label">Popular from Colombo:</span>
+                    {POPULAR_ROUTES.map(([code, city]) => (
+                      <button key={code} type="button"
+                              className={`popular-route${searchOrigin === 'CMB' && searchDest === code ? ' active' : ''}`}
+                              onClick={() => { setSearchOrigin('CMB'); setSearchDest(code); }}>
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <button type="submit" className="btn btn-primary" disabled={loadingFlights}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   {loadingFlights ? 'Searching Travelport...' : 'Search Live Flights'}
