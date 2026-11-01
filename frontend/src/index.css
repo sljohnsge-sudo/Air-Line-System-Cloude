@@ -3352,10 +3352,39 @@ body {
   .customer-portal-nav > button { flex-shrink: 0; white-space: nowrap; gap: 0.4rem; }
 }
 
-/* Home page: the flight search box sits right under the welcome text */
-.home-layout:has(+ #flight-search) { padding-bottom: 0; }
-.home-layout:has(+ #flight-search) .hero-section { padding-bottom: 1rem; min-height: 0; }
-#flight-search { margin-top: -0.5rem; }
+/* Home page: short, easy-to-read welcome text with the flight search right
+   under it, so the whole search box is visible without scrolling. */
+.home-layout:has(+ #flight-search) { padding-bottom: 0; gap: 0; }
+.home-layout:has(+ #flight-search) .hero-section {
+  padding: 1.6rem 1rem 1.1rem; min-height: 0;
+  background: none;                       /* no tinted glow behind the text */
+}
+.home-layout:has(+ #flight-search) .hero-visual { display: none; }   /* no moving map behind the text */
+.home-layout:has(+ #flight-search) .hero-content { gap: 0.6rem; }
+.home-layout .hero-tagline { font-size: 0.74rem; letter-spacing: 0.08em; }
+.home-layout .hero-title {
+  font-family: var(--font-body); font-weight: 800; letter-spacing: -0.02em;
+  font-size: clamp(1.55rem, 2.3vw, 2.05rem); line-height: 1.22; color: #0f172a;
+}
+.home-layout .hero-subtitle { font-size: 1rem; color: #334155; max-width: 680px; line-height: 1.6; }
+.home-layout .hero-subtitle strong { color: #0f172a; font-weight: 700; }
+
+#flight-search { margin-top: 0; }
+#flight-search .flight-hero {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  padding: 1.1rem 1.5rem 1.25rem;
+  margin-bottom: 1.75rem;
+}
+#flight-search .search-type-tabs { margin-bottom: 0.85rem; }
+@media (max-width: 640px) {
+  .home-layout .hero-title { font-size: 1.45rem; }
+  .home-layout .hero-subtitle { font-size: 0.92rem; }
+  .home-layout:has(+ #flight-search) .hero-section { padding: 1.1rem 0.75rem 0.75rem; }
+  #flight-search .flight-hero { padding: 0.9rem 0.9rem 1rem; }
+}
 
 /* ══ Tick and Book palette — booking pages only ═════════════════════════════
    The rest of the site keeps its original colours; the booking flow
