@@ -3050,12 +3050,40 @@ body {
 }
 .booking-fullpage > .modal-content > * { grid-column: 1; min-width: 0; }
 
+/* Tick and Book sky across the top of the booking pages, fading into the
+   page so the step bar sits half on the sky (like the brand mock-up). */
+.modal-overlay.booking-fullpage::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 220px;
+  background:
+    url('./assets/tickbook-sky.webp') right top / auto 100% no-repeat,
+    linear-gradient(90deg, #0c2550 0%, #173f78 45%, #2c5c97 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 115px, transparent 215px);
+  mask-image: linear-gradient(180deg, #000 0, #000 115px, transparent 215px);
+  pointer-events: none;
+  z-index: 0;
+}
+.booking-fullpage > .modal-content { position: relative; z-index: 1; }
+.booking-fullpage > .modal-content > .wz-banner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  height: 88px;
+  padding: 0 0.25rem;
+}
+@media (max-width: 768px) {
+  .modal-overlay.booking-fullpage::before { background: linear-gradient(180deg, #0c2550 0, #1c4a86 90px, #7d9ccc 160px, #f4f6f9 240px); }
+  .booking-fullpage > .modal-content > .wz-banner { height: 72px; }
+}
+
 .booking-fullpage > .modal-content > .booking-stepper {
   grid-column: 1 / -1;
   background: #fff;
   border: 1px solid var(--border-color);
-  border-radius: 0 0 12px 12px;
-  border-top: 5px solid var(--gs-crimson);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(15, 42, 85, 0.12) !important;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   padding: 0.9rem 1.5rem 0.75rem !important;
   margin: 0 0 0.5rem !important;
@@ -3070,7 +3098,7 @@ body {
 /* Trip summary -> sticky side card */
 .booking-fullpage > .modal-content > .modal-flight-summary {
   grid-column: 2;
-  grid-row: 3 / span 40;
+  grid-row: 4 / span 40;
   position: sticky;
   top: 1rem;
   flex-direction: column;
@@ -3092,7 +3120,7 @@ body {
 .booking-fullpage .modal-flight-summary .val.highlight { font-size: 1.35rem; }
 
 /* Everything else = the step card */
-.booking-fullpage > .modal-content > :not(.booking-stepper):not(.modal-header):not(.modal-flight-summary):not(.error-banner):not(.info-banner) {
+.booking-fullpage > .modal-content > :not(.wz-banner):not(.booking-stepper):not(.modal-header):not(.modal-flight-summary):not(.error-banner):not(.info-banner) {
   background: #fff;
   border: 1px solid var(--border-color);
   border-radius: 12px;
