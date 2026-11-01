@@ -25,7 +25,7 @@ const HERO_PLANE_ANIMATED = HERO_PLANE_MODE !== 'still';
 // One-tap routes under the home flight search (from Colombo)
 const POPULAR_ROUTES = [
   ['DXB', 'Dubai'], ['SIN', 'Singapore'], ['MLE', 'Maldives'],
-  ['BKK', 'Bangkok'], ['DOH', 'Doha'], ['LHR', 'London'],
+  ['BKK', 'Bangkok'], ['DOH', 'Doha'], ['LHR', 'London'], ['MEL', 'Melbourne'],
 ];
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
