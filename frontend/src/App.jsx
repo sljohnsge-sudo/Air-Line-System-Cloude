@@ -3587,9 +3587,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <span className="hero-tagline">
                 Flights · Hotels · Visa Assistance · More
               </span>
-              <h1 className="hero-title">Book Smarter,<span className="title-gradient-red">Travel Further.</span></h1>
+              <h1 className="hero-title">Book Smarter, <span className="title-gradient-red">Travel Further.</span></h1>
               <p className="hero-subtitle">
-                Discover global flights, find your perfect stay and get the travel assistance you need. Enjoy competitive fares, seamless bookings and a smarter way to plan every journey — all in one place.
+                Global flights, perfect stays and travel assistance at competitive fares — all in one place.
               </p>
               {/* Quick links to each service; ones switched off in admin just stay as labels */}
               <div className="hero-services">
@@ -4196,12 +4196,21 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               </div>
             </form>
           </section>
+          {/* Hint that there is more below the search */}
+          <button type="button" className="home-scroll-cue" aria-label="See more below"
+                  onClick={() => {
+                    // land just below the sticky header, not under it
+                    const el = document.getElementById('home-more');
+                    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - (headerRef.current?.offsetHeight || 0) - 12, behavior: 'smooth' });
+                  }}>
+            <Ico.IconChevronDown size={22} />
+          </button>
         </div>
       )}
 
       {/* ── HOME (continued): packages, why-us cards, footer ── */}
       {showHomePage && (
-        <div className="home-layout animate-fade">
+        <div id="home-more" className="home-layout animate-fade">
           {/* Featured Tour Packages & Special Hotel Packages — 4-package
               teasers with a link through to the full catalog (filtered by
               type there), so the homepage doesn't have to load/show every
