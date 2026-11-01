@@ -19,7 +19,7 @@
   --tb-sky-soft: #D4EAF8;
   --tb-coral-soft: #FBE6E1;
   --tb-border: #D6E3EF;
-  --tb-muted: #5C6F86;
+  --tb-muted: #52657C;
   --tb-shadow-color: 18, 59, 112; /* navy as r,g,b for rgba() */
   --tb-focus-ring: 0 0 0 3px rgba(114, 188, 235, 0.35);
 
@@ -34,8 +34,8 @@
   --gs-dark: var(--tb-text);
   --gs-dark-light: #3d5068;
 
-  --bg-main: var(--tb-ice);
-  --bg-gradient: linear-gradient(180deg, var(--tb-ice) 0%, #F6FAFE 100%);
+  --bg-main: var(--tb-white);   /* clean white pages; ice blue only for soft panels */
+  --bg-gradient: none;
   --bg-panel: var(--tb-white);
   --bg-glass: rgba(255, 255, 255, 0.98);
 
@@ -52,7 +52,7 @@
   --warning: #b45309;
 
   --text-primary: var(--tb-text);
-  --text-secondary: #3d5068;
+  --text-secondary: #33465C;
   --text-muted: var(--tb-muted);
 
   --shadow-sm: 0 1px 3px rgba(var(--tb-shadow-color), 0.06), 0 1px 2px rgba(var(--tb-shadow-color), 0.03);
@@ -3048,7 +3048,7 @@ body {
    Layout: stepper + title across the top; the step's form/options in a white
    card on the left; the trip summary as a sticky side card on the right. */
 .modal-overlay.booking-fullpage {
-  background: #f4f6f9;
+  background: var(--bg-main);
   backdrop-filter: none;
   padding: 0;
   align-items: flex-start;
@@ -3096,7 +3096,7 @@ body {
   padding: 0 0.25rem;
 }
 @media (max-width: 768px) {
-  .modal-overlay.booking-fullpage::before { background: linear-gradient(180deg, var(--tb-navy-deep) 0, #1c4a86 90px, #6fa3e0 160px, #f4f6f9 240px); }
+  .modal-overlay.booking-fullpage::before { background: linear-gradient(180deg, var(--tb-navy-deep) 0, #1c4a86 90px, #6fa3e0 160px, #ffffff 240px); }
   .booking-fullpage > .modal-content > .wz-banner { height: 72px; }
 }
 
@@ -3381,7 +3381,7 @@ body {
 .header.header-sky { border-bottom-color: var(--tb-coral); }
 .nav-tab { color: var(--tb-text); }
 .nav-tab:hover { color: var(--tb-navy); }
-.nav-tab.active { background: var(--tb-coral); color: var(--tb-text); box-shadow: 0 2px 6px rgba(233, 130, 112, 0.35); }
+.nav-tab.active { background: var(--tb-navy); color: var(--tb-white); box-shadow: 0 2px 6px rgba(18, 59, 112, 0.3); }
 
 .btn-primary { background: var(--tb-navy); border-color: var(--tb-navy); color: var(--tb-white); }
 .btn-primary:hover { background: var(--tb-navy-hover); border-color: var(--tb-navy-hover); }
