@@ -3795,3 +3795,61 @@ body {
 @media (max-width: 768px) {
   .hero-plane.from-smarter { display: none; }
 }
+
+/* ── Home: "Why travellers choose Tick and Book" sliding showcase (HomeFeatures.jsx)
+   3 cards visible (2 on tablets, 1 on phones); the track slides one card
+   width at a time. --pv = cards per view, --i = current card. */
+.hf-section { gap: 1.5rem; }
+.hf-section .section-header { max-width: 760px; }
+.hf-subtitle { margin: 0.6rem auto 0; color: var(--text-secondary); font-size: 1.02rem; line-height: 1.6; }
+.hf-carousel { --pv: 3; --gap: 1.5rem; position: relative; display: flex; align-items: center; gap: 0.6rem; }
+.hf-viewport { flex: 1; min-width: 0; overflow: hidden; padding: 6px 4px 16px; }
+.hf-track {
+  display: flex; gap: var(--gap);
+  transform: translateX(calc(var(--i) * -1 * (100% + var(--gap)) / var(--pv)));
+  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hf-card {
+  flex: 0 0 calc((100% - (var(--pv) - 1) * var(--gap)) / var(--pv));
+  min-width: 0; min-height: 340px; box-sizing: border-box;
+  border-radius: 14px; padding: 1.75rem;
+}
+.hf-card:hover { transform: translateY(-3px); }
+.hf-icon { width: 46px; height: 46px; border-radius: 12px; }
+.hf-stat { font-family: var(--font-body); font-size: 2.1rem; font-weight: 800; line-height: 1; color: var(--gs-crimson); letter-spacing: -0.02em; }
+.hf-card h4 { font-size: 1.12rem; line-height: 1.3; }
+.hf-card p { margin: 0; }
+.hf-points { list-style: none; margin: 0.1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.hf-points li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.92rem; font-weight: 600; color: var(--text-primary); }
+.hf-points li span { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #dcfce7; color: #15803d; font-size: 0.7rem; font-weight: 800; }
+.hf-highlight {
+  display: inline-flex; align-items: center; gap: 0.5rem; align-self: flex-start;
+  padding: 0.5rem 0.75rem; border-radius: 10px;
+  background: #f1f5f9; color: var(--text-primary); font-weight: 700; font-size: 0.9rem;
+}
+.hf-highlight svg { color: var(--gs-crimson); }
+.hf-foot { margin-top: auto; padding-top: 0.5rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.hf-note { font-size: 0.74rem; color: var(--text-muted); }
+.hf-cta {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 0.25rem;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: var(--font-body); font-size: 0.92rem; font-weight: 700; color: var(--gs-crimson);
+}
+.hf-cta:hover { text-decoration: underline; }
+.hf-arrow {
+  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: #ffffff; border: 1px solid var(--border-color); color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); transition: background 0.15s, color 0.15s;
+}
+.hf-arrow:hover { background: var(--gs-crimson); color: #ffffff; border-color: var(--gs-crimson); }
+.hf-dots { display: flex; justify-content: center; gap: 0.5rem; }
+.hf-dot { width: 8px; height: 8px; padding: 0; border: none; border-radius: 999px; background: #cbd5e1; cursor: pointer; transition: width 0.25s, background 0.25s; }
+.hf-dot.active { width: 26px; background: var(--gs-crimson); }
+@media (max-width: 1000px) { .hf-carousel { --pv: 2; } }
+@media (max-width: 640px) {
+  .hf-carousel { --pv: 1; --gap: 1rem; }
+  .hf-arrow { display: none; }
+  .hf-card { min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .hf-track { transition: none; } }
