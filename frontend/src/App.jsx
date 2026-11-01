@@ -3541,7 +3541,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
       )}
 
       {/* Header */}
-      <header ref={headerRef} className="header header-sky glass-panel">
+      <header ref={headerRef} className={`header header-sky glass-panel${showHomePage ? ' header-home' : ''}`}>
         <div className="logo-container" onClick={() => setActiveTab('home')} role="link" aria-label="Tick and Book home" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <TickBookLogo light size={44} />
         </div>
@@ -3585,13 +3585,27 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             </div>
             <div className="hero-content">
               <span className="hero-tagline">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
                 Flights · Hotels · Visa Assistance · More
               </span>
-              <h1 className="hero-title">Book Smarter, Travel Further.<span className="title-gradient-red">Your Journey Starts Here.</span></h1>
+              <h1 className="hero-title">Book Smarter,<span className="title-gradient-red">Travel Further.</span></h1>
               <p className="hero-subtitle">
-                Discover global flights, find your perfect stay and get the travel assistance you need. Enjoy <strong>competitive fares, seamless bookings</strong> and a smarter way to plan every journey — all in one place.
+                Discover global flights, find your perfect stay and get the travel assistance you need. Enjoy competitive fares, seamless bookings and a smarter way to plan every journey — all in one place.
               </p>
+              {/* Quick links to each service; ones switched off in admin just stay as labels */}
+              <div className="hero-services">
+                <button type="button" onClick={() => document.getElementById('flight-search')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                  <Ico.IconPlane size={20} />Global Flights
+                </button>
+                <button type="button" disabled={!featureFlags.hotels_enabled} onClick={() => setActiveTab('hotels')}>
+                  <Ico.IconBed size={20} />Hotel Stays
+                </button>
+                <button type="button" disabled={!featureFlags.visa_enabled} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>
+                  <Ico.IconPassport size={20} />Visa Assistance
+                </button>
+                <button type="button" disabled={!featureFlags.packages_enabled} onClick={() => openPackages()}>
+                  <Ico.IconBag size={20} />Travel Services
+                </button>
+              </div>
             </div>
           </section>
         </div>
@@ -3609,9 +3623,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
           <section className="search-section glass-panel flight-hero">
 
             <div className="search-type-tabs">
-              <button type="button" className={`search-type-tab ${searchType === 'oneway' ? 'active' : ''}`} onClick={() => setSearchType('oneway')}>One Way</button>
-              <button type="button" className={`search-type-tab ${searchType === 'roundtrip' ? 'active' : ''}`} onClick={() => setSearchType('roundtrip')}>Round Trip</button>
-              <button type="button" className={`search-type-tab ${searchType === 'multicity' ? 'active' : ''}`} onClick={() => setSearchType('multicity')}>Multi City</button>
+              <button type="button" className={`search-type-tab ${searchType === 'oneway' ? 'active' : ''}`} onClick={() => setSearchType('oneway')}><Ico.IconPlane size={15} className="trip-tab-icon" />One Way</button>
+              <button type="button" className={`search-type-tab ${searchType === 'roundtrip' ? 'active' : ''}`} onClick={() => setSearchType('roundtrip')}><Ico.IconSwap size={15} className="trip-tab-icon" />Round Trip</button>
+              <button type="button" className={`search-type-tab ${searchType === 'multicity' ? 'active' : ''}`} onClick={() => setSearchType('multicity')}><Ico.IconRoute size={15} className="trip-tab-icon" />Multi City</button>
             </div>
 
             <form onSubmit={handleSearch} className="search-form">
@@ -4098,7 +4112,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     }}
                     onClick={() => setShowCabinPopover(!showCabinPopover)}
                   >
-                    <svg className="flight-hero-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 22l1.5-5L19 4l1 1-12.5 13.5L3 22"/><path d="M15 9l4-4"/></svg>
+                    <Ico.IconSeat size={16} className="flight-hero-field-icon" />
                     <span>
                       {cabinPref === 'PremiumEconomy' ? 'Premium Economy' : cabinPref === 'All' ? 'All Cabin Classes' : cabinPref}
                     </span>

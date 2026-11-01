@@ -3352,38 +3352,164 @@ body {
   .customer-portal-nav > button { flex-shrink: 0; white-space: nowrap; gap: 0.4rem; }
 }
 
-/* Home page: short, easy-to-read welcome text with the flight search right
-   under it, so the whole search box is visible without scrolling. */
-.home-layout:has(+ #flight-search) { padding-bottom: 0; gap: 0; }
-.home-layout:has(+ #flight-search) .hero-section {
-  padding: 1.6rem 1rem 1.1rem; min-height: 0;
-  background: none;                       /* no tinted glow behind the text */
+/* ══ Home page: bright-blue sky hero + flight search ══════════════════════════
+   The header joins the hero as one blue band (menu in white), the welcome
+   text sits on the left with the plane on the right, and the white search
+   card overlaps the bottom of the sky. Home page only; layout and colour
+   only — the search fields, pop-ups and handlers are unchanged. */
+:root {
+  --home-sky-top: #01418A;
+  --home-sky-mid: #0161B4;
+  --home-sky-low: #46A6EA;
+  --home-navy: #0B3A75;
+  --home-cyan: #22D3EE;
 }
-.home-layout:has(+ #flight-search) .hero-visual { display: none; }   /* no moving map behind the text */
-.home-layout:has(+ #flight-search) .hero-content { gap: 0.6rem; }
-.home-layout .hero-tagline { font-size: 0.74rem; letter-spacing: 0.08em; }
-.home-layout .hero-title {
-  font-family: var(--font-body); font-weight: 800; letter-spacing: -0.02em;
-  font-size: clamp(1.55rem, 2.3vw, 2.05rem); line-height: 1.22; color: #0f172a;
-}
-.home-layout .hero-subtitle { font-size: 1rem; color: #334155; max-width: 680px; line-height: 1.6; }
-.home-layout .hero-subtitle strong { color: #0f172a; font-weight: 700; }
 
-#flight-search { margin-top: 0; }
-#flight-search .flight-hero {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-  padding: 1.1rem 1.5rem 1.25rem;
-  margin-bottom: 1.75rem;
+/* Header blends into the sky */
+.header.header-home {
+  background: var(--home-sky-top) !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  border-radius: 0;
 }
-#flight-search .search-type-tabs { margin-bottom: 0.85rem; }
-@media (max-width: 640px) {
-  .home-layout .hero-title { font-size: 1.45rem; }
-  .home-layout .hero-subtitle { font-size: 0.92rem; }
-  .home-layout:has(+ #flight-search) .hero-section { padding: 1.1rem 0.75rem 0.75rem; }
-  #flight-search .flight-hero { padding: 0.9rem 0.9rem 1rem; }
+.header.header-home .nav-tabs { background: transparent !important; box-shadow: none !important; gap: 0.3rem; }
+.header.header-home .nav-tab { color: #ffffff; font-weight: 600; border-radius: 999px; padding: 0.5rem 1rem; }
+.header.header-home .nav-tab:hover { background: rgba(255, 255, 255, 0.12); color: #ffffff; }
+.header.header-home .nav-tab.active { background: #ffffff; color: var(--home-navy); box-shadow: none; }
+.header.header-home .nav-tab:last-child { border: 1.5px solid rgba(255, 255, 255, 0.85); margin-left: 0.4rem; }
+.header.header-home .nav-tab:last-child.active { border-color: #ffffff; }
+
+/* Sky hero */
+.home-layout:has(+ #flight-search) { padding-bottom: 0; gap: 0; }
+.home-layout:has(+ #flight-search) .hero-visual { display: none; }
+.home-layout:has(+ #flight-search) .hero-section {
+  min-height: 0;
+  justify-content: flex-start;
+  margin-top: 0;
+  padding: 2.4rem clamp(1.25rem, 4vw, 3.25rem) 6.25rem;
+  border-radius: 0 0 22px 22px;
+  background:
+    url('./assets/tickbook-hero-plane.webp') right bottom / auto 86% no-repeat,
+    linear-gradient(180deg, var(--home-sky-top) 0%, var(--home-sky-mid) 55%, var(--home-sky-low) 100%);
+}
+.home-layout:has(+ #flight-search) .hero-content { align-items: flex-start; text-align: left; gap: 0.85rem; max-width: 640px; }
+.home-layout:has(+ #flight-search) .hero-tagline {
+  color: #d9e9ff; font-size: 0.74rem; letter-spacing: 0.14em; font-weight: 700; gap: 0.75rem; justify-content: flex-start;
+}
+.home-layout:has(+ #flight-search) .hero-tagline::before {
+  content: ""; width: 30px; height: 2px; background: var(--home-cyan); border-radius: 2px;
+}
+.home-layout:has(+ #flight-search) .hero-title {
+  font-family: var(--font-body); font-weight: 800; letter-spacing: -0.02em;
+  font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.08; color: #ffffff;
+}
+.home-layout:has(+ #flight-search) .hero-title .title-gradient-red { color: var(--home-cyan); }
+.home-layout:has(+ #flight-search) .hero-subtitle {
+  margin: 0; max-width: 520px; font-size: 1rem; line-height: 1.6; color: rgba(255, 255, 255, 0.92);
+}
+/* Service links */
+.hero-services { display: flex; flex-wrap: wrap; align-items: center; margin-top: 0.4rem; }
+.hero-services button {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: none; border: none; color: #ffffff; font-family: var(--font-body); font-size: 0.9rem; font-weight: 600;
+  padding: 0.35rem 1rem; cursor: pointer; border-left: 1px solid rgba(255, 255, 255, 0.35); border-radius: 0;
+}
+.hero-services button:first-child { padding-left: 0; border-left: none; }
+.hero-services button:hover:not(:disabled) { color: var(--home-cyan); }
+.hero-services button:disabled { cursor: default; opacity: 1; color: #ffffff; }
+
+/* Search card */
+#flight-search { position: relative; z-index: 2; margin: -4.4rem clamp(0.75rem, 2.5vw, 1.75rem) 0; }
+#flight-search .flight-hero {
+  background: #ffffff; border: 1px solid #e2e8f0; border-radius: 18px;
+  box-shadow: 0 20px 45px rgba(2, 40, 90, 0.16);
+  padding: 1rem 1.25rem 1.2rem; margin-bottom: 2rem;
+}
+#flight-search .search-type-tabs { padding: 0 0 0.9rem; margin-bottom: 1rem; gap: 0.4rem; border-bottom: 1px solid #e6ecf3; }
+#flight-search .search-type-tab {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  font-size: 0.88rem; font-weight: 600; padding: 0.5rem 1.05rem; border-radius: 10px; color: var(--home-navy);
+}
+#flight-search .search-type-tab.active { background: var(--home-navy) !important; color: #ffffff !important; }
+#flight-search .search-type-tab:not(.active):hover { background: #eef4fb !important; color: var(--home-navy) !important; }
+
+/* Fields: rounded boxes with an icon, one line */
+#flight-search .search-form {
+  background: transparent; border: none; box-shadow: none; border-radius: 0; padding: 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
+}
+#flight-search .search-form .form-label { display: none; }
+#flight-search .search-form .form-row > .form-group,
+#flight-search .search-form .form-row > .flight-hero-field-clearable {
+  position: relative; min-width: 0 !important;
+  border: 1px solid #d3dce8 !important; border-radius: 12px; background: #ffffff;
+  padding: 0 0.75rem !important; height: 50px;
+  display: flex; flex-direction: column; justify-content: center;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#flight-search .search-form .form-row > .flight-hero-field-clearable { flex: 1.25 1 0 !important; }
+#flight-search .search-form .form-row > .form-group { flex: 1.25 1 0 !important; }
+#flight-search .search-form > .form-row:last-of-type > .form-group { flex: 1 1 0 !important; }
+#flight-search .search-form .form-row > .form-group:hover,
+#flight-search .search-form .form-row > .flight-hero-field-clearable:hover { border-color: #9db4cf !important; }
+#flight-search .search-form .form-row > .form-group:focus-within,
+#flight-search .search-form .form-row > .flight-hero-field-clearable:focus-within {
+  border-color: var(--home-sky-mid) !important; box-shadow: 0 0 0 3px rgba(1, 97, 180, 0.15);
+}
+#flight-search .search-form .form-input {
+  padding: 0 !important; font-size: 0.92rem !important; font-weight: 600 !important; color: #0f172a;
+  background: transparent !important; border: none !important;
+}
+#flight-search .search-form .form-group .form-input { justify-content: flex-start; text-align: left; width: 100%; gap: 0.55rem; }
+#flight-search .search-form .form-group .form-input svg.flight-hero-chevron { margin-left: auto !important; color: var(--home-navy) !important; }
+#flight-search .search-form .flight-hero-field-clearable .form-input { padding-left: 1.5rem !important; padding-right: 1.4rem !important; height: 100%; }
+#flight-search .search-form .flight-hero-field-clearable .autocomplete-container { height: 100%; display: flex; align-items: center; }
+#flight-search .search-form .form-input svg.flight-hero-field-icon,
+#flight-search .flight-hero-pin-icon { color: var(--home-navy) !important; }
+#flight-search .flight-hero-pin-icon { left: 0.8rem; top: 50%; bottom: auto; transform: translateY(-50%); width: 15px !important; height: 15px !important; }
+#flight-search .flight-hero-clear-btn { right: 0.6rem; top: 50%; bottom: auto; transform: translateY(-50%); }
+/* Swap button between From and To */
+#flight-search .search-form .search-divider { align-self: center !important; margin: 0 -1rem !important; z-index: 2; }
+#flight-search .search-form .search-divider svg {
+  width: 32px; height: 32px; padding: 8px; color: var(--home-navy);
+  background: #eef4fb; border: 1px solid #d3dce8; border-radius: 50%;
+}
+/* Search button on its own line, right-aligned, navy with a cyan glow */
+#flight-search .search-buttons { flex: 1 1 100% !important; display: flex; justify-content: flex-end; margin: 0.35rem 0 0; }
+#flight-search .search-buttons .btn-primary {
+  background: var(--home-navy); border: 2px solid var(--home-cyan); color: #ffffff;
+  border-radius: 14px; padding: 0.8rem 2rem; font-size: 0.98rem; font-weight: 700; white-space: nowrap; min-height: 0; width: auto;
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.18), 0 8px 18px rgba(11, 58, 117, 0.25);
+}
+#flight-search .search-buttons .btn-primary:hover { background: #082d5c; border-color: var(--home-cyan); }
+
+@media (max-width: 1100px) {
+  #flight-search .search-form .form-row > .flight-hero-field-clearable,
+  #flight-search .search-form .form-row > .form-group,
+  #flight-search .search-form > .form-row:last-of-type > .form-group { flex: 1 1 calc(50% - 0.6rem) !important; }
+  #flight-search .search-form .search-divider { display: none; }
+  .home-layout:has(+ #flight-search) .hero-section { background-size: auto 70%, auto; }
+}
+@media (max-width: 768px) {
+  .header.header-home .nav-tab:last-child { margin-left: 0; }
+  .home-layout:has(+ #flight-search) .hero-section {
+    padding: 1.6rem 1.1rem 5.5rem; border-radius: 0 0 16px 16px;
+    background:
+      url('./assets/tickbook-hero-plane.webp') right bottom / 75% auto no-repeat,
+      linear-gradient(180deg, var(--home-sky-top) 0%, var(--home-sky-mid) 55%, var(--home-sky-low) 100%);
+  }
+  .home-layout:has(+ #flight-search) .hero-title { font-size: 1.9rem; }
+  .home-layout:has(+ #flight-search) .hero-subtitle { font-size: 0.92rem; }
+  .hero-services button { padding: 0.3rem 0.7rem; font-size: 0.82rem; }
+  #flight-search .search-type-tabs { flex-wrap: nowrap; }
+  #flight-search .search-type-tab { padding: 0.45rem 0.65rem; font-size: 0.8rem; white-space: nowrap; }
+  #flight-search .search-type-tab .trip-tab-icon { display: none; }
+  #flight-search { margin: -3.6rem 0.5rem 0; }
+  #flight-search .flight-hero { padding: 0.85rem; }
+  #flight-search .search-form .form-row > .flight-hero-field-clearable,
+  #flight-search .search-form .form-row > .form-group,
+  #flight-search .search-form > .form-row:last-of-type > .form-group { flex: 1 1 100% !important; }
+  #flight-search .search-buttons .btn-primary { width: 100%; }
 }
 
 /* ══ Tick and Book palette — booking pages only ═════════════════════════════
