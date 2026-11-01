@@ -24,7 +24,7 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
       : null;
     const res = await fetch(`${apiBase}/flights/search`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Search-Kind': 'nearby' },
       body: JSON.stringify({
         origin: legs ? null : origin,
         destination: legs ? null : destination,

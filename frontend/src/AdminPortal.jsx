@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
 import CancelBookingDialog from './CancelBookingDialog.jsx';
+import AdminInsights, { InsightAlerts } from './AdminInsights.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
 // Terminal dropdowns. Naming isn't standardized across airports (numbers,
@@ -39,6 +40,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [loggingIn, setLoggingIn] = useState(false);
 
   const [activeAdminSection, setActiveAdminSection] = useState('pricing');
+  const [insightJourneyId, setInsightJourneyId] = useState(null);
   const [visaSectionOpen, setVisaSectionOpen] = useState(false);
 
   // Decoded from the JWT (unsigned, display-only -- the real trust boundary
@@ -1242,6 +1244,11 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
     { id: 'notifications', label: 'Fare Notifications', count: notifications.length },
     { id: 'stuck-bookings', label: 'Stuck Bookings', count: stuckBookings.length },
+    { id: 'insight-journeys', label: 'Booking Journeys' },
+    { id: 'insight-searches', label: 'Search Records' },
+    { id: 'insight-ips', label: 'IP Watch' },
+    { id: 'insight-customers', label: 'Customer 360' },
+    { id: 'insight-reminders', label: 'Birthdays & Reminders' },
     { id: 'providers', label: 'Provider Control' },
     { id: 'packages', label: 'Tour Packages' },
     { id: 'package-requests', label: 'Package Booking Requests', count: packageRequests.length },
@@ -1341,6 +1348,15 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         </nav>
 
         <div style={{ flex: 1, minWidth: 0 }}>
+
+      {activeAdminSection.startsWith('insight-') && (
+        <AdminInsights section={activeAdminSection} API_BASE={API_BASE} adminToken={adminToken}
+          openJourneyId={insightJourneyId} onJourneyOpened={() => setInsightJourneyId(null)}
+          onNavigate={setActiveAdminSection} />
+      )}
+      <InsightAlerts API_BASE={API_BASE} adminToken={adminToken}
+        onOpenJourney={(id) => { setInsightJourneyId(id); setActiveAdminSection('insight-journeys'); }}
+        onOpenIps={() => setActiveAdminSection('insight-ips')} />
 
       {activeAdminSection === 'pricing' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>

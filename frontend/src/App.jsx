@@ -56,8 +56,33 @@ const AMADEUS_API_BASE = import.meta.env.VITE_AMADEUS_API_BASE || `http://${wind
 // Retries only requests that are safe to repeat (GET/HEAD), or ones a caller
 // marks { retry: true }. A booking or payment POST that hit a network error
 // may still have reached the server, so resending it could book or charge twice.
+// Booking journey id: a new one per flight search, kept in this tab (it
+// survives the payment page redirect) and sent as X-Journey-Id with every
+// call to our API, so the admin can see each step of a booking pass or fail.
+const JOURNEY_KEY = 'tb_journey_id';
+const currentJourneyId = () => { try { return sessionStorage.getItem(JOURNEY_KEY); } catch { return null; } };
+const startNewJourney = () => {
+  const id = (window.crypto?.randomUUID?.() || `j${Date.now()}${Math.random().toString(16).slice(2)}`).slice(0, 40);
+  try { sessionStorage.setItem(JOURNEY_KEY, id); } catch { /* storage off: steps just aren't linked */ }
+  return id;
+};
+const withJourneyHeader = (url, options) => {
+  const jid = currentJourneyId();
+  if (!jid || !String(url).startsWith(API_BASE)) return options;
+  return { ...options, headers: { ...(options.headers || {}), 'X-Journey-Id': jid } };
+};
+// Fire-and-forget: a step that happens only in the browser.
+const reportJourneyStep = (step, extra = {}) => {
+  if (!currentJourneyId()) return;
+  fetch(`${API_BASE}/journey/event`, withJourneyHeader(`${API_BASE}/journey/event`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ step, status: 'pass', ...extra }), keepalive: true,
+  })).catch(() => {});
+};
+
 const fetchWithRetry = async (url, options = {}, retries = 3, delay = 1000) => {
-  const { retry, ...fetchOptions } = options;
+  const { retry, ...rawFetchOptions } = options;
+  const fetchOptions = withJourneyHeader(url, rawFetchOptions);
   const method = (fetchOptions.method || 'GET').toUpperCase();
   const attempts = (retry ?? (method === 'GET' || method === 'HEAD')) ? retries : 1;
   for (let i = 0; i < attempts; i++) {
@@ -2225,6 +2250,7 @@ export default function App() {
       })();
     } else if (locator && reqid) {
       window.history.replaceState({}, '', window.location.pathname);
+      reportJourneyStep('Payment returned', { detail: `Customer came back from the payment page (PNR ${locator})` });
       (async () => {
         try {
           const res = await fetchWithRetry(`${API_BASE}/bookings/${locator}/issue-ticket`, {
@@ -2249,6 +2275,7 @@ export default function App() {
         }
       })();
     } else if (ndcPending && reqid) {
+      reportJourneyStep('Payment returned', { detail: 'Customer came back from the payment page' });
       // Emirates NDC (Instant Pay): there is no PNR yet — Travelport creates
       // the PNR and issues the ticket together, only now that payment is
       // confirmed. See /api/ndc/instant-pay/complete.
@@ -2282,10 +2309,12 @@ export default function App() {
       })();
     } else if (locator && cancelled) {
       window.history.replaceState({}, '', window.location.pathname);
+      reportJourneyStep('Payment cancelled', { detail: `Customer cancelled on the payment page (PNR ${locator})` });
       setVerifyingPayment(false);
       showNotification(`Payment was cancelled. Your booking (PNR: ${locator}) is held — you can complete payment later.`, 'info');
     } else if (ndcPending && cancelled) {
       window.history.replaceState({}, '', window.location.pathname);
+      reportJourneyStep('Payment cancelled', { detail: 'Customer cancelled on the payment page' });
       setVerifyingPayment(false);
       showNotification('Payment was cancelled. Your selection was not booked — search and select the flight again.', 'info');
     }
@@ -2556,6 +2585,7 @@ export default function App() {
     // that resolves in well under a second.
     const minLoaderPromise = new Promise(resolve => setTimeout(resolve, 6000));
 
+    startNewJourney();
     try {
       const searchPromise = fetchWithRetry(`${API_BASE}/flights/search`, {
         method: 'POST',
@@ -2636,6 +2666,11 @@ export default function App() {
     if (roundTripPhase === 'return' && flight._pairedOffer) {
       flight = flight._pairedOffer;
     }
+    reportJourneyStep('Flight selected', {
+      detail: `${flight.airline || ''} ${(flight.legs || [flight]).map(l => l.flight_number).join(' / ')} · ${fareOption?.brand_name || fareOption?.cabin_class || ''}`.trim(),
+      airline: flight.airline, flight: (flight.legs || [flight]).map(l => l.flight_number).join(' ').slice(0, 80),
+      fare_source: flight.fare_source, amount: fareOption?.price, currency: fareOption?.currency,
+    });
 
     // Amadeus ("AD") offers skip the whole Travelport wizard (passport-heavy
     // passenger form, seat map, Travelport-shaped review/payment/ticket) and

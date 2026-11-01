@@ -46,13 +46,14 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query, status, Depends, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator
 from typing import Optional, List, Literal
 import database
 import services
 import auth
 import hotel_database
+import insights
 from services import seat_rules, fare_rule_service
 from services.special_services import MEAL_SSR_TYPES, merge_ssr_status
 from services import segment_status
@@ -60,6 +61,7 @@ from services import live_booking_service
 from services import manage_booking_service
 from services import addon_billing
 from services import addon_deadlines
+from services import email_service, sms_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -89,6 +91,14 @@ def _start_extras_deadline_sweep():
     (services/addon_deadlines.py). EXTRAS_SWEEP_MINUTES=0 turns it off —
     run one process with it on if the API is scaled to several workers."""
     addon_deadlines.start_sweeper(int(os.getenv("EXTRAS_SWEEP_MINUTES", "15")))
+
+
+@app.on_event("startup")
+def _ensure_insight_tables():
+    try:
+        insights.ensure_tables()
+    except Exception as e:
+        logger.error(f"Admin insight tables could not be created: {e}")
 
 # ── Go-live module gate (server-side enforcement of the feature flags) ────────
 # Nov 1 launch ships Travelport flights only. Hotels/Visa/Packages are built
@@ -148,6 +158,43 @@ async def _enforce_module_flags(request: Request, call_next):
                 return _module_unavailable()
             break
     return await call_next(request)
+
+
+# Customer-facing booking routes an admin-blocked IP may not use.
+BLOCKABLE_PREFIXES = ("/api/flights/search", "/api/bookings/initiate", "/api/bookings/confirm",
+                      "/api/ndc/book", "/api/payments/init")
+
+
+@app.middleware("http")
+async def _journey_and_ip(request: Request, call_next):
+    """Binds the caller's IP and booking-journey id (X-Journey-Id header) for
+    insights.py, refuses admin-blocked IPs on the booking routes, and records
+    each booking-flow endpoint as a passed/failed journey step — a failure
+    keeps the exact message the customer saw."""
+    tokens = insights.bind_request(request)
+    try:
+        path = request.url.path
+        if path.startswith(BLOCKABLE_PREFIXES) and await asyncio.to_thread(insights.is_blocked, insights.current_ip()):
+            return JSONResponse(status_code=403, content={
+                "detail": "We can't process requests from your network right now. Please contact Tick and Book."})
+        step = insights.endpoint_step(request.method, path) if insights.current_journey() else None
+        response = await call_next(request)
+        if step:
+            if response.status_code < 400:
+                await asyncio.to_thread(insights.mark, step, "pass")
+            else:
+                body = b"".join([chunk async for chunk in response.body_iterator])
+                try:
+                    detail = json.loads(body).get("detail")
+                    detail = detail if isinstance(detail, str) else json.dumps(detail)[:1000]
+                except Exception:
+                    detail = body[:300].decode("utf-8", "replace")
+                await asyncio.to_thread(insights.mark, step, "fail", f"HTTP {response.status_code}: {detail}")
+                response = Response(content=body, status_code=response.status_code,
+                                    headers=dict(response.headers), media_type=response.media_type)
+        return response
+    finally:
+        insights.unbind_request(tokens)
 
 
 # CORS: only the site's own origins may call this API from a browser. Set
@@ -626,7 +673,15 @@ def _notify_cancel_failure(locator_code: str, error_message: str, recorded_statu
 
 
 @app.post("/api/flights/search")
-async def search_flights(request: FlightSearchRequest):
+async def search_flights(request: FlightSearchRequest, http_request: Request,
+                         customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+    kind = "nearby" if http_request.headers.get("x-search-kind") == "nearby" else "search"
+    return await _search_core(request, kind=kind, customer_id=customer_id,
+                              user_agent=http_request.headers.get("user-agent"))
+
+
+async def _search_core(request: FlightSearchRequest, kind: str = "search", customer_id: Optional[int] = None,
+                       user_agent: Optional[str] = None):
     """
     STEP 2 — Search available flights. Merges live Travelport ("TP") results
     with the sibling Amadeus system's live results ("AD") — each offer is
@@ -649,6 +704,7 @@ async def search_flights(request: FlightSearchRequest):
         route_info = f"{request.origin} → {request.destination} on {request.departure_date}"
 
     legs = [l.model_dump() for l in request.legs] if request.legs else None
+    started = time.monotonic()
 
     # Admin on/off switch (Admin Portal -> Provider Control) -- lets staff
     # take a GDS out of the unified search entirely (contract issue, outage,
@@ -750,13 +806,28 @@ async def search_flights(request: FlightSearchRequest):
         elif ad_result:
             offers.extend(ad_result)
 
+    # What each provider was asked and what it gave back — kept with the
+    # search record so it can be shown later exactly as it happened.
+    def _provider_result(task, result, tag):
+        if task is None:
+            return "not queried"
+        if isinstance(result, Exception):
+            return f"error: {str(result)[:300]}"
+        return f"{len([o for o in offers if o.get('source') == tag])} offers"
+    providers = {"TP": _provider_result(tp_task, tp_result, "TP"), "AD": _provider_result(ad_task, ad_result, "AD")}
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+
     if not offers and tp_task is not None and isinstance(tp_result, Exception):
         # Both providers failed (or AD wasn't queried/enabled) with nothing to
         # show — surface Travelport's error to the caller as before, rather
         # than a silent empty list.
+        await asyncio.to_thread(insights.log_search, request, [], providers, elapsed_ms, str(tp_result)[:400],
+                                customer_id, user_agent, kind)
         raise HTTPException(status_code=502, detail=f"Travelport search error: {str(tp_result)[:400]}")
 
     offers.sort(key=lambda o: (o.get("price") if o.get("price") is not None else float("inf")))
+    await asyncio.to_thread(insights.log_search, request, offers, providers, elapsed_ms, None,
+                            customer_id, user_agent, kind)
     return {"flights": offers, "count": len(offers)}
 
 
@@ -838,6 +909,22 @@ def _segments_of_offering(raw_offering: dict) -> list:
 
 
 _PTC_LABEL = {"ADT": "an Adult", "STU": "a Student", "CNN": "a Child", "INF": "an Infant"}
+
+
+def _journey_booking_info(travelers: list, raw_offering: dict) -> None:
+    """Lead passenger + flight for the admin's booking-journey record."""
+    try:
+        lead = travelers[0] if travelers else {}
+        lead = lead.model_dump() if hasattr(lead, "model_dump") else lead
+        segs = _segments_of_offering(raw_offering)
+        insights.journey_info(
+            customer_name=f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip().upper(),
+            customer_email=lead.get("email"), customer_phone=lead.get("phone"),
+            flight=" ".join(s.get("flight_number") or "" for s in segs)[:80],
+            airline=(segs[0].get("carrier_name") or segs[0].get("carrier")) if segs else None,
+        )
+    except Exception as e:
+        logger.warning(f"journey info not recorded: {e}")
 
 
 def _check_travelers_for_trip(travelers: list, raw_offering: dict) -> None:
@@ -1196,6 +1283,7 @@ def initiate_booking(request: BookingInitiateRequest):
     Initiates booking: Creates GDS workbench, adds selected offer, and returns seat map.
     """
     logger.info("Initiating booking and fetching live seat map...")
+    _journey_booking_info(request.travelers, request.raw_offering)
     _check_travelers_for_trip(request.travelers, request.raw_offering)
     raw_offering = request.raw_offering
     travelers = [t.model_dump() for t in request.travelers]
@@ -1334,6 +1422,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
     selected_seats = request.selected_seats
+    _journey_booking_info(travelers, raw_offering)
     _check_travelers_for_trip(travelers, raw_offering)
     _claim_booking_submission(raw_offering, travelers)
 
@@ -1581,6 +1670,8 @@ def _verify_and_claim_payment(
         raise HTTPException(status_code=502, detail=str(e))
 
     if not payment_result.get("success"):
+        insights.mark("Payment verified", "fail",
+                      f"PayCorp code {payment_result.get('response_code')}: {payment_result.get('response_text')}")
         logger.warning(
             f"Ticket issuance refused — payment not successful "
             f"(code={payment_result.get('response_code')}, reqid={reqid})"
@@ -1624,6 +1715,8 @@ def _verify_and_claim_payment(
         )
 
     logger.info(f"Payment verified for client_ref={expected_client_ref} (txnReference={payment_result.get('txn_reference')}) — issuing ticket...")
+    insights.mark("Payment verified", "pass",
+                  f"Paid {expected_currency or ''} {expected_amount or ''} — txn {payment_result.get('txn_reference')}".strip())
     return payment_result
 
 
@@ -1666,6 +1759,8 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     # can't be issued then, so alert staff to refund instead of trying.
     problem = _live_airline_problem(locator_code)
     if problem:
+        insights.mark("Ticket issued", "fail", "Airline has not confirmed / has cancelled the flight",
+                      raw_error=json.dumps(problem.get("codes")))
         _notify_airline_problem(locator_code, problem["codes"], payment_result.get("txn_reference") or "paid")
         _auto_refund_for_booking(locator_code, "airline has not confirmed / cancelled the flight",
                                  payment_result.get("txn_reference") or request.reqid)
@@ -1693,6 +1788,7 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
             _notify_stuck_booking(locator_code, str(e), txn_ref)
         except Exception as notify_err:
             logger.error(f"Failed to send stuck-booking notification for {locator_code} (non-fatal): {notify_err}")
+        insights.mark("Ticket issued", "fail", "Travelport did not issue the ticket", raw_error=str(e))
         if payment_result:
             # Paid by card, no ticket: refund request filed for the customer;
             # the Travelport error stays in the log, not on their screen.
@@ -1706,6 +1802,8 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
     finally:
         services.end_flow_trace_id(trace_token)
 
+    insights.mark("Ticket issued", "pass", f"PNR {locator_code} — ticket {ticket.get('ticket_number')}")
+    insights.journey_info(locator_code=locator_code)
     if payment_result:
         ticket["payment_txn_reference"] = payment_result.get("txn_reference")
         ticket["payment_auth_code"] = payment_result.get("auth_code")
@@ -1993,6 +2091,8 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
             except Exception as db_err:
                 logger.error(f"Could not record ERP sync failure for {locator}: {db_err}")
 
+    insights.mark("Ticket issued", "pass", f"PNR {locator} — ticket(s) {', '.join(n for _, n in ip['ticket_numbers'])}")
+    insights.journey_info(locator_code=locator)
     for _, number in ip["ticket_numbers"]:
         try:
             services.retrieve_ndc_ticket(locator, number)
@@ -2027,6 +2127,7 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
     and the PNR + ticket are created together, after payment, by
     /api/ndc/instant-pay/complete.
     """
+    _journey_booking_info(request.travelers, request.raw_offering)
     _check_travelers_for_trip(request.travelers, request.raw_offering)
     if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
         # Price it with Travelport now, so the amount the customer pays is
@@ -2051,6 +2152,7 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
             "selected_ancillaries": [a.model_dump() for a in request.selected_ancillaries],
             "customer_id": customer_id,
         }, amount, currency)
+        insights.journey_info(amount=amount, currency=currency, fare_source="NDC")
         return {"requires_prepay": True, "pending_id": pending_id, "amount": amount, "currency": currency}
 
     trace_token = services.start_flow_trace_id()
@@ -2176,6 +2278,8 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
         # this as an unhandled crash, which the browser saw as a network error).
         reason = e.detail if isinstance(e, HTTPException) else f"{type(e).__name__}: {e}"
         logger.error(f"{reference}: paid (reqid={request.reqid}) but not ticketed — {reason}")
+        insights.mark("Ticket issued", "fail", "Airline/Travelport did not issue the ticket — automatic refund request filed",
+                      raw_error=str(reason))
         try:
             _notify_stuck_booking(reference, f"{reason} (payment reqid {request.reqid})", payment_result.get("txn_reference"))
         except Exception as notify_err:
@@ -5116,3 +5220,270 @@ def indigo_book(request: IndigoBookingRequest):
     except IndigoApiError as e:
         logger.error(f"IndiGo booking failed: {e}")
         raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+# ── Admin insights: search records, booking journeys, IP watch, customer 360 ──
+# Everything below reads what customers entered and what Travelport (and,
+# later, Amadeus) returned — see insights.py. Nothing is generated.
+
+class JourneyEventRequest(BaseModel):
+    step: str = Field(..., max_length=60)
+    status: Literal["pass", "fail"] = "pass"
+    detail: Optional[str] = Field(default=None, max_length=500)
+    airline: Optional[str] = Field(default=None, max_length=100)
+    flight: Optional[str] = Field(default=None, max_length=80)
+    fare_source: Optional[str] = Field(default=None, max_length=10)
+    amount: Optional[float] = None
+    currency: Optional[str] = Field(default=None, max_length=5)
+
+
+@app.post("/api/journey/event")
+def journey_event(request: JourneyEventRequest):
+    """Steps that only happen in the browser (flight chosen, back from the
+    payment page). Needs the X-Journey-Id header; anything else is ignored."""
+    if not insights.current_journey() or request.step not in insights.CLIENT_STEPS:
+        return {"ok": False}
+    insights.journey_info(airline=request.airline, flight=request.flight, fare_source=request.fare_source,
+                          amount=request.amount, currency=request.currency)
+    insights.mark(request.step, request.status, request.detail)
+    return {"ok": True}
+
+
+@app.get("/api/admin/insights/searches")
+def admin_searches(days: int = Query(7, ge=1, le=365), ip: Optional[str] = None, route: Optional[str] = None,
+                   customer_id: Optional[int] = None, _admin: dict = Depends(auth.get_current_admin)):
+    return {"searches": insights.list_searches(days=days, ip=ip, route=route, customer_id=customer_id)}
+
+
+@app.get("/api/admin/insights/searches/{search_id}")
+def admin_search_detail(search_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    row = insights.get_search(search_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Search not found")
+    return row
+
+
+def _request_from_logged_search(old: dict) -> FlightSearchRequest:
+    legs = old.get("legs")
+    return FlightSearchRequest(
+        origin=None if legs else old["origin"], destination=None if legs else old["destination"],
+        departure_date=None if legs else old["departure_date"],
+        legs=[SearchLeg(**l) for l in legs] if legs else None,
+        adult_count=old.get("adults") or 1, child_count=old.get("children") or 0,
+        infant_count=old.get("infants") or 0, student_count=old.get("students") or 0,
+        cabin_preference=None if (old.get("cabin") or "All") == "All" else old["cabin"],
+    )
+
+
+async def _live_recheck(search_id: int) -> tuple[dict, Optional[dict], int]:
+    """(logged search, cheapest live offer now, live offer count) — the same
+    search run again against the live providers."""
+    old = await asyncio.to_thread(insights.get_search, search_id)
+    if not old:
+        raise HTTPException(status_code=404, detail="Search not found")
+    result = await _search_core(_request_from_logged_search(old), kind="admin_recheck")
+    flights = result["flights"]
+    return old, (flights[0] if flights else None), len(flights)
+
+
+def _is_cheaper(old: dict, now: Optional[dict]) -> bool:
+    return bool(now and old.get("cheapest_price") and now.get("currency") == old.get("cheapest_currency")
+                and now["price"] < old["cheapest_price"])
+
+
+@app.post("/api/admin/insights/searches/{search_id}/recheck")
+async def admin_search_recheck(search_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    """Runs the same search live again now and compares the cheapest fare
+    with what that customer was shown."""
+    old, now, count = await _live_recheck(search_id)
+    return {
+        "seen_price": old.get("cheapest_price"), "seen_currency": old.get("cheapest_currency"),
+        "seen_airline": old.get("cheapest_airline"), "seen_at": old.get("searched_at"),
+        "now_price": now.get("price") if now else None, "now_currency": now.get("currency") if now else None,
+        "now_airline": now.get("airline") if now else None, "now_count": count,
+        "cheaper": _is_cheaper(old, now),
+    }
+
+
+class FareAlertRequest(BaseModel):
+    email: EmailStr
+
+
+@app.post("/api/admin/insights/searches/{search_id}/fare-alert")
+async def admin_send_fare_alert(search_id: int, request: FareAlertRequest,
+                                admin: dict = Depends(auth.get_current_admin)):
+    """Emails the customer the live fare for the route they searched — only
+    if a live search right now is really cheaper than what they were shown."""
+    old, now, _ = await _live_recheck(search_id)
+    if not _is_cheaper(old, now):
+        raise HTTPException(status_code=409, detail="The live fare is not cheaper than what the customer saw — nothing sent.")
+    site = os.getenv("PUBLIC_SITE_URL", "").rstrip("/")
+    route = f"{old['origin']} → {old['destination']}"
+    dates = old["departure_date"] + (f" – {old['return_date']}" if old.get("return_date") else "")
+    body = (
+        f"Hello,\n\nGood news — the fare for the trip you looked at has dropped.\n\n"
+        f"Route:    {route}\nDates:    {dates}\n"
+        f"Now from: {now['currency']} {now['price']:,.0f} ({now.get('airline')})\n"
+        f"Before:   {old['cheapest_currency']} {old['cheapest_price']:,.0f}\n\n"
+        f"Fares change quickly and are confirmed only at booking."
+        + (f"\nSearch and book: {site}\n" if site else "\n")
+        + "\nTick and Book\n"
+    )
+    ok, err = await asyncio.to_thread(email_service._send, request.email,
+                                      f"Lower fare: {route} from {now['currency']} {now['price']:,.0f}", body)
+    await asyncio.to_thread(insights.record_message, request.email.lower(), "fare_alert",
+                            f"S{search_id}", "email", ok, err, admin.get("sub"))
+    if not ok:
+        raise HTTPException(status_code=502, detail=f"Email not sent: {err}")
+    return {"sent": True, "now_price": now["price"], "currency": now["currency"]}
+
+
+@app.get("/api/admin/insights/journeys")
+def admin_journeys(days: int = Query(7, ge=1, le=365), status_filter: Optional[str] = Query(None, alias="status"),
+                   _admin: dict = Depends(auth.get_current_admin)):
+    return {"journeys": insights.list_journeys(days=days, status=status_filter)}
+
+
+@app.get("/api/admin/insights/journeys/{journey_id}")
+def admin_journey_detail(journey_id: str, _admin: dict = Depends(auth.get_current_admin)):
+    j = insights.get_journey(journey_id)
+    if not j:
+        raise HTTPException(status_code=404, detail="Journey not found")
+    return j
+
+
+@app.get("/api/admin/insights/alerts")
+def admin_insight_alerts(_admin: dict = Depends(auth.get_current_admin)):
+    return insights.alerts_since(None)
+
+
+@app.post("/api/admin/insights/alerts/seen")
+def admin_insight_alerts_seen(_admin: dict = Depends(auth.get_current_admin)):
+    insights.mark_failures_seen()
+    return {"ok": True}
+
+
+@app.get("/api/admin/insights/ips")
+def admin_ip_watch(days: int = Query(7, ge=1, le=90), _admin: dict = Depends(auth.get_current_admin)):
+    return {"ips": insights.ip_watch(days=days)}
+
+
+class BlockIpRequest(BaseModel):
+    ip: str = Field(..., min_length=3, max_length=45)
+    reason: Optional[str] = Field(default=None, max_length=300)
+
+
+@app.post("/api/admin/insights/ips/block")
+def admin_block_ip(request: BlockIpRequest, admin: dict = Depends(auth.get_current_admin)):
+    insights.block_ip(request.ip.strip(), request.reason or "", admin.get("sub"))
+    return {"ok": True}
+
+
+@app.post("/api/admin/insights/ips/unblock")
+def admin_unblock_ip(request: BlockIpRequest, _admin: dict = Depends(auth.get_current_admin)):
+    insights.unblock_ip(request.ip.strip())
+    return {"ok": True}
+
+
+@app.get("/api/admin/insights/customers")
+def admin_customers_360(q: Optional[str] = None, _admin: dict = Depends(auth.get_current_admin)):
+    return {"customers": insights.customers_360(q)}
+
+
+@app.get("/api/admin/insights/customer")
+def admin_customer_detail(email: str, _admin: dict = Depends(auth.get_current_admin)):
+    return insights.customer_detail(email)
+
+
+# Automatic daily reminders — OFF unless AUTO_REMINDERS=true. Birthday wishes
+# are marketing: under Sri Lanka's PDPA only send them to customers who have
+# agreed to receive messages. Each reminder goes once (customer_messages).
+AUTO_REMINDERS = os.getenv("AUTO_REMINDERS", "false").strip().lower() in ("1", "true", "yes")
+
+
+@app.get("/api/admin/insights/reminders")
+def admin_reminders(birthday_days: int = Query(30, ge=1, le=366), passport_months: int = Query(6, ge=1, le=24),
+                    _admin: dict = Depends(auth.get_current_admin)):
+    return {"birthdays": insights.upcoming_birthdays(birthday_days),
+            "passports": insights.expiring_passports(passport_months),
+            "auto_enabled": AUTO_REMINDERS}
+
+
+@app.get("/api/admin/insights/routes")
+def admin_route_report(days: int = Query(30, ge=1, le=365), _admin: dict = Depends(auth.get_current_admin)):
+    return {"routes": insights.route_report(days)}
+
+
+class ReminderSendRequest(BaseModel):
+    kind: Literal["birthday", "passport"]
+    email: EmailStr
+    channel: Literal["email", "sms"] = "email"
+
+
+def _reminder_text(kind: str, row: dict) -> tuple[str, str, str]:
+    """(subject, email body, sms text) built only from the traveller's own details."""
+    first = (row.get("name") or "").split(" ")[0].title() or "there"
+    if kind == "birthday":
+        return ("Happy birthday from Tick and Book",
+                f"Dear {first},\n\nHappy birthday from all of us at Tick and Book! "
+                f"We hope your year ahead is full of great journeys.\n\nTick and Book\n",
+                f"Happy birthday {first}! Wishing you a year of great journeys - Tick and Book")
+    exp = row.get("passport_expiry")
+    when = "has expired" if row.get("expired") else f"expires on {exp}"
+    return ("Your passport is due for renewal",
+            f"Dear {first},\n\nOur records show the passport ending {row.get('passport_last4')} that you travelled "
+            f"with {when}. Many countries require at least 6 months' validity on arrival, so renewing early "
+            f"avoids problems at check-in.\n\nTick and Book\n",
+            f"Tick and Book: your passport ending {row.get('passport_last4')} {when}. "
+            f"Renew early - many countries need 6 months' validity.")
+
+
+def _send_reminder(kind: str, row: dict, channel: str, by: str) -> tuple[bool, Optional[str]]:
+    subject, body, sms = _reminder_text(kind, row)
+    ref = row["birthday"][:4] if kind == "birthday" else row["passport_expiry"]
+    if channel == "sms":
+        if not row.get("phone"):
+            ok, err = False, "No phone number on record"
+        else:
+            ok, err = sms_service.send_sms(row["phone"], sms)
+    else:
+        ok, err = email_service._send(row["email"], subject, body)
+    insights.record_message(row["email"], kind, ref, channel, ok, err, by)
+    return ok, err
+
+
+@app.post("/api/admin/insights/reminders/send")
+def admin_send_reminder(request: ReminderSendRequest, admin: dict = Depends(auth.get_current_admin)):
+    rows = insights.upcoming_birthdays(366) if request.kind == "birthday" else insights.expiring_passports(24)
+    row = next((r for r in rows if r["email"] == request.email.lower()), None)
+    if not row:
+        raise HTTPException(status_code=404, detail="No matching traveller for this reminder")
+    ok, err = _send_reminder(request.kind, row, request.channel, admin.get("sub"))
+    if not ok:
+        raise HTTPException(status_code=502, detail=f"Not sent: {err}")
+    return {"sent": True}
+
+
+def _auto_reminder_pass() -> None:
+    for row in insights.upcoming_birthdays(0):
+        if row["email"] and not row.get("sent_at"):
+            _send_reminder("birthday", row, "email", "auto")
+    for row in insights.expiring_passports(6):
+        if row["email"] and not row.get("sent_at") and row["days_left"] in (180, 90, 30):
+            _send_reminder("passport", row, "email", "auto")
+
+
+@app.on_event("startup")
+def _start_auto_reminders():
+    if not AUTO_REMINDERS:
+        return
+    import threading
+
+    def loop():
+        while True:
+            try:
+                _auto_reminder_pass()
+            except Exception as e:
+                logger.error(f"Automatic reminders failed: {e}")
+            time.sleep(6 * 3600)
+    threading.Thread(target=loop, name="auto-reminders", daemon=True).start()
