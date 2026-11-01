@@ -3752,40 +3752,40 @@ body {
 }
 
 /* ── Two planes taking turns (HERO_PLANE_TAKEOFF_FROM = 'both') ───────────────
-   One 36s cycle each, offset by half: the right plane (out of "Travel
-   Further.") flies 0–17s, the mirrored left plane (out of "Book Smarter,")
-   flies 18–35s — never both in the air at once. */
+   One 24s cycle each, offset by half: the right plane (out of "Travel
+   Further.") flies 0–11s, the mirrored left plane (out of "Book Smarter,")
+   flies 12–23s — a take-off every 12s, never both in the air at once. */
 .hero-plane.from-smarter { top: 17%; left: 1.5%; right: auto; height: 26%; }
 .hero-plane-mirror { position: relative; height: 100%; transform: scaleX(-1); }
 .hero-plane-mirror img { display: block; height: 100%; width: auto; }
 
-.hero-plane.from-further.take-turns .hero-plane-fly.takeoff { animation: heroPlaneTurnRight 36s linear infinite both; }
-.hero-plane.from-smarter.take-turns .hero-plane-fly.takeoff { animation: heroPlaneTurnLeft 36s linear 18s infinite both; }
-.hero-plane-trail.take-turns { animation: heroTrailTurn 36s ease-in-out infinite both; }
-.hero-plane-trail.trail-left.take-turns { animation-delay: 18s; }
+.hero-plane.from-further.take-turns .hero-plane-fly.takeoff { animation: heroPlaneTurnRight 24s linear infinite both; }
+.hero-plane.from-smarter.take-turns .hero-plane-fly.takeoff { animation: heroPlaneTurnLeft 24s linear 12s infinite both; }
+.hero-plane-trail.take-turns { animation: heroTrailTurn 24s ease-in-out infinite both; }
+.hero-plane-trail.trail-left.take-turns { animation-delay: 12s; }
 
 @keyframes heroPlaneTurnRight {
   0%    { transform: translate(var(--tf-x), var(--tf-y)) scale(0.16) rotate(0deg); opacity: 0; animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
-  1.4%  { transform: translate(var(--tf-x), var(--tf-y)) scale(0.18) rotate(0deg); opacity: 1; animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
-  11.5% { transform: translate(0, 0) scale(1) rotate(-1.5deg); opacity: 1; animation-timing-function: ease-in-out; }
-  22%   { transform: translate(2%, -3%) scale(1) rotate(0deg); animation-timing-function: ease-in-out; }
-  32%   { transform: translate(4%, -6%) scale(1) rotate(-1deg); opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.6); }
+  1.5%  { transform: translate(var(--tf-x), var(--tf-y)) scale(0.18) rotate(0deg); opacity: 1; animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
+  15%   { transform: translate(0, 0) scale(1) rotate(-1.5deg); opacity: 1; animation-timing-function: ease-in-out; }
+  21%   { transform: translate(2%, -3%) scale(1) rotate(0deg); animation-timing-function: ease-in-out; }
+  27%   { transform: translate(4%, -6%) scale(1) rotate(-1deg); opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.6); }
   46%   { transform: translate(185%, -38%) scale(1.06) rotate(-3deg); opacity: 1; }
   46.5%, 100% { transform: translate(185%, -38%) scale(1.06) rotate(-3deg); opacity: 0; }
 }
 @keyframes heroPlaneTurnLeft {
   0%    { transform: translate(var(--tf-x), var(--tf-y)) scale(0.16) rotate(0deg); opacity: 0; animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
-  1.4%  { transform: translate(var(--tf-x), var(--tf-y)) scale(0.18) rotate(0deg); opacity: 1; animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
-  11.5% { transform: translate(0, 0) scale(1) rotate(1.5deg); opacity: 1; animation-timing-function: ease-in-out; }
-  22%   { transform: translate(-2%, -3%) scale(1) rotate(0deg); animation-timing-function: ease-in-out; }
-  32%   { transform: translate(-4%, -6%) scale(1) rotate(1deg); opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.6); }
+  1.5%  { transform: translate(var(--tf-x), var(--tf-y)) scale(0.18) rotate(0deg); opacity: 1; animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
+  15%   { transform: translate(0, 0) scale(1) rotate(1.5deg); opacity: 1; animation-timing-function: ease-in-out; }
+  21%   { transform: translate(-2%, -3%) scale(1) rotate(0deg); animation-timing-function: ease-in-out; }
+  27%   { transform: translate(-4%, -6%) scale(1) rotate(1deg); opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.6); }
   46%   { transform: translate(-185%, -38%) scale(1.06) rotate(3deg); opacity: 1; }
   46.5%, 100% { transform: translate(-185%, -38%) scale(1.06) rotate(3deg); opacity: 0; }
 }
 @keyframes heroTrailTurn {
-  0%, 0.7% { clip-path: inset(0 100% 0 0); opacity: 0.9; }
-  11.5%    { clip-path: inset(0 0 0 0);    opacity: 0.9; }
-  22%      { clip-path: inset(0 0 0 0);    opacity: 0; }
+  0%, 1%   { clip-path: inset(0 100% 0 0); opacity: 0.9; }
+  15%      { clip-path: inset(0 0 0 0);    opacity: 0.9; }
+  26%      { clip-path: inset(0 0 0 0);    opacity: 0; }
   100%     { clip-path: inset(0 0 0 0);    opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
