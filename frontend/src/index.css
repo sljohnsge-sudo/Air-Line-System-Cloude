@@ -3386,13 +3386,13 @@ body {
   min-height: 0;
   justify-content: flex-start;
   margin-top: 0;
-  padding: 2.4rem clamp(1.25rem, 4vw, 3.25rem) 6.25rem;
+  padding: 1.5rem clamp(1.25rem, 4vw, 3.25rem) 5.25rem;
   border-radius: 0 0 22px 22px;
   background:
     url('./assets/tickbook-hero-plane.webp') right bottom / auto 86% no-repeat,
     linear-gradient(180deg, var(--home-sky-top) 0%, var(--home-sky-mid) 55%, var(--home-sky-low) 100%);
 }
-.home-layout:has(+ #flight-search) .hero-content { align-items: flex-start; text-align: left; gap: 0.85rem; max-width: 640px; }
+.home-layout:has(+ #flight-search) .hero-content { align-items: flex-start; text-align: left; gap: 0.6rem; max-width: 640px; }
 .home-layout:has(+ #flight-search) .hero-tagline {
   color: #d9e9ff; font-size: 0.74rem; letter-spacing: 0.14em; font-weight: 700; gap: 0.75rem; justify-content: flex-start;
 }
@@ -3401,7 +3401,7 @@ body {
 }
 .home-layout:has(+ #flight-search) .hero-title {
   font-family: var(--font-body); font-weight: 800; letter-spacing: -0.02em;
-  font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.08; color: #ffffff;
+  font-size: clamp(1.9rem, 3vw, 2.6rem); line-height: 1.08; color: #ffffff;
 }
 .home-layout:has(+ #flight-search) .hero-title .title-gradient-red { color: var(--home-cyan); }
 .home-layout:has(+ #flight-search) .hero-subtitle {
@@ -3419,13 +3419,13 @@ body {
 .hero-services button:disabled { cursor: default; opacity: 1; color: #ffffff; }
 
 /* Search card */
-#flight-search { position: relative; z-index: 2; margin: -4.4rem clamp(0.75rem, 2.5vw, 1.75rem) 0; }
+#flight-search { position: relative; z-index: 2; margin: -3.9rem clamp(0.75rem, 2.5vw, 1.75rem) 0; }
 #flight-search .flight-hero {
   background: #ffffff; border: 1px solid #e2e8f0; border-radius: 18px;
   box-shadow: 0 20px 45px rgba(2, 40, 90, 0.16);
   padding: 1rem 1.25rem 1.2rem; margin-bottom: 2rem;
 }
-#flight-search .search-type-tabs { padding: 0 0 0.9rem; margin-bottom: 1rem; gap: 0.4rem; border-bottom: 1px solid #e6ecf3; }
+#flight-search .search-type-tabs { padding: 0 0 0.7rem; margin-bottom: 0.8rem; gap: 0.4rem; border-bottom: 1px solid #e6ecf3; }
 #flight-search .search-type-tab {
   display: inline-flex; align-items: center; gap: 0.45rem;
   font-size: 0.88rem; font-weight: 600; padding: 0.5rem 1.05rem; border-radius: 10px; color: var(--home-navy);
@@ -3597,3 +3597,8 @@ body {
 .booking-fullpage .yf-card .yf-total { background: var(--tb-champagne); }
 .booking-fullpage .yf-card .yf-total .label { color: #8A6A3D; }
 .booking-fullpage .modal-flight-summary .val.highlight { color: var(--tb-navy); }
+
+/* Home search: compact Search button row so the whole card fits on the first screen */
+#flight-search .search-buttons { margin-top: 0.15rem; }
+#flight-search .search-buttons .btn-primary { padding: 0.65rem 1.8rem; }
+.home-layout:has(+ #flight-search) .hero-services { margin-top: 0.2rem; }
