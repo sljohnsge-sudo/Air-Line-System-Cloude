@@ -5,9 +5,16 @@ import { QRCodeSVG } from 'qrcode.react';
 import TickBookLogo from './TickBookLogo.jsx';
 import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
 
-// Home page plane: true = animated (glides in, cruises, climbs out, comes back,
-// blinking lights); false = the original still plane in the sky picture.
-const HERO_PLANE_ANIMATED = true;
+// Home page plane:
+//   'takeoff' — starts small behind "Travel Further.", grows out of it with a
+//               vapour trail, cruises with blinking lights, climbs out, repeats
+//   'cruise'  — glides in from the clouds, cruises, climbs out, comes back
+//   'still'   — the original still plane in the sky picture
+const HERO_PLANE_MODE = 'takeoff';
+// Take-off spot: 'travel-services' (climbs up-right towards Sign In, clear of
+// the text) or 'travel-further' (from behind the headline's cyan words).
+const HERO_PLANE_TAKEOFF_FROM = 'travel-services';
+const HERO_PLANE_ANIMATED = HERO_PLANE_MODE !== 'still';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
@@ -1892,6 +1899,50 @@ export default function App() {
   // No separate search page: the home page carries the flight search, and
   // /book (Book Flights before results come back) shows that same page.
   const showHomePage = activeTab === 'home' || (activeTab === 'book' && showSearchForm);
+
+  // Take-off plane: aim its start point at the take-off spot (end of "Travel
+  // Services" or "Travel Further."), its climb-out towards the Sign In button,
+  // and lay the vapour trail from the start to where it cruises. Measured (not
+  // hard-coded) because the hero text is centred and moves with screen width.
+  const heroTravelFurtherRef = useRef(null);
+  const heroTravelServicesRef = useRef(null);
+  const heroPlaneRef = useRef(null);
+  const heroTrailRef = useRef(null);
+  useEffect(() => {
+    if (!showHomePage || HERO_PLANE_MODE !== 'takeoff') return undefined;
+    const aim = () => {
+      const from = HERO_PLANE_TAKEOFF_FROM === 'travel-further' ? heroTravelFurtherRef.current : heroTravelServicesRef.current;
+      const plane = heroPlaneRef.current, trail = heroTrailRef.current;
+      if (!from || !plane) return;
+      const hero = plane.offsetParent;
+      if (!hero) return;
+      const h = hero.getBoundingClientRect(), w = from.getBoundingClientRect(), p = plane.getBoundingClientRect();
+      // start: tucked behind the last letters of the take-off words
+      const sx = w.right - w.width * 0.12, sy = w.top + w.height * 0.55;
+      const px = p.left + p.width * 0.5, py = p.top + p.height * 0.5;
+      plane.style.setProperty('--tf-x', `${sx - px}px`);
+      plane.style.setProperty('--tf-y', `${sy - py}px`);
+      // climb-out heads for the last menu item (Sign In / the customer's name)
+      const signIn = headerRef.current?.querySelector('.nav-tab:last-child');
+      if (signIn) {
+        const s = signIn.getBoundingClientRect();
+        plane.style.setProperty('--out-x', `${s.left + s.width / 2 - px}px`);
+        plane.style.setProperty('--out-y', `${s.top + s.height / 2 - py}px`);
+      }
+      if (trail) {
+        // trail runs from the start point to the plane's tail at cruise
+        const tx = p.left + p.width * 0.22, ty = p.top + p.height * 0.5;
+        const len = Math.hypot(tx - sx, ty - sy), ang = Math.atan2(ty - sy, tx - sx) * 180 / Math.PI;
+        trail.style.left = `${sx - h.left}px`;
+        trail.style.top = `${sy - h.top}px`;
+        trail.style.width = `${len}px`;
+        trail.style.transform = `rotate(${ang}deg)`;
+      }
+    };
+    const t = setTimeout(aim, 900);   // after the hero fade-in and web fonts settle
+    window.addEventListener('resize', aim);
+    return () => { clearTimeout(t); window.removeEventListener('resize', aim); };
+  }, [showHomePage]);
   const [searchError, setSearchError] = useState('');
   const [expandedFareIds, setExpandedFareIds] = useState({});
   // Fare cards ticked to share by WhatsApp / email — fareCardKey -> text summary.
@@ -3591,7 +3642,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <span className="hero-tagline">
                 Flights · Hotels · Visa Assistance · More
               </span>
-              <h1 className="hero-title">Book Smarter, <span className="title-gradient-red">Travel Further.</span></h1>
+              <h1 className="hero-title">Book Smarter, <span className="title-gradient-red" ref={heroTravelFurtherRef}>Travel Further.</span></h1>
               <p className="hero-subtitle">
                 Global flights, perfect stays and travel assistance at competitive fares — all in one place.
               </p>
@@ -3606,16 +3657,21 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 <button type="button" disabled={!featureFlags.visa_enabled} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>
                   <Ico.IconPassport size={20} />Visa Assistance
                 </button>
-                <button type="button" disabled={!featureFlags.packages_enabled} onClick={() => openPackages()}>
+                <button type="button" ref={heroTravelServicesRef} disabled={!featureFlags.packages_enabled} onClick={() => openPackages()}>
                   <Ico.IconBag size={20} />Travel Services
                 </button>
               </div>
             </div>
-            {/* Animated plane (see HERO_PLANE_ANIMATED): glides in, cruises, climbs
-                out and comes back, with blinking wing-tip and tail lights. */}
+            {/* Animated plane (see HERO_PLANE_MODE). 'cruise': glides in, cruises,
+                climbs out and comes back. 'takeoff': starts small behind
+                "Travel Further.", grows out of it with a vapour trail, cruises,
+                climbs out, pauses, repeats. Both have blinking lights. */}
+            {HERO_PLANE_ANIMATED && HERO_PLANE_MODE === 'takeoff' && (
+              <span className="hero-plane-trail" ref={heroTrailRef} aria-hidden="true" />
+            )}
             {HERO_PLANE_ANIMATED && (
-              <div className="hero-plane" aria-hidden="true">
-                <div className="hero-plane-fly">
+              <div className="hero-plane" ref={heroPlaneRef} aria-hidden="true">
+                <div className={`hero-plane-fly${HERO_PLANE_MODE === 'takeoff' ? ' takeoff' : ''}`}>
                   <img src={heroPlaneOnly} alt="" />
                   <span className="plane-light plane-light-red" style={{ left: '12%', top: '41%' }} />
                   <span className="plane-light plane-light-green" style={{ left: '98.5%', top: '76%' }} />

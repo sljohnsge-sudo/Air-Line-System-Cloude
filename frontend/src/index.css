@@ -3698,3 +3698,38 @@ body {
     background: linear-gradient(180deg, var(--home-sky-top) 0%, var(--home-sky-mid) 55%, var(--home-sky-low) 100%);
   }
 }
+
+/* ── Take-off mode (HERO_PLANE_MODE = 'takeoff') ─────────────────────────────
+   The plane starts small behind "Travel Further." (the headline sits above
+   it), grows out to its cruise spot with a vapour trail, cruises with the
+   blinking lights, climbs out top-right, then ~6s of empty sky. 26s loop.
+   --tf-x / --tf-y (set in App.jsx) = start point relative to the cruise spot. */
+.hero-plane-fly.takeoff { animation: heroPlaneTakeoff 26s ease-in-out infinite; transform-origin: 50% 50%; }
+@keyframes heroPlaneTakeoff {
+  0%   { transform: translate(var(--tf-x, -60%), var(--tf-y, 0px)) scale(0.18); opacity: 0; }
+  2%   { transform: translate(var(--tf-x, -60%), var(--tf-y, 0px)) scale(0.2);  opacity: 1; }
+  16%  { transform: translate(0, 0) scale(1); opacity: 1; }
+  58%  { transform: translate(3%, -6%) scale(1); opacity: 1; }
+  74%  { transform: translate(var(--out-x, 70%), var(--out-y, -120%)) scale(0.45); opacity: 0; }
+  100% { transform: translate(var(--out-x, 70%), var(--out-y, -120%)) scale(0.45); opacity: 0; }
+}
+.hero-plane-trail {
+  position: absolute; z-index: 0; height: 2px; pointer-events: none;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.35) 40%, rgba(255, 255, 255, 0.75) 100%);
+  border-radius: 2px; filter: blur(0.4px);
+  animation: heroPlaneTrail 26s ease-in-out infinite;
+}
+@keyframes heroPlaneTrail {
+  0%, 1% { clip-path: inset(0 100% 0 0); opacity: 0.9; }
+  16%    { clip-path: inset(0 0 0 0);    opacity: 0.9; }
+  32%    { clip-path: inset(0 0 0 0);    opacity: 0; }
+  100%   { clip-path: inset(0 0 0 0);    opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-plane-fly.takeoff { animation: none; }
+  .hero-plane-trail { display: none; }
+}
+@media (max-width: 768px) {
+  .hero-plane-trail { display: none; }
+}
