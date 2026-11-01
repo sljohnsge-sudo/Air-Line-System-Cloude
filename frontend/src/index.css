@@ -887,6 +887,27 @@ body {
   color: #1e40af;
 }
 
+/* Stays until closed — used when a customer has paid but has no ticket yet */
+.toast-notification.sticky {
+  box-sizing: border-box;
+  max-width: min(460px, calc(100vw - 2rem));
+  align-items: flex-start;
+  line-height: 1.45;
+}
+@media (max-width: 520px) {
+  .toast-notification.sticky { left: 1rem; right: 1rem; top: 1rem; max-width: none; }
+}
+.toast-close {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 0.15rem;
+}
+
 /* Search Section */
 .search-section {
   padding: 2rem;

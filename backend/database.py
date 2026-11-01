@@ -1590,15 +1590,17 @@ def get_booking_by_ticket_number(ticket_number: str) -> dict | None:
 def create_cancellation_request(
     customer_id: int | None, booking_locator: str, travel_date: str,
     requester_name: str, email: str, phone: str, all_passengers_cancelling: bool,
+    admin_note: str | None = None,
 ) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
             """INSERT INTO cancellation_requests
-               (customer_id, booking_locator, travel_date, requester_name, email, phone, all_passengers_cancelling)
-               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
-            (customer_id, booking_locator, travel_date, requester_name, email, phone, all_passengers_cancelling),
+               (customer_id, booking_locator, travel_date, requester_name, email, phone, all_passengers_cancelling, admin_note)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (customer_id, booking_locator, travel_date, requester_name, email, phone, all_passengers_cancelling,
+             (admin_note or None) and admin_note[:500]),
         )
         conn.commit()
         cursor.execute("SELECT * FROM cancellation_requests WHERE id=%s", (cursor.lastrowid,))
@@ -2657,6 +2659,31 @@ def consume_ndc_pending_payment(pending_id: str) -> bool:
     cursor.close()
     conn.close()
     return claimed
+
+
+def get_payment_claim(client_ref: str) -> dict | None:
+    """The consumed PayCorp payment for a booking/pending id (reqid, locator_code), or None."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT reqid, client_ref, locator_code, consumed_at FROM consumed_payment_reqids "
+        "WHERE client_ref=%s ORDER BY id DESC LIMIT 1", (client_ref,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def set_payment_claim_locator(reqid: str, locator_code: str) -> None:
+    """Records which PNR a claimed payment ended up ticketing (Instant Pay
+    claims the payment before the PNR exists)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE consumed_payment_reqids SET locator_code=%s WHERE reqid=%s", (locator_code, reqid))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 
 def claim_payment_reqid(reqid: str, client_ref: str, locator_code: str | None = None) -> bool:

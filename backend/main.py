@@ -837,6 +837,57 @@ def _segments_of_offering(raw_offering: dict) -> list:
     return [s for leg in legs for s in (leg.get("segments") or [])]
 
 
+_PTC_LABEL = {"ADT": "an Adult", "STU": "a Student", "CNN": "a Child", "INF": "an Infant"}
+
+
+def _check_travelers_for_trip(travelers: list, raw_offering: dict) -> None:
+    """Refuses, BEFORE any payment, passenger details the airline will reject
+    at ticketing. A 7-month-old's date of birth booked as an Adult (age 0)
+    reached Emirates on 2026-11-02 and the Instant Pay commit failed with
+    HTTP 500 after the customer had paid. Ages are worked out on the travel
+    dates: Adult/Student 12+ and Child 2–11 on the first flight, Infant under
+    2 on the last flight; the passport must be valid for the whole trip."""
+    dates = sorted(str(s.get("departure_time") or "")[:10] for s in _segments_of_offering(raw_offering)
+                   if s.get("departure_time"))
+    if not dates:
+        return
+    first = datetime.strptime(dates[0], "%Y-%m-%d").date()
+    last = datetime.strptime(dates[-1], "%Y-%m-%d").date()
+
+    def age_on(dob, day):
+        return day.year - dob.year - ((day.month, day.day) < (dob.month, dob.day))
+
+    fmt = lambda d: d.strftime("%d %b %Y")
+    problems = []
+    for i, t in enumerate(travelers, 1):
+        t = t.model_dump() if hasattr(t, "model_dump") else t
+        who = f"Passenger {i} ({(t.get('first_name') or '').upper()} {(t.get('last_name') or '').upper()})".replace(" ()", "")
+        ptc = (t.get("passenger_type") or "ADT").upper()
+        try:
+            dob = datetime.strptime(t.get("date_of_birth") or "", "%Y-%m-%d").date()
+        except ValueError:
+            continue  # format errors are reported by TravelerInfo itself
+        age_first, age_last = age_on(dob, first), age_on(dob, last)
+        if ptc in ("ADT", "STU") and age_first < 12:
+            problems.append(f"{who}: born {fmt(dob)}, so {age_first} years old on {fmt(first)} — "
+                            f"{_PTC_LABEL[ptc]} must be 12 or older. Please check the date of birth.")
+        elif ptc == "CNN" and not (2 <= age_first < 12):
+            problems.append(f"{who}: born {fmt(dob)}, so {age_first} years old on {fmt(first)} — "
+                            f"a Child must be 2 to 11 years old. Please check the date of birth.")
+        elif ptc == "INF" and (dob > first or age_last >= 2):
+            problems.append(f"{who}: born {fmt(dob)} — an Infant must be born before {fmt(first)} and "
+                            f"under 2 years old on {fmt(last)}. Please check the date of birth.")
+        try:
+            expiry = datetime.strptime(t.get("passport_expiry") or "", "%Y-%m-%d").date()
+            if expiry < last:
+                problems.append(f"{who}: passport expires {fmt(expiry)}, before the last flight on {fmt(last)}. "
+                                f"A passport valid for the whole trip is needed.")
+        except ValueError:
+            pass
+    if problems:
+        raise HTTPException(status_code=422, detail=" ".join(problems))
+
+
 def _backfill_terminals(ticket: dict, source_segments: list) -> None:
     """
     Travelport's reservation retrieve response has no Departure/Arrival
@@ -1145,6 +1196,7 @@ def initiate_booking(request: BookingInitiateRequest):
     Initiates booking: Creates GDS workbench, adds selected offer, and returns seat map.
     """
     logger.info("Initiating booking and fetching live seat map...")
+    _check_travelers_for_trip(request.travelers, request.raw_offering)
     raw_offering = request.raw_offering
     travelers = [t.model_dump() for t in request.travelers]
     workbench_id = None
@@ -1282,6 +1334,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
     selected_seats = request.selected_seats
+    _check_travelers_for_trip(travelers, raw_offering)
     _claim_booking_submission(raw_offering, travelers)
 
     # One TraceId for every Travelport call this confirm makes — run_booking_flow()
@@ -1614,9 +1667,9 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     problem = _live_airline_problem(locator_code)
     if problem:
         _notify_airline_problem(locator_code, problem["codes"], payment_result.get("txn_reference") or "paid")
-        raise HTTPException(status_code=409, detail=(
-            "The airline has not confirmed (or has cancelled) the flight on this booking, so the ticket "
-            "can't be issued. Your payment was received and our team will contact you to refund it."))
+        _auto_refund_for_booking(locator_code, "airline has not confirmed / cancelled the flight",
+                                 payment_result.get("txn_reference") or request.reqid)
+        raise HTTPException(status_code=409, detail=_paid_not_ticketed_message(locator_code))
     return _issue_and_save_ticket(locator_code, payment_result)
 
 
@@ -1640,6 +1693,12 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
             _notify_stuck_booking(locator_code, str(e), txn_ref)
         except Exception as notify_err:
             logger.error(f"Failed to send stuck-booking notification for {locator_code} (non-fatal): {notify_err}")
+        if payment_result:
+            # Paid by card, no ticket: refund request filed for the customer;
+            # the Travelport error stays in the log, not on their screen.
+            logger.error(f"{locator_code}: paid{txn_note} but not ticketed — {e}")
+            _auto_refund_for_booking(locator_code, str(e), txn_ref)
+            raise HTTPException(status_code=502, detail=_paid_not_ticketed_message(locator_code))
         raise HTTPException(
             status_code=502,
             detail=f"Payment succeeded{txn_note} but Travelport ticket issuance failed: {str(e)}"
@@ -1968,6 +2027,7 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
     and the PNR + ticket are created together, after payment, by
     /api/ndc/instant-pay/complete.
     """
+    _check_travelers_for_trip(request.travelers, request.raw_offering)
     if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
         # Price it with Travelport now, so the amount the customer pays is
         # fixed server-side (AirPrice total + markup) — the browser used to
@@ -2012,12 +2072,83 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
     }
 
 
+def _paid_not_ticketed_message(reference: str) -> str:
+    return (f"The airline did not confirm your ticket, so this flight is not booked for you. "
+            f"Your payment will be refunded in full — we have already created the refund request for you "
+            f"(reference {reference}), you don't need to do anything. Refunds are processed on the next working day. "
+            f"Please do not pay again for this booking.")
+
+
+def _auto_refund_request(reference: str, *, customer_id, name: str, email: str, phone: str,
+                         travel_date: str, amount, currency: str, reason: str, payment_ref: str | None) -> None:
+    """Files the customer's full-refund request automatically when they paid
+    but no ticket was issued, so it sits in the next-day refund queue without
+    the customer finding a form or calling anyone (best effort — never hides
+    the original error)."""
+    try:
+        database.create_cancellation_request(
+            customer_id, reference, (travel_date or datetime.now().strftime("%Y-%m-%d"))[:10],
+            name or "Customer", email or "", phone or "", True,
+            admin_note=(f"AUTOMATIC FULL REFUND — paid {currency} {float(amount or 0):,.2f} "
+                        f"(payment {payment_ref}) but no ticket was issued: {reason}"),
+        )
+    except Exception as e:
+        logger.error(f"{reference}: could not create the automatic refund request: {e}")
+
+
+def _auto_refund_for_pending(reference: str, pending: dict, reason: str, payment_ref: str | None) -> None:
+    payload = pending.get("payload") or {}
+    lead = (payload.get("travelers") or [{}])[0]
+    dates = sorted(str(s.get("departure_time") or "")[:10]
+                   for s in _segments_of_offering(payload.get("raw_offering") or {}) if s.get("departure_time"))
+    _auto_refund_request(
+        reference, customer_id=payload.get("customer_id"),
+        name=f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip(),
+        email=lead.get("email"), phone=lead.get("phone"), travel_date=dates[0] if dates else None,
+        amount=pending.get("amount"), currency=pending.get("currency"), reason=reason, payment_ref=payment_ref,
+    )
+
+
+def _auto_refund_for_booking(locator_code: str, reason: str, payment_ref: str | None) -> None:
+    b = database.get_booking_by_locator(locator_code) or {}
+    _auto_refund_request(
+        locator_code, customer_id=b.get("customer_id"), name=b.get("passenger_name"),
+        email=b.get("passenger_email") or b.get("email"), phone=b.get("phone") or b.get("passenger_phone"),
+        travel_date=b.get("departure_time"), amount=b.get("total_fare"), currency=b.get("currency"),
+        reason=reason, payment_ref=payment_ref,
+    )
+
+
 @app.post("/api/ndc/instant-pay/complete")
 def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
     """STEP 3 (Emirates only): payment confirmed — now book and ticket in one Instant Pay commit."""
+    reference = f"NDC-{request.pending_id[:8]}"
+
+    def already_handled():
+        # This payment was already taken for this booking (the return page was
+        # reloaded, opened twice, or the first attempt failed). Never tell a
+        # customer who has paid to "search again" — they could pay twice.
+        claim = database.get_payment_claim(request.pending_id)
+        if not claim or claim["reqid"] != request.reqid:
+            return None
+        if claim["locator_code"]:
+            return {"success": True, "locator_code": claim["locator_code"], "status": "Ticketed",
+                    "already_completed": True, "message": None}
+        raise HTTPException(status_code=502, detail=_paid_not_ticketed_message(reference))
+
     pending = database.get_ndc_pending_payment(request.pending_id)
     if not pending:
-        raise HTTPException(status_code=404, detail="This booking has expired or was already completed. Please search and select the flight again.")
+        done = already_handled()
+        if done:
+            return done
+        raise HTTPException(
+            status_code=404,
+            detail=(f"We couldn't find this booking. If money was taken from your card, please do not pay again — "
+                    f"contact us and quote reference {reference}."),
+        )
+    done = already_handled()
+    if done:
+        return done
     # The paid amount must equal the server-side amount fixed at /api/ndc/book
     # (Travelport's priced fare + markup), for this pending booking, once.
     payment_result = _verify_and_claim_payment(
@@ -2025,7 +2156,10 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
         expected_amount=pending["amount"], expected_currency=pending["currency"],
     )
     if not database.consume_ndc_pending_payment(request.pending_id):
-        raise HTTPException(status_code=409, detail="This booking was already completed.")
+        done = already_handled()
+        if done:
+            return done
+        raise HTTPException(status_code=409, detail=f"This booking is already being completed — please do not pay again. Reference: {reference}")
     payload = pending["payload"]
     trace_token = services.start_flow_trace_id()
     try:
@@ -2035,16 +2169,29 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
             customer_id=payload.get("customer_id"),
             charged_amount=pending["amount"], charged_currency=pending["currency"],
         )
-    except HTTPException as e:
+    except Exception as e:
         # Paid, but Travelport didn't ticket: alert staff so the payment is
-        # refunded or the ticket issued manually — never left silent.
+        # refunded or the ticket issued manually — never left silent. Any
+        # error counts (a Travelport HTTP 500 on the commit used to escape
+        # this as an unhandled crash, which the browser saw as a network error).
+        reason = e.detail if isinstance(e, HTTPException) else f"{type(e).__name__}: {e}"
+        logger.error(f"{reference}: paid (reqid={request.reqid}) but not ticketed — {reason}")
         try:
-            _notify_stuck_booking(f"NDC-{request.pending_id[:8]}", str(e.detail), payment_result.get("txn_reference"))
+            _notify_stuck_booking(reference, f"{reason} (payment reqid {request.reqid})", payment_result.get("txn_reference"))
         except Exception as notify_err:
             logger.error(f"Failed to send stuck-booking notification for pending {request.pending_id}: {notify_err}")
-        raise
+        # No ticket means a full refund — raise the refund request for the
+        # customer now, so it is in the next-day refund queue without them
+        # having to find a form or call anyone.
+        _auto_refund_for_pending(reference, pending, reason, payment_result.get("txn_reference") or request.reqid)
+        raise HTTPException(status_code=502, detail=_paid_not_ticketed_message(reference))
     finally:
         services.end_flow_trace_id(trace_token)
+    try:
+        # lets a reloaded return page show this ticket instead of an error
+        database.set_payment_claim_locator(request.reqid, result["locator_code"])
+    except Exception as e:
+        logger.warning(f"Could not record PNR {result.get('locator_code')} on payment {request.reqid}: {e}")
     result["payment_txn_reference"] = payment_result.get("txn_reference")
     return result
 

@@ -2156,7 +2156,9 @@ export default function App() {
     if ((activeTab === 'home' || activeTab === 'packages') && packages.length === 0 && !packagesLoading && featureFlags.packages_enabled) loadPackages();
   }, [activeTab, featureFlags.packages_enabled]);
 
-  const showNotification = (message, type = 'success') => {
+  // sticky: stays until the customer closes it — for messages they must not
+  // miss, such as "payment received but no ticket yet".
+  const showNotification = (message, type = 'success', { sticky = false } = {}) => {
     let displayMessage = '';
     if (message) {
       if (message instanceof Error) {
@@ -2169,8 +2171,8 @@ export default function App() {
     } else {
       displayMessage = 'An unknown error occurred';
     }
-    setNotification({ message: displayMessage, type });
-    setTimeout(() => setNotification(null), 5000);
+    setNotification({ message: displayMessage, type, sticky });
+    if (!sticky) setTimeout(() => setNotification(n => (n && n.sticky ? n : null)), 5000);
   };
 
   // ── PayCorp return handler ──────────────────────────────────────────────
@@ -2216,7 +2218,7 @@ export default function App() {
         } catch (err) {
           setIssuedTicket(buildAmadeusIssuedTicket({ locator, ticketNumbers: [], travelers: [], segments: [] }, { paymentMethod: 'card', selectedAncillaries: restoredAncillaries }));
           setBookingStep('ticket');
-          showNotification('Payment confirmed, but ticketing could not be verified — your PNR ' + locator + ' is held, contact support.', 'error');
+          showNotification('Payment confirmed, but ticketing could not be verified — your PNR ' + locator + ' is held, contact support.', 'error', { sticky: true });
         } finally {
           setVerifyingPayment(false);
         }
@@ -2235,9 +2237,12 @@ export default function App() {
           setBookingStep('ticket');
           showNotification('🎉 Payment confirmed — ticket issued!', 'success');
         } catch (err) {
+          // The server's message already explains the automatic refund.
           showNotification(
-            (err.message || 'Ticket issuance failed after payment') + ` — your PNR ${locator} is held, contact support.`,
-            'error'
+            err instanceof TypeError
+              ? 'Your payment was received, but we could not confirm your ticket. Please do not pay again — check My Bookings shortly, or your refund will be processed automatically.'
+              : (err.message || 'Ticket issuance failed after payment'),
+            'error', { sticky: true }
           );
         } finally {
           setVerifyingPayment(false);
@@ -2265,7 +2270,12 @@ export default function App() {
           setBookingStep('ticket');
           showNotification('🎉 Payment confirmed — ticket issued!', 'success');
         } catch (err) {
-          showNotification(err.message || 'Ticket issuance failed after payment', 'error');
+          // The server's message already says the payment was received and
+          // gives a reference; a dropped connection gets the same reassurance.
+          const msg = err instanceof TypeError
+            ? 'Your payment was received, but we could not confirm your ticket. Please do not pay again — check My Bookings shortly, or your refund will be processed automatically.'
+            : (err.message || 'Ticket issuance failed after payment');
+          showNotification(msg, 'error', { sticky: true });
         } finally {
           setVerifyingPayment(false);
         }
@@ -2796,10 +2806,37 @@ export default function App() {
       if (firstErrorIdx === null) firstErrorIdx = idx;
     };
 
+    // Travel dates of the chosen flights — ages and passport validity are
+    // checked against these (the server repeats this check before payment).
+    const ro = selectedFlight?.raw_offering || {};
+    const roLegs = ro.outbound && ro.inbound ? [ro.outbound, ro.inbound] : (ro.legs || [ro]);
+    const tripDates = roLegs.flatMap(l => (l?.segments || []).map(s => String(s.departure_time || '').slice(0, 10)))
+      .filter(Boolean).sort();
+    const firstFlight = tripDates[0], lastFlight = tripDates[tripDates.length - 1];
+    const ageOn = (dob, day) => {
+      const [by, bm, bd] = dob.split('-').map(Number), [y, m, d] = day.split('-').map(Number);
+      return y - by - ((m < bm || (m === bm && d < bd)) ? 1 : 0);
+    };
+    const niceDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
     for (let i = 0; i < travelers.length; i++) {
       const t = travelers[i];
       for (const f of required) {
         if (!t[f]) addError(i, f, 'Required.');
+      }
+      if (t.date_of_birth && firstFlight && new Date(t.date_of_birth) <= new Date()) {
+        const ptc = t.passenger_type || 'ADT';
+        const age = ageOn(t.date_of_birth, firstFlight);
+        if ((ptc === 'ADT' || ptc === 'STU') && age < 12) {
+          addError(i, 'date_of_birth', `This makes the passenger ${age} on ${niceDate(firstFlight)} — ${ptc === 'STU' ? 'a student' : 'an adult'} must be 12 or older. Please check the year.`);
+        } else if (ptc === 'CNN' && (age < 2 || age >= 12)) {
+          addError(i, 'date_of_birth', `This makes the child ${age} on ${niceDate(firstFlight)} — a child must be 2 to 11 years old.`);
+        } else if (ptc === 'INF' && (t.date_of_birth > firstFlight || ageOn(t.date_of_birth, lastFlight) >= 2)) {
+          addError(i, 'date_of_birth', `An infant must be under 2 years old on ${niceDate(lastFlight)}.`);
+        }
+      }
+      if (t.passport_expiry && lastFlight && t.passport_expiry < lastFlight && new Date(t.passport_expiry) > new Date()) {
+        addError(i, 'passport_expiry', `Passport expires before the last flight on ${niceDate(lastFlight)} — it must be valid for the whole trip.`);
       }
       if (t.first_name && t.first_name.trim().length < 2) addError(i, 'first_name', 'Must be at least 2 characters.');
       if (t.last_name && t.last_name.trim().length < 2) addError(i, 'last_name', 'Must be at least 2 characters.');
@@ -3651,8 +3688,12 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
       {/* Toast Notification */}
       {notification && (
-        <div className={`toast-notification ${notification.type} animate-fade`}>
+        <div className={`toast-notification ${notification.type} animate-fade${notification.sticky ? ' sticky' : ''}`}
+             role={notification.sticky ? 'alert' : undefined}>
           <span>{notification.message}</span>
+          {notification.sticky && (
+            <button type="button" className="toast-close" aria-label="Close" onClick={() => setNotification(null)}>×</button>
+          )}
         </div>
       )}
 

@@ -1605,6 +1605,7 @@ def run_instant_pay_flow(raw_offering: dict, travelers: list, max_attempts: int 
             workbench_id = create_workbench()
             logger.info(f"[Instant Pay {attempt}/{max_attempts}] Workbench: {workbench_id}")
             held_locator = None
+            committing = False
             try:
                 add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=True)
                 add_travelers_to_workbench(workbench_id, ordered, is_gds=False)
@@ -1650,7 +1651,20 @@ def run_instant_pay_flow(raw_offering: dict, travelers: list, max_attempts: int 
 
                 commit_url = (f"{TravelportConfig.base_path()}/air/book/reservation/reservations/"
                               f"{workbench_id}?Issuance=Ticket&DocumentValue=Retain")
-                result = _api_post(commit_url, "", session_id=workbench_id)
+                committing = True
+                try:
+                    result = _api_post(commit_url, "", session_id=workbench_id)
+                except httpx.HTTPError as e:
+                    # Travelport answered the commit with an HTTP error (e.g. 500)
+                    # or didn't answer at all. The order may or may not exist at
+                    # the airline, so never retry — a second commit could book
+                    # and ticket twice. Staff must check before refunding.
+                    code = getattr(getattr(e, "response", None), "status_code", None)
+                    raise InstantPayError(
+                        f"Travelport did not confirm the Emirates booking (commit "
+                        f"{'HTTP ' + str(code) if code else type(e).__name__}) — the ticket status is "
+                        f"unknown; check for the booking before refunding or re-booking."
+                    ) from e
                 res = result.get("ReservationResponse", {}).get("Reservation", {}) or result.get("Reservation", {}) or {}
 
                 ref_ptc = {t["id"]: t["passengerTypeCode"] for t in traveler_refs}
@@ -1676,6 +1690,13 @@ def run_instant_pay_flow(raw_offering: dict, travelers: list, max_attempts: int 
                 logger.warning(f"[Instant Pay {attempt}/{max_attempts}] not ticketed: {last_error}")
             except InstantPayError as e:
                 last_error = str(e)
+                retryable = not committing
+                logger.warning(f"[Instant Pay {attempt}/{max_attempts}] {last_error}")
+            except httpx.HTTPError as e:
+                # A step before the commit failed — nothing was booked yet, so
+                # discarding this workbench and starting a fresh one is safe.
+                code = getattr(getattr(e, "response", None), "status_code", None)
+                last_error = f"Travelport error before booking ({'HTTP ' + str(code) if code else type(e).__name__})"
                 retryable = True
                 logger.warning(f"[Instant Pay {attempt}/{max_attempts}] {last_error}")
 
