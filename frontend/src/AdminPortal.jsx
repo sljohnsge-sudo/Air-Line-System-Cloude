@@ -2818,17 +2818,17 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         {summary && (
           <>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-              <div style={{ flex: 1, minWidth: '180px', background: 'rgba(18, 59, 112,0.06)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem' }}>
+              <div style={{ flex: 1, minWidth: '180px', background: 'rgba(195,18,46,0.06)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Bookings</div>
                 <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--gs-dark)' }}>{summary.total_bookings}</div>
               </div>
-              <div style={{ flex: 1, minWidth: '180px', background: 'rgba(18, 59, 112,0.06)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem' }}>
+              <div style={{ flex: 1, minWidth: '180px', background: 'rgba(195,18,46,0.06)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Tickets Issued</div>
                 <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--gs-dark)' }}>
                   {(summary.by_currency || []).reduce((s, c) => s + (c.ticket_count || 0), 0)}
                 </div>
               </div>
-              <div style={{ flex: 1, minWidth: '180px', background: 'rgba(18, 59, 112,0.06)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem' }}>
+              <div style={{ flex: 1, minWidth: '180px', background: 'rgba(195,18,46,0.06)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Cancelled Bookings</div>
                 <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--gs-dark)' }}>{summary.total_cancelled}</div>
               </div>

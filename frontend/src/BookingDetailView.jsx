@@ -56,7 +56,7 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           <span className={`pass-status-badge ${status?.toLowerCase()}`}>{status}</span>
         </div>
         <div className="booking-detail-facts">
-          <div><div style={label}>PNR</div><strong style={{ color: 'var(--gs-red, var(--tb-navy))' }}>{b.locator_code}</strong></div>
+          <div><div style={label}>PNR</div><strong style={{ color: 'var(--gs-red, #c8102e)' }}>{b.locator_code}</strong></div>
           {b.airline_pnr && <div><div style={label}>Airline reference</div><strong>{String(b.airline_pnr).replace(/^[A-Z0-9]{2}_/, '')}</strong></div>}
           <div><div style={label}>Booked</div>{dt(b.booking_date) || '—'}</div>
           <div><div style={label}>Cabin</div>{b.cabin_class || '—'}{b.fare_family ? ` · ${b.fare_family}` : ''}</div>

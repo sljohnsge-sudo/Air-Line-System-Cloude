@@ -4,64 +4,43 @@
   --font-heading: 'Libre Baskerville', serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
   
-  /* ── Tick and Book design tokens (the source of truth for colour) ──────
-     Official palette — use these, not raw hex, in new styles. */
-  --tb-navy: #123B70;             /* Primary: header, navigation, headings, main buttons */
-  --tb-sky: #72BCEB;              /* Icons, highlights, accents */
-  --tb-ice: #EAF4FC;              /* Page backgrounds, soft panels */
-  --tb-champagne: #F5E9D8;        /* Premium highlights (sparingly) */
-  --tb-coral: #E98270;            /* Selected states, important highlights */
-  --tb-white: #FFFFFF;            /* Cards and form backgrounds */
-  --tb-text: #24364B;             /* Text and labels */
-  /* Shades of the palette for hover/borders — not new colours */
-  --tb-navy-deep: #0C2A52;
-  --tb-navy-hover: #0E3160;
-  --tb-sky-soft: #D4EAF8;
-  --tb-coral-soft: #FBE6E1;
-  --tb-border: #D6E3EF;
-  --tb-muted: #52657C;
-  --tb-shadow-color: 18, 59, 112; /* navy as r,g,b for rgba() */
-  --tb-focus-ring: 0 0 0 3px rgba(114, 188, 235, 0.35);
-
-  /* Legacy names (from the George Steuart theme) now point at the tokens,
-     so every existing component follows the Tick and Book palette. */
-  --gs-crimson: var(--tb-navy);
-  --gs-crimson-dark: var(--tb-navy-hover);
-  --gs-crimson-bright: var(--tb-coral);
-  --gs-crimson-glow: rgba(114, 188, 235, 0.3);
-  --gs-red: var(--tb-navy);
-
-  --gs-dark: var(--tb-text);
-  --gs-dark-light: #3d5068;
-
-  --bg-main: var(--tb-white);   /* clean white pages; ice blue only for soft panels */
-  --bg-gradient: none;
-  --bg-panel: var(--tb-white);
+  /* George Steuart Official Brand Colors (Crimson, Charcoal, White) */
+  --gs-crimson: #c3122e;          /* Primary Crimson Red */
+  --gs-crimson-dark: #ac031c;     /* Deep Red */
+  --gs-crimson-bright: #ff0026;   /* Bright Red Accent */
+  --gs-crimson-glow: rgba(195, 18, 46, 0.15);
+  
+  --gs-dark: #1a1a1a;             /* Primary Text / Dark Charcoal */
+  --gs-dark-light: #3a3a3a;       /* Secondary Text / Dark Gray */
+  
+  /* Light Theme Corporate Colors */
+  --bg-main: #f4f6f9;
+  --bg-gradient: linear-gradient(180deg, #f0f3f6 0%, #f9fafb 100%);
+  --bg-panel: #ffffff;
   --bg-glass: rgba(255, 255, 255, 0.98);
-
-  --border-color: var(--tb-border);
-  --border-glass: var(--tb-border);
-  --border-glass-active: var(--tb-navy);
-
-  --primary: var(--tb-navy);
-  --primary-hover: var(--tb-navy-hover);
-
-  /* Status colours stay semantic for readability */
-  --danger: #B42318;
+  
+  --border-color: #e2e8f0;
+  --border-glass: #e2e8f0;
+  --border-glass-active: #c3122e;
+  
+  --primary: var(--gs-crimson);
+  --primary-hover: var(--gs-crimson-dark);
+  
+  --danger: #c3122e;              
   --success: #0f766e;
   --warning: #b45309;
-
-  --text-primary: var(--tb-text);
-  --text-secondary: #33465C;
-  --text-muted: var(--tb-muted);
-
-  --shadow-sm: 0 1px 3px rgba(var(--tb-shadow-color), 0.06), 0 1px 2px rgba(var(--tb-shadow-color), 0.03);
-  --shadow-md: 0 4px 20px rgba(var(--tb-shadow-color), 0.08);
-  --shadow-lg: 0 10px 30px rgba(var(--tb-shadow-color), 0.10);
-
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  
+  --text-primary: #1a1a1a;        
+  --text-secondary: #4a4a4a;      
+  --text-muted: #9c9c9c;          
+  
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 4px 20px rgba(195, 18, 46, 0.04);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.06);
+  
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --radius-full: 9999px;
   
   --transition-fast: 0.15s ease;
@@ -96,7 +75,7 @@ body {
   background: var(--bg-main);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(18, 59, 112, 0.15);
+  background: rgba(195, 18, 46, 0.15);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -113,7 +92,7 @@ body {
 }
 
 .glass-panel:hover {
-  border-color: rgba(18, 59, 112, 0.35);
+  border-color: rgba(195, 18, 46, 0.35);
   box-shadow: var(--shadow-lg);
 }
 
@@ -138,14 +117,14 @@ body {
   background: var(--gs-crimson);
   color: #fff;
   border: 1px solid var(--gs-crimson);
-  box-shadow: 0 2px 4px rgba(18, 59, 112, 0.15);
+  box-shadow: 0 2px 4px rgba(195, 18, 46, 0.15);
 }
 
 .btn-primary:hover {
   background: var(--gs-crimson-dark);
   border-color: var(--gs-crimson-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(18, 59, 112, 0.25);
+  box-shadow: 0 4px 10px rgba(195, 18, 46, 0.25);
 }
 
 .btn-secondary {
@@ -365,14 +344,14 @@ body {
 .header.header-sky {
   background:
     url('./assets/tickbook-sky.webp') right top / auto 104% no-repeat,
-    linear-gradient(90deg, var(--tb-navy-deep) 0%, var(--tb-navy) 45%, #2c5c97 100%);
+    linear-gradient(90deg, #0c2550 0%, #173f78 45%, #2c5c97 100%);
   border-bottom: 3px solid var(--gs-crimson);
   padding-top: 0.85rem;
   padding-bottom: 0.85rem;
 }
 @media (max-width: 768px) {
   /* Stacked header: the plane would sit behind the logo, so just the sky */
-  .header.header-sky { background: linear-gradient(160deg, var(--tb-navy-deep) 0%, #1c4a86 60%, #5b8fd6 100%); }
+  .header.header-sky { background: linear-gradient(160deg, #0c2550 0%, #1c4a86 60%, #5b8fd6 100%); }
 }
 .header.header-sky .nav-tabs {
   background: rgba(255, 255, 255, 0.94);
@@ -470,7 +449,7 @@ body {
   min-height: auto;
   padding: 2.5rem 1rem;
   overflow: hidden;
-  background: radial-gradient(60% 100% at 50% 45%, rgba(18, 59, 112, 0.07) 0%, rgba(18, 59, 112, 0) 70%);
+  background: radial-gradient(60% 100% at 50% 45%, rgba(195, 18, 46, 0.07) 0%, rgba(195, 18, 46, 0) 70%);
 }
 
 /* Two independent flight-path animations anchored to the outer edges
@@ -600,7 +579,7 @@ body {
   gap: 0.4rem;
   padding: 0.45rem 0.9rem;
   background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(18, 59, 112, 0.15);
+  border: 1px solid rgba(195, 18, 46, 0.15);
   border-radius: 999px;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
   backdrop-filter: blur(2px);
@@ -678,7 +657,7 @@ body {
 .feature-icon-box {
   width: 44px;
   height: 44px;
-  background: rgba(18, 59, 112, 0.06);
+  background: rgba(195, 18, 46, 0.06);
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -752,7 +731,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 50%, rgba(18, 59, 112, 0.5) 80%, var(--tb-navy-hover) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 50%, rgba(195, 18, 46, 0.5) 80%, #ac031c 100%);
   z-index: 2;
 }
 
@@ -805,7 +784,7 @@ body {
 }
 
 .dest-tag {
-  background: rgba(18, 59, 112, 0.9);
+  background: rgba(195, 18, 46, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 0.2rem 0.6rem;
   border-radius: var(--radius-sm);
@@ -995,8 +974,8 @@ body {
 }
 
 .airline-logo-box {
-  background: rgba(18, 59, 112, 0.05);
-  border: 1px solid rgba(18, 59, 112, 0.1);
+  background: rgba(195, 18, 46, 0.05);
+  border: 1px solid rgba(195, 18, 46, 0.1);
   color: var(--gs-crimson);
   font-weight: 800;
   width: 36px;
@@ -1303,7 +1282,7 @@ body {
 }
 
 .seat-btn:hover {
-  background: rgba(18, 59, 112, 0.08);
+  background: rgba(195, 18, 46, 0.08);
   border-color: var(--gs-crimson);
   color: var(--gs-crimson-dark);
 }
@@ -1431,13 +1410,13 @@ body {
   transition: all 0.15s;
 }
 .close-btn:hover {
-  background: var(--tb-ice);
+  background: #fee2e2;
   color: var(--gs-crimson);
 }
 
 .modal-flight-summary {
-  background: var(--tb-ice);
-  border: 1px solid rgba(18, 59, 112, 0.08);
+  background: #fff8f8;
+  border: 1px solid rgba(195, 18, 46, 0.08);
   border-radius: 8px;
   padding: 1rem 1.25rem;
   margin: 1.25rem 1.5rem;
@@ -1612,8 +1591,8 @@ body {
 }
 .rsb-field:focus-within {
   border-color: var(--gs-crimson);
-  background: rgba(18, 59, 112,0.04);
-  box-shadow: 0 0 0 2px rgba(18, 59, 112,0.15);
+  background: rgba(195,18,46,0.04);
+  box-shadow: 0 0 0 2px rgba(195,18,46,0.15);
 }
 
 .rsb-field-sm {
@@ -1736,12 +1715,12 @@ body {
   transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
   flex-shrink: 0;
   letter-spacing: 0.02em;
-  box-shadow: 0 2px 8px rgba(18, 59, 112,0.4);
+  box-shadow: 0 2px 8px rgba(195,18,46,0.4);
 }
 .rsb-search-btn:hover:not(:disabled) {
   background: var(--gs-crimson-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(18, 59, 112,0.5);
+  box-shadow: 0 4px 16px rgba(195,18,46,0.5);
 }
 .rsb-search-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -1805,13 +1784,13 @@ body {
 .filter-chip:hover {
   border-color: var(--gs-crimson);
   color: var(--gs-crimson);
-  background: var(--tb-ice);
+  background: #fef2f2;
 }
 .filter-chip.chip-active {
   background: var(--gs-crimson);
   color: white;
   border-color: var(--gs-crimson);
-  box-shadow: 0 2px 8px rgba(18, 59, 112,0.3);
+  box-shadow: 0 2px 8px rgba(195,18,46,0.3);
 }
 .filter-chip-sep {
   width: 1px;
@@ -1924,9 +1903,9 @@ body {
   cursor: pointer;
   transition: background 0.12s;
 }
-.filter-radio-row:hover { background: var(--tb-ice); }
+.filter-radio-row:hover { background: #fef2f2; }
 .filter-radio-row.active {
-  background: var(--tb-ice);
+  background: #fef2f2;
   color: var(--gs-crimson);
   font-weight: 600;
 }
@@ -2026,8 +2005,8 @@ body {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  background: var(--tb-ice);
-  border: 1px solid rgba(18, 59, 112,0.2);
+  background: #fef2f2;
+  border: 1px solid rgba(195,18,46,0.2);
   border-radius: 999px;
   padding: 0.2rem 0.65rem;
 }
@@ -2044,7 +2023,7 @@ body {
   transition: box-shadow 0.2s, transform 0.15s, border-color 0.15s;
 }
 .result-card:hover {
-  box-shadow: 0 8px 32px rgba(18, 59, 112,0.1), 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 8px 32px rgba(195,18,46,0.1), 0 2px 8px rgba(0,0,0,0.06);
   border-color: var(--gs-crimson);
   transform: translateY(-2px);
 }
@@ -2077,7 +2056,7 @@ body {
   justify-content: center;
   font-size: 1rem;
   font-weight: 800;
-  box-shadow: 0 2px 8px rgba(18, 59, 112,0.3);
+  box-shadow: 0 2px 8px rgba(195,18,46,0.3);
 }
 
 .rc-airline-name {
@@ -2435,7 +2414,7 @@ body {
   justify-content: center;
   padding: 0.6rem 1rem;
   border-left: 1px solid #f0f2f5;
-  background: linear-gradient(135deg, var(--tb-ice) 0%, #fff 100%);
+  background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
   min-width: 130px;
   text-align: center;
   gap: 0.1rem;
@@ -2476,13 +2455,13 @@ body {
   width: 100%;
   transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
   letter-spacing: 0.02em;
-  box-shadow: 0 2px 8px rgba(18, 59, 112,0.35);
+  box-shadow: 0 2px 8px rgba(195,18,46,0.35);
   font-family: var(--font-body);
 }
 .rc-select-btn:hover {
   background: var(--gs-crimson-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(18, 59, 112,0.45);
+  box-shadow: 0 4px 14px rgba(195,18,46,0.45);
 }
 
 /* ── Responsive adjustments ────────────────────────── */
@@ -2552,7 +2531,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 1rem;
-    background: var(--tb-ice);
+    background: #fff5f5;
   }
 }
 @media (max-width: 560px) {
@@ -3048,7 +3027,7 @@ body {
    Layout: stepper + title across the top; the step's form/options in a white
    card on the left; the trip summary as a sticky side card on the right. */
 .modal-overlay.booking-fullpage {
-  background: var(--bg-main);
+  background: #f4f6f9;
   backdrop-filter: none;
   padding: 0;
   align-items: flex-start;
@@ -3079,9 +3058,8 @@ body {
   top: 0; left: 0; right: 0;
   height: 220px;
   background:
-    linear-gradient(90deg, rgba(12, 42, 82, 0.88) 0%, rgba(12, 42, 82, 0.45) 30%, rgba(12, 42, 82, 0) 55%),
     url('./assets/tickbook-sky.webp') right top / auto 100% no-repeat,
-    linear-gradient(90deg, var(--tb-navy-deep) 0%, var(--tb-navy) 45%, #2c5c97 100%);
+    linear-gradient(90deg, #0c2550 0%, #173f78 45%, #2c5c97 100%);
   -webkit-mask-image: linear-gradient(180deg, #000 0, #000 115px, transparent 215px);
   mask-image: linear-gradient(180deg, #000 0, #000 115px, transparent 215px);
   pointer-events: none;
@@ -3096,7 +3074,7 @@ body {
   padding: 0 0.25rem;
 }
 @media (max-width: 768px) {
-  .modal-overlay.booking-fullpage::before { background: linear-gradient(180deg, var(--tb-navy-deep) 0, #1c4a86 90px, #6fa3e0 160px, #ffffff 240px); }
+  .modal-overlay.booking-fullpage::before { background: linear-gradient(180deg, #0c2550 0, #1c4a86 90px, #6fa3e0 160px, #f4f6f9 240px); }
   .booking-fullpage > .modal-content > .wz-banner { height: 72px; }
 }
 
@@ -3174,21 +3152,21 @@ body {
 .wz-step.active { color: var(--gs-crimson); font-weight: 700; }
 .wz-step.active .wz-step-num { background: var(--gs-crimson); color: #fff; }
 .wz-step.active .wz-step-icon { color: var(--gs-crimson); }
-.wz-step.done .wz-step-num { background: var(--tb-coral-soft); color: var(--gs-crimson); }
+.wz-step.done .wz-step-num { background: #fde8eb; color: var(--gs-crimson); }
 .wz-step-line { flex: 1 1 auto; height: 2px; background: #e2e8f0; margin: 0 1.25rem; min-width: 1.5rem; }
 .wz-step-line.done { background: var(--gs-crimson); }
 
 .wz-title { display: flex; align-items: center; gap: 0.9rem; }
-.wz-title-icon { color: var(--tb-sky); flex: 0 0 auto; }
+.wz-title-icon { color: #1e4f9c; flex: 0 0 auto; }
 .wz-subtitle { margin: 0.2rem 0 0; color: #475569; font-size: 0.95rem; }
 
 .pax-section-head {
   display: flex; align-items: center; gap: 0.75rem;
-  background: var(--tb-ice); border-radius: 10px; padding: 0.55rem 0.9rem; margin-bottom: 0.9rem;
+  background: #eaf1fb; border-radius: 10px; padding: 0.55rem 0.9rem; margin-bottom: 0.9rem;
   font-weight: 700; font-size: 1.05rem; color: #0f172a;
 }
 .pax-section-icon {
-  width: 2rem; height: 2rem; border-radius: 50%; background: var(--tb-navy); color: #fff;
+  width: 2rem; height: 2rem; border-radius: 50%; background: #1e5bb8; color: #fff;
   display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
 .pax-form .form-label {
@@ -3205,7 +3183,7 @@ body {
 .pax-note svg { flex: 0 0 auto; margin-top: 1px; }
 .pax-more {
   display: flex; align-items: center; gap: 0.5rem; width: 100%;
-  background: var(--tb-ice); border: none; border-radius: 10px; padding: 0.6rem 0.9rem; margin: 0.25rem 0 0.75rem;
+  background: #eef3fa; border: none; border-radius: 10px; padding: 0.6rem 0.9rem; margin: 0.25rem 0 0.75rem;
   color: var(--gs-crimson); font-weight: 700; font-size: 0.9rem; cursor: pointer; text-align: left;
 }
 .pax-actions { justify-content: center !important; gap: 1rem; border-top: none !important; }
@@ -3222,7 +3200,7 @@ body {
 .booking-fullpage .pax-form .pax-email { grid-column: auto; }
 .pax-subhead {
   display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap;
-  font-size: 0.82rem; font-weight: 700; color: var(--tb-navy); letter-spacing: 0.01em;
+  font-size: 0.82rem; font-weight: 700; color: #0f2a55; letter-spacing: 0.01em;
   padding: 0.35rem 0 0.45rem; margin: 0.6rem 0 0.75rem;
   border-bottom: 1px solid #e6ebf2;
 }
@@ -3241,7 +3219,7 @@ body {
 .pax-form .form-input:hover,
 .pax-form .form-select:hover { border-color: #b8c4d4; }
 .pax-form .form-input:focus,
-.pax-form .form-select:focus { border-color: var(--tb-navy); box-shadow: 0 0 0 3px rgba(114, 188, 235, 0.14); }
+.pax-form .form-select:focus { border-color: #1e5bb8; box-shadow: 0 0 0 3px rgba(30, 91, 184, 0.14); }
 .pax-control-icon { color: #8794a7; }
 /* Date fields keep only the browser's own calendar button */
 .pax-control:has(input[type="date"]) .pax-control-icon { display: none; }
@@ -3257,7 +3235,7 @@ body {
 .booking-fullpage > .modal-content > .modal-flight-summary.yf-card { padding: 0 !important; overflow: hidden; gap: 0 !important; }
 .yf-head {
   display: flex; align-items: center; gap: 0.75rem;
-  background: linear-gradient(135deg, var(--tb-navy-deep), var(--tb-navy)); color: #fff;
+  background: linear-gradient(135deg, #0f2a55, #1c4382); color: #fff;
   padding: 0.8rem 1.1rem; font-weight: 700; font-size: 1.1rem;
 }
 .yf-head-icon {
@@ -3266,21 +3244,21 @@ body {
 }
 .yf-card > .summary-col { margin: 0 1.1rem; padding: 0.75rem 0 !important; border-bottom: 1px solid #edf1f6; }
 .yf-card .yf-leg { flex-direction: row !important; gap: 0.8rem; align-items: flex-start; }
-.yf-leg-icon { color: var(--tb-sky); flex: 0 0 auto; margin-top: 0.75rem; transform: rotate(45deg); }
+.yf-leg-icon { color: #1e4f9c; flex: 0 0 auto; margin-top: 0.75rem; transform: rotate(45deg); }
 .yf-leg-icon.return { transform: rotate(-135deg); }
 .yf-leg-body { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
-.yf-card .yf-leg .label { color: var(--tb-navy); }
+.yf-card .yf-leg .label { color: #1e5bb8; }
 .yf-card .yf-leg .val { font-weight: 700; color: #0f172a; }
 .yf-date { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: #334155; margin-top: 0.2rem; }
 .yf-card .yf-row { flex-direction: row !important; align-items: flex-start; gap: 0.75rem; }
 .yf-card .yf-row .label { flex: 0 0 7.5rem; display: flex; align-items: center; gap: 0.5rem; color: #0f172a; font-size: 0.72rem; }
-.yf-card .yf-row .label svg { color: var(--tb-sky); }
+.yf-card .yf-row .label svg { color: #1e4f9c; }
 .yf-card .yf-row .val { font-weight: 700; font-size: 0.85rem; min-width: 0; }
 .yf-card .yf-total {
   margin: 0.9rem 1.1rem 1.1rem; padding: 0.8rem 1rem !important; border: none;
-  background: var(--tb-ice); border-radius: 10px;
+  background: #eaf1fb; border-radius: 10px;
 }
-.yf-card .yf-total .label { color: var(--tb-navy); font-size: 0.75rem; }
+.yf-card .yf-total .label { color: #1e5bb8; font-size: 0.75rem; }
 @media (max-width: 640px) {
   .wz-step-icon,
   .wz-step:not(.active) .wz-step-label { display: none; }
@@ -3308,7 +3286,7 @@ body {
 }
 .booking-line:last-child { border-bottom: none; }
 .booking-line:hover, .booking-line:focus-visible { background: #f8fafc; outline: none; }
-.booking-line:focus-visible { box-shadow: inset 3px 0 0 var(--gs-red, var(--tb-navy)); }
+.booking-line:focus-visible { box-shadow: inset 3px 0 0 var(--gs-red, #c8102e); }
 .booking-line.is-cancelled { opacity: 0.72; }
 .booking-line-head {
   cursor: default; background: #f8fafc; padding-top: 0.45rem; padding-bottom: 0.45rem;
@@ -3321,7 +3299,7 @@ body {
 .booking-line .bl-flight { grid-area: flight; }
 .booking-line .bl-route { grid-area: route; white-space: nowrap; }
 .booking-line .bl-dep { grid-area: dep; white-space: nowrap; }
-.booking-line .bl-pnr { grid-area: pnr; color: var(--gs-red, var(--tb-navy)); }
+.booking-line .bl-pnr { grid-area: pnr; color: var(--gs-red, #c8102e); }
 .booking-line .bl-ticket { font-family: monospace; font-size: 0.7rem; }
 .booking-line .bl-pax { grid-area: pax; white-space: nowrap; }
 .booking-line .bl-fare { grid-area: fare; text-align: right; white-space: nowrap; }
@@ -3374,41 +3352,88 @@ body {
   .customer-portal-nav > button { flex-shrink: 0; white-space: nowrap; gap: 0.4rem; }
 }
 
-/* ══ Tick and Book theme: shared component styling ══════════════════════════
-   Colours come only from the --tb-* tokens in :root. Navy = brand and main
-   actions; coral = the selected item / important highlight; sky blue =
-   icons and focus; champagne = the premium price highlight. */
-.header.header-sky { border-bottom-color: var(--tb-coral); }
-.nav-tab { color: var(--tb-text); }
-.nav-tab:hover { color: var(--tb-navy); }
-.nav-tab.active { background: var(--tb-navy); color: var(--tb-white); box-shadow: 0 2px 6px rgba(18, 59, 112, 0.3); }
+/* ══ Tick and Book palette — booking pages only ═════════════════════════════
+   The rest of the site keeps its original colours; the booking flow
+   (Passenger Details → Options → Review & Pay) uses the Tick and Book tokens.
+   Tokens are defined once here; the legacy --gs-* names are re-pointed only
+   inside .booking-fullpage, so nothing outside the booking pages changes. */
+:root {
+  --tb-navy: #123B70;          /* brand, headings, main buttons */
+  --tb-sky: #72BCEB;           /* icons, focus */
+  --tb-ice: #EAF4FC;           /* soft panels */
+  --tb-champagne: #F5E9D8;     /* premium highlight (total price) */
+  --tb-coral: #E98270;         /* selected / important highlight */
+  --tb-white: #FFFFFF;
+  --tb-text: #24364B;
+  --tb-navy-deep: #0C2A52;
+  --tb-navy-hover: #0E3160;
+  --tb-coral-soft: #FBE6E1;
+  --tb-border: #D6E3EF;
+  --tb-muted: #52657C;
+  --tb-focus-ring: 0 0 0 3px rgba(114, 188, 235, 0.35);
+}
+.modal-overlay.booking-fullpage {
+  --gs-crimson: var(--tb-navy);
+  --gs-crimson-dark: var(--tb-navy-hover);
+  --gs-crimson-bright: var(--tb-coral);
+  --gs-crimson-glow: rgba(114, 188, 235, 0.3);
+  --gs-red: var(--tb-navy);
+  --gs-dark: var(--tb-text);
+  --gs-dark-light: #3d5068;
+  --border-color: var(--tb-border);
+  --border-glass: var(--tb-border);
+  --border-glass-active: var(--tb-navy);
+  --primary: var(--tb-navy);
+  --primary-hover: var(--tb-navy-hover);
+  --danger: #B42318;
+  --text-primary: var(--tb-text);
+  --text-secondary: #33465C;
+  --text-muted: var(--tb-muted);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  background: var(--tb-white);
+  color: var(--tb-text);
+}
+.modal-overlay.booking-fullpage::before {
+  background:
+    linear-gradient(90deg, rgba(12, 42, 82, 0.88) 0%, rgba(12, 42, 82, 0.45) 30%, rgba(12, 42, 82, 0) 55%),
+    url('./assets/tickbook-sky.webp') right top / auto 100% no-repeat,
+    linear-gradient(90deg, var(--tb-navy-deep) 0%, var(--tb-navy) 45%, #2c5c97 100%);
+}
+@media (max-width: 768px) {
+  .modal-overlay.booking-fullpage::before { background: linear-gradient(180deg, var(--tb-navy-deep) 0, #1c4a86 90px, #6fa3e0 160px, #ffffff 240px); }
+}
+.booking-fullpage .btn-primary { background: var(--tb-navy); border-color: var(--tb-navy); color: var(--tb-white); box-shadow: 0 2px 4px rgba(18, 59, 112, 0.15); }
+.booking-fullpage .btn-primary:hover { background: var(--tb-navy-hover); border-color: var(--tb-navy-hover); box-shadow: 0 4px 10px rgba(18, 59, 112, 0.25); }
+.booking-fullpage .btn-secondary { color: var(--tb-navy); border-color: var(--tb-border); }
+.booking-fullpage .btn-secondary:hover { background: var(--tb-ice); border-color: var(--tb-navy); color: var(--tb-navy); }
+.booking-fullpage .form-input:focus,
+.booking-fullpage .form-select:focus,
+.booking-fullpage .pax-form .form-input:focus,
+.booking-fullpage .pax-form .form-select:focus { border-color: var(--tb-sky); box-shadow: var(--tb-focus-ring); }
+.booking-fullpage .pax-form .form-label .req { color: var(--tb-coral); }
 
-.btn-primary { background: var(--tb-navy); border-color: var(--tb-navy); color: var(--tb-white); }
-.btn-primary:hover { background: var(--tb-navy-hover); border-color: var(--tb-navy-hover); }
-.btn-secondary { color: var(--tb-navy); border-color: var(--tb-border); }
-.btn-secondary:hover { background: var(--tb-ice); border-color: var(--tb-navy); color: var(--tb-navy); }
+/* Step bar */
+.booking-fullpage .wz-step { color: var(--tb-text); }
+.booking-fullpage .wz-step.active { color: var(--tb-navy); }
+.booking-fullpage .wz-step-num { background: var(--tb-ice); color: var(--tb-muted); }
+.booking-fullpage .wz-step.active .wz-step-num { background: var(--tb-coral); color: var(--tb-text); }
+.booking-fullpage .wz-step.active .wz-step-icon { color: var(--tb-coral); }
+.booking-fullpage .wz-step.done .wz-step-num { background: var(--tb-coral-soft); color: var(--tb-navy); }
+.booking-fullpage .wz-step-line.done { background: var(--tb-coral); }
 
-.form-input:focus, .form-select:focus { border-color: var(--tb-sky); box-shadow: var(--tb-focus-ring); }
-.pax-form .form-input:focus,
-.pax-form .form-select:focus { border-color: var(--tb-sky); box-shadow: var(--tb-focus-ring); }
-.pax-form .form-label .req { color: var(--tb-coral); }
-
-/* Booking step bar */
-.wz-step.active { color: var(--tb-navy); }
-.wz-step.active .wz-step-num { background: var(--tb-coral); color: var(--tb-text); }
-.wz-step.active .wz-step-icon { color: var(--tb-coral); }
-.wz-step.done .wz-step-num { background: var(--tb-coral-soft); color: var(--tb-navy); }
-.wz-step-num { background: var(--tb-ice); color: var(--tb-muted); }
-.wz-step-line.done { background: var(--tb-coral); }
-
-/* Booking pages: section heads, icons, side card */
-.wz-title-icon, .yf-leg-icon, .yf-card .yf-row .label svg, .yf-card .yf-leg .label { color: var(--tb-sky); }
-.yf-card .yf-leg .label { color: #3B8CC4; }   /* darker sky so the small caps stay readable */
-.pax-section-head { background: var(--tb-ice); color: var(--tb-navy); }
-.pax-section-icon { background: var(--tb-navy); }
-.pax-subhead { color: var(--tb-navy); border-bottom-color: var(--tb-border); }
-.pax-more { background: var(--tb-ice); color: var(--tb-navy); }
-.yf-card .yf-total { background: var(--tb-champagne); }
-.yf-card .yf-total .label { color: #8A6A3D; }
-.modal-flight-summary .val.highlight { color: var(--tb-navy); }
+/* Title, form sections, side card */
+.booking-fullpage .wz-title-icon,
+.booking-fullpage .yf-leg-icon,
+.booking-fullpage .yf-card .yf-row .label svg { color: var(--tb-sky); }
 .booking-fullpage > .modal-content > .modal-header h3 { color: var(--tb-navy); }
+.booking-fullpage .pax-section-head { background: var(--tb-ice); color: var(--tb-navy); }
+.booking-fullpage .pax-section-icon { background: var(--tb-navy); }
+.booking-fullpage .pax-subhead { color: var(--tb-navy); border-bottom-color: var(--tb-border); }
+.booking-fullpage .pax-more { background: var(--tb-ice); color: var(--tb-navy); }
+.booking-fullpage .yf-head { background: linear-gradient(135deg, var(--tb-navy-deep), var(--tb-navy)); }
+.booking-fullpage .yf-card .yf-leg .label { color: #3B8CC4; }
+.booking-fullpage .yf-card .yf-total { background: var(--tb-champagne); }
+.booking-fullpage .yf-card .yf-total .label { color: #8A6A3D; }
+.booking-fullpage .modal-flight-summary .val.highlight { color: var(--tb-navy); }

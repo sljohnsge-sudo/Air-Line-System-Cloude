@@ -139,10 +139,10 @@ export function ShareToggle({ checked, onChange }) {
   return (
     <label title="Tick to share this fare by WhatsApp or email" style={{
       display: 'inline-flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer',
-      fontSize: '0.68rem', fontWeight: 600, color: checked ? 'var(--tb-navy)' : '#64748b', userSelect: 'none',
+      fontSize: '0.68rem', fontWeight: 600, color: checked ? '#245d38' : '#64748b', userSelect: 'none',
     }}>
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
-             style={{ accentColor: 'var(--tb-navy)', width: '13px', height: '13px', margin: 0, cursor: 'pointer' }} />
+             style={{ accentColor: '#245d38', width: '13px', height: '13px', margin: 0, cursor: 'pointer' }} />
       Share this fare
     </label>
   );

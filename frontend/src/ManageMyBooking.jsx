@@ -52,8 +52,8 @@ function SeatMap({ map, chosen, onPick }) {
                 <button key={i} type="button" disabled={!open} onClick={() => onPick(s)}
                         title={open ? `${s.seat_number} · ${s.price ? money(s.currency, s.price) : 'Free'}` : `${s.seat_number} · not available`}
                         style={{ ...gap, width: '24px', height: '24px', fontSize: '0.5rem', padding: 0, borderRadius: '4px', cursor: open ? 'pointer' : 'not-allowed',
-                                 border: picked ? '2px solid var(--gs-crimson, var(--tb-navy))' : '1px solid #cbd5e1',
-                                 background: picked ? 'var(--gs-crimson, var(--tb-navy))' : !open ? '#e2e8f0' : s.price ? '#fef3c7' : '#dcfce7',
+                                 border: picked ? '2px solid var(--gs-crimson, #c8102e)' : '1px solid #cbd5e1',
+                                 background: picked ? 'var(--gs-crimson, #c8102e)' : !open ? '#e2e8f0' : s.price ? '#fef3c7' : '#dcfce7',
                                  color: picked ? 'white' : '#334155' }}>
                   {s.col}
                 </button>

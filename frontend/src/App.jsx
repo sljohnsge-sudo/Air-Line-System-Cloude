@@ -207,7 +207,7 @@ function _CalendarMonthGrid({ viewYear, viewMonth, minD, departureValue, returnV
                 padding: '0.45rem 0',
                 borderRadius: inRange ? 0 : '6px',
                 border: 'none',
-                background: isSelected ? 'var(--tb-navy)' : (inRange ? 'rgba(36, 93, 56, 0.12)' : 'transparent'),
+                background: isSelected ? '#245d38' : (inRange ? 'rgba(36, 93, 56, 0.12)' : 'transparent'),
                 color: isDisabled ? '#cbd5e1' : (isSelected ? 'white' : '#1e293b'),
                 fontWeight: isSelected ? '700' : '500',
                 fontSize: '0.85rem',
@@ -3400,7 +3400,7 @@ export default function App() {
           lineHeight: 1,
           cursor: cursor,
           outline: 'none',
-          boxShadow: isSelectedByActive ? '0 0 8px rgba(18, 59, 112, 0.4)' : 'none',
+          boxShadow: isSelectedByActive ? '0 0 8px rgba(195, 18, 46, 0.4)' : 'none',
           transition: 'all 0.15s',
           ...seatPatternStyle
         }}
@@ -4595,7 +4595,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             }}
                             style={{
                               padding: '0.4rem 0.6rem', borderRadius: '6px', border: 'none', textAlign: 'left', cursor: 'pointer',
-                              background: searchType === val ? 'var(--tb-navy)' : 'transparent',
+                              background: searchType === val ? '#245d38' : 'transparent',
                               color: searchType === val ? 'white' : '#1e293b', fontWeight: '600', fontSize: '0.82rem',
                               outline: 'none',
                             }}
@@ -5561,7 +5561,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             const fId = fareCardKey(flight, idx);
                             setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
                           }}>
-                            <div className="rc-seats" style={{ color: flight.seats_remaining < 5 ? 'var(--danger)' : '#0f766e', fontWeight: '700' }}>
+                            <div className="rc-seats" style={{ color: flight.seats_remaining < 5 ? '#c3122e' : '#0f766e', fontWeight: '700' }}>
                               {flight.seats_remaining < 5 ? `Only ${flight.seats_remaining} left` : `${flight.seats_remaining} seats`}
                             </div>
                           </div>
@@ -5570,8 +5570,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         <div className="rc-price-col">
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
                             <div style={{
-                              fontSize: '0.68rem', fontWeight: '800', color: 'var(--tb-navy)',
-                              background: 'transparent', border: '1.5px solid var(--tb-navy)', borderRadius: '999px',
+                              fontSize: '0.68rem', fontWeight: '800', color: '#245d38',
+                              background: 'transparent', border: '1.5px solid #245d38', borderRadius: '999px',
                               padding: '0.2rem 0.7rem', letterSpacing: '0.02em', whiteSpace: 'nowrap'
                             }}>
                               {activeCabin === 'PremiumEconomy' ? 'Premium Economy' : activeCabin} Class
@@ -5580,10 +5580,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '600' }}>
                                 from {displayCurrency}
                               </div>
-                              <div style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--tb-navy)', lineHeight: '1.1' }}>
+                              <div style={{ fontSize: '1.35rem', fontWeight: '800', color: '#245d38', lineHeight: '1.1' }}>
                                 {Math.floor(displayPrice).toLocaleString()}
                               </div>
-                              <div style={{ fontSize: '0.65rem', color: 'var(--tb-navy)', fontWeight: '700', marginTop: '2px' }}>
+                              <div style={{ fontSize: '0.65rem', color: '#245d38', fontWeight: '700', marginTop: '2px' }}>
                                 Lowest price
                               </div>
                             </div>
@@ -5603,7 +5603,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                   }
                                 }}
                                 style={{
-                                  background: 'var(--tb-navy)',
+                                  background: '#245d38',
                                   color: 'white',
                                   border: 'none',
                                   borderRadius: '6px',
@@ -5755,7 +5755,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                       border: 'none',
                                       background: 'transparent',
                                       padding: '0.4rem 0',
-                                      borderBottom: isSelected ? '3px solid var(--tb-navy)' : '3px solid transparent',
+                                      borderBottom: isSelected ? '3px solid #245d38' : '3px solid transparent',
                                       color: isSelected ? '#1e293b' : '#64748b',
                                       fontWeight: '700',
                                       fontSize: '0.82rem',
@@ -5768,7 +5768,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                     }}
                                   >
                                     <span>{label}</span>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: '500', color: isSelected ? 'var(--tb-navy)' : '#94a3b8' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '500', color: isSelected ? '#245d38' : '#94a3b8' }}>
                                       {priceText}
                                     </span>
                                   </button>
@@ -5801,7 +5801,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                 }}>
                                   {/* Card Header */}
                                   <div style={{
-                                    background: isCheapest ? 'var(--tb-navy)' : 'var(--tb-navy-deep)',
+                                    background: isCheapest ? '#245d38' : '#1e293b',
                                     padding: '0.55rem 0.75rem',
                                     color: 'white',
                                     position: 'relative'
@@ -5944,8 +5944,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                         handleSelectFlight(flight, fo);
                                       }}
                                       style={{
-                                        background: isCheapest ? 'var(--tb-coral)' : 'var(--tb-navy)',
-                                        color: isCheapest ? 'var(--tb-text)' : 'white',
+                                        background: isCheapest ? '#245d38' : '#1e293b',
+                                        color: 'white',
                                         border: 'none',
                                         borderRadius: '6px',
                                         padding: '0.45rem 0.75rem',
@@ -6078,7 +6078,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                 <div style={{
                                   display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1fr',
                                   padding: '0.6rem 0.85rem', gap: '0.5rem',
-                                  background: 'rgba(18, 59, 112,0.05)', borderTop: '2px solid var(--gs-crimson)',
+                                  background: 'rgba(195,18,46,0.05)', borderTop: '2px solid var(--gs-crimson)',
                                   fontSize: '0.8rem', fontWeight: '800', color: 'var(--gs-crimson)', alignItems: 'center',
                                 }}>
                                   <span style={{ gridColumn: '1 / 5' }}>Total for All {totalPax} Passengers</span>
@@ -6449,7 +6449,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
                 {/* All Passengers Table */}
                 <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
-                  <div style={{ background: 'var(--tb-navy)', padding: '0.75rem 1.25rem' }}>
+                  <div style={{ background: '#c3122e', padding: '0.75rem 1.25rem' }}>
                     <span style={{ color: 'white', fontWeight: '700', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>👥 Passengers ({paxList.length}) — from Travelport Reservation.Traveler[]</span>
                   </div>
                   <div style={{ overflowX: 'auto' }}>
@@ -6468,7 +6468,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             <td style={{ padding: '0.6rem 0.85rem' }}>
                               <span style={{ padding: '0.15rem 0.5rem', borderRadius: '20px', fontSize: '0.68rem', fontWeight: '700',
                                 background: p.passenger_type === 'ADT' ? '#fee2e2' : p.passenger_type === 'CNN' ? '#eff6ff' : '#f0fdf4',
-                                color: p.passenger_type === 'ADT' ? 'var(--tb-navy)' : p.passenger_type === 'CNN' ? '#1d4ed8' : '#15803d' }}>
+                                color: p.passenger_type === 'ADT' ? '#c3122e' : p.passenger_type === 'CNN' ? '#1d4ed8' : '#15803d' }}>
                                 {p.passenger_type_label}
                               </span>
                             </td>
@@ -6507,7 +6507,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         {segs.length > 0 ? segs.map((seg, i) => (
                           <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#64748b' }}>{i + 1}</td>
-                            <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: 'var(--tb-navy)', fontFamily: 'monospace' }}>{seg.flight_number}</td>
+                            <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#c3122e', fontFamily: 'monospace' }}>{seg.flight_number}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{seg.carrier_name || seg.carrier}</td>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#1e293b' }}>{seg.departure_airport}{seg.departure_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.departure_terminal})</span>}</td>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#1e293b' }}>{seg.arrival_airport}{seg.arrival_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.arrival_terminal})</span>}</td>
@@ -6536,7 +6536,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         ['Base Fare (All Pax)', inv.fare_summary.base_fare_total, '#1e293b'],
                         ['Total Taxes', inv.fare_summary.total_taxes, '#b45309'],
                         ['Total Fees', inv.fare_summary.total_fees, '#64748b'],
-                        ['Grand Total', inv.fare_summary.grand_total, 'var(--tb-navy)'],
+                        ['Grand Total', inv.fare_summary.grand_total, '#c3122e'],
                       ].map(([label, val, color], i) => (
                         <div key={i} style={{ padding: '0.85rem 1.25rem', borderRight: i < 3 ? '1px solid #f1f5f9' : 'none' }}>
                           <div style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>{label}</div>
@@ -6566,7 +6566,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             <span style={{
                               padding: '0.18rem 0.55rem', borderRadius: '20px', fontSize: '0.7rem', fontWeight: '700',
                               background: ptc === 'ADT' ? '#fee2e2' : ptc === 'CNN' ? '#eff6ff' : '#f0fdf4',
-                              color: ptc === 'ADT' ? 'var(--tb-navy)' : ptc === 'CNN' ? '#1d4ed8' : '#15803d'
+                              color: ptc === 'ADT' ? '#c3122e' : ptc === 'CNN' ? '#1d4ed8' : '#15803d'
                             }}>{b.passenger_label || ptc}</span>
                           </div>
                           <div style={{ textAlign: 'right', fontSize: '0.78rem' }}>
@@ -6579,7 +6579,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           </div>
                           <div style={{ textAlign: 'right', fontSize: '0.78rem' }}>
                             <span style={{ color: '#64748b', fontSize: '0.65rem' }}>Total per Pax</span><br />
-                            <strong style={{ color: 'var(--tb-navy)', fontSize: '0.9rem' }}>{inv.currency} {Number(b.total_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                            <strong style={{ color: '#c3122e', fontSize: '0.9rem' }}>{inv.currency} {Number(b.total_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                           </div>
                         </div>
 
@@ -6682,7 +6682,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     )}
 
                     {/* Grand Total */}
-                    <div style={{ borderTop: '2px solid var(--tb-navy)', paddingTop: '0.65rem', marginTop: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ borderTop: '2px solid #c3122e', paddingTop: '0.65rem', marginTop: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ fontWeight: '800', fontSize: '0.95rem', color: '#1e293b' }}>Grand Total</div>
                         {seatFee > 0 && (
@@ -6692,7 +6692,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           </div>
                         )}
                       </div>
-                      <strong style={{ fontSize: '1.5rem', color: 'var(--tb-navy)' }}>{inv.currency} {grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                      <strong style={{ fontSize: '1.5rem', color: '#c3122e' }}>{inv.currency} {grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                     </div>
                   </div>
 
@@ -6894,7 +6894,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               <td style={{ padding: '0.6rem 0.85rem', textAlign: 'right', color: '#7c3aed' }}>
                                 {r.seat_charge > 0 && r.passenger_index === 1 ? Number(r.seat_charge).toLocaleString(undefined, {minimumFractionDigits:2}) : '—'}
                               </td>
-                              <td style={{ padding: '0.6rem 0.85rem', textAlign: 'right', fontWeight: '800', color: 'var(--tb-navy)' }}>
+                              <td style={{ padding: '0.6rem 0.85rem', textAlign: 'right', fontWeight: '800', color: '#c3122e' }}>
                                 {r.currency} {Number(r.pax_total + (r.passenger_index === 1 ? r.seat_charge : 0)).toLocaleString(undefined, {minimumFractionDigits:2})}
                               </td>
                             </tr>
@@ -8597,7 +8597,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         : (selectedFlight.price || 0);
                       const seatCharges = selectedSeats.reduce((acc, s) => acc + s.price, 0);
                       return (
-                        <div style={{ marginTop: 'auto', background: 'var(--tb-ice)', border: '1px solid var(--gs-crimson)', borderRadius: '6px', padding: '0.75rem', fontSize: '0.8rem' }}>
+                        <div style={{ marginTop: 'auto', background: '#fff8f8', border: '1px solid var(--gs-crimson)', borderRadius: '6px', padding: '0.75rem', fontSize: '0.8rem' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                             <span>Flight Fare ({travelers.length} Pax):</span>
                             <strong>{selectedFlight.currency} {flightGrandTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
@@ -9303,7 +9303,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                               padding: '0.75rem 1rem', borderRadius: '6px', cursor: 'pointer',
                               border: '1px solid ' + (isSelected ? 'var(--gs-crimson)' : 'var(--border-color)'),
-                              background: isSelected ? 'var(--tb-ice)' : 'white'
+                              background: isSelected ? '#fff8f8' : 'white'
                             }}
                           >
                             <div>
@@ -9599,7 +9599,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   const seatChargesReview = selectedSeats.reduce((acc, s) => acc + s.price, 0);
                   const ancillaryChargesReview = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
                   return (
-                    <div style={{ background: 'var(--tb-ice)', border: '1px solid var(--gs-crimson)', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1rem' }}>
+                    <div style={{ background: '#fff8f8', border: '1px solid var(--gs-crimson)', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         {hasTaxBreakdownReview ? (
                           <>
@@ -9781,7 +9781,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             <div id="electronic-ticket-receipt" className="ticket-receipt-body" style={{ padding: '2.5rem', background: 'white' }}>
 
               {/* Header: Logo, Agency Info, Ticket Title */}
-              <div className="ticket-header-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid var(--tb-navy)', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
+              <div className="ticket-header-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #c3122e', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
                     <TickBookLogo size={42} />
@@ -9793,7 +9793,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                 </div>
                 <div className="ticket-title-block" style={{ textAlign: 'right' }}>
-                  <h1 style={{ fontFamily: 'var(--font-heading)', color: 'var(--tb-navy)', fontSize: '1.35rem', fontWeight: '700', margin: '0 0 0.5rem 0' }}>ELECTRONIC TICKET RECEIPT</h1>
+                  <h1 style={{ fontFamily: 'var(--font-heading)', color: '#c3122e', fontSize: '1.35rem', fontWeight: '700', margin: '0 0 0.5rem 0' }}>ELECTRONIC TICKET RECEIPT</h1>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
                     <strong>Booking Status:</strong> <span style={{ color: issuedTicket.status === 'Ticketed' ? '#0f766e' : '#b45309', fontWeight: '700' }}>{issuedTicket.status === 'Ticketed' ? 'ISSUED / CONFIRMED' : 'RESERVATION ON HOLD'}</span><br />
                     <strong>Date of Issue:</strong> {issuedTicket.booking_date || new Date().toISOString().split('T')[0]}<br />
@@ -9806,7 +9806,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <div className="ticket-ref-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '1rem 1.25rem', marginBottom: '2rem' }}>
                 <div>
                   <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em' }}>Agency Reference (PNR)</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--tb-navy)', fontFamily: 'monospace' }}>{issuedTicket.locator_code || issuedTicket.pnr}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#c3122e', fontFamily: 'monospace' }}>{issuedTicket.locator_code || issuedTicket.pnr}</div>
                 </div>
                 <div style={{ borderLeft: '1px dashed #cbd5e1', paddingLeft: '1rem' }}>
                   <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em' }}>Airline Confirmation</div>
@@ -9881,7 +9881,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 <div style={{ flex: 1.6 }}>
                   
                   {/* Passenger Information — all travelers */}
-                  <h3 style={{ fontSize: '0.9rem', color: 'var(--tb-navy)', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <h3 style={{ fontSize: '0.9rem', color: '#c3122e', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Passenger Information ({displayTravelers.length} {displayTravelers.length === 1 ? 'Passenger' : 'Passengers'})
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.75rem' }}>
@@ -9899,7 +9899,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             <span style={{ fontWeight: '700', color: '#1e293b', fontSize: '0.8rem' }}>
                               {paxIcon} Passenger {pIdx + 1}
                             </span>
-                            <span style={{ fontSize: '0.68rem', fontWeight: '700', padding: '0.15rem 0.5rem', borderRadius: '20px', background: pIdx === 0 ? '#fee2e2' : '#eff6ff', color: pIdx === 0 ? 'var(--tb-navy)' : '#1d4ed8' }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: '700', padding: '0.15rem 0.5rem', borderRadius: '20px', background: pIdx === 0 ? '#fee2e2' : '#eff6ff', color: pIdx === 0 ? '#c3122e' : '#1d4ed8' }}>
                               {paxTypeLabel} {pIdx === 0 ? '· Primary Contact' : ''}
                             </span>
                           </div>
@@ -9978,7 +9978,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
                     const renderLegTable = (title, segments, dirLabel) => (
                       <div key={title} style={{ marginBottom: '1.25rem' }}>
-                        <h3 style={{ fontSize: '0.9rem', color: 'var(--tb-navy)', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <h3 style={{ fontSize: '0.9rem', color: '#c3122e', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           {title}
                         </h3>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
@@ -9995,7 +9995,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             {segments.map((seg, sIdx) => (
                               <tr key={sIdx} style={{ borderBottom: '1px solid #cbd5e1' }}>
                                 <td style={{ padding: '0.6rem 0.5rem', fontWeight: '600' }}>
-                                  <span style={{ color: 'var(--tb-navy)', fontWeight: '800' }}>{seg.carrier_name || seg.carrier}</span><br />
+                                  <span style={{ color: '#c3122e', fontWeight: '800' }}>{seg.carrier_name || seg.carrier}</span><br />
                                   <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Flight: {seg.flight_number}</span>
                                 </td>
                                 <td style={{ padding: '0.6rem 0.5rem' }}>
@@ -10058,7 +10058,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   
                   {/* Fast Track Box */}
                   <div style={{ 
-                    border: '2px solid var(--tb-navy)', 
+                    border: '2px solid #c3122e', 
                     borderRadius: '8px', 
                     padding: '1.25rem', 
                     textAlign: 'center', 
@@ -10066,7 +10066,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   }}>
                     <span style={{ 
                       display: 'inline-block', 
-                      background: 'var(--tb-navy)', 
+                      background: '#c3122e', 
                       color: 'white', 
                       padding: '0.2rem 0.6rem', 
                       borderRadius: '4px', 
@@ -10163,7 +10163,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         );
                       })()}
                       <div style={{ borderTop: '1px dashed #cbd5e1', margin: '0.25rem 0' }}></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: 'var(--tb-navy)', fontSize: '0.9rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: '#c3122e', fontSize: '0.9rem' }}>
                         <span>Grand Total Paid:</span>
                         <span>{issuedTicket.currency} {issuedTicket.total_fare?.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                       </div>
