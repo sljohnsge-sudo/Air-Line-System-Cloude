@@ -3669,7 +3669,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <Ico.IconPassport size={20} />Visa Assistance
                 </button>
                 <button type="button" ref={heroTravelServicesRef} disabled={!featureFlags.packages_enabled} onClick={() => openPackages()}>
-                  <Ico.IconBag size={20} />Travel Services
+                  <Ico.IconBag size={20} />Tour Packages
                 </button>
               </div>
             </div>
