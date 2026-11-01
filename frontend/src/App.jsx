@@ -3547,7 +3547,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         </div>
         <nav className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
-          <button className={`nav-tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => { setActiveTab('home'); setShowSearchForm(true); setTimeout(() => document.getElementById('flight-search')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}>Book Flights</button>
           {featureFlags.hotels_enabled && (
             <button className={`nav-tab ${activeTab === 'hotels' ? 'active' : ''}`} onClick={() => setActiveTab('hotels')}>Hotels</button>
           )}
