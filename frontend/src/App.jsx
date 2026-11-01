@@ -1884,6 +1884,9 @@ export default function App() {
   // Booking Engine"), so they always get the full form back, matching how a
   // separate Book Flights page used to always start fresh.
   const [showSearchForm, setShowSearchForm] = useState(true);
+  // No separate search page: the home page carries the flight search, and
+  // /book (Book Flights before results come back) shows that same page.
+  const showHomePage = activeTab === 'home' || (activeTab === 'book' && showSearchForm);
   const [searchError, setSearchError] = useState('');
   const [expandedFareIds, setExpandedFareIds] = useState({});
   // Fare cards ticked to share by WhatsApp / email — fareCardKey -> text summary.
@@ -2394,6 +2397,7 @@ export default function App() {
     setFlights([]);
     setShareFares({});
     setShowSearchForm(false);
+    setActiveTab('book');
 
     const origin = overrides.origin || searchOrigin;
     const destination = overrides.destination || searchDest;
@@ -3543,7 +3547,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         </div>
         <nav className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
-          <button className={`nav-tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => { setActiveTab('book'); setShowSearchForm(true); }}>Book Flights</button>
+          <button className={`nav-tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => { setActiveTab('home'); setShowSearchForm(true); setTimeout(() => document.getElementById('flight-search')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}>Book Flights</button>
           {featureFlags.hotels_enabled && (
             <button className={`nav-tab ${activeTab === 'hotels' ? 'active' : ''}`} onClick={() => setActiveTab('hotels')}>Hotels</button>
           )}
@@ -3563,8 +3567,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         </nav>
       </header>
 
-      {/* ── HOME TAB ────────────────────────────────────────────────────── */}
-      {activeTab === 'home' && (
+      {/* ── HOME TAB (the flight search lives here; /book shows the same page) ── */}
+      {showHomePage && (
         <div className="home-layout animate-fade">
           <section className="hero-section">
             <div className="hero-visual">
@@ -3582,136 +3586,14 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             <div className="hero-content">
               <span className="hero-tagline">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                Established 1835 | Legacy of Trust
+                Flights · Hotels · Travel, all in one place
               </span>
-              <h1 className="hero-title">The Future of<span className="title-gradient-red">Global Journeys</span></h1>
+              <h1 className="hero-title">Book Smarter,<span className="title-gradient-red">Travel Further</span></h1>
               <p className="hero-subtitle">
-                Sri Lanka's premier travel partner — <strong>real-time global flight inventory</strong>, live PNR generation, and instant ticket issuance.
+                Search <strong>live fares from hundreds of airlines</strong>, choose your seat and extras, and get your e-ticket in minutes, with Sri Lankan support whenever you need it.
               </p>
-              <div className="hero-actions">
-                <button className="btn btn-primary" onClick={() => { setActiveTab('book'); setShowSearchForm(true); }}>
-                  Launch Booking Engine
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                </button>
-                <button className="btn btn-secondary" onClick={() => setActiveTab('account')}>My Account</button>
-              </div>
             </div>
           </section>
-
-          {/* Featured Tour Packages & Special Hotel Packages — 4-package
-              teasers with a link through to the full catalog (filtered by
-              type there), so the homepage doesn't have to load/show every
-              package staff have created. Shown above the quick-action boxes
-              so they're the first thing visitors see under the hero. */}
-          {featureFlags.packages_enabled && (() => {
-            const tourTeasers = packages.filter(p => (p.package_type || 'tour') === 'tour').slice(0, 4);
-            const hotelTeasers = packages.filter(p => p.package_type === 'hotel').slice(0, 4);
-            const openPackageFromHome = (pkg, type) => {
-              setSelectedPackage(pkg);
-              setPackageBookingSubmitted(false);
-              setPackageBookingError('');
-              setPackagesTypeView(type);
-              setActiveTab('packages');
-            };
-            const teaserCard = (pkg, type) => (
-              <div key={pkg.id} className="glass-panel" style={{ borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
-                onClick={() => openPackageFromHome(pkg, type)}>
-                <div style={{
-                  height: '130px', background: pkg.image_url ? `url(${pkg.image_url}) center/cover no-repeat` : 'linear-gradient(135deg,#0f172a,#334155)',
-                  display: 'flex', alignItems: 'flex-end', padding: '0.75rem',
-                }}>
-                  <span style={{ background: 'rgba(15,23,42,0.75)', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '999px' }}>
-                    {pkg.duration_days}D / {pkg.duration_nights}N
-                  </span>
-                </div>
-                <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: 1 }}>
-                  <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--gs-dark)' }}>{pkg.title}</h3>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>{pkg.destination}</p>
-                  <div style={{ marginTop: 'auto', paddingTop: '0.6rem' }}>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>From</div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--gs-crimson)' }}>{pkg.currency} {Number(pkg.price).toLocaleString()}</div>
-                  </div>
-                </div>
-              </div>
-            );
-            return (
-              <>
-                {tourTeasers.length > 0 && (
-                  <section>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                      <div>
-                        <span className="section-label">Handpicked For You</span>
-                        <h2 className="section-heading" style={{ margin: '0.25rem 0 0' }}>Featured Tour Packages</h2>
-                      </div>
-                      <button className="btn btn-secondary" onClick={() => openPackages('tour')}>
-                        View More
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '0.4rem' }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                      </button>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
-                      {tourTeasers.map(pkg => teaserCard(pkg, 'tour'))}
-                    </div>
-                  </section>
-                )}
-
-                {hotelTeasers.length > 0 && (
-                  <section>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                      <div>
-                        <span className="section-label">Exclusive Rates</span>
-                        <h2 className="section-heading" style={{ margin: '0.25rem 0 0' }}>Special Hotel Packages</h2>
-                      </div>
-                      <button className="btn btn-secondary" onClick={() => openPackages('hotel')}>
-                        View More
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '0.4rem' }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                      </button>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
-                      {hotelTeasers.map(pkg => teaserCard(pkg, 'hotel'))}
-                    </div>
-                  </section>
-                )}
-              </>
-            );
-          })()}
-
-          {/* Features */}
-          <section className="features-section">
-            <div className="section-header">
-              <span className="section-label">Global Distribution Network</span>
-              <h2 className="section-heading">Enterprise-Grade Flight Booking</h2>
-            </div>
-            <div className="features-grid">
-              <div className="feature-card">
-                <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg></div>
-                <h4>Live GDS Inventory</h4>
-                <p>Real-time flight availability from our global distribution system — no cached or mock data.</p>
-              </div>
-              <div className="feature-card">
-                <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-                <h4>Instant PNR Generation</h4>
-                <p>Live workbench commits to the GDS generate a real PNR in seconds.</p>
-              </div>
-              <div className="feature-card">
-                <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-                <h4>Electronic Ticketing</h4>
-                <p>Full e-ticket issuance through our GDS integration with real ticket numbers.</p>
-              </div>
-            </div>
-          </section>
-
-          {/* Footer */}
-          <footer className="footer">
-            <div className="footer-brand" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <span style={{ alignSelf: 'flex-start' }}><TickBookLogo size={36} /></span>
-              <span className="footer-copy">© {new Date().getFullYear()} Tick and Book · operated by George Steuart Travel Ltd. All rights reserved.</span>
-            </div>
-            <div className="footer-links">
-              <a href="#" className="footer-link">Privacy Policy</a>
-              <a href="#" className="footer-link">Terms of Service</a>
-              <a href="#" className="footer-link">Contact Support</a>
-            </div>
-          </footer>
         </div>
       )}
 
@@ -3722,13 +3604,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
           always flips this back to true so the full form (with the trip-
           type toggle results' own compact edit bar doesn't have) comes back,
           the same as when Book Flights was its own separate page. */}
-      {activeTab === 'book' && showSearchForm && (
-        <div className="tab-content animate-fade">
+      {showHomePage && (
+        <div id="flight-search" className="tab-content animate-fade">
           <section className="search-section glass-panel flight-hero">
-            <div className="flight-hero-header">
-              <h2 className="flight-hero-title">Find your next flight<span className="flight-hero-dot">.</span></h2>
-              <p className="flight-hero-subtitle">Live fares straight from the GDS — booked and ticketed instantly, no middleman.</p>
-            </div>
 
             <div className="search-type-tabs">
               <button type="button" className={`search-type-tab ${searchType === 'oneway' ? 'active' : ''}`} onClick={() => setSearchType('oneway')}>One Way</button>
@@ -4307,6 +4185,126 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         </div>
       )}
 
+      {/* ── HOME (continued): packages, why-us cards, footer ── */}
+      {showHomePage && (
+        <div className="home-layout animate-fade">
+          {/* Featured Tour Packages & Special Hotel Packages — 4-package
+              teasers with a link through to the full catalog (filtered by
+              type there), so the homepage doesn't have to load/show every
+              package staff have created. Shown above the quick-action boxes
+              so they're the first thing visitors see under the hero. */}
+          {featureFlags.packages_enabled && (() => {
+            const tourTeasers = packages.filter(p => (p.package_type || 'tour') === 'tour').slice(0, 4);
+            const hotelTeasers = packages.filter(p => p.package_type === 'hotel').slice(0, 4);
+            const openPackageFromHome = (pkg, type) => {
+              setSelectedPackage(pkg);
+              setPackageBookingSubmitted(false);
+              setPackageBookingError('');
+              setPackagesTypeView(type);
+              setActiveTab('packages');
+            };
+            const teaserCard = (pkg, type) => (
+              <div key={pkg.id} className="glass-panel" style={{ borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
+                onClick={() => openPackageFromHome(pkg, type)}>
+                <div style={{
+                  height: '130px', background: pkg.image_url ? `url(${pkg.image_url}) center/cover no-repeat` : 'linear-gradient(135deg,#0f172a,#334155)',
+                  display: 'flex', alignItems: 'flex-end', padding: '0.75rem',
+                }}>
+                  <span style={{ background: 'rgba(15,23,42,0.75)', color: 'white', fontSize: '0.7rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '999px' }}>
+                    {pkg.duration_days}D / {pkg.duration_nights}N
+                  </span>
+                </div>
+                <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: 1 }}>
+                  <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--gs-dark)' }}>{pkg.title}</h3>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>{pkg.destination}</p>
+                  <div style={{ marginTop: 'auto', paddingTop: '0.6rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>From</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--gs-crimson)' }}>{pkg.currency} {Number(pkg.price).toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            );
+            return (
+              <>
+                {tourTeasers.length > 0 && (
+                  <section>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div>
+                        <span className="section-label">Handpicked For You</span>
+                        <h2 className="section-heading" style={{ margin: '0.25rem 0 0' }}>Featured Tour Packages</h2>
+                      </div>
+                      <button className="btn btn-secondary" onClick={() => openPackages('tour')}>
+                        View More
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '0.4rem' }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                      {tourTeasers.map(pkg => teaserCard(pkg, 'tour'))}
+                    </div>
+                  </section>
+                )}
+
+                {hotelTeasers.length > 0 && (
+                  <section>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div>
+                        <span className="section-label">Exclusive Rates</span>
+                        <h2 className="section-heading" style={{ margin: '0.25rem 0 0' }}>Special Hotel Packages</h2>
+                      </div>
+                      <button className="btn btn-secondary" onClick={() => openPackages('hotel')}>
+                        View More
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: '0.4rem' }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                      {hotelTeasers.map(pkg => teaserCard(pkg, 'hotel'))}
+                    </div>
+                  </section>
+                )}
+              </>
+            );
+          })()}
+
+          {/* Features */}
+          <section className="features-section">
+            <div className="section-header">
+              <span className="section-label">Why Tick and Book</span>
+              <h2 className="section-heading">Booking made simple</h2>
+            </div>
+            <div className="features-grid">
+              <div className="feature-card">
+                <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg></div>
+                <h4>Live prices, every time</h4>
+                <p>Fares come straight from the airlines as you search, so the price you see is the price you book.</p>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                <h4>Instant confirmation</h4>
+                <p>Your booking is confirmed with the airline in seconds, with your booking reference on screen.</p>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                <h4>E-ticket in your inbox</h4>
+                <p>Pay securely and receive your e-ticket by email, ready for check-in.</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Footer */}
+          <footer className="footer">
+            <div className="footer-brand" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <span style={{ alignSelf: 'flex-start' }}><TickBookLogo size={36} /></span>
+              <span className="footer-copy">© {new Date().getFullYear()} Tick and Book · operated by George Steuart Travel Ltd. All rights reserved.</span>
+            </div>
+            <div className="footer-links">
+              <a href="#" className="footer-link">Privacy Policy</a>
+              <a href="#" className="footer-link">Terms of Service</a>
+              <a href="#" className="footer-link">Contact Support</a>
+            </div>
+          </footer>
+        </div>
+      )}
+
       {/* ── FLIGHT RESULTS (shown in place, on the same Book Flights page) ── */}
       {activeTab === 'book' && !showSearchForm && (() => {
         const legKey = (leg) => `${leg.flight_number}_${leg.departure_time}`;
@@ -4589,8 +4587,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               // rows that don't fit this one-line compact bar —
                               // send the user to the full form for it instead.
                               if (val === 'multicity') {
-                                setActiveTab('book');
                                 setShowSearchForm(true);
+                                setActiveTab('home');
                               }
                             }}
                             style={{
@@ -5313,7 +5311,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           setRoundTripPhase('outbound');
                           setChosenOutboundKey(null);
                         } else {
-                          setActiveTab('book');
+                          setShowSearchForm(true);
+                          setActiveTab('home');
                         }
                       }}
                     >
@@ -7974,7 +7973,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     type="button"
                     className="btn btn-secondary btn-sm"
                     style={{ display: 'block', marginTop: '0.6rem' }}
-                    onClick={() => { closeBookingFlow(); setShowSearchForm(true); setActiveTab('book'); }}
+                    onClick={() => { closeBookingFlow(); setShowSearchForm(true); setActiveTab('home'); }}
                   >
                     Search Again
                   </button>

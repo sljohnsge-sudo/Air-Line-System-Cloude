@@ -3352,6 +3352,11 @@ body {
   .customer-portal-nav > button { flex-shrink: 0; white-space: nowrap; gap: 0.4rem; }
 }
 
+/* Home page: the flight search box sits right under the welcome text */
+.home-layout:has(+ #flight-search) { padding-bottom: 0; }
+.home-layout:has(+ #flight-search) .hero-section { padding-bottom: 1rem; min-height: 0; }
+#flight-search { margin-top: -0.5rem; }
+
 /* ══ Tick and Book palette — booking pages only ═════════════════════════════
    The rest of the site keeps its original colours; the booking flow
    (Passenger Details → Options → Review & Pay) uses the Tick and Book tokens.
