@@ -3,6 +3,11 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import TickBookLogo from './TickBookLogo.jsx';
+import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
+
+// Home page plane: true = animated (glides in, cruises, climbs out, comes back,
+// blinking lights); false = the original still plane in the sky picture.
+const HERO_PLANE_ANIMATED = true;
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
@@ -3569,7 +3574,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
       {/* ── HOME TAB (the flight search lives here; /book shows the same page) ── */}
       {showHomePage && (
         <div className="home-layout animate-fade">
-          <section className="hero-section">
+          <section className={`hero-section${HERO_PLANE_ANIMATED ? ' hero-animated' : ''}`}>
             <div className="hero-visual">
               <div className="hero-visual-side right">
                 <lottie-player
@@ -3606,6 +3611,18 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 </button>
               </div>
             </div>
+            {/* Animated plane (see HERO_PLANE_ANIMATED): glides in, cruises, climbs
+                out and comes back, with blinking wing-tip and tail lights. */}
+            {HERO_PLANE_ANIMATED && (
+              <div className="hero-plane" aria-hidden="true">
+                <div className="hero-plane-fly">
+                  <img src={heroPlaneOnly} alt="" />
+                  <span className="plane-light plane-light-red" style={{ left: '12%', top: '41%' }} />
+                  <span className="plane-light plane-light-green" style={{ left: '98.5%', top: '76%' }} />
+                  <span className="plane-light plane-light-strobe" style={{ left: '41%', top: '9%' }} />
+                </div>
+              </div>
+            )}
           </section>
         </div>
       )}

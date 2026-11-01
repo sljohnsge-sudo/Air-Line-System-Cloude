@@ -3653,3 +3653,48 @@ body {
 /* Home header: keep every menu item on one line (the page has a fixed max width) */
 .header.header-home .nav-tab { padding: 0.45rem 0.7rem; font-size: 0.82rem; }
 .header.header-home .nav-tabs { gap: 0.1rem; }
+
+/* ── Animated home plane (App.jsx HERO_PLANE_ANIMATED) ───────────────────────
+   The sky picture without its plane (clouds only) stays still; the plane is
+   its own layer that glides in from the clouds, cruises slowly, climbs out
+   to the top-right and comes back — about 22s a loop — with blinking
+   red/green wing-tip lights and a white tail strobe. Reduced-motion users
+   see it standing still. */
+.home-layout:has(+ #flight-search) .hero-section.hero-animated {
+  background:
+    radial-gradient(ellipse 46% 60% at 50% 42%, rgba(1, 65, 138, 0.55) 0%, rgba(1, 65, 138, 0) 70%),
+    url('./assets/tickbook-hero-clouds.webp') right -5% bottom / auto 72% no-repeat,
+    linear-gradient(180deg, var(--home-sky-top) 0%, var(--home-sky-mid) 55%, var(--home-sky-low) 100%);
+}
+.hero-plane {
+  position: absolute; z-index: 0; pointer-events: none;
+  right: 0.5%; top: 47%; height: 27%;
+}
+.hero-plane-fly { position: relative; height: 100%; animation: heroPlaneLoop 22s ease-in-out infinite; will-change: transform, opacity; }
+.hero-plane-fly img { display: block; height: 100%; width: auto; }
+@keyframes heroPlaneLoop {
+  0%   { transform: translate(-8%, 22%) scale(0.94); opacity: 0; }
+  9%   { transform: translate(0, 0) scale(1);        opacity: 1; }
+  45%  { transform: translate(3%, -5%) scale(1); }
+  70%  { transform: translate(6%, -9%) scale(1);    opacity: 1; }
+  86%  { transform: translate(70%, -120%) scale(0.8); opacity: 0; }
+  100% { transform: translate(70%, -120%) scale(0.8); opacity: 0; }
+}
+.plane-light {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.plane-light-red   { background: #ff3b3b; box-shadow: 0 0 6px 2px rgba(255, 59, 59, 0.85);  animation: planeBlink 1.4s steps(1, end) infinite; }
+.plane-light-green { background: #39ff7a; box-shadow: 0 0 6px 2px rgba(57, 255, 122, 0.85); animation: planeBlink 1.4s steps(1, end) infinite 0.7s; }
+.plane-light-strobe { width: 5px; height: 5px; background: #ffffff; box-shadow: 0 0 8px 3px rgba(255, 255, 255, 0.95); animation: planeStrobe 1.8s linear infinite; }
+@keyframes planeBlink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0.15; } }
+@keyframes planeStrobe { 0%, 4% { opacity: 1; } 5%, 10% { opacity: 0; } 11%, 15% { opacity: 1; } 16%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .hero-plane-fly, .plane-light { animation: none; }
+}
+@media (max-width: 768px) {
+  .hero-plane { display: none; }
+  .home-layout:has(+ #flight-search) .hero-section.hero-animated {
+    background: linear-gradient(180deg, var(--home-sky-top) 0%, var(--home-sky-mid) 55%, var(--home-sky-low) 100%);
+  }
+}
