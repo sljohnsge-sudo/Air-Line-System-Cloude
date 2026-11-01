@@ -3586,11 +3586,11 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             <div className="hero-content">
               <span className="hero-tagline">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                Flights · Hotels · Travel, all in one place
+                Flights · Hotels · Visa Assistance · More
               </span>
-              <h1 className="hero-title">Book Smarter,<span className="title-gradient-red">Travel Further</span></h1>
+              <h1 className="hero-title">Book Smarter, Travel Further.<span className="title-gradient-red">Your Journey Starts Here.</span></h1>
               <p className="hero-subtitle">
-                Search <strong>live fares from hundreds of airlines</strong>, choose your seat and extras, and get your e-ticket in minutes, with Sri Lankan support whenever you need it.
+                Discover global flights, find your perfect stay and get the travel assistance you need. Enjoy <strong>competitive fares, seamless bookings</strong> and a smarter way to plan every journey — all in one place.
               </p>
             </div>
           </section>
