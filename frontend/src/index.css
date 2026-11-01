@@ -3853,3 +3853,15 @@ body {
   .hf-card { min-height: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .hf-track { transition: none; } }
+
+/* Other pages (results, booking, account…): logo on the left, menu centred,
+   so the plane on the right of the sky picture stays visible. */
+@media (min-width: 900px) {
+  .header.header-sky:not(.header-home) {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+  }
+  .header.header-sky:not(.header-home) .logo-container { justify-self: start; }
+  .header.header-sky:not(.header-home) .nav-tabs { justify-self: center; }
+}
