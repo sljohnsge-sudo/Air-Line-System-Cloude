@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import gsLogo from './assets/george_steuart_logo.png';
+import TickBookLogo from './TickBookLogo.jsx';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
@@ -3447,7 +3447,7 @@ export default function App() {
     
     const opt = {
       margin:       [0.3, 0.3, 0.3, 0.3], // top, left, bottom, right in inches
-      filename:     `George_Steuart_Ticket_${issuedTicket.locator_code || 'booking'}.pdf`,
+      filename:     `Tick_and_Book_Ticket_${issuedTicket.locator_code || 'booking'}.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { 
         scale: 2, 
@@ -3476,7 +3476,7 @@ export default function App() {
 
   const getShareText = () => {
     if (!issuedTicket) return '';
-    return `✈️ *George Steuart Travel - Electronic Ticket Receipt*
+    return `✈️ *Tick and Book - Electronic Ticket Receipt*
 
 *Passenger:* ${cleanPassengerName(issuedTicket.passenger_name)}
 *PNR / Booking Reference:* ${issuedTicket.locator_code || issuedTicket.pnr}
@@ -3489,7 +3489,7 @@ export default function App() {
 *Seat:* ${issuedTicket.seat_number || 'Not assigned'}
 *Ticket No:* ${issuedTicket.ticket_number || 'PENDING (GDS PNR Confirmed)'}
 
-Thank you for choosing George Steuart Travel (Established 1835). Have a safe flight!`;
+Thank you for booking with Tick and Book. Have a safe flight!`;
   };
 
   const handleShareWhatsApp = () => {
@@ -3537,10 +3537,9 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
       )}
 
       {/* Header */}
-      <header ref={headerRef} className="header glass-panel">
-        <div className="logo-container" onClick={() => setActiveTab('home')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <img src={gsLogo} alt="George Steuart logo" style={{ height: '40px', objectFit: 'contain' }} />
-          <span className="logo-text" style={{ fontSize: '1rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '0.75rem' }}>TRAVEL</span>
+      <header ref={headerRef} className="header header-sky glass-panel">
+        <div className="logo-container" onClick={() => setActiveTab('home')} role="link" aria-label="Tick and Book home" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          <TickBookLogo light size={44} />
         </div>
         <nav className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
@@ -3704,8 +3703,8 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
           {/* Footer */}
           <footer className="footer">
             <div className="footer-brand" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <img src={gsLogo} alt="George Steuart logo" style={{ height: '35px', alignSelf: 'flex-start', objectFit: 'contain' }} />
-              <span className="footer-copy">© {new Date().getFullYear()} George Steuart Travel Ltd. All rights reserved.</span>
+              <span style={{ alignSelf: 'flex-start' }}><TickBookLogo size={36} /></span>
+              <span className="footer-copy">© {new Date().getFullYear()} Tick and Book · operated by George Steuart Travel Ltd. All rights reserved.</span>
             </div>
             <div className="footer-links">
               <a href="#" className="footer-link">Privacy Policy</a>
@@ -9777,11 +9776,10 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
               <div className="ticket-header-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #c3122e', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                    <img src={gsLogo} alt="George Steuart Travel" style={{ height: '45px', objectFit: 'contain' }} />
-                    <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '0.05em', color: '#1e293b', borderLeft: '2px solid #cbd5e1', paddingLeft: '0.75rem' }}>TRAVEL</span>
+                    <TickBookLogo size={42} />
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
-                    <strong>George Steuart Travel Ltd.</strong> (Established 1835)<br />
+                    <strong>Tick and Book</strong> — operated by George Steuart Travel Ltd. (Established 1835)<br />
                     14, Leyden Bastian Road, Colombo 01, Sri Lanka<br />
                     Tel: +94 11 232 5311 | Email: support@georgesteuart.lk
                   </div>
@@ -10074,7 +10072,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                     <div style={{ display: 'flex', justifyContent: 'center', margin: '0.5rem 0' }}>
                       <QRCodeSVG 
                         value={JSON.stringify({
-                          agency: "George Steuart Travel",
+                          agency: "Tick and Book",
                           pnr: issuedTicket.locator_code || issuedTicket.pnr,
                           flight: issuedTicket.flight_number,
                           passenger: cleanPassengerName(issuedTicket.passenger_name),
@@ -10167,7 +10165,7 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '0.65rem' }}>
                         <span>Payment Settlement:</span>
-                        <span>To be collected by George Steuart Travel</span>
+                        <span>To be collected by Tick and Book</span>
                       </div>
                     </div>
                   </div>
@@ -10184,14 +10182,14 @@ Thank you for choosing George Steuart Travel (Established 1835). Have a safe fli
                   <li>Please carry a printout of this e-ticket receipt or have it ready on your mobile device during check-in.</li>
                   <li>Most international flights require passengers to arrive at the airport check-in counter at least 3 hours before departure. Check-in gates close exactly 60 minutes prior.</li>
                   <li><strong>Passport Validity:</strong> Ensure your passport is valid for at least 6 months from the date of your journey. Many destinations require specific entry visas.</li>
-                  <li>Baggage policies may vary. Please contact George Steuart Travel Support or the airline directly to purchase extra allowance.</li>
-                  <li>For support, flight updates, changes or cancellations, please contact the George Steuart Travel desk at +94 11 232 5311 or email travel@georgesteuart.lk.</li>
+                  <li>Baggage policies may vary. Please contact Tick and Book support or the airline directly to purchase extra allowance.</li>
+                  <li>For support, flight updates, changes or cancellations, please contact the Tick and Book desk at +94 11 232 5311 or email travel@georgesteuart.lk.</li>
                 </ul>
               </div>
 
               {/* Live verification footer */}
               <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.6rem', borderTop: '1px dashed #e2e8f0', marginTop: '1.5rem', paddingTop: '0.75rem' }}>
-                Secure Live Flight Booking powered by Travelport TripServices v11 API. © {new Date().getFullYear()} George Steuart Travel. All rights reserved.
+                Secure Live Flight Booking powered by Travelport TripServices v11 API. © {new Date().getFullYear()} Tick and Book. All rights reserved.
               </div>
 
             </div>

@@ -340,6 +340,24 @@ body {
   z-index: 300;
 }
 
+/* Tick and Book sky banner: dusk sky + plane on the right, deep blue under the logo */
+.header.header-sky {
+  background:
+    url('./assets/tickbook-sky.webp') right top / auto 104% no-repeat,
+    linear-gradient(90deg, #0c2550 0%, #173f78 45%, #2c5c97 100%);
+  border-bottom: 3px solid var(--gs-crimson);
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+@media (max-width: 768px) {
+  /* Stacked header: the plane would sit behind the logo, so just the sky */
+  .header.header-sky { background: linear-gradient(160deg, #0c2550 0%, #1c4a86 60%, #6f7fb0 100%); }
+}
+.header.header-sky .nav-tabs {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 10px rgba(8, 25, 55, 0.25);
+}
+
 @media (max-width: 768px) {
   .header {
     flex-direction: column;

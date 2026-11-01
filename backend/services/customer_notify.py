@@ -30,7 +30,7 @@ from services import email_service, sms_service
 
 logger = logging.getLogger(__name__)
 
-BRAND = os.getenv("BRAND_NAME", "George Steuart Travel")
+BRAND = os.getenv("BRAND_NAME", "Tick and Book")
 # Where the customer's Booking Status page lives (frontend).
 SITE_URL = os.getenv("PUBLIC_SITE_URL", "http://localhost:5173").rstrip("/")
 

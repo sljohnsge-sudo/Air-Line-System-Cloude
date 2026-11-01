@@ -2203,7 +2203,7 @@ def share_ticket_with_customer(
     # local format (e.g. "0771234567"), so the link uses the customer's own
     # on-file number (already in that format), not whatever the admin typed.
     share_text = (
-        f"George Steuart Travel — Your E-Ticket\n"
+        f"Tick and Book — Your E-Ticket\n"
         f"PNR: {booking.get('locator_code')}\n"
         f"Passenger: {booking.get('passenger_name') or ''}\n"
         f"Flight: {booking.get('flight_number') or ''} ({booking.get('airline') or ''})\n"

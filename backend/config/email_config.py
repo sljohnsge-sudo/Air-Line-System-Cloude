@@ -19,7 +19,7 @@ class EmailConfig:
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-    SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Final Travels Visa Desk")
+    SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Tick and Book")
 
     # Fallback recipient when a destination country has no assigned officer
     # in the visa_consultants table (see database.get_visa_consultants_by_country).
