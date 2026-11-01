@@ -1,6 +1,6 @@
-// "Compare prices ±3 days" on the results page. Runs only when the customer
+// "Compare prices on nearby dates" on the results page. Runs only when the customer
 // asks: real Travelport searches (the same /api/flights/search the main
-// search uses) for the three days either side, same route, travellers and
+// search uses) for the days around their date (never past days), same route, travellers and
 // cabin — round trips keep the same length of stay. Shows the cheapest live
 // fare per day; tapping a day runs that search. At most two searches run at
 // a time so Travelport isn't flooded. Nothing here is estimated or cached.
@@ -42,7 +42,12 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
   };
 
   const run = async () => {
-    const list = [-3, -2, -1, 0, 1, 2, 3].map(offset => {
+    // Seven days around the customer's date. Flights can't be booked on days
+    // that have passed, so when the date is close to today the window slides
+    // forward (e.g. travelling today → today plus the next six days).
+    const daysToToday = Math.round((today - new Date(`${date}T00:00:00`)) / 86400000);
+    const first = Math.max(-3, Math.min(0, daysToToday));
+    const list = Array.from({ length: 7 }, (_, i) => first + i).map(offset => {
       const dep = shift(date, offset);
       const ret = roundTrip && returnDate ? shift(returnDate, offset) : null;
       const past = new Date(`${dep}T00:00:00`) < today;
@@ -69,7 +74,7 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
   if (!days) {
     return (
       <button type="button" className="nearby-dates-open" onClick={run}>
-        📅 Compare prices ±3 days
+        📅 Compare prices on nearby dates
       </button>
     );
   }
