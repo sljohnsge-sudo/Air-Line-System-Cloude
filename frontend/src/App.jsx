@@ -3616,18 +3616,16 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         </div>
         <nav className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
-          {featureFlags.hotels_enabled && (
-            <button className={`nav-tab ${activeTab === 'hotels' ? 'active' : ''}`} onClick={() => setActiveTab('hotels')}>Hotels</button>
-          )}
-          {featureFlags.packages_enabled && (
-            <button className={`nav-tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={openPackages}>Tour Packages</button>
-          )}
-          {featureFlags.visa_enabled && (
-            <button className={`nav-tab ${activeTab === 'visa' ? 'active' : ''}`} onClick={() => { setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>Visa</button>
-          )}
+          {/* Hotels, packages and visa are reached from the service links on
+              the home page (Hotel Stays / Travel Services / Visa Assistance),
+              so the menu doesn't repeat them. */}
           <button className={`nav-tab ${activeTab === 'cancelRequest' ? 'active' : ''}`} onClick={() => openCancellationRequest(null)}>Cancel Booking</button>
           <button className={`nav-tab ${activeTab === 'ticketStatus' ? 'active' : ''}`} onClick={() => { setTicketStatusResult(null); setTicketStatusError(''); setActiveTab('ticketStatus'); }}>Check My Ticket Status</button>
-          <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
+          {/* Admin isn't advertised to customers: staff open /admin directly.
+              Once a staff member is signed in, the link shows for them. */}
+          {adminToken && (
+            <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
+          )}
           <button className={`nav-tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
             {customerProfile ? customerProfile.full_name.split(' ')[0] : 'Sign In'}
