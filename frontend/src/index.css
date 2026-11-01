@@ -3890,3 +3890,91 @@ body {
   .popular-routes { order: 2; }
   .popular-routes-label { width: 100%; }
 }
+
+/* ── Results: Cheapest / Best value / Fastest (from the live results) ── */
+.fare-picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.fare-pick {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem;
+  padding: 0.75rem 1rem; border-radius: 12px; cursor: pointer; text-align: left;
+  background: #ffffff; border: 1px solid #e2e8f0; border-top: 3px solid var(--pick-colour);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05); font-family: var(--font-body);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.fare-pick:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15, 23, 42, 0.09); }
+.fare-pick-cheapest { --pick-colour: #15803d; }
+.fare-pick-best { --pick-colour: #c3122e; }
+.fare-pick-fastest { --pick-colour: #1d4ed8; }
+.fare-pick-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pick-colour); }
+.fare-pick-price { font-size: 1.2rem; font-weight: 800; color: #0f172a; }
+.fare-pick-meta { font-size: 0.78rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.fare-pick-tags { display: flex; gap: 0.35rem; padding: 0.55rem 0.9rem 0; }
+.fare-pick-tag { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.18rem 0.55rem; border-radius: 999px; color: #ffffff; }
+.fare-pick-tag-cheapest { background: #15803d; }
+.fare-pick-tag-best { background: #c3122e; }
+.fare-pick-tag-fastest { background: #1d4ed8; }
+/* Seats left at this fare (Travelport Product.Quantity), only when low */
+.rc-seats-left { margin-top: 4px; font-size: 0.68rem; font-weight: 800; color: #b42318; white-space: nowrap; }
+@media (max-width: 640px) {
+  .fare-picks { gap: 0.4rem; }
+  .fare-pick { padding: 0.55rem 0.6rem; }
+  .fare-pick-price { font-size: 0.98rem; }
+  .fare-pick-meta { font-size: 0.68rem; }
+}
+
+/* ── Results: ±3 days (live Travelport searches on request) ── */
+.nearby-dates-open {
+  display: inline-flex; align-items: center; gap: 0.4rem; margin: 0 0 0.9rem;
+  padding: 0.5rem 1rem; border-radius: 999px; cursor: pointer;
+  background: #ffffff; border: 1px solid #d3dce8; color: #0f172a;
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 700;
+}
+.nearby-dates-open:hover { border-color: var(--gs-crimson); color: var(--gs-crimson); }
+.nearby-dates { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.4rem; margin-bottom: 1rem; }
+.nearby-day {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  padding: 0.55rem 0.3rem; border-radius: 10px; cursor: pointer;
+  background: #ffffff; border: 1px solid #e2e8f0; font-family: var(--font-body);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.nearby-day:hover:not(:disabled) { border-color: var(--gs-crimson); transform: translateY(-1px); }
+.nearby-day:disabled { cursor: default; }
+.nearby-day-date { font-size: 0.72rem; color: #64748b; font-weight: 600; white-space: nowrap; }
+.nearby-day-price { font-size: 0.86rem; font-weight: 800; color: #0f172a; white-space: nowrap; }
+.nearby-day-wait { font-weight: 600; color: #94a3b8; font-size: 0.75rem; }
+.nearby-day-note { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+.nearby-day.current { background: #f8fafc; border-color: #0f172a; }
+.nearby-day.cheapest { border-color: #15803d; background: #f0fdf4; }
+.nearby-day.cheapest .nearby-day-note { color: #15803d; }
+@media (max-width: 760px) {
+  .nearby-dates { display: flex; overflow-x: auto; scrollbar-width: none; }
+  .nearby-day { flex: 0 0 96px; }
+}
+
+/* Home search: the customer's own recent searches beside the trip tabs */
+#flight-search .search-type-tabs { flex-wrap: wrap; }
+.recent-searches { margin-left: auto; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
+.recent-searches-label { font-size: 0.78rem; font-weight: 600; color: #64748b; }
+.recent-search {
+  font-family: var(--font-body); font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+  padding: 0.3rem 0.7rem; border-radius: 999px; cursor: pointer;
+  background: #ffffff; border: 1px dashed #b8c6d8; color: #0B3A75;
+}
+.recent-search:hover { border-style: solid; background: #f4f7fb; }
+@media (max-width: 768px) {
+  .recent-searches { margin-left: 0; width: 100%; justify-content: flex-start; margin-top: 0.4rem; }
+}
+
+/* E-ticket page: "Complete your trip" (hotels, visa, tour packages) */
+.trip-crosssell { padding: 1.1rem 1.5rem 1.4rem; background: #ffffff; border-top: 1px solid #e2e8f0; }
+.trip-crosssell-title { font-weight: 800; font-size: 1rem; color: #0f172a; margin-bottom: 0.75rem; text-align: center; }
+.trip-crosssell-actions { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+.trip-crosssell-btn {
+  display: flex; align-items: center; gap: 0.6rem; text-align: left; cursor: pointer;
+  padding: 0.7rem 1rem; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0;
+  font-family: var(--font-body); color: #0f172a; min-width: 200px;
+}
+.trip-crosssell-btn svg { color: var(--gs-crimson); flex: 0 0 auto; }
+.trip-crosssell-btn span { display: flex; flex-direction: column; }
+.trip-crosssell-btn strong { font-size: 0.9rem; }
+.trip-crosssell-btn small { font-size: 0.75rem; color: #64748b; }
+.trip-crosssell-btn:hover { border-color: var(--gs-crimson); background: #ffffff; }

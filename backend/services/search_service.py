@@ -678,6 +678,7 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
         # attribute) — carried through to SpecificFlightCriteria.boundFlightsInd
         # in the AddOffer request by workbench_service.py.
         flight_bound_map = {}
+        product_quantity_map = {}
         for ref_entry in catalog.get("ReferenceList", []):
             if ref_entry.get("@type") == "ReferenceListProduct":
                 for product in ref_entry.get("Product", []):
@@ -708,6 +709,9 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
                     product_cabin_map[prod_id] = cabin_val
                     product_fare_basis_map[prod_id] = fare_basis_list
                     product_cos_map[prod_id] = cos_list
+                    # Seats left in this booking class (Travelport caps it at 9)
+                    if isinstance(product.get("Quantity"), int):
+                        product_quantity_map[prod_id] = product["Quantity"]
 
                     # Fallback flight-segment chain for this product. GDS
                     # content gives flight refs directly on ProductBrandOptions
@@ -990,7 +994,11 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
                     selected_raw_offering["brand_id"] = brand_id
                     selected_raw_offering["brand_name"] = display_brand_name
 
+                    seat_counts = [product_quantity_map[pr] for pr in prod_refs if pr in product_quantity_map]
                     fare_opt = {
+                        # Seats left at this fare (lowest across its products), from
+                        # Travelport's Product.Quantity; None when not sent.
+                        "seats_remaining": min(seat_counts) if seat_counts else None,
                         "brand_name": display_brand_name,
                         "has_brand": brand_name is not None,
                         "cabin_class": cabin,
@@ -1205,10 +1213,12 @@ def pair_multi_leg_offers(offers: list[dict], legs: list[dict]) -> list[dict]:
 
             price = leg_fare_opts[0].get("price", 0)
             currency = leg_fare_opts[0].get("currency", "LKR")
+            leg_seats = [fo.get("seats_remaining") for fo in leg_fare_opts if fo.get("seats_remaining") is not None]
             merged_fare_opt = {
                 **leg_fare_opts[0],
                 "price": price,
                 "currency": currency,
+                "seats_remaining": min(leg_seats) if leg_seats else None,
                 "raw_offering": {"legs": [fo.get("raw_offering") for fo in leg_fare_opts]}
             }
 
@@ -1322,10 +1332,12 @@ def pair_round_trip_offers(offers: list[dict], outbound_leg: dict, inbound_leg: 
 
                 price = o_fo.get("price", 0)
                 currency = o_fo.get("currency", "LKR")
+                rt_seats = [x for x in (o_fo.get("seats_remaining"), i_fo.get("seats_remaining")) if x is not None]
                 merged_fare_opt = {
                     **o_fo,
                     "price": price,
                     "currency": currency,
+                    "seats_remaining": min(rt_seats) if rt_seats else None,
                     "raw_offering": {
                         "outbound": o_fo.get("raw_offering"),
                         "inbound": i_fo.get("raw_offering")

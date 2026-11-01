@@ -4,6 +4,7 @@ import { useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import TickBookLogo from './TickBookLogo.jsx';
 import HomeFeatures from './HomeFeatures.jsx';
+import NearbyDates from './NearbyDates.jsx';
 import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
 
 // Home page plane:
@@ -1912,6 +1913,7 @@ export default function App() {
   // /book (Book Flights before results come back) shows that same page.
   const showHomePage = activeTab === 'home' || (activeTab === 'book' && showSearchForm);
 
+
   // Take-off plane: aim its start point at the take-off spot (end of "Travel
   // Services" or "Travel Further."), its climb-out towards the Sign In button,
   // and lay the vapour trail from the start to where it cruises. Measured (not
@@ -1966,6 +1968,31 @@ export default function App() {
   const [expandedFareIds, setExpandedFareIds] = useState({});
   // Fare cards ticked to share by WhatsApp / email — fareCardKey -> text summary.
   const [shareFares, setShareFares] = useState({});
+  // The customer's own last searches (this browser only, max 3) — shown as
+  // one-tap chips on the home search. Nothing is invented: only searches they ran.
+  const [recentSearches, setRecentSearches] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('tb_recent_searches') || '[]').slice(0, 3); } catch { return []; }
+  });
+  const [rerunRecent, setRerunRecent] = useState(null);
+  useEffect(() => {
+    if (!rerunRecent) return;
+    const r = rerunRecent;
+    setRerunRecent(null);
+    handleSearch(null, { origin: r.origin, destination: r.destination, date: r.date, type: r.type === 'roundtrip' ? 'roundtrip' : null, returnDate: r.returnDate });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rerunRecent]);
+  const runRecentSearch = (r) => {
+    // never reuse a date that has passed — keep the dates already in the search box
+    const today = new Date().toISOString().split('T')[0];
+    const useOld = r.date >= today;
+    const date = useOld ? r.date : searchDate;
+    const ret = r.type === 'roundtrip' ? (useOld ? r.returnDate : returnDate) : null;
+    setSearchOrigin(r.origin); setSearchDest(r.destination); setSearchType(r.type);
+    setSearchDate(date); if (ret) setReturnDate(ret);
+    setAdultCount(r.adults || 1); setChildCount(r.children || 0); setInfantCount(r.infants || 0); setStudentCount(r.students || 0);
+    if (r.cabin) setCabinPref(r.cabin);
+    setRerunRecent({ ...r, date, returnDate: ret });
+  };
   // Opened from a shared link: these flights (flightIdentity) are shown
   // first, at their live price. Cleared by "Show all flights" or a new search.
   const [sharedFlightKeys, setSharedFlightKeys] = useState(() => initialResultsPayload?.shared || null);
@@ -2498,6 +2525,20 @@ export default function App() {
         destination: l.dest,
         departure_date: l.date
       }));
+    }
+
+    if (effectiveSearchType !== 'multicity' && origin && destination && date) {
+      const entry = {
+        origin, destination, date, type: effectiveSearchType,
+        returnDate: effectiveSearchType === 'roundtrip' ? (overrides.returnDate || returnDate || null) : null,
+        adults: adultCount, children: childCount, infants: infantCount, students: studentCount, cabin: cabinPref,
+      };
+      const same = (a) => a.origin === entry.origin && a.destination === entry.destination && a.date === entry.date && a.returnDate === entry.returnDate;
+      setRecentSearches(prev => {
+        const next = [entry, ...prev.filter(a => !same(a))].slice(0, 3);
+        try { localStorage.setItem('tb_recent_searches', JSON.stringify(next)); } catch { /* storage off: just don't remember */ }
+        return next;
+      });
     }
 
     // Guarantee search animation is visible for at least 6s — long enough to
@@ -3724,6 +3765,20 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <button type="button" className={`search-type-tab ${searchType === 'oneway' ? 'active' : ''}`} onClick={() => setSearchType('oneway')}><Ico.IconPlane size={15} className="trip-tab-icon" />One Way</button>
               <button type="button" className={`search-type-tab ${searchType === 'roundtrip' ? 'active' : ''}`} onClick={() => setSearchType('roundtrip')}><Ico.IconSwap size={15} className="trip-tab-icon" />Round Trip</button>
               <button type="button" className={`search-type-tab ${searchType === 'multicity' ? 'active' : ''}`} onClick={() => setSearchType('multicity')}><Ico.IconRoute size={15} className="trip-tab-icon" />Multi City</button>
+              {recentSearches.length > 0 && (
+                <div className="recent-searches" aria-label="Your recent searches">
+                  <span className="recent-searches-label">Recent:</span>
+                  {recentSearches.map((r, i) => {
+                    const d = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                    return (
+                      <button key={i} type="button" className="recent-search" onClick={() => runRecentSearch(r)}
+                              title="Search this again">
+                        {r.origin} → {r.destination} · {d(r.date)}{r.returnDate ? ` – ${d(r.returnDate)}` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleSearch} className="search-form">
@@ -4650,6 +4705,28 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         const sharedFound = sharedSet ? displayed.filter(f => sharedSet.has(flightIdentity(f))).length : 0;
         if (sharedSet) displayed = [...displayed.filter(f => sharedSet.has(flightIdentity(f))), ...displayed.filter(f => !sharedSet.has(flightIdentity(f)))];
 
+        // Cheapest / Fastest / Best value — picked from the live Travelport
+        // results currently on screen (after filters). Best value balances
+        // price (70%) against total travel time (30%).
+        const tripMinutes = (f) => (f.legs?.length ? f.legs.reduce((sum, l) => sum + parseDurationMinutes(l.duration), 0) : parseDurationMinutes(f.duration));
+        const comparable = displayed.filter(f => (f.price || 0) > 0 && tripMinutes(f) > 0);
+        let pickCheapest = null, pickFastest = null, pickBest = null;
+        if (comparable.length > 1) {
+          pickCheapest = comparable.reduce((a, b) => ((b.price < a.price || (b.price === a.price && tripMinutes(b) < tripMinutes(a))) ? b : a));
+          pickFastest = comparable.reduce((a, b) => ((tripMinutes(b) < tripMinutes(a) || (tripMinutes(b) === tripMinutes(a) && b.price < a.price)) ? b : a));
+          const pMin = pickCheapest.price, pMax = Math.max(...comparable.map(f => f.price));
+          const dMin = tripMinutes(pickFastest), dMax = Math.max(...comparable.map(tripMinutes));
+          const score = (f) => 0.7 * ((f.price - pMin) / ((pMax - pMin) || 1)) + 0.3 * ((tripMinutes(f) - dMin) / ((dMax - dMin) || 1));
+          pickBest = comparable.reduce((a, b) => (score(b) < score(a) ? b : a));
+        }
+        const pickKeyOf = (f) => (f ? fareCardKey(f, -1) : null);
+        const cheapestKey = pickKeyOf(pickCheapest), fastestKey = pickKeyOf(pickFastest), bestKey = pickKeyOf(pickBest);
+        const fmtTripTime = (f) => { const m = tripMinutes(f); return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`; };
+        const scrollToCard = (f) => {
+          const el = document.querySelector(`[data-fare-key="${CSS.escape(pickKeyOf(f))}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+
         const handleAirlineCheckboxChange = (airlineName) => {
           setFilterAirlines(prev => 
             prev.includes(airlineName) 
@@ -5452,6 +5529,27 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                   <div className="results-live-badge">● Live GDS Data</div>
                 </div>
+                {/* ±3 days: live Travelport searches, only when the customer asks */}
+                {!loadingFlights && !searchError && flights.length > 0 && searchType !== 'multicity' && (
+                  <NearbyDates
+                    key={`${searchOrigin}-${searchDest}-${searchDate}-${returnDate}-${searchType}-${adultCount}${childCount}${infantCount}${studentCount}-${cabinPref}`}
+                    apiBase={API_BASE}
+                    origin={searchOrigin}
+                    destination={searchDest}
+                    date={searchDate}
+                    returnDate={returnDate}
+                    roundTrip={searchType === 'roundtrip'}
+                    counts={{ adults: adultCount, children: childCount, infants: infantCount, students: studentCount }}
+                    cabin={cabinPref}
+                    currentCheapest={Math.min(...flights.map(f => f.price).filter(x => x > 0))}
+                    currency={flights[0]?.currency}
+                    onPick={(dep, ret) => {
+                      setSearchDate(dep);
+                      if (ret) setReturnDate(ret);
+                      handleSearch(null, { origin: searchOrigin, destination: searchDest, date: dep, type: searchType === 'roundtrip' ? 'roundtrip' : null, returnDate: ret });
+                    }}
+                  />
+                )}
                 {!loadingFlights && (
                   <ShareFaresBar
                     items={Object.values(shareFares)}
@@ -5488,6 +5586,22 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         }}
                       >
                         {lbl}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {!loadingFlights && !searchError && pickCheapest && (
+                  <div className="fare-picks" role="group" aria-label="Compare the best options">
+                    {[
+                      ['cheapest', 'Cheapest', pickCheapest],
+                      ['best', 'Best value', pickBest],
+                      ['fastest', 'Fastest', pickFastest],
+                    ].map(([kind, label, f]) => (
+                      <button key={kind} type="button" className={`fare-pick fare-pick-${kind}`} onClick={() => scrollToCard(f)}>
+                        <span className="fare-pick-label">{label}</span>
+                        <span className="fare-pick-price">{f.currency} {Math.floor(f.price).toLocaleString()}</span>
+                        <span className="fare-pick-meta">{fmtTripTime(f)}{f.legs?.length > 1 ? ' both ways' : ''} · {f.airline}</span>
                       </button>
                     ))}
                   </div>
@@ -5552,7 +5666,16 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     : displayPrice * totalPax;
                   const hasBreakdown = bdKeys.length > 0;
                   return (
-                    <div key={idx} className="result-card animate-fade" style={{ flexDirection: 'column', ...(sharedSet?.has(flightIdentity(flight)) ? { outline: '2px solid #22c55e', outlineOffset: '-2px' } : {}) }}>
+                    <div key={idx} data-fare-key={fareCardKey(flight, -1)} className="result-card animate-fade" style={{ flexDirection: 'column', ...(sharedSet?.has(flightIdentity(flight)) ? { outline: '2px solid #22c55e', outlineOffset: '-2px' } : {}) }}>
+                      {(() => {
+                        const k = fareCardKey(flight, -1);
+                        const tags = [k === cheapestKey && ['cheapest', 'Cheapest'], k === bestKey && ['best', 'Best value'], k === fastestKey && ['fastest', 'Fastest']].filter(Boolean);
+                        return tags.length > 0 ? (
+                          <div className="fare-pick-tags">
+                            {tags.map(([kind, label]) => <span key={kind} className={`fare-pick-tag fare-pick-tag-${kind}`}>{label}</span>)}
+                          </div>
+                        ) : null;
+                      })()}
                       {sharedSet?.has(flightIdentity(flight)) && (
                         <div style={{ alignSelf: 'flex-start', margin: '0.5rem 0 0 0.9rem', fontSize: '0.65rem', fontWeight: 800, color: '#14532d', background: '#dcfce7', borderRadius: '999px', padding: '0.15rem 0.6rem' }}>
                           🔗 Shared with you · live price
@@ -5672,19 +5795,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           <ItineraryRow leg={flight} />
                         )}
 
-                        {/* Cabin class + baggage moved into the Flight Segment Information
-                            bar below (shown as one horizontal line) — this column now only
-                            carries the seats-remaining badge, when Travelport provides one. */}
-                        {flight.seats_remaining != null && (
-                          <div className="rc-details-col" style={{ cursor: 'pointer' }} onClick={() => {
-                            const fId = fareCardKey(flight, idx);
-                            setExpandedFareIds(prev => ({ ...prev, [fId]: !prev[fId] }));
-                          }}>
-                            <div className="rc-seats" style={{ color: flight.seats_remaining < 5 ? '#c3122e' : '#0f766e', fontWeight: '700' }}>
-                              {flight.seats_remaining < 5 ? `Only ${flight.seats_remaining} left` : `${flight.seats_remaining} seats`}
-                            </div>
-                          </div>
-                        )}
+                        {/* Cabin class + baggage are in the Flight Segment Information bar
+                            below; seats left now sit under the price (see rc-seats-left). */}
 
                         <div className="rc-price-col">
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
@@ -5705,6 +5817,14 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               <div style={{ fontSize: '0.65rem', color: '#245d38', fontWeight: '700', marginTop: '2px' }}>
                                 Lowest price
                               </div>
+                              {/* Seats left at this fare, straight from Travelport
+                                  (Product.Quantity) — shown only when it's low. */}
+                              {(() => {
+                                const left = selectedFareOption?.seats_remaining ?? flight.seats_remaining;
+                                return left != null && left > 0 && left <= 4 ? (
+                                  <div className="rc-seats-left">Only {left} seat{left > 1 ? 's' : ''} left at this price</div>
+                                ) : null;
+                              })()}
                             </div>
                             {selectedFareOption && (
                               <button
@@ -10346,6 +10466,37 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <button className="btn btn-primary" onClick={() => { closeBookingFlow(); setActiveTab('account'); }} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>My Account</button>
               <button className="btn btn-secondary" onClick={closeBookingFlow} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Close</button>
             </div>
+
+            {/* "Complete your trip" — the other Tick and Book services for the
+                destination just booked (only the ones switched on in admin).
+                Not printed and not in the PDF. */}
+            {(featureFlags.hotels_enabled || featureFlags.visa_enabled || featureFlags.packages_enabled) && (() => {
+              const segs = issuedTicket.segments || [];
+              const isReturnTrip = segs.length > 1 && issuedTicket.arrival_airport && issuedTicket.arrival_airport === issuedTicket.departure_airport;
+              const dest = isReturnTrip ? (segs[Math.ceil(segs.length / 2) - 1]?.arrival_airport || issuedTicket.arrival_airport) : issuedTicket.arrival_airport;
+              return (
+                <div className="no-print trip-crosssell">
+                  <div className="trip-crosssell-title">Complete your trip{dest ? ` to ${dest}` : ''}</div>
+                  <div className="trip-crosssell-actions">
+                    {featureFlags.hotels_enabled && (
+                      <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); setActiveTab('hotels'); }}>
+                        <Ico.IconBed size={18} /><span><strong>Book a hotel</strong><small>Stays at your destination</small></span>
+                      </button>
+                    )}
+                    {featureFlags.visa_enabled && (
+                      <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>
+                        <Ico.IconPassport size={18} /><span><strong>Check visa needs</strong><small>Visa assistance for your trip</small></span>
+                      </button>
+                    )}
+                    {featureFlags.packages_enabled && (
+                      <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); openPackages('tour'); }}>
+                        <Ico.IconBag size={18} /><span><strong>Tour packages</strong><small>Sightseeing and holidays</small></span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
           </div>
         </div>
