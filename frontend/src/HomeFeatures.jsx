@@ -8,38 +8,53 @@ import * as Ico from './WizardIcons.jsx';
 
 const SLIDE_EVERY_MS = 4500;
 
-// Counts 0 → target once the element scrolls into view.
-function CountUp({ target, suffix = '' }) {
+// Counts 0 → target every time its card lands in one of the visible boxes:
+// when it comes into view (scrolling, or sliding into the carousel's visible
+// row — hidden cards are clipped, so they count as out of view) and again
+// after every slide while it stays visible (replayKey changes). Resets to 0
+// when it leaves.
+function CountUp({ target, suffix = '', replayKey }) {
   const ref = useRef(null);
   const [value, setValue] = useState(0);
+  const visible = useRef(false);
+  const raf = useRef(0);
+  const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const run = () => {
+    cancelAnimationFrame(raf.current);
+    const start = performance.now(), dur = 1400;
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / dur);
+      setValue(Math.round(target * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+  };
   useEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduce || !('IntersectionObserver' in window)) { setValue(target); return undefined; }
-    let raf = 0;
     const io = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return;
-      io.disconnect();
-      const start = performance.now(), dur = 1400;
-      const tick = (now) => {
-        const t = Math.min(1, (now - start) / dur);
-        setValue(Math.round(target * (1 - Math.pow(1 - t, 3))));
-        if (t < 1) raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-    }, { threshold: 0.4 });
+      visible.current = entry.isIntersecting;
+      if (entry.isIntersecting) run(); else { cancelAnimationFrame(raf.current); setValue(0); }
+    }, { threshold: 0.9 });
     io.observe(el);
-    return () => { io.disconnect(); cancelAnimationFrame(raf); };
+    return () => { io.disconnect(); cancelAnimationFrame(raf.current); };
   }, [target]);
+  // landed in a new box: count again once the slide has settled
+  useEffect(() => {
+    if (reduce || replayKey === undefined) return undefined;
+    const t = setTimeout(() => { if (visible.current) run(); }, 750);
+    return () => clearTimeout(t);
+  }, [replayKey]);
   return <span ref={ref}>{value}{suffix}</span>;
 }
 
 export default function HomeFeatures({ hotelsEnabled, packagesEnabled, onHotels, onTours, onHotelOffers, onFlights }) {
+  const [index, setIndex] = useState(0);
   const cards = [
     {
       key: 'stays', icon: Ico.IconBed,
-      stat: <><CountUp target={32} /> Million+</>,
+      stat: <><CountUp target={32} replayKey={index} /> Million+</>,
       title: 'Accommodation Choices Worldwide',
       body: 'From city hotels to beach resorts and holiday homes — find the right stay anywhere in the world through our global accommodation partners.',
       note: 'Figures subject to change.',
@@ -75,7 +90,6 @@ export default function HomeFeatures({ hotelsEnabled, packagesEnabled, onHotels,
   const n = cards.length;
   const slides = [...cards, ...cards];          // second copy lets the loop wrap seamlessly
 
-  const [index, setIndex] = useState(0);
   const [animate, setAnimate] = useState(true);
   const [paused, setPaused] = useState(false);
   const touchX = useRef(null);
@@ -87,10 +101,14 @@ export default function HomeFeatures({ hotelsEnabled, packagesEnabled, onHotels,
     return () => clearInterval(t);
   }, [paused, reduceMotion]);
 
-  // After sliding onto the copies, jump back to the same cards in the first set
-  const onTransitionEnd = () => {
-    if (index >= n) { setAnimate(false); setIndex(i => i - n); }
-  };
+  // After sliding onto the copies, jump back to the same cards in the first
+  // set once the slide has finished. A timer, not transitionend, so it also
+  // works with motion turned off and in background tabs.
+  useEffect(() => {
+    if (index < n) return undefined;
+    const t = setTimeout(() => { setAnimate(false); setIndex(i => (i >= n ? i - n : i)); }, 750);
+    return () => clearTimeout(t);
+  }, [index, n]);
   useEffect(() => {
     if (!animate) { const r = requestAnimationFrame(() => setAnimate(true)); return () => cancelAnimationFrame(r); }
     return undefined;
@@ -133,7 +151,6 @@ export default function HomeFeatures({ hotelsEnabled, packagesEnabled, onHotels,
           <div
             className="hf-track"
             style={{ '--i': index, transition: animate ? undefined : 'none' }}
-            onTransitionEnd={onTransitionEnd}
           >
             {slides.map((c, k) => {
               const Icon = c.icon;
