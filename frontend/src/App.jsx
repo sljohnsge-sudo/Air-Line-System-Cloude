@@ -11,9 +11,10 @@ import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
 //   'cruise'  — glides in from the clouds, cruises, climbs out, comes back
 //   'still'   — the original still plane in the sky picture
 const HERO_PLANE_MODE = 'takeoff';
-// Take-off spot: 'travel-services' (climbs up-right towards Sign In, clear of
-// the text) or 'travel-further' (from behind the headline's cyan words).
-const HERO_PLANE_TAKEOFF_FROM = 'travel-services';
+// Take-off spot: 'travel-further' (emerges from behind the headline's cyan
+// words, cruises beside the headline, flies out of the picture on the right)
+// or 'travel-services' (from the service links, climbs out towards Sign In).
+const HERO_PLANE_TAKEOFF_FROM = 'travel-further';
 const HERO_PLANE_ANIMATED = HERO_PLANE_MODE !== 'still';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import downloadIcon from './assets/download_icon.png';
@@ -1922,8 +1923,8 @@ export default function App() {
       const px = p.left + p.width * 0.5, py = p.top + p.height * 0.5;
       plane.style.setProperty('--tf-x', `${sx - px}px`);
       plane.style.setProperty('--tf-y', `${sy - py}px`);
-      // climb-out heads for the last menu item (Sign In / the customer's name)
-      const signIn = headerRef.current?.querySelector('.nav-tab:last-child');
+      // from Travel Services the climb-out heads for the last menu item (Sign In)
+      const signIn = HERO_PLANE_TAKEOFF_FROM === 'travel-services' && headerRef.current?.querySelector('.nav-tab:last-child');
       if (signIn) {
         const s = signIn.getBoundingClientRect();
         plane.style.setProperty('--out-x', `${s.left + s.width / 2 - px}px`);
@@ -3670,7 +3671,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <span className="hero-plane-trail" ref={heroTrailRef} aria-hidden="true" />
             )}
             {HERO_PLANE_ANIMATED && (
-              <div className="hero-plane" ref={heroPlaneRef} aria-hidden="true">
+              <div className={`hero-plane${HERO_PLANE_MODE === 'takeoff' && HERO_PLANE_TAKEOFF_FROM === 'travel-further' ? ' from-further' : ''}`} ref={heroPlaneRef} aria-hidden="true">
                 <div className={`hero-plane-fly${HERO_PLANE_MODE === 'takeoff' ? ' takeoff' : ''}`}>
                   <img src={heroPlaneOnly} alt="" />
                   <span className="plane-light plane-light-red" style={{ left: '12%', top: '41%' }} />

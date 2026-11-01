@@ -3733,3 +3733,20 @@ body {
 @media (max-width: 768px) {
   .hero-plane-trail { display: none; }
 }
+
+/* Take-off from "Travel Further.": the cruise spot sits up and to the right
+   of the words, level with the headline, so the plane always moves the way
+   its nose points — out from behind "Further.", accelerating up-right while
+   it grows, a gentle banked cruise, then it speeds off the right edge of the
+   sky picture (the hero clips it, so it flies out of the image). */
+.hero-plane.from-further { top: 17%; right: 1.5%; height: 26%; }
+.hero-plane.from-further .hero-plane-fly.takeoff { animation-name: heroPlaneTakeoffRight; animation-timing-function: linear; }
+@keyframes heroPlaneTakeoffRight {
+  0%   { transform: translate(var(--tf-x), var(--tf-y)) scale(0.16) rotate(0deg); opacity: 0; animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
+  2%   { transform: translate(var(--tf-x), var(--tf-y)) scale(0.18) rotate(0deg); opacity: 1; animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
+  17%  { transform: translate(0, 0) scale(1) rotate(-1.5deg); opacity: 1; animation-timing-function: ease-in-out; }
+  40%  { transform: translate(2%, -3%) scale(1) rotate(0deg); animation-timing-function: ease-in-out; }
+  62%  { transform: translate(4%, -6%) scale(1) rotate(-1deg); opacity: 1; animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.6); }
+  76%  { transform: translate(185%, -38%) scale(1.06) rotate(-3deg); opacity: 1; }
+  76.5%, 100% { transform: translate(185%, -38%) scale(1.06) rotate(-3deg); opacity: 0; }
+}
