@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import TickBookLogo from './TickBookLogo.jsx';
 import HomeFeatures from './HomeFeatures.jsx';
 import NearbyDates from './NearbyDates.jsx';
+import BookingWaitLoader from './BookingWaitLoader.jsx';
 import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
 
 // Home page plane:
@@ -8858,12 +8859,12 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
             {/* STEP: Seats Loading */}
             {bookingStep === 'seats_loading' && (
-              <div style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
-                <div className="spinner" style={{ margin: '0 auto 1.25rem' }}></div>
-                <h4 className="loading-blink" style={{ color: 'var(--gs-dark)', fontWeight: '700', lineHeight: 1.5 }}>
-                  Please wait, we are checking seat map availability and other services for you
-                </h4>
-              </div>
+              <BookingWaitLoader
+                icon="seat"
+                title="Checking seats & extras"
+                subtitle="We're getting the live seat map and extra services from the airline for your flight."
+                steps={['Confirming your fare', 'Loading the seat map', 'Checking extras']}
+              />
             )}
 
             {/* seats_unavailable step removed — Travelport API response auto-routes to review */}
@@ -10131,11 +10132,12 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
             {/* STEP: Processing */}
             {bookingStep === 'processing' && (
-              <div style={{ textAlign: 'center', padding: '2rem' }}>
-                <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
-                <h4>Confirming Booking via Travelport GDS...</h4>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>Connecting to GDS workbench → Committing reservation PNR → Issuing ticket</p>
-              </div>
+              <BookingWaitLoader
+                icon="ticket"
+                title="Confirming your booking"
+                subtitle="We're securing your seats with the airline. This can take up to a minute — please don't close or refresh this page."
+                steps={['Checking your fare', 'Reserving your seats', 'Preparing secure payment']}
+              />
             )}
 
             {/* STEP: Seats/extras result — shown only when the airline did

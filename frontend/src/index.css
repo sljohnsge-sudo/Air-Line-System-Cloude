@@ -4091,3 +4091,32 @@ body {
 .fare-recheck-new { color: #0f172a; font-weight: 800; font-size: 1.5rem; }
 .fare-recheck-note { font-size: 0.8rem !important; color: #64748b !important; }
 .fare-recheck-actions { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
+
+/* Booking waits (seat map check, booking confirmation) — BookingWaitLoader.jsx */
+.bw-loader { text-align: center; padding: 2rem 1.25rem 2.25rem; }
+.bw-ring { display: block; margin: 0 auto 1rem; overflow: visible; }
+.bw-halo { fill: #EAF4FC; }
+.bw-track { fill: none; stroke: #dbeafe; stroke-width: 5; }
+.bw-arc { fill: none; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 276.5; stroke-dashoffset: 276.5;
+  transform: rotate(-90deg); animation: bwFill 2.8s ease-in-out infinite; }
+.bw-center { color: #123B70; animation: bwPulse 1.6s ease-in-out infinite; transform-origin: 0 0; }
+.bw-orbit { animation: bwOrbit 2.8s linear infinite; transform-origin: 0 0; }
+.bw-plane { fill: #123B70; stroke: #ffffff; stroke-width: 1.2; paint-order: stroke; }
+.bw-title { color: #123B70; font-weight: 800; font-size: 1.1rem; margin: 0 0 0.4rem; }
+.bw-dots i { font-style: normal; animation: bwDot 1.4s infinite; opacity: 0.2; }
+.bw-dots i:nth-child(2) { animation-delay: 0.2s; }
+.bw-dots i:nth-child(3) { animation-delay: 0.4s; }
+.bw-sub { color: #64748b; font-size: 0.88rem; margin: 0 auto; max-width: 440px; line-height: 1.5; }
+.bw-steps { list-style: none; padding: 0; margin: 1.1rem 0 0; display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
+.bw-steps li { font-size: 0.76rem; font-weight: 600; color: #123B70; background: #EAF4FC; border: 1px solid #cfe5f7;
+  border-radius: 999px; padding: 0.3rem 0.75rem; animation: bwGlow 1.8s ease-in-out infinite; }
+@keyframes bwOrbit { to { transform: rotate(360deg); } }
+@keyframes bwFill { 0% { stroke-dashoffset: 276.5; } 70% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -276.5; } }
+@keyframes bwPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@keyframes bwDot { 0%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+@keyframes bwGlow { 0%, 100% { background: #EAF4FC; } 50% { background: #d6ebfa; } }
+@media (prefers-reduced-motion: reduce) {
+  .bw-arc { animation: none; stroke-dashoffset: 70; }
+  .bw-orbit, .bw-center, .bw-dots i, .bw-steps li { animation: none; }
+  .bw-dots i { opacity: 1; }
+}
