@@ -1499,6 +1499,13 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
     selected_seats = request.selected_seats
+    # Emirates sells paid seats only after ticketing ("PAID SEAT IS NOT
+    # AVAILABLE" on a held PNR, JJ0VZ9) — never try one at booking; the
+    # website offers them in Manage Booking after the ticket is issued.
+    carriers = {str(s.get("carrier") or "").upper() for s in _segments_of_offering(raw_offering)}
+    if carriers & PAID_SEATS_AFTER_TICKET_CARRIERS and any((s.price or 0) > 0 for s in selected_seats or []):
+        logger.info(f"Dropping paid seat(s) for {sorted(carriers)} — sold only after ticketing")
+        selected_seats = [s for s in selected_seats if not (s.price or 0) > 0]
     _journey_booking_info(travelers, raw_offering)
     _check_travelers_for_trip(travelers, raw_offering)
     _claim_booking_submission(raw_offering, travelers)
@@ -2107,6 +2114,10 @@ class NdcBookAndIssueRequest(BaseModel):
 # Carriers whose post-commit workbench has no offer to pay against, so they
 # must be ticketed with Travelport's NDC Instant Pay workflow instead.
 NDC_INSTANT_PAY_CARRIERS = {"EK"}
+
+# Airlines that sell paid seats only once the ticket is issued (Emirates):
+# offered after ticketing in Manage Booking, never at booking.
+PAID_SEATS_AFTER_TICKET_CARRIERS = {"EK"}
 
 
 def _ndc_carrier_of(raw_offering: dict) -> str:

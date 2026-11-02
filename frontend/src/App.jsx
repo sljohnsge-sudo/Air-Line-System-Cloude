@@ -605,6 +605,15 @@ const handleApiResponse = async (res, defaultError) => {
 const isFareChangedError = (err) => err?.status === 409 &&
   /(availability has changed|fare has changed|no longer available|now priced in|didn't confirm a price)/i.test(err.message || '');
 
+// Airlines that sell paid seats only once the ticket is issued — offered
+// after ticketing in Manage Booking, never during booking.
+const PAID_SEATS_AFTER_TICKET_CARRIERS = ['EK'];
+const paidSeatsAfterTicketOnly = (flight) => {
+  const codes = (flight?.legs?.length ? flight.legs : [flight])
+    .flatMap(l => (l?.segments?.length ? l.segments : [l]).map(sg => sg?.carrier || l?.airline_code));
+  return codes.some(c => PAID_SEATS_AFTER_TICKET_CARRIERS.includes(c)) || PAID_SEATS_AFTER_TICKET_CARRIERS.includes(flight?.airline_code);
+};
+
 // Same flights (numbers + departure times on every leg) — used to find the
 // customer's flight again in a fresh search.
 const itineraryKey = (f) => (f?.legs?.length ? f.legs : [f])
@@ -3629,6 +3638,10 @@ export default function App() {
     // unselectable as occupied ones, so they get the same treatment.
     const isAvailable = seat.status === 'available';
     const isOccupied = !isAvailable;
+    // Emirates sells paid seats only after the ticket is issued (Travelport's
+    // airline notes; JJ0VZ9 2026-11-02: "PAID SEAT IS NOT AVAILABLE" when
+    // booked before ticketing). Shown, but not selectable while booking.
+    const paidAfterTicketOnly = !isOccupied && (seat.price || 0) > 0 && paidSeatsAfterTicketOnly(selectedFlight);
 
     // Window/Middle/Aisle — read straight from Travelport's own seat map
     // column data (seatMap.columns[].position), not guessed from seat
@@ -3663,6 +3676,11 @@ export default function App() {
       seatPatternStyle = {
         backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(100,116,139,0.35) 3px, rgba(100,116,139,0.35) 5px)',
       };
+    } else if (paidAfterTicketOnly) {
+      seatBg = '#f8fafc';
+      seatBorder = '1px dashed #94a3b8';
+      seatColor = '#94a3b8';
+      cursor = 'not-allowed';
     } else if (isSelectedByActive) {
       seatBg = 'var(--gs-crimson)';
       seatBorder = '1px solid var(--gs-crimson)';
@@ -3683,6 +3701,10 @@ export default function App() {
 
     const handleSeatClick = () => {
       if (isOccupied) return;
+      if (paidAfterTicketOnly) {
+        showNotification('Emirates paid seats can be chosen after your ticket is issued — in Manage Booking. You can pick a free seat now.', 'info');
+        return;
+      }
       if (isSelectedByOther) {
         showNotification(`This seat is already selected by Passenger ${selectedByP.passenger_idx + 1}.`, 'error');
         return;
@@ -3740,7 +3762,9 @@ export default function App() {
         type="button"
         disabled={isOccupied}
         onClick={handleSeatClick}
-        title={`${seat.seat_number} - ${seat.type || 'Seat'}${positionLabel ? ` - ${positionLabel}` : ''} (${seat.price === 0 ? 'Included' : `${seat.currency} ${seat.price?.toLocaleString()}`} with ${selectedFlight.fare_family})`}
+        title={paidAfterTicketOnly
+          ? `${seat.seat_number} - paid seat (${seat.currency} ${seat.price?.toLocaleString()}) — Emirates sells paid seats after ticketing, in Manage Booking`
+          : `${seat.seat_number} - ${seat.type || 'Seat'}${positionLabel ? ` - ${positionLabel}` : ''} (${seat.price === 0 ? 'Included' : `${seat.currency} ${seat.price?.toLocaleString()}`} with ${selectedFlight.fare_family})`}
         style={{
           width: '32px',
           height: '32px',
@@ -8892,6 +8916,12 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             {/* STEP: Seats Selector (Bird's Eye Airplane View) */}
             {bookingStep === 'seats' && seatMap && (
               <div style={{ display: 'flex', flexDirection: 'column', height: 'auto' }}>
+                {paidSeatsAfterTicketOnly(selectedFlight) && (
+                  <div className="info-banner" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                    You can choose a free seat now. Emirates paid seats (dashed) can be chosen after your ticket
+                    is issued — in Manage Booking.
+                  </div>
+                )}
                 {selectedFlight?.source === 'AD' && (
                   <div className="info-banner" style={{ fontSize: '0.78rem', marginBottom: '0.75rem' }}>
                     Showing live seat availability from Amadeus. Your selection is noted as a preference with
