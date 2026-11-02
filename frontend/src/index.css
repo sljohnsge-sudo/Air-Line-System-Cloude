@@ -4000,22 +4000,40 @@ body {
 .trip-crosssell-btn small { font-size: 0.75rem; color: #64748b; }
 .trip-crosssell-btn:hover { border-color: var(--gs-crimson); background: #ffffff; }
 /* Shown as a pop-up once the customer reaches the end of the e-ticket */
+.trip-crosssell-overlay {
+  position: fixed; inset: 0; z-index: 100001; background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+  animation: tripOverlayIn 0.25s ease-out;
+}
 .trip-crosssell-popup {
-  position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); z-index: 100001;
-  width: min(760px, calc(100vw - 2rem)); box-sizing: border-box;
-  border: 1px solid #e2e8f0; border-top: none; border-radius: 16px;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22), 0 2px 8px rgba(15, 23, 42, 0.08);
+  position: relative; width: min(820px, 100%); max-height: calc(100vh - 2rem); overflow-y: auto;
+  box-sizing: border-box; padding: 2rem 2rem 1.75rem; border: none; border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
   animation: tripCrossSellIn 0.35s ease-out;
 }
+.trip-crosssell-badge { text-align: center; color: #166534; font-weight: 800; font-size: 0.85rem; margin-bottom: 0.6rem; }
+.trip-crosssell-popup .trip-crosssell-title { font-size: 1.35rem; margin-bottom: 1.1rem; }
+.trip-crosssell-popup .trip-crosssell-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.85rem; }
+.trip-crosssell-popup .trip-crosssell-btn { min-width: 0; padding: 1rem 1.1rem; }
+.trip-crosssell-popup .trip-crosssell-btn strong { font-size: 1rem; }
+.trip-crosssell-manage {
+  margin-top: 1.4rem; padding: 1.1rem 1.25rem; border-radius: 14px; background: #EAF4FC; border: 1px solid #cfe5f7;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+}
+.trip-crosssell-manage div { display: flex; flex-direction: column; gap: 0.2rem; flex: 1 1 280px; }
+.trip-crosssell-manage strong { color: #123B70; font-size: 1.02rem; }
+.trip-crosssell-manage span { color: #475569; font-size: 0.86rem; line-height: 1.45; }
+.trip-crosssell-manage .btn { white-space: nowrap; }
+@keyframes tripOverlayIn { from { opacity: 0; } to { opacity: 1; } }
 .trip-crosssell-close {
   position: absolute; top: 0.45rem; right: 0.6rem; width: 32px; height: 32px; border-radius: 50%;
   border: none; background: #f1f5f9; color: #334155; font-size: 1.3rem; line-height: 1; cursor: pointer;
 }
 .trip-crosssell-close:hover { background: #e2e8f0; }
-@keyframes tripCrossSellIn { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
-@media (prefers-reduced-motion: reduce) { .trip-crosssell-popup { animation: none; } }
+@keyframes tripCrossSellIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .trip-crosssell-popup, .trip-crosssell-overlay { animation: none; } }
 @media (max-width: 520px) {
-  .trip-crosssell-popup { bottom: 0.75rem; padding: 1rem 0.9rem 1.1rem; }
+  .trip-crosssell-popup { padding: 1.5rem 1rem 1.25rem; }
   .trip-crosssell-btn { min-width: 0; width: 100%; }
 }
 

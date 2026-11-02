@@ -2248,7 +2248,7 @@ export default function App() {
   const crossSellAvailable = !!(featureFlags.hotels_enabled || featureFlags.visa_enabled || featureFlags.packages_enabled);
   const ticketLocator = issuedTicket?.locator_code || issuedTicket?.pnr || null;
   useEffect(() => {
-    if (bookingStep !== 'ticket' || !ticketLocator || !crossSellAvailable || tripCrossSell.loc === ticketLocator) return;
+    if (bookingStep !== 'ticket' || !ticketLocator || tripCrossSell.loc === ticketLocator) return;
     // Checked on every scroll (the ticket scrolls inside its own panel, so
     // listen in the capture phase) and once shortly after it opens, in case
     // the whole ticket already fits on screen.
@@ -10715,33 +10715,61 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             {/* "Complete your trip" — the other Tick and Book services for the
                 destination just booked (only the ones switched on in admin),
                 as a pop-up with a close button. Not printed and not in the PDF. */}
-            {crossSellAvailable && tripCrossSell.open && tripCrossSell.loc === ticketLocator && (() => {
+            {tripCrossSell.open && tripCrossSell.loc === ticketLocator && (() => {
+              // Where the customer is going: the first leg's arrival (round
+              // trips used to show the home airport, e.g. "CMB").
+              const legs = issuedTicket.legs || [];
               const segs = issuedTicket.segments || [];
-              const isReturnTrip = segs.length > 1 && issuedTicket.arrival_airport && issuedTicket.arrival_airport === issuedTicket.departure_airport;
-              const dest = isReturnTrip ? (segs[Math.ceil(segs.length / 2) - 1]?.arrival_airport || issuedTicket.arrival_airport) : issuedTicket.arrival_airport;
-              return (
-                <div className="no-print trip-crosssell trip-crosssell-popup" role="dialog" aria-label="Complete your trip">
-                  <button type="button" className="trip-crosssell-close" aria-label="Close"
-                    onClick={() => setTripCrossSell({ loc: ticketLocator, open: false })}>×</button>
-                  <div className="trip-crosssell-title">Complete your trip{dest ? ` to ${dest}` : ''}</div>
-                  <div className="trip-crosssell-actions">
-                    {featureFlags.hotels_enabled && (
-                      <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); setActiveTab('hotels'); }}>
-                        <Ico.IconBed size={18} /><span><strong>Book a hotel</strong><small>Stays at your destination</small></span>
-                      </button>
-                    )}
-                    {featureFlags.visa_enabled && (
-                      <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>
-                        <Ico.IconPassport size={18} /><span><strong>Check visa needs</strong><small>Visa assistance for your trip</small></span>
-                      </button>
-                    )}
-                    {featureFlags.packages_enabled && (
-                      <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); openPackages('tour'); }}>
-                        <Ico.IconBag size={18} /><span><strong>Tour packages</strong><small>Sightseeing and holidays</small></span>
-                      </button>
-                    )}
+              const dest = legs[0]?.arrival_airport
+                || (segs.length > 1 && issuedTicket.arrival_airport === issuedTicket.departure_airport
+                  ? segs[Math.ceil(segs.length / 2) - 1]?.arrival_airport : null)
+                || issuedTicket.arrival_airport;
+              const close = () => setTripCrossSell({ loc: ticketLocator, open: false });
+              // Portalled to <body>: the ticket view's animated container would
+              // otherwise anchor this "fixed" overlay to itself, off-screen.
+              return createPortal(
+                <div className="no-print trip-crosssell-overlay" onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
+                  <div className="trip-crosssell trip-crosssell-popup" role="dialog" aria-modal="true" aria-label="Complete your trip">
+                    <button type="button" className="trip-crosssell-close" aria-label="Close" onClick={close}>×</button>
+                    <div className="trip-crosssell-badge">✓ Your booking is confirmed</div>
+                    {crossSellAvailable && <>
+                      <div className="trip-crosssell-title">Complete your trip{dest ? ` to ${dest}` : ''}</div>
+                      <div className="trip-crosssell-actions">
+                        {featureFlags.hotels_enabled && (
+                          <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); setActiveTab('hotels'); }}>
+                            <Ico.IconBed size={20} /><span><strong>Book a hotel</strong><small>Stays at your destination</small></span>
+                          </button>
+                        )}
+                        {featureFlags.visa_enabled && (
+                          <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); setVisaResult(null); setVisaError(''); setActiveTab('visa'); }}>
+                            <Ico.IconPassport size={20} /><span><strong>Check visa needs</strong><small>Visa assistance for your trip</small></span>
+                          </button>
+                        )}
+                        {featureFlags.packages_enabled && (
+                          <button type="button" className="trip-crosssell-btn" onClick={() => { closeBookingFlow(); openPackages('tour'); }}>
+                            <Ico.IconBag size={20} /><span><strong>Tour packages</strong><small>Sightseeing and holidays</small></span>
+                          </button>
+                        )}
+                      </div>
+                    </>}
+                    {/* Manage Booking lives in the customer's account — signed-out
+                        customers land on the sign-in page first. */}
+                    <div className="trip-crosssell-manage">
+                      <div>
+                        <strong>Manage your booking</strong>
+                        <span>See your booking, your entitlements and the extra benefits available to you.{customerToken ? '' : ' Sign in to view them.'}</span>
+                      </div>
+                      <button type="button" className="btn btn-primary" onClick={() => {
+                        closeBookingFlow();
+                        setActiveTab('account');
+                        // leave the ticket link, so a refresh stays on Manage Booking
+                        navigate('/account');
+                        if (!customerToken) showNotification('Please sign in to manage your booking.', 'info');
+                      }}>{customerToken ? 'Go to Manage Booking' : 'Sign in to Manage Booking'}</button>
+                    </div>
                   </div>
-                </div>
+                </div>,
+                document.body
               );
             })()}
 
