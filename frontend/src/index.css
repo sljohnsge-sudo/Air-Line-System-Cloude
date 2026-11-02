@@ -4265,3 +4265,33 @@ button, input, select, textarea { font-family: inherit; }
 .fare-pick-label { font-size: 0.62rem; letter-spacing: 0.04em; }
 .fare-pick-price { font-size: 0.92rem; }
 .fare-pick-meta { font-size: 0.66rem; }
+
+/* Fare Calendar button (replaces the date strip) and month calendar */
+.fare-cal-bar { display: flex; margin-bottom: 0.65rem; }
+.fare-cal-btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;
+  background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.45rem 0.85rem;
+  color: #0f172a; font-size: 0.82rem; font-weight: 700; transition: border-color 0.15s, color 0.15s;
+}
+.fare-cal-btn svg { color: var(--gs-crimson); }
+.fare-cal-btn:hover { border-color: var(--gs-crimson); }
+.fare-cal-hint { font-size: 0.7rem; font-weight: 500; color: #94a3b8; }
+.fare-month-box { width: min(760px, 96vw); }
+.fare-month-switch { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.25rem 0.6rem; font-size: 0.74rem; font-weight: 600; color: #334155; cursor: pointer; }
+.fare-month-switch:hover { border-color: var(--gs-crimson); color: var(--gs-crimson); }
+.fare-month-sub { padding: 0.45rem 1rem 0; font-size: 0.72rem; color: #64748b; }
+.fare-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.3rem; padding: 0.6rem 1rem 1rem; overflow: auto; }
+.fare-month-wd { text-align: center; font-size: 0.68rem; font-weight: 700; color: #64748b; padding-bottom: 0.15rem; }
+.fare-month-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.15rem;
+  min-height: 52px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff; cursor: pointer; padding: 0.25rem 0.1rem;
+}
+.fare-month-cell:hover:not(:disabled) { border-color: var(--gs-crimson); }
+.fare-month-cell:disabled { cursor: default; }
+.fare-month-cell.blank { border: none; background: transparent; cursor: default; }
+.fare-month-cell.off { background: #f8fafc; color: #cbd5e1; cursor: default; }
+.fare-month-cell.current { background: #fdf1f2; border-color: var(--gs-crimson); }
+.fare-month-day { font-size: 0.7rem; font-weight: 600; color: #334155; }
+.fare-month-cell.off .fare-month-day { color: #cbd5e1; }
+.fare-month-price { font-size: 0.74rem; font-weight: 600; }
+@media (max-width: 600px) { .fare-month-cell { min-height: 46px; } .fare-month-price { font-size: 0.62rem; } .fare-cal-hint { display: none; } }

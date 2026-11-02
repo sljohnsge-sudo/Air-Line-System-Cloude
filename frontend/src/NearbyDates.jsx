@@ -1,4 +1,5 @@
-// Prices on nearby dates, on the results page. Loads by itself with the
+// Fare Calendar on the results page (the date strip it replaced used the
+// same search helpers). Prices on nearby dates: Loads by itself with the
 // results: real Travelport searches (the same /api/flights/search the main
 // search uses) for 3 days before and 5 days after the customer's departure
 // date (never past days), same route, travellers and cabin. Round trips keep
@@ -209,90 +210,143 @@ function PriceGrid({ q, date, returnDate, focusDep, currentCheapest, currency, o
   );
 }
 
-export default function NearbyDates({ apiBase, origin, destination, date, returnDate, roundTrip, counts, cabin, currentCheapest, currency, onPick }) {
-  const [days, setDays] = useState([]);   // [{ offset, date, ret, state: 'loading'|'done'|'none'|'error'|'past', price }]
-  const [gridOpen, setGridOpen] = useState(false);
-  const [gridFocus, setGridFocus] = useState(null);   // departure date the customer tapped
-  const openCalendar = (dep) => { setGridFocus(dep); setGridOpen(true); };
-  const q = { apiBase, origin, destination, roundTrip, counts, cabin };
+// Month-style Fare Calendar: the cheapest live fare for every departure day
+// from 2 weeks before to 2 weeks after the customer's date (round trips keep
+// their return date), laid out Monday–Sunday. Searched when opened, a few at
+// a time; the days nearest the customer's date were already searched with
+// the main search. Cheapest third of the price range green, middle amber,
+// dearest red. Round trips can switch to the departure × return grid.
+const SPAN = 14;
+function MonthCalendar({ q, date, returnDate, roundTrip, currentCheapest, currency, onPick, onClose, onCompareReturns }) {
+  const ret = roundTrip && returnDate ? returnDate : null;
+  const days = Array.from({ length: SPAN * 2 + 1 }, (_, i) => shift(date, i - SPAN));
+  const usable = (d) => !isPast(d) && !(ret && d > ret);
+  const [cells, setCells] = useState(() => {
+    const out = {};
+    days.forEach(d => {
+      if (!usable(d)) return;
+      if (d === date && currentCheapest > 0) out[d] = { state: 'done', price: currentCheapest, currency };
+      else out[d] = remembered(q, d, ret) || { state: 'loading' };
+    });
+    return out;
+  });
 
   useEffect(() => {
     let alive = true;
-    const ret0 = roundTrip && returnDate ? returnDate : null;
-    if (currentCheapest > 0) {
-      seen.set(keyOf(q, date, ret0), { state: 'done', price: currentCheapest, currency, at: Date.now() });
-    }
-    const list = windowDays(date, returnDate, roundTrip).map(({ offset, date: dep, ret, past }) => {
-      if (offset === 0) return { offset, date: dep, ret, state: 'done', price: currentCheapest, currency };
-      if (past) return { offset, date: dep, ret, state: 'past' };
-      // A search started with the main search and already finished shows straight away.
-      const hit = !inFlight.has(keyOf(q, dep, ret)) && remembered(q, dep, ret);
-      if (hit && Date.now() - hit.at < 60000) return { offset, date: dep, ret, ...hit };
-      return hit ? { offset, date: dep, ret, ...hit, live: true } : { offset, date: dep, ret, state: 'loading', live: true };
-    });
-    setDays(list);
-    const update = (dep, patch) => alive && setDays(prev => prev.map(d => (d.date === dep ? { ...d, ...patch } : d)));
-    // Every day searched live on Travelport, all at once, so prices arrive together.
-    list.filter(d => d.live).forEach(async (d) => {
-      try {
-        const best = await searchOne(q, d.date, d.ret);
-        update(d.date, best ? { state: 'done', price: best.price, currency: best.currency } : { state: 'none' });
-      } catch {
-        update(d.date, { state: 'error' });
+    // nearest days first, so the dates the customer most likely wants fill in first
+    const queue = Object.entries(cells).filter(([, c]) => c.state === 'loading').map(([d]) => d)
+      .sort((a, b) => Math.abs(new Date(a) - new Date(date)) - Math.abs(new Date(b) - new Date(date)));
+    const worker = async () => {
+      while (alive && queue.length) {
+        const d = queue.shift();
+        let patch;
+        try {
+          const best = await searchOne(q, d, ret);
+          patch = best ? { state: 'done', price: best.price, currency: best.currency } : { state: 'none' };
+        } catch {
+          patch = { state: 'error' };
+        }
+        if (alive) setCells(prev => ({ ...prev, [d]: patch }));
       }
-    });
+    };
+    Array.from({ length: GRID_PARALLEL }, worker);
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const showGrid = roundTrip && returnDate;
-  if (!days.length) return null;
-  // Highlight a day only when it is genuinely cheaper than the customer's dates
-  const found = days.filter(d => d.offset !== 0 && d.state === 'done' && d.price > 0);
-  const lowest = found.length ? Math.min(...found.map(d => d.price)) : null;
-  const cheapest = lowest != null && lowest < currentCheapest ? lowest : null;
+  const prices = Object.values(cells).filter(c => c.state === 'done' && c.price > 0).map(c => c.price).sort((a, b) => a - b);
+  const lo = prices[0], hi = prices[prices.length - 1], step = (hi - lo) / 3;
+  const tone = (p) => (prices.length < 2 || hi === lo ? ' low' : p <= lo + step ? ' low' : p <= lo + 2 * step ? ' mid' : ' high');
+  const waiting = Object.values(cells).filter(c => c.state === 'loading').length;
+
+  // Monday-first weeks covering the range
+  const first = new Date(`${days[0]}T00:00:00`);
+  const lead = (first.getDay() + 6) % 7;   // days before the first date in its week
+  const start = shift(days[0], -lead);
+  const totalCells = Math.ceil((lead + days.length) / 7) * 7;
+  const grid = Array.from({ length: totalCells }, (_, i) => shift(start, i));
+  const inRange = new Set(days);
+
+  return createPortal(
+    <div className="modal-overlay" style={{ animation: 'none' }} onClick={onClose}>
+      <div className="price-grid-box fare-month-box" onClick={e => e.stopPropagation()} role="dialog" aria-label="Fare Calendar">
+        <div className="price-grid-head">
+          <span>Fare Calendar{waiting ? <span className="price-grid-wait"> · checking {waiting} more…</span> : null}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            {roundTrip && returnDate && (
+              <button type="button" className="fare-month-switch" onClick={onCompareReturns}>Compare return dates</button>
+            )}
+            <button type="button" className="price-grid-close" aria-label="Close" onClick={onClose}>×</button>
+          </span>
+        </div>
+        <div className="fare-month-sub">
+          Cheapest fare by departure date{ret ? ` · return ${label(ret)}` : ''} · live from Travelport
+        </div>
+        <div className="fare-month">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => <div key={w} className="fare-month-wd">{w}</div>)}
+          {grid.map(d => {
+            const c = cells[d];
+            const current = d === date;
+            const dd = new Date(`${d}T00:00:00`);
+            const head = (
+              <span className="fare-month-day">
+                {dd.getDate()}{dd.getDate() === 1 || d === days[0] ? ` ${dd.toLocaleDateString('en-GB', { month: 'short' })}` : ''}
+              </span>
+            );
+            if (!inRange.has(d)) return <div key={d} className="fare-month-cell blank" />;
+            if (!c) return <div key={d} className="fare-month-cell off" title={label(d)}>{head}<span className="price-grid-dot">—</span></div>;
+            const clickable = c.state === 'done' && !current;
+            return (
+              <button key={d} type="button" title={label(d)} disabled={!clickable}
+                      className={`fare-month-cell${current ? ' current' : ''}`}
+                      onClick={() => { onClose(); onPick(d, ret); }}>
+                {head}
+                {c.state === 'done'
+                  ? <span className={`fare-month-price price-grid-cell${tone(c.price)}`}>{money(c.price, c.currency || currency)}</span>
+                  : c.state === 'loading' ? <span className="price-grid-dot">…</span>
+                  : <span className="price-grid-dot">{c.state === 'none' ? 'No flights' : '—'}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+export default function NearbyDates({ apiBase, origin, destination, date, returnDate, roundTrip, counts, cabin, currentCheapest, currency, onPick }) {
+  const [open, setOpen] = useState(null);   // 'month' | 'grid' | null
+  const q = { apiBase, origin, destination, roundTrip, counts, cabin };
+
+  // The fare already shown for the customer's own dates counts as found.
+  useEffect(() => {
+    if (currentCheapest > 0) {
+      seen.set(keyOf(q, date, roundTrip && returnDate ? returnDate : null), { state: 'done', price: currentCheapest, currency, at: Date.now() });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <>
-      <div className={`nearby-dates${showGrid ? ' with-grid' : ''}`} role="group" aria-label="Cheapest live fare for nearby dates">
-        {days.map(d => {
-          const isCurrent = d.offset === 0;
-          // Round trip: tapping a date opens the Fare Calendar on that departure
-          // so the customer picks the return too. One way: search that date.
-          const opensCalendar = showGrid && d.state !== 'past';
-          const clickable = opensCalendar || (!isCurrent && d.state === 'done');
-          return (
-            <button
-              key={d.date} type="button"
-              className={`nearby-day${isCurrent ? ' current' : ''}${d.state === 'done' && d.price === cheapest ? ' cheapest' : ''}`}
-              disabled={!clickable}
-              onClick={() => { if (opensCalendar) openCalendar(d.date); else if (clickable) onPick(d.date, d.ret); }}
-              title={roundTrip && d.ret ? `${label(d.date)} – ${label(d.ret)}` : label(d.date)}
-            >
-              <span className="nearby-day-date">{short(d.date)}</span>
-              <span className="nearby-day-price">
-                {d.state === 'loading' && <span className="nearby-day-wait">Checking…</span>}
-                {d.state === 'done' && money(d.price, d.currency || currency)}
-                {d.state === 'none' && 'No flights'}
-                {d.state === 'error' && 'Unavailable'}
-                {d.state === 'past' && '—'}
-              </span>
-            </button>
-          );
-        })}
-        {showGrid && (
-          <button type="button" className="nearby-day nearby-grid-btn" onClick={() => openCalendar(date)}
-                  title="Fare Calendar" aria-label="Fare Calendar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <rect x="3" y="4.5" width="18" height="16" rx="2" />
-              <line x1="3" y1="9" x2="21" y2="9" /><line x1="8" y1="2.5" x2="8" y2="6.5" /><line x1="16" y1="2.5" x2="16" y2="6.5" />
-              <path d="M7 12.5h2M11 12.5h2M15 12.5h2M7 16h2M11 16h2M15 16h2" />
-            </svg>
-          </button>
-        )}
+      <div className="fare-cal-bar">
+        <button type="button" className="fare-cal-btn" onClick={() => setOpen('month')}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <rect x="3" y="4.5" width="18" height="16" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" /><line x1="8" y1="2.5" x2="8" y2="6.5" /><line x1="16" y1="2.5" x2="16" y2="6.5" />
+            <path d="M7 12.5h2M11 12.5h2M15 12.5h2M7 16h2M11 16h2M15 16h2" />
+          </svg>
+          <span>Fare Calendar</span>
+          <span className="fare-cal-hint">Cheapest fares 2 weeks either side</span>
+        </button>
       </div>
-      {gridOpen && (
-        <PriceGrid q={q} date={date} returnDate={returnDate} focusDep={gridFocus} currentCheapest={currentCheapest} currency={currency}
-                   onPick={onPick} onClose={() => setGridOpen(false)} />
+      {open === 'month' && (
+        <MonthCalendar q={q} date={date} returnDate={returnDate} roundTrip={roundTrip} currentCheapest={currentCheapest} currency={currency}
+                       onPick={onPick} onClose={() => setOpen(null)} onCompareReturns={() => setOpen('grid')} />
+      )}
+      {open === 'grid' && (
+        <PriceGrid q={q} date={date} returnDate={returnDate} focusDep={date} currentCheapest={currentCheapest} currency={currency}
+                   onPick={onPick} onClose={() => setOpen(null)} />
       )}
     </>
   );
