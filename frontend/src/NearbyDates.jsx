@@ -1,11 +1,20 @@
-// "Compare prices on nearby dates" on the results page. Runs only when the customer
-// asks: real Travelport searches (the same /api/flights/search the main
-// search uses) for the days around their date (never past days), same route, travellers and
-// cabin — round trips keep the same length of stay. Shows the cheapest live
-// fare per day; tapping a day runs that search. At most two searches run at
-// a time so Travelport isn't flooded. Nothing here is estimated or cached.
-import React, { useState } from 'react';
+// Prices on nearby dates, on the results page. Loads by itself with the
+// results: real Travelport searches (the same /api/flights/search the main
+// search uses) for 3 days before and 5 days after the customer's date
+// (never past days), same route, travellers and cabin — round trips keep the
+// same length of stay. All days are searched at the same time so they fill in
+// together. Shows the cheapest live fare per day; tapping a day runs that
+// search. Every day is searched live on Travelport each time the strip shows;
+// while that runs, a day already found in the last 10 minutes keeps showing
+// its earlier Travelport price (so picking a day doesn't flash "Checking…"),
+// and is replaced by the fresh Travelport price as soon as it arrives.
+import React, { useEffect, useState } from 'react';
 import { fmtDateWeekday } from './dateFormat.js';
+
+const BEFORE = 3;
+const AFTER = 5;
+const KEEP_MS = 10 * 60 * 1000;
+const seen = new Map();   // search key -> { state, price, currency, at }
 
 const shift = (iso, days) => {
   const d = new Date(`${iso}T00:00:00`);
@@ -16,8 +25,14 @@ const shift = (iso, days) => {
 const label = (iso) => fmtDateWeekday(iso);
 
 export default function NearbyDates({ apiBase, origin, destination, date, returnDate, roundTrip, counts, cabin, currentCheapest, currency, onPick }) {
-  const [days, setDays] = useState(null);   // [{ offset, date, ret, state: 'loading'|'done'|'none'|'error'|'past', price }]
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const [days, setDays] = useState([]);   // [{ offset, date, ret, state: 'loading'|'done'|'none'|'error'|'past', price }]
+
+  const keyOf = (dep, ret) => [origin, destination, dep, ret || '', counts.adults, counts.children,
+    counts.infants, counts.students, cabin || ''].join('|');
+  const remembered = (dep, ret) => {
+    const hit = seen.get(keyOf(dep, ret));
+    return hit && Date.now() - hit.at < KEEP_MS ? hit : null;
+  };
 
   const searchOne = async (dep, ret) => {
     const legs = roundTrip
@@ -42,43 +57,44 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
     return prices.length ? { price: Math.min(...prices), currency: data.flights[0].currency } : null;
   };
 
-  const run = async () => {
-    // Seven days around the customer's date. Flights can't be booked on days
-    // that have passed, so when the date is close to today the window slides
-    // forward (e.g. travelling today → today plus the next six days).
+  useEffect(() => {
+    let alive = true;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    // Flights can't be booked on days that have passed, so when the date is
+    // close to today the window slides forward.
     const daysToToday = Math.round((today - new Date(`${date}T00:00:00`)) / 86400000);
-    const first = Math.max(-3, Math.min(0, daysToToday));
-    const list = Array.from({ length: 7 }, (_, i) => first + i).map(offset => {
+    const first = Math.max(-BEFORE, Math.min(0, daysToToday));
+    const ret0 = roundTrip && returnDate ? returnDate : null;
+    if (currentCheapest > 0) {
+      seen.set(keyOf(date, ret0), { state: 'done', price: currentCheapest, currency, at: Date.now() });
+    }
+    const list = Array.from({ length: BEFORE + AFTER + 1 }, (_, i) => first + i).map(offset => {
       const dep = shift(date, offset);
       const ret = roundTrip && returnDate ? shift(returnDate, offset) : null;
-      const past = new Date(`${dep}T00:00:00`) < today;
       if (offset === 0) return { offset, date: dep, ret, state: 'done', price: currentCheapest, currency };
-      return { offset, date: dep, ret, state: past ? 'past' : 'loading' };
+      if (new Date(`${dep}T00:00:00`) < today) return { offset, date: dep, ret, state: 'past' };
+      const hit = remembered(dep, ret);
+      return hit ? { offset, date: dep, ret, ...hit, live: true } : { offset, date: dep, ret, state: 'loading', live: true };
     });
     setDays(list);
-    const queue = list.filter(d => d.state === 'loading');
-    const update = (dep, patch) => setDays(prev => prev.map(d => (d.date === dep ? { ...d, ...patch } : d)));
-    const worker = async () => {
-      while (queue.length) {
-        const d = queue.shift();
-        try {
-          const best = await searchOne(d.date, d.ret);
-          update(d.date, best ? { state: 'done', price: best.price, currency: best.currency } : { state: 'none' });
-        } catch {
-          update(d.date, { state: 'error' });
-        }
+    const update = (dep, patch) => alive && setDays(prev => prev.map(d => (d.date === dep ? { ...d, ...patch } : d)));
+    // Every day searched live on Travelport, all at once, so prices arrive together.
+    list.filter(d => d.live).forEach(async (d) => {
+      try {
+        const best = await searchOne(d.date, d.ret);
+        const patch = best ? { state: 'done', price: best.price, currency: best.currency } : { state: 'none' };
+        seen.set(keyOf(d.date, d.ret), { ...patch, at: Date.now() });
+        update(d.date, patch);
+      } catch {
+        seen.delete(keyOf(d.date, d.ret));
+        update(d.date, { state: 'error' });
       }
-    };
-    await Promise.all([worker(), worker()]);
-  };
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (!days) {
-    return (
-      <button type="button" className="nearby-dates-open" onClick={run}>
-        📅 Compare prices on nearby dates
-      </button>
-    );
-  }
+  if (!days.length) return null;
   // Highlight a day only when it is genuinely cheaper than the customer's dates
   const found = days.filter(d => d.offset !== 0 && d.state === 'done' && d.price > 0);
   const lowest = found.length ? Math.min(...found.map(d => d.price)) : null;

@@ -5744,7 +5744,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                   <div className="results-live-badge">● Live GDS Data</div>
                 </div>
-                {/* ±3 days: live Travelport searches, only when the customer asks */}
+                {/* 3 days before, 5 after: live Travelport searches, all at once */}
                 {!loadingFlights && !searchError && flights.length > 0 && searchType !== 'multicity' && (
                   <NearbyDates
                     key={`${searchOrigin}-${searchDest}-${searchDate}-${returnDate}-${searchType}-${adultCount}${childCount}${infantCount}${studentCount}-${cabinPref}`}
