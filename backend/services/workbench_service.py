@@ -60,13 +60,24 @@ def _raise_if_error(result: dict, step_name: str) -> None:
     and confirm_price() already did, and raises immediately with Travelport's
     own error text instead of silently proceeding.
     """
-    errors = (
-        result.get("Result", {}).get("Error", []) or
-        result.get("OfferListResponse", {}).get("Result", {}).get("Error", []) or
-        result.get("ReservationResponse", {}).get("Result", {}).get("Error", [])
-    )
+    # Every Travelport reply wraps its Result in its own *Response object
+    # (OfferListResponse, ReservationResponse, TravelerListResponse,
+    # TravelAgencyResponse...). Only the first three were checked, so a
+    # failed Add Traveler(s) ("WORKBENCH ID IS NOT VALID") went unnoticed and
+    # the commit then failed "NAME IS REQUIRED" (SriLankan, 2026-11-02 15:12).
+    errors = list((result.get("Result") or {}).get("Error") or [])
+    for key, value in result.items():
+        if key.endswith("Response") and isinstance(value, dict):
+            errors += (value.get("Result") or {}).get("Error") or []
     if errors:
-        raise ValueError(f"Travelport {step_name} failed: {errors[0].get('Message')}")
+        first = errors[0]
+        message = str(first.get("Message") or "")
+        # The workbench session dropped, or Travelport couldn't read a valid
+        # request (seen together in a brief pre-prod glitch) — a fresh
+        # workbench is the fix, same as the 4350 stale-workbench case.
+        if str(first.get("SourceCode")) == "8506" or "MalformedJsonException" in message:
+            raise StaleWorkbenchError(f"Travelport {step_name}: {message[:160]}")
+        raise ValueError(f"Travelport {step_name} failed: {message}")
 
 
 def _api_get(url: str, session_id: str | None = None) -> dict:
@@ -1690,6 +1701,12 @@ def run_instant_pay_flow(raw_offering: dict, travelers: list, max_attempts: int 
                 logger.warning(f"[Instant Pay {attempt}/{max_attempts}] not ticketed: {last_error}")
             except InstantPayError as e:
                 last_error = str(e)
+                retryable = not committing
+                logger.warning(f"[Instant Pay {attempt}/{max_attempts}] {last_error}")
+            except StaleWorkbenchError as e:
+                # The workbench dropped before the commit (e.g. 8506) — nothing
+                # booked yet; a fresh workbench is safe.
+                last_error = f"Travelport session dropped before booking ({e})"
                 retryable = not committing
                 logger.warning(f"[Instant Pay {attempt}/{max_attempts}] {last_error}")
             except httpx.HTTPError as e:

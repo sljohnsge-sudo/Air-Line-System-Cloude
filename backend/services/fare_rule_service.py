@@ -60,7 +60,13 @@ def _fetch(url: str, base_params: list, is_gds: bool) -> dict:
             continue
         result = body.get("Result") or {}
         for err in result.get("Error") or []:
-            out["notes"].append(err.get("Message"))
+            msg = err.get("Message") or ""
+            if "CATALOG PRODUCT OFFERINGS IDENTIFIER" in msg.upper():
+                # Travelport keeps search results only for a few minutes; after
+                # that the rules can't be read from the search any more.
+                msg = ("The detailed rules are no longer available for this search (search results expire "
+                       "after a few minutes). The change and cancellation fees shown with your fare still apply.")
+            out["notes"].append(msg)
         for warn in result.get("Warning") or []:
             out["notes"].append(warn.get("Message"))
         if not out["flights"]:

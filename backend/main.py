@@ -1709,7 +1709,13 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         raise _price_changed_response(e)
     except ValueError as e:
         friendly = friendly_travelport_error(str(e))
-        raise HTTPException(status_code=409 if friendly != str(e) else 422, detail=friendly)
+        if friendly != str(e):
+            raise HTTPException(status_code=409, detail=friendly)
+        # Any other Travelport refusal (e.g. "NAME IS REQUIRED") is not the
+        # customer's to read — clear message, real error on the journey.
+        logger.error(f"Confirmation failed: {e}")
+        insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking", raw_error=str(e))
+        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
     except httpx.HTTPStatusError as e:
         error_msg = str(e)
         status_code = e.response.status_code
