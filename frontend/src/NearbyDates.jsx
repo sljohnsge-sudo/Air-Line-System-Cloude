@@ -13,7 +13,7 @@
 // prefetchNearby() starts these searches together with the main search, so
 // the strip is usually full by the time the results appear.
 // Round trips also get the Fare Calendar: a departure × return grid of live
-// prices (7 × 7 days around the customer's dates), searched only when opened —
+// prices (15 × 15 days around the customer's dates), searched only when opened —
 // from the calendar button or by tapping a date. Travelport's API has no
 // fare-calendar / flexible-date search (checked v11.37.3), so it is built
 // from individual live searches.
@@ -29,7 +29,7 @@ const AxisIcon = ({ d, name }) => (
 
 const BEFORE = 3;
 const AFTER = 5;
-const GRID = 3;   // calendar grid: 3 days either side of each date
+const GRID = 7;   // departure × return grid: 7 days either side of each date
 const GRID_PARALLEL = 10;   // calendar searches running at once
 const KEEP_MS = 10 * 60 * 1000;
 const seen = new Map();   // search key -> { state, price, currency, at }
@@ -140,7 +140,11 @@ function PriceGrid({ q, date, returnDate, focusDep, currentCheapest, currency, o
 
   useEffect(() => {
     let alive = true;
-    const queue = Object.entries(cells).filter(([, c]) => c.state === 'loading').map(([k]) => k);
+    // Closest dates to the customer's first, spreading outwards; stops on close.
+    const dist = (k) => { const [dep, ret] = k.split('|');
+      return Math.abs(new Date(dep) - new Date(date)) + Math.abs(new Date(ret) - new Date(returnDate)); };
+    const queue = Object.entries(cells).filter(([, c]) => c.state === 'loading').map(([k]) => k)
+      .sort((a, b) => dist(a) - dist(b));
     const worker = async () => {
       while (alive && queue.length) {
         const k = queue.shift();

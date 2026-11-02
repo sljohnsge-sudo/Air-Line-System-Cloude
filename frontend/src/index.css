@@ -4295,3 +4295,13 @@ button, input, select, textarea { font-family: inherit; }
 .fare-month-cell.off .fare-month-day { color: #cbd5e1; }
 .fare-month-price { font-size: 0.74rem; font-weight: 600; }
 @media (max-width: 600px) { .fare-month-cell { min-height: 46px; } .fare-month-price { font-size: 0.62rem; } .fare-cal-hint { display: none; } }
+
+/* 15 × 15 departure × return grid: wider box, compact cells, sticky headers */
+.price-grid-box { width: min(1280px, 97vw); }
+.fare-month-box { width: min(760px, 96vw); }
+.price-grid { font-size: 0.68rem; }
+.price-grid th, .price-grid td { padding: 0.32rem 0.25rem; }
+.price-grid-cell { font-size: 0.7rem; }
+.price-grid-cell .nearby-day-cur { font-size: 0.52rem; }
+.price-grid thead tr:last-child th { position: sticky; top: 0; z-index: 2; }
+.price-grid tbody th { position: sticky; left: 0; z-index: 1; }
