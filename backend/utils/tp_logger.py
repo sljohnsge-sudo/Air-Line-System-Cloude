@@ -216,10 +216,16 @@ def _on_response(response: httpx.Response) -> None:
         return
 
     response.read()
-    try:
-        text = json.dumps(_redact_body(response.json()), indent=4)
-    except Exception:
+    if name == "search":
+        # Search results carry no passwords, tokens or passenger data, and
+        # re-reading + re-formatting 1-3 MB per search cost ~1 s of CPU,
+        # which piled up when several searches ran at once.
         text = response.text
+    else:
+        try:
+            text = json.dumps(_redact_body(response.json()), indent=4)
+        except Exception:
+            text = response.text
 
     prefix = "" if response.status_code < 400 else f"HTTP {response.status_code}\n"
     with open(os.path.join(log_dir, f"{n}.{name}_RS.json"), "w", encoding="utf-8") as f:

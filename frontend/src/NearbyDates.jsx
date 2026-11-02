@@ -8,6 +8,8 @@
 // while that runs, a day already found in the last 10 minutes keeps showing
 // its earlier Travelport price (so picking a day doesn't flash "Checking…"),
 // and is replaced by the fresh Travelport price as soon as it arrives.
+// prefetchNearby() starts these searches together with the main search, so
+// the strip is usually full by the time the results appear.
 import React, { useEffect, useState } from 'react';
 import { fmtDateWeekday } from './dateFormat.js';
 
@@ -30,23 +32,51 @@ const short = (iso) => {
   return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 };
 
-export default function NearbyDates({ apiBase, origin, destination, date, returnDate, roundTrip, counts, cabin, currentCheapest, currency, onPick }) {
-  const [days, setDays] = useState([]);   // [{ offset, date, ret, state: 'loading'|'done'|'none'|'error'|'past', price }]
+const keyOf = (q, dep, ret) => [q.origin, q.destination, dep, ret || '', q.counts.adults, q.counts.children,
+  q.counts.infants, q.counts.students, q.cabin || ''].join('|');
+const remembered = (q, dep, ret) => {
+  const hit = seen.get(keyOf(q, dep, ret));
+  return hit && Date.now() - hit.at < KEEP_MS ? hit : null;
+};
 
-  const keyOf = (dep, ret) => [origin, destination, dep, ret || '', counts.adults, counts.children,
-    counts.infants, counts.students, cabin || ''].join('|');
-  const remembered = (dep, ret) => {
-    const hit = seen.get(keyOf(dep, ret));
-    return hit && Date.now() - hit.at < KEEP_MS ? hit : null;
-  };
+// The days around the customer's date. Flights can't be booked on days that
+// have passed, so when the date is close to today the window slides forward.
+const windowDays = (date, returnDate, roundTrip) => {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const daysToToday = Math.round((today - new Date(`${date}T00:00:00`)) / 86400000);
+  const first = Math.max(-BEFORE, Math.min(0, daysToToday));
+  return Array.from({ length: BEFORE + AFTER + 1 }, (_, i) => first + i).map(offset => {
+    const dep = shift(date, offset);
+    return { offset, date: dep, ret: roundTrip && returnDate ? shift(returnDate, offset) : null,
+             past: new Date(`${dep}T00:00:00`) < today };
+  });
+};
 
-  const searchOne = (dep, ret) => {
-    const k = keyOf(dep, ret);
-    if (!inFlight.has(k)) inFlight.set(k, searchLive(dep, ret).finally(() => inFlight.delete(k)));
-    return inFlight.get(k);
-  };
+// One live search per day; a day already being searched is not searched again.
+const searchOne = (q, dep, ret) => {
+  const k = keyOf(q, dep, ret);
+  if (!inFlight.has(k)) {
+    inFlight.set(k, searchLive(q, dep, ret)
+      .then(best => {
+        seen.set(k, { ...(best ? { state: 'done', price: best.price, currency: best.currency } : { state: 'none' }), at: Date.now() });
+        return best;
+      })
+      .catch(e => { seen.delete(k); throw e; })
+      .finally(() => inFlight.delete(k)));
+  }
+  return inFlight.get(k);
+};
 
-  const searchLive = async (dep, ret) => {
+// Start the nearby-date searches together with the main search.
+export function prefetchNearby(q, date, returnDate) {
+  if (!q.origin || !q.destination || !date) return;
+  windowDays(date, returnDate, q.roundTrip)
+    .filter(d => d.offset !== 0 && !d.past)
+    .forEach(d => searchOne(q, d.date, d.ret).catch(() => {}));
+}
+
+const searchLive = async (q, dep, ret) => {
+    const { apiBase, origin, destination, roundTrip, counts, cabin } = q;
     const legs = roundTrip
       ? [{ origin, destination, departure_date: dep }, { origin: destination, destination: origin, departure_date: ret }]
       : null;
@@ -67,25 +97,24 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
     const data = await res.json();
     const prices = (data.flights || []).map(f => f.price).filter(p => p > 0);
     return prices.length ? { price: Math.min(...prices), currency: data.flights[0].currency } : null;
-  };
+};
+
+export default function NearbyDates({ apiBase, origin, destination, date, returnDate, roundTrip, counts, cabin, currentCheapest, currency, onPick }) {
+  const [days, setDays] = useState([]);   // [{ offset, date, ret, state: 'loading'|'done'|'none'|'error'|'past', price }]
+  const q = { apiBase, origin, destination, roundTrip, counts, cabin };
 
   useEffect(() => {
     let alive = true;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    // Flights can't be booked on days that have passed, so when the date is
-    // close to today the window slides forward.
-    const daysToToday = Math.round((today - new Date(`${date}T00:00:00`)) / 86400000);
-    const first = Math.max(-BEFORE, Math.min(0, daysToToday));
     const ret0 = roundTrip && returnDate ? returnDate : null;
     if (currentCheapest > 0) {
-      seen.set(keyOf(date, ret0), { state: 'done', price: currentCheapest, currency, at: Date.now() });
+      seen.set(keyOf(q, date, ret0), { state: 'done', price: currentCheapest, currency, at: Date.now() });
     }
-    const list = Array.from({ length: BEFORE + AFTER + 1 }, (_, i) => first + i).map(offset => {
-      const dep = shift(date, offset);
-      const ret = roundTrip && returnDate ? shift(returnDate, offset) : null;
+    const list = windowDays(date, returnDate, roundTrip).map(({ offset, date: dep, ret, past }) => {
       if (offset === 0) return { offset, date: dep, ret, state: 'done', price: currentCheapest, currency };
-      if (new Date(`${dep}T00:00:00`) < today) return { offset, date: dep, ret, state: 'past' };
-      const hit = remembered(dep, ret);
+      if (past) return { offset, date: dep, ret, state: 'past' };
+      // A search started with the main search and already finished shows straight away.
+      const hit = !inFlight.has(keyOf(q, dep, ret)) && remembered(q, dep, ret);
+      if (hit && Date.now() - hit.at < 60000) return { offset, date: dep, ret, ...hit };
       return hit ? { offset, date: dep, ret, ...hit, live: true } : { offset, date: dep, ret, state: 'loading', live: true };
     });
     setDays(list);
@@ -93,12 +122,9 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
     // Every day searched live on Travelport, all at once, so prices arrive together.
     list.filter(d => d.live).forEach(async (d) => {
       try {
-        const best = await searchOne(d.date, d.ret);
-        const patch = best ? { state: 'done', price: best.price, currency: best.currency } : { state: 'none' };
-        seen.set(keyOf(d.date, d.ret), { ...patch, at: Date.now() });
-        update(d.date, patch);
+        const best = await searchOne(q, d.date, d.ret);
+        update(d.date, best ? { state: 'done', price: best.price, currency: best.currency } : { state: 'none' });
       } catch {
-        seen.delete(keyOf(d.date, d.ret));
         update(d.date, { state: 'error' });
       }
     });
@@ -124,7 +150,7 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
             onClick={() => clickable && onPick(d.date, d.ret)}
             title={roundTrip && d.ret ? `${label(d.date)} – ${label(d.ret)}` : label(d.date)}
           >
-            <span className="nearby-day-date">{short(d.date)}</span>
+            <span className="nearby-day-date">{roundTrip && d.ret ? 'Depart ' : ''}{short(d.date)}</span>
             {roundTrip && d.ret && <span className="nearby-day-ret">Return {short(d.ret)}</span>}
             <span className="nearby-day-price">
               {d.state === 'loading' && <span className="nearby-day-wait">Checking…</span>}

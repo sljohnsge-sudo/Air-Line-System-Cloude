@@ -16,6 +16,8 @@ Correct payload schema (from Travelport developer portal):
   SearchCriteriaFlight is an ARRAY with {departureDate, From:{value}, To:{value}}
 """
 
+import contextlib
+import threading
 import httpx
 import logging
 import re
@@ -126,6 +128,23 @@ def minutes_to_iso_duration(total_minutes: int) -> str:
     else:
         return f"PT{minutes}M"
 
+
+
+_SEARCH_CLIENT = None
+_SEARCH_CLIENT_LOCK = threading.Lock()
+
+
+def _search_client() -> httpx.Client:
+    """One shared, pooled client for searches. A new client per search
+    re-loaded the TLS certificates (~0.6 s of CPU) and re-did the handshake
+    every time; with the nearby-dates strip firing 8 searches at once that
+    CPU work queued up and a 4 s search took 25-35 s (2026-11-02)."""
+    global _SEARCH_CLIENT
+    with _SEARCH_CLIENT_LOCK:
+        if _SEARCH_CLIENT is None:
+            _SEARCH_CLIENT = httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS,
+                                          limits=httpx.Limits(max_connections=20, max_keepalive_connections=10))
+        return _SEARCH_CLIENT
 
 
 def search_flights(
@@ -332,7 +351,7 @@ def search_flights(
     max_retries = 3
     last_retryable_errors = None
 
-    with httpx.Client(timeout=TravelportConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
+    with contextlib.nullcontext(_search_client()) as client:
         for attempt in range(1, max_retries + 1):
             try:
                 response = client.post(
