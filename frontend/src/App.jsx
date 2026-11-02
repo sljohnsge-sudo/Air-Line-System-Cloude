@@ -5742,18 +5742,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     </button>
                   </div>
                 )}
-                <div className="results-count-bar">
-                  <div className="results-count-text">
-                    {loadingFlights ? 'Searching Travelport GDS...' : (
-                      roundTripPhase === 'return' ? (
-                        <><strong>{displayed.length}</strong> of <strong>{flights.length}</strong> flights · <strong>{searchDest}</strong> → <strong>{searchOrigin}</strong> · {returnDate}</>
-                      ) : (
-                        <><strong>{displayed.length}</strong> of <strong>{flights.length}</strong> flights · <strong>{searchOrigin}</strong> → <strong>{searchDest}</strong> · {searchDate}</>
-                      )
-                    )}
-                  </div>
-                  <div className="results-live-badge">● Live GDS Data</div>
-                </div>
                 {/* 3 days before, 5 after: live Travelport searches, all at once */}
                 {!loadingFlights && !searchError && flights.length > 0 && searchType !== 'multicity' && (
                   <NearbyDates
