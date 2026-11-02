@@ -91,6 +91,116 @@ def _schedule_change_pending(wb_result: dict) -> bool:
     return False
 
 
+class FareCheckUnavailable(Exception):
+    """Travelport couldn't be asked right now (network / 5xx) — no verdict."""
+
+
+def pre_payment_fare_check(locator_code: str, fare_source: str | None = "GDS") -> str | None:
+    """Before taking payment for a held booking: is its stored fare still
+    ticketable? Read-only — a reservation retrieve and an AirPrice; nothing
+    is booked, changed or ticketed. Returns None when the fare is fine, or
+    the reason it isn't (Travelport's own words). Raises FareCheckUnavailable
+    when Travelport can't be reached, so the caller can refuse to charge
+    without blaming the fare.
+
+    Checks: (1) the PNR still has a stored fare; (2) its fare guarantee
+    doesn't run out within the next 15 minutes; (3) GDS only — AirPrice of
+    the booked flights and booking classes (no inventory check: the seats
+    are already held) still returns a fare, at no more than the stored
+    price. Catches "NO FARES" / "FILED FARE IS NO LONGER VALID" (Jetstar,
+    2026-11-02) before the customer is charged rather than at ticketing."""
+    from datetime import datetime, timedelta, timezone
+    try:
+        raw = _api_get(f"{TravelportConfig.base_path()}/air/book/reservation/reservations/{locator_code}?detailViewInd=true")
+    except (httpx.HTTPError, ValueError) as e:
+        raise FareCheckUnavailable(str(e))
+    body0 = raw.get("ReservationResponse", {}) or {}
+    res = body0.get("Reservation", {}) or {}
+    if not res:
+        # e.g. "PSEUDO CITY CODE MUST HAVE AN AGREEMENT" — no verdict on the fare
+        errs = (body0.get("Result") or {}).get("Error") or []
+        raise FareCheckUnavailable("; ".join(f"{e.get('Message')} ({e.get('SourceCode')})" for e in errs)
+                                   or "Travelport returned no reservation")
+    offers = res.get("Offer") or []
+    priced = [o for o in offers if (o.get("Price") or {}).get("TotalPrice")]
+    if not priced:
+        return "The booking has no stored fare at Travelport"
+    stored_total = sum(float(o["Price"]["TotalPrice"]) for o in priced)
+    for o in priced:
+        for tc in o.get("TermsAndConditionsFull") or []:
+            exp = tc.get("ExpiryDate")
+            if exp:
+                try:
+                    when = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+                    if when.tzinfo is None:
+                        when = when.replace(tzinfo=timezone.utc)
+                    if when < datetime.now(timezone.utc) + timedelta(minutes=15):
+                        return f"The stored fare's guarantee ends at {exp}"
+                except ValueError:
+                    pass
+    if (fare_source or "GDS").upper() != "GDS":
+        return None   # NDC: full-payload AirPrice isn't supported; stored-fare checks only
+
+    criteria, seq = [], 0
+    for o in priced:
+        for prod in o.get("Product") or []:
+            classes = {}
+            for pf in prod.get("PassengerFlight") or []:
+                for fp in pf.get("FlightProduct") or []:
+                    for n in fp.get("segmentSequence") or []:
+                        classes[n] = (fp.get("classOfService"), fp.get("cabin"))
+            flights = []
+            for i, seg in enumerate(prod.get("FlightSegment") or []):
+                f = seg.get("Flight") or {}
+                cos, cabin = classes.get(seg.get("sequence"), (None, None))
+                item = {"@type": "SpecificFlightCriteria", "carrier": f.get("carrier"), "flightNumber": f.get("number"),
+                        "from": (f.get("Departure") or {}).get("location"), "to": (f.get("Arrival") or {}).get("location"),
+                        "departureDate": (f.get("Departure") or {}).get("date"),
+                        "departureTime": (f.get("Departure") or {}).get("time"),
+                        "arrivalDate": (f.get("Arrival") or {}).get("date"),
+                        "arrivalTime": (f.get("Arrival") or {}).get("time"),
+                        "segmentSequence": i + 1, "ContentSource": "GDS"}
+                if cos:
+                    item["classOfService"] = cos
+                if cabin:
+                    item["cabin"] = cabin
+                flights.append(item)
+            if flights:
+                seq += 1
+                criteria.append({"@type": "ProductCriteriaAir", "sequence": seq, "SpecificFlightCriteria": flights})
+    pax: dict = {}
+    for t in res.get("Traveler") or []:
+        ptc = t.get("passengerTypeCode") or "ADT"
+        pax[ptc] = pax.get(ptc, 0) + 1
+    age = {"ADT": 25, "STU": 20, "INF": 1, "CNN": 10}
+    payload = {"@type": "OfferQueryBuildFromProducts", "validateInventoryInd": False,
+               "BuildFromProductsRequest": {"@type": "BuildFromProductsRequestAir", "ProductCriteriaAir": criteria,
+                                            "PassengerCriteria": [{"@type": "PassengerCriteria", "number": n,
+                                                                   "age": age.get(p, 25), "passengerTypeCode": p}
+                                                                  for p, n in (pax or {"ADT": 1}).items()]}}
+    try:
+        result = _api_post(TravelportEndpoints.AIRPRICE_FULL_PAYLOAD, payload)
+    except httpx.HTTPStatusError as e:
+        if e.response is not None and e.response.status_code < 500:
+            return f"Travelport could not price the booked flights (HTTP {e.response.status_code})"
+        raise FareCheckUnavailable(str(e))
+    except httpx.HTTPError as e:
+        raise FareCheckUnavailable(str(e))
+    body = result.get("OfferListResponse", result)
+    errors = (body.get("Result") or {}).get("Error") or []
+    if errors:
+        if all(e.get("category") == "TEMPORARY" for e in errors):
+            raise FareCheckUnavailable(errors[0].get("Message"))
+        return "Travelport: " + "; ".join(f"{e.get('Message')} ({e.get('SourceCode')})" for e in errors)
+    new_offers = body.get("OfferID") or body.get("Offer") or []
+    new_total = sum(float((o.get("Price") or {}).get("TotalPrice") or 0) for o in new_offers)
+    if not new_total:
+        return "Travelport returned no fare for the booked flights"
+    if new_total > stored_total + 1:
+        return f"The fare for the booked flights is now {new_total:,.0f}, above the stored {stored_total:,.0f}"
+    return None
+
+
 def _api_post(url: str, payload: dict | str | None) -> dict:
     """Internal helper for POST requests with automatic token retry.
     payload=None sends no body and no Content-Type (Post Commit Workbench)."""

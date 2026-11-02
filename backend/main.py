@@ -677,6 +677,40 @@ def _release_if_schedule_changed(locator_code: str, codes: dict) -> None:
     raise HTTPException(status_code=409, detail=SCHEDULE_CHANGED_DETAIL)
 
 
+FARE_CHANGED_DETAIL = ("This fare has changed at the airline since you booked, so it must be checked again. "
+                       "You have not been charged.")
+
+
+def _release_if_fare_unticketable(locator_code: str, fare_source: Optional[str]) -> None:
+    """Last check before payment: the held booking's stored fare must still
+    be ticketable (services.pre_payment_fare_check — read-only retrieve +
+    AirPrice). If not, the unpaid booking is released and the customer goes
+    to the live fare re-check — never charged for a ticket Travelport would
+    refuse. If Travelport can't be asked, no payment is taken either."""
+    try:
+        problem = services.pre_payment_fare_check(locator_code, fare_source)
+    except services.FareCheckUnavailable as e:
+        logger.error(f"{locator_code}: pre-payment fare check unavailable: {e}")
+        raise HTTPException(status_code=503, detail="We couldn't confirm your fare with the airline just now. "
+                                                    "No payment has been taken — please try again in a moment.")
+    if not problem:
+        insights.mark("Fare check before payment", "pass", "Stored fare still valid at Travelport")
+        return
+    logger.warning(f"{locator_code}: fare not ticketable before payment — {problem}; releasing the unpaid booking")
+    insights.mark("Fare check before payment", "fail",
+                  "Fare no longer ticketable — booking released before payment, customer sent to the fare re-check",
+                  raw_error=problem)
+    try:
+        services.cancel_reservation(locator_code)
+    except Exception as e:
+        logger.warning(f"Could not release unpaid PNR {locator_code} after the fare check: {e}")
+    try:
+        database.set_airline_status(locator_code, "Fare changed - released before payment")
+    except Exception as db_err:
+        logger.error(f"Could not save the released status for {locator_code}: {db_err}")
+    raise HTTPException(status_code=409, detail=FARE_CHANGED_DETAIL)
+
+
 def _live_airline_check(locator_code: str) -> tuple:
     """(problem or None, {flight: status code}) from a live PNR retrieve."""
     try:
@@ -3287,6 +3321,7 @@ def payments_init(request: PaymentInitRequestBody):
                     _notify_airline_problem(ref.upper(), problem["codes"])
                 raise HTTPException(status_code=409, detail=problem["message"])
             _release_if_schedule_changed(ref.upper(), live_codes)
+            _release_if_fare_unticketable(ref.upper(), booking.get("fare_source"))
             # Seats/extras the airline only "requested" at booking but has
             # confirmed since are charged now (and paid with the ticket).
             try:
