@@ -19,6 +19,9 @@ function penaltyValue(p) {
   });
   (p.percents || []).forEach(v => parts.push(`${v}%`));
   if (parts.length) return { text: parts.join(' / '), color: '#1e293b' };
+  // The airline filed this fee in another currency (e.g. AUD); its LKR amount
+  // is on the fare's Changes / Cancellations line from the search.
+  if (p.fee_applies) return { text: 'Fee applies', color: '#1e293b' };
   if (p.permitted) return { text: 'Allowed (fee not stated)', color: '#475569' };
   return { text: 'See conditions below', color: '#475569' };
 }

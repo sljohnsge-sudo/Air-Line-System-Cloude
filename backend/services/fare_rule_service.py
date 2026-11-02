@@ -100,8 +100,8 @@ def _penalties(rule: dict) -> list:
                     for p in item.get("Penalty") or []:
                         if p.get("Amount"):
                             amount = (p["Amount"].get("value"), p["Amount"].get("code"))
-                        elif p.get("percent") is not None:
-                            percent = p["percent"]
+                        elif p.get("percent", p.get("Percent")) is not None:
+                            percent = p.get("percent", p.get("Percent"))
                     before = item.get("PeriodBeforeDeparture") or {}
                     rows.append({
                         "kind": kind,
@@ -125,11 +125,20 @@ def _dedupe_penalties(rows: list) -> list:
     groups: dict[tuple, list] = {}
     for r in rows:
         groups.setdefault((r["kind"], r["when"], r["within"], r["passenger_types"]), []).append(r)
+    # The Fare Rules API returns fees in the airline's filed currency (Jetstar:
+    # AUD) and has no currency option; the search and AirPrice responses give
+    # the same fares' fees in the selling currency. Foreign-currency amounts
+    # are therefore not shown here — the row says a fee applies, and the fare
+    # card's Changes / Cancellations line carries Travelport's LKR amount.
+    selling = TravelportConfig.DEFAULT_CURRENCY
     out = []
     for (kind, when, within, ptc), items in groups.items():
-        amounts = sorted({r["amount"] for r in items if r["amount"]}, key=lambda a: (a[1] or "", float(a[0] or 0)))
+        all_amounts = {r["amount"] for r in items if r["amount"]}
+        amounts = sorted({a for a in all_amounts if not a[1] or a[1] == selling or not float(a[0] or 0)},
+                         key=lambda a: (a[1] or "", float(a[0] or 0)))
+        foreign_fee = len(amounts) < len(all_amounts)
         percents = sorted({r["percent"] for r in items if r["percent"] is not None})
-        if amounts or percents:
+        if amounts or percents or foreign_fee:
             permitted = True
         elif all(not r["permitted"] for r in items):
             permitted = False
@@ -140,6 +149,7 @@ def _dedupe_penalties(rows: list) -> list:
         out.append({
             "kind": kind, "when": when, "within": within, "passenger_types": list(ptc), "permitted": permitted,
             "amounts": [{"amount": a, "currency": c} for a, c in amounts], "percents": percents,
+            "fee_applies": foreign_fee and not amounts and not percents,
         })
     return out
 

@@ -497,68 +497,60 @@ def parse_baggage_allowance(terms: dict, prod_refs: list) -> list:
     return list(deduped.values())
 
 
+_PENALTY_WHEN = {"BeforeDeparture": "before departure", "AfterDeparture": "after departure",
+                 "NoShow": "no-show", "Anytime": "any time"}
+
+
 def parse_penalties(terms: dict, prod_refs: list) -> tuple:
+    """Change / cancellation conditions from the search response's own
+    TermsAndConditions — Travelport already gives these amounts in the
+    agency's selling currency (LKR), unlike the standalone Fare Rules API,
+    which returns the airline's filed currency (e.g. Jetstar in AUD).
+
+    Travelport doesn't tie these entries to products (no ProductRefs on
+    them), so an entry without ProductRefs applies to this fare; one with
+    ProductRefs applies only to those products. Each condition is shown with
+    its timing: an amount, a percentage of the fare, free, or not allowed.
+    Nothing is filled in — no entries means "Rules not provided"."""
     if not terms:
         return "Rules not provided", "Rules not provided"
-    
-    change_desc = "Rules not provided"
-    cancel_desc = "Rules not provided"
-    
-    penalties_list = terms.get("Penalties", [])
-    for penalty_group in penalties_list:
-        # Check Change
-        changes = penalty_group.get("Change", [])
-        for chg in changes:
-            chg_prod_refs = chg.get("ProductRefs", [])
-            if any(r in prod_refs for r in chg_prod_refs):
-                chg_types = chg.get("penaltyTypes", [])
-                penalty_list = chg.get("Penalty", [])
-                
-                fee_str = ""
-                if penalty_list:
-                    p_detail = penalty_list[0]
-                    amount_info = p_detail.get("Amount", {})
-                    if amount_info:
-                        val = amount_info.get("value", 0)
-                        code = amount_info.get("code", "LKR")
-                        if val == 0:
-                            fee_str = "Free"
-                        else:
-                            fee_str = f"Fee: {code} {val:,}"
-                
-                type_desc = ", ".join(chg_types) if chg_types else ""
-                if fee_str:
-                    change_desc = f"Permitted ({fee_str})" + (f" - {type_desc}" if type_desc else "")
-                else:
-                    change_desc = f"Permitted" + (f" - {type_desc}" if type_desc else "")
-                    
-        # Check Cancel
-        cancels = penalty_group.get("Cancel", [])
-        for cnc in cancels:
-            cnc_prod_refs = cnc.get("ProductRefs", [])
-            if any(r in prod_refs for r in cnc_prod_refs):
-                cnc_types = cnc.get("penaltyTypes", [])
-                penalty_list = cnc.get("Penalty", [])
-                
-                fee_str = ""
-                if penalty_list:
-                    p_detail = penalty_list[0]
-                    amount_info = p_detail.get("Amount", {})
-                    if amount_info:
-                        val = amount_info.get("value", 0)
-                        code = amount_info.get("code", "LKR")
-                        if val == 0:
-                            fee_str = "Free"
-                        else:
-                            fee_str = f"Fee: {code} {val:,}"
-                
-                type_desc = ", ".join(cnc_types) if cnc_types else ""
-                if fee_str:
-                    cancel_desc = f"Permitted ({fee_str})" + (f" - {type_desc}" if type_desc else "")
-                else:
-                    cancel_desc = f"Permitted" + (f" - {type_desc}" if type_desc else "")
-                    
-    return change_desc, cancel_desc
+
+    def describe(items: list) -> str:
+        parts = []
+        for item in items:
+            refs = item.get("ProductRefs") or []
+            if refs and not any(r in prod_refs for r in refs):
+                continue
+            # Timing only — NDC adds qualifiers such as ExchangeRequired /
+            # ExchangeNotRequired that mean nothing to a customer.
+            when = ", ".join(_PENALTY_WHEN[t] for t in item.get("penaltyTypes") or [] if t in _PENALTY_WHEN) or "any time"
+            if (item.get("@type") or "").endswith("NotPermitted"):
+                value = "not allowed"
+            else:
+                values = []
+                for pen in item.get("Penalty") or []:
+                    amount = pen.get("Amount")
+                    percent = pen.get("Percent", pen.get("percent"))
+                    if amount is not None:
+                        val = float(amount.get("value") or 0)
+                        values.append("free" if val == 0 else f"{amount.get('code') or ''} {val:,.0f}".strip())
+                    elif percent is not None:
+                        values.append(f"{percent:g}% of fare")
+                value = " / ".join(values) or "allowed"
+            part = (when, value)
+            if part not in parts:
+                parts.append(part)
+        if not parts:
+            return "Rules not provided"
+        if len(parts) == 1 and parts[0][0] == "any time":
+            return parts[0][1][:1].upper() + parts[0][1][1:]
+        return " · ".join(f"{w[:1].upper() + w[1:]}: {v}" for w, v in parts)
+
+    changes, cancels = [], []
+    for group in terms.get("Penalties", []):
+        changes.extend(group.get("Change", []))
+        cancels.extend(group.get("Cancel", []))
+    return describe(changes), describe(cancels)
 
 
 def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin: Optional[str] = None, destination: Optional[str] = None) -> list[dict]:
