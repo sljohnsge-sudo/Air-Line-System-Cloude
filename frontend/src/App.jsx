@@ -2749,7 +2749,7 @@ export default function App() {
   // search the same route again live, find the same flights and offer the
   // current fare (same fare family if it's still sold, else the cheapest in
   // the same cabin). Only Travelport's live answer is shown — nothing guessed.
-  const recheckFare = async (reason) => {
+  const recheckFare = async (reason, resumeAt = 'passenger') => {
     const old = selectedFlight;
     const body = lastSearchBodyRef.current;
     setFareRecheck({ state: 'checking', reason });
@@ -2778,22 +2778,35 @@ export default function App() {
       reportJourneyStep('Fare re-checked', {
         detail: `Was ${old.currency} ${Math.round(old.price).toLocaleString()} (${old.fare_family || old.cabin_class}), now ${fare.currency} ${Math.round(fare.price).toLocaleString()} (${fare.brand_name || fare.cabin_class})`,
       });
-      setFareRecheck({ state: 'changed', fresh, flight: same, fare, oldPrice: old.price, oldCurrency: old.currency, oldFamily: old.fare_family });
+      setFareRecheck({ state: 'changed', fresh, flight: same, fare, oldPrice: old.price, oldCurrency: old.currency, oldFamily: old.fare_family, resumeAt });
     } catch (e) {
       setFareRecheck({ state: 'error', reason: e.message || reason });
     }
   };
 
+  // "Continue with this fare" carries straight on from where the booking
+  // stopped — the customer doesn't press Continue / Confirm again: back to
+  // the confirmation (and payment) when it stopped there, else the passenger
+  // step is re-submitted with the details already entered.
+  const resumeAfterRecheckRef = useRef(null);
   const continueWithNewFare = () => {
-    const { flight, fare, fresh } = fareRecheck;
+    const { flight, fare, fresh, resumeAt } = fareRecheck;
     setFlights(fresh);
-    setSelectedFlight(flightWithFare(flight, fare));
     setBookingError('');
-    setBookingStep('passenger');
+    resumeAfterRecheckRef.current = resumeAt || 'passenger';
+    setBookingStep(resumeAt === 'confirm' ? 'processing' : 'seats_loading');
+    setSelectedFlight(flightWithFare(flight, fare));
     setFareRecheck(null);
     reportJourneyStep('Continued with new fare', { detail: `${fare.currency} ${Math.round(fare.price).toLocaleString()}`, amount: fare.price, currency: fare.currency });
-    showNotification('Fare updated. Your details are kept — press Continue to carry on.', 'info');
   };
+  useEffect(() => {
+    const resumeAt = resumeAfterRecheckRef.current;
+    if (!resumeAt || !selectedFlight) return;
+    resumeAfterRecheckRef.current = null;
+    if (resumeAt === 'confirm') handleConfirmBooking();
+    else handlePassengerNext({ preventDefault() {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFlight]);
 
   const chooseAnotherFlight = () => {
     if (fareRecheck?.fresh) setFlights(fareRecheck.fresh);
@@ -3077,7 +3090,7 @@ export default function App() {
     } catch (err) {
       if (isFareChangedError(err)) {
         setBookingStep('passenger');
-        recheckFare(err.message);
+        recheckFare(err.message, 'passenger');
         return;
       }
       const errMsg = err.message || String(err);
@@ -3151,7 +3164,7 @@ export default function App() {
       } catch (err) {
         if (isFareChangedError(err)) {
           setBookingStep('review');
-          recheckFare(err.message);
+          recheckFare(err.message, 'confirm');
           return;
         }
         const errMsg = err.message || String(err);
@@ -3213,7 +3226,7 @@ export default function App() {
       // PNR exists — never after one was created.
       if (isFareChangedError(err)) {
         setBookingStep('review');
-        recheckFare(err.message);
+        recheckFare(err.message, 'confirm');
         return;
       }
       const errMsg = err.message || String(err);
