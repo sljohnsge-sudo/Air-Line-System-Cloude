@@ -4173,66 +4173,6 @@ body {
 /* One font everywhere: buttons and form fields don't inherit it by default */
 button, input, select, textarea { font-family: inherit; }
 
-/* ── Calm results page (2026-11-02) ─────────────────────────────────────
-   One accent colour (the red Select / Search buttons); everything else is
-   ink, grey and white. Plane / walker animations are untouched. */
-.results-count-bar { border: none; border-left: none; background: transparent; padding: 0.2rem 0 0.6rem; margin-bottom: 0.4rem; }
-.results-count-text { color: #64748b; font-size: 0.9rem; }
-.sidebar-header { color: #0f172a; border-bottom: 1px solid #e2e8f0; text-transform: none; letter-spacing: 0; font-size: 1rem; font-weight: 700; }
-.filter-group { border-bottom-color: #f1f5f9; }
-.filter-group-title { text-transform: none; letter-spacing: 0; font-size: 0.86rem; font-weight: 600; color: #1e293b; }
-.filter-price-display { color: #0f172a !important; }
-
-.cabin-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1rem; }
-.cabin-tab {
-  padding: 0.4rem 0.9rem; border-radius: 999px; cursor: pointer; white-space: nowrap;
-  background: #ffffff; border: 1px solid #e2e8f0; color: #475569; font-size: 0.82rem; font-weight: 600;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-.cabin-tab:hover { border-color: #94a3b8; color: #0f172a; }
-.cabin-tab.active { background: #0f172a; border-color: #0f172a; color: #ffffff; }
-
-.fare-pick { border-top: 1px solid #e2e8f0; box-shadow: none; }
-.fare-pick:hover { box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07); }
-.fare-pick-label { color: #64748b; text-transform: none; letter-spacing: 0; font-size: 0.8rem; font-weight: 600; }
-.fare-pick-tag { color: #334155; background: #f1f5f9 !important; text-transform: none; letter-spacing: 0; font-weight: 600; }
-
-.result-card { border-color: #e8edf3; border-radius: 14px; margin-bottom: 0.75rem; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03); }
-.result-card:hover { border-color: #cbd5e1; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07); }
-.rc-airline-col { border-right-color: #f1f5f9; }
-.rc-flight-num { color: #94a3b8; font-weight: 500; text-align: center; }
-.rc-stops-badge, .rc-nonstop-badge { background: #f1f5f9; color: #475569; border: none; font-weight: 600; }
-.rc-seat-note { display: inline-flex; align-items: center; gap: 0.25rem; margin-top: 0.3rem; font-size: 0.68rem; color: #64748b; }
-
-.rc-leg-label { position: absolute; top: -0.45rem; left: 0.75rem; font-size: 0.66rem; font-weight: 600; color: #94a3b8; text-transform: none; letter-spacing: 0; background: #ffffff; padding: 0 0.3rem; }
-.rc-path-track, .rc-path-line { background: #e2e8f0; height: 1.5px; }
-.rc-plane-icon, .rc-relay-plane-icon { color: #64748b; }
-.rc-mid-side { display: none; }          /* layover arrival / departure clock times */
-.rc-layover-badge, .rc-layover-badge.short { color: #64748b; }
-.rc-layover-badge.short .rc-layover-badge-time { color: #b45309; }
-.rc-duration { color: #94a3b8; }
-
-.rc-price-col { background: #ffffff; border-left-color: #f1f5f9; }
-.rc-price-cabin { font-size: 0.72rem; color: #94a3b8; font-weight: 500; }
-.rc-price-amount { font-size: 1.4rem; font-weight: 800; color: #0f172a; line-height: 1.15; white-space: nowrap; }
-.rc-price-currency { font-size: 0.75rem; font-weight: 600; color: #64748b; }
-.rc-select-btn {
-  background: var(--gs-crimson); color: #ffffff; border: none; border-radius: 10px;
-  padding: 0.55rem 1.6rem; font-weight: 700; font-size: 0.86rem; cursor: pointer; white-space: nowrap;
-  transition: filter 0.15s;
-}
-.rc-select-btn:hover { filter: brightness(0.92); }
-
-.rc-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 1rem; width: 100%; box-sizing: border-box; padding: 0.5rem 0.95rem; border-top: 1px solid #f1f5f9; }
-.rc-foot-more { display: inline-flex; align-items: center; gap: 0.3rem; background: none; border: none; padding: 0; cursor: pointer; font-size: 0.74rem; font-weight: 600; color: #475569; }
-.rc-foot-more:hover { color: #0f172a; text-decoration: underline; }
-.rc-foot-item { font-size: 0.72rem; color: #64748b; white-space: nowrap; }
-.rc-foot-share { margin-left: auto; font-size: 0.72rem; color: #64748b; }
-.rc-time { color: #0f172a; font-weight: 700; font-size: 1.3rem; }
-.rc-airport { color: #475569; font-weight: 600; letter-spacing: 0.02em; }
-.rc-segment-flow .rc-airport { color: #94a3b8; }
-.rc-mid-endpoint::before { border-top: 2px dotted #cbd5e1; opacity: 1; }
-
 /* ── Results colour theme (from the approved mockup, 2026-11-02) ────────
    Colours only — layout as above. Red = selection / action, green =
    price & cheapest, blue = fastest, amber = layover. */
@@ -4263,3 +4203,8 @@ button, input, select, textarea { font-family: inherit; }
 .fc-rules button { padding-top: 0.2rem !important; padding-bottom: 0.2rem !important; font-size: 0.66rem !important; }
 .fc-line.fc-wrap { white-space: normal; align-items: flex-start; }
 .fc-line.fc-wrap > span:last-child { overflow: visible; }
+/* Original card, mockup colours: grey flight lines, green live badge, no red side bar */
+.rc-path-track, .rc-path-line { background: #cbd5e1; }
+.rc-mid-endpoint::before { border-top-color: #cbd5e1; }
+.results-count-bar { border-left: 1px solid var(--border-color); }
+.results-live-badge { color: #15803d; background: #ecfdf3; border-color: #a7dcb6; }
