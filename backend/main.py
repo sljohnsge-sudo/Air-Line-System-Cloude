@@ -643,6 +643,42 @@ def _live_airline_problem(locator_code: str) -> Optional[dict]:
     the saved booking's status in step either way. Raises HTTPException 503
     if Travelport can't be asked — better than charging for a flight that
     may be gone."""
+    return _live_airline_check(locator_code)[0]
+
+
+# Shown when the airline changed the schedule after booking, before payment.
+# Worded so the booking pages start the live fare re-check (isFareChangedError).
+SCHEDULE_CHANGED_DETAIL = ("The airline has just changed this flight's schedule, so this fare has changed and "
+                           "must be checked again. You have not been charged.")
+
+
+def _release_if_schedule_changed(locator_code: str, codes: dict) -> None:
+    """Never take payment for a booking the airline re-timed after booking
+    (segment status TK): its stored fare is for the old schedule and
+    Travelport refuses to ticket it ("NO FARES" / "FILED FARE IS NO LONGER
+    VALID") — Jetstar JJ0VDH, JJ0V8S and JJ0VRB on 2026-11-02 were charged
+    first and then could not be ticketed. The unpaid PNR is released and the
+    customer goes to the live fare re-check; nothing is charged."""
+    if "TK" not in set(codes.values()):
+        return
+    changed = ", ".join(f for f, c in codes.items() if c == "TK")
+    logger.warning(f"{locator_code}: airline schedule change ({changed}) before payment — releasing the unpaid booking")
+    insights.mark("Airline schedule check", "fail", f"Airline changed the schedule of {changed} after booking — "
+                  "booking released before payment, customer sent to the fare re-check",
+                  raw_error=json.dumps(codes))
+    try:
+        services.cancel_reservation(locator_code)
+    except Exception as e:
+        logger.warning(f"Could not release unpaid PNR {locator_code} after the schedule change: {e}")
+    try:
+        database.set_airline_status(locator_code, "Schedule changed - released before payment")
+    except Exception as db_err:
+        logger.error(f"Could not save the released status for {locator_code}: {db_err}")
+    raise HTTPException(status_code=409, detail=SCHEDULE_CHANGED_DETAIL)
+
+
+def _live_airline_check(locator_code: str) -> tuple:
+    """(problem or None, {flight: status code}) from a live PNR retrieve."""
     try:
         live = services.retrieve_reservation(locator_code)
     except Exception as e:
@@ -655,7 +691,7 @@ def _live_airline_problem(locator_code: str) -> Optional[dict]:
         database.set_airline_status(locator_code, problem["status"] if problem else "Confirmed")
     except Exception as db_err:
         logger.error(f"Could not save airline status for {locator_code}: {db_err}")
-    return {**problem, "codes": codes} if problem else None
+    return ({**problem, "codes": codes} if problem else None), codes
 
 
 def _notify_cancel_failure(locator_code: str, error_message: str, recorded_status: Optional[str]) -> None:
@@ -3245,11 +3281,12 @@ def payments_init(request: PaymentInitRequestBody):
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
             # Never take payment for a flight the airline has dropped — the
             # ticket could not be issued. Checked live, right now.
-            problem = _live_airline_problem(ref.upper())
+            problem, live_codes = _live_airline_check(ref.upper())
             if problem:
                 if problem["status"] == segment_status.AIRLINE_CANCELLED:
                     _notify_airline_problem(ref.upper(), problem["codes"])
                 raise HTTPException(status_code=409, detail=problem["message"])
+            _release_if_schedule_changed(ref.upper(), live_codes)
             # Seats/extras the airline only "requested" at booking but has
             # confirmed since are charged now (and paid with the ticket).
             try:
