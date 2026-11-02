@@ -159,7 +159,7 @@ function Searches({ api, presetIp, onPresetUsed }) {
             const prov = (() => { try { return JSON.parse(r.providers_json || '{}'); } catch { return {}; } })();
             return (
               <tr key={r.id} className="ins-click" onClick={() => setOpen(r.id)}>
-                <td>{fmtDT(r.searched_at)}{r.search_kind !== 'search' && <div className="ins-sub">{r.search_kind === 'nearby' ? '±days check' : 'admin re-check'}</div>}</td>
+                <td>{fmtDT(r.searched_at)}{r.search_kind !== 'search' && <div className="ins-sub">{{ nearby: '±days check', recheck: 'fare re-check (booking)', admin_recheck: 'admin re-check' }[r.search_kind] || r.search_kind}</div>}</td>
                 <td>{r.origin} → {r.destination}<div className="ins-sub">{r.trip_type}{r.cabin && r.cabin !== 'All' ? ` · ${r.cabin}` : ''}</div></td>
                 <td>{fmtD(r.departure_date)}{r.return_date ? <div className="ins-sub">to {fmtD(r.return_date)}</div> : null}</td>
                 <td>{r.adults}A{r.children ? ` ${r.children}C` : ''}{r.infants ? ` ${r.infants}I` : ''}{r.students ? ` ${r.students}S` : ''}</td>

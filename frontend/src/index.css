@@ -4078,3 +4078,16 @@ body {
 .ins-popup-row { display: block; width: 100%; text-align: left; border: none; background: #f8fafc; border-radius: 6px;
   padding: 0.45rem 0.55rem; margin-top: 0.3rem; font-size: 0.78rem; cursor: pointer; }
 .ins-popup-row:hover { background: #f1f5f9; }
+
+/* Fare changed after search — live re-check pop-up */
+.fare-recheck-overlay { z-index: 100002; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.45); padding: 1rem; }
+.fare-recheck { background: #fff; border-radius: 16px; padding: 1.6rem 1.6rem 1.4rem; width: min(460px, 100%); box-sizing: border-box;
+  text-align: center; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25); }
+.fare-recheck .spinner { margin: 0 auto 0.9rem; }
+.fare-recheck h3 { margin: 0 0 0.5rem; font-size: 1.15rem; color: #0f172a; font-family: var(--font-heading); }
+.fare-recheck p { margin: 0 0 0.75rem; color: #475569; font-size: 0.9rem; line-height: 1.45; }
+.fare-recheck-prices { display: flex; gap: 0.75rem; justify-content: center; align-items: baseline; margin: 0.4rem 0 0.2rem; }
+.fare-recheck-old { color: #94a3b8; text-decoration: line-through; font-size: 1rem; }
+.fare-recheck-new { color: #0f172a; font-weight: 800; font-size: 1.5rem; }
+.fare-recheck-note { font-size: 0.8rem !important; color: #64748b !important; }
+.fare-recheck-actions { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }

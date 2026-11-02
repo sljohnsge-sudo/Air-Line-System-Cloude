@@ -591,10 +591,24 @@ const handleApiResponse = async (res, defaultError) => {
   }
   if (!res.ok) {
     const parsedError = parseApiError(data, defaultError);
-    throw new Error(parsedError);
+    const err = new Error(parsedError);
+    err.status = res.status;
+    throw err;
   }
   return data;
 };
+
+// The fare/seat offered in the search is gone or re-priced at Travelport
+// (backend answers 409 with one of these messages) — the booking pages then
+// re-check the same flights live instead of sending the customer back.
+const isFareChangedError = (err) => err?.status === 409 &&
+  /(availability has changed|fare has changed|no longer available|now priced in|didn't confirm a price)/i.test(err.message || '');
+
+// Same flights (numbers + departure times on every leg) — used to find the
+// customer's flight again in a fresh search.
+const itineraryKey = (f) => (f?.legs?.length ? f.legs : [f])
+  .flatMap(l => (l?.segments?.length ? l.segments : [l]))
+  .map(sg => `${sg?.flight_number}@${String(sg?.departure_time || '').slice(0, 16)}`).join('|');
 
 // ── Itinerary Row: one leg's departure/arrival/duration strip ──────────────
 // Used once for a one-way result, and twice (Outbound/Return) for a merged
@@ -1999,6 +2013,9 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('tb_recent_searches') || '[]').slice(0, 3); } catch { return []; }
   });
   const [rerunRecent, setRerunRecent] = useState(null);
+  // Live fare re-check after Travelport says the searched fare changed.
+  const [fareRecheck, setFareRecheck] = useState(null);
+  const lastSearchBodyRef = useRef(null);
   // "Complete your trip" pop-up: opens once per ticket when the customer
   // reaches the end of the e-ticket; closing it keeps it closed for that PNR.
   const [tripCrossSell, setTripCrossSell] = useState({ loc: null, open: false });
@@ -2614,21 +2631,23 @@ export default function App() {
 
     startNewJourney();
     try {
+      const searchBody = {
+        origin: legs ? null : origin,
+        destination: legs ? null : destination,
+        departure_date: legs ? null : date,
+        legs,
+        adult_count: adultCount,
+        child_count: childCount,
+        infant_count: infantCount,
+        student_count: studentCount,
+        cabin_preference: cabinPref === 'All' ? null : (cabinPref || null)
+      };
+      lastSearchBodyRef.current = searchBody;
       const searchPromise = fetchWithRetry(`${API_BASE}/flights/search`, {
         method: 'POST',
         retry: true, // a search only reads, so it is safe to resend
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          origin: legs ? null : origin,
-          destination: legs ? null : destination,
-          departure_date: legs ? null : date,
-          legs,
-          adult_count: adultCount,
-          child_count: childCount,
-          infant_count: infantCount,
-          student_count: studentCount,
-          cabin_preference: cabinPref === 'All' ? null : (cabinPref || null)
-        })
+        body: JSON.stringify(searchBody)
       });
 
       // Wait for both search API and minimum timer to finish
@@ -2678,6 +2697,79 @@ export default function App() {
   };
 
   // ── STEP 3: Select Flight ────────────────────────────────────────────────
+  const flightWithFare = (flight, fareOption) => ({
+    ...flight,
+    price: fareOption.price,
+    currency: fareOption.currency,
+    price_breakdown: fareOption.price_breakdown,
+    cabin_class: fareOption.cabin_class,
+    fare_family: fareOption.brand_name,
+    raw_offering: fareOption.raw_offering,
+    baggage_allowance: fareOption.baggage_allowance,
+    change_policy: fareOption.change_policy,
+    cancel_policy: fareOption.cancel_policy,
+    // Fare benefits from Travelport (seat selection / meals / bags:
+    // Included, Chargeable or Not Offered) — the Options step tells the
+    // customer what their chosen fare already covers.
+    brand_attributes: fareOption.brand_attributes
+  });
+
+  // Travelport said the fare/seat from the search is gone or re-priced:
+  // search the same route again live, find the same flights and offer the
+  // current fare (same fare family if it's still sold, else the cheapest in
+  // the same cabin). Only Travelport's live answer is shown — nothing guessed.
+  const recheckFare = async (reason) => {
+    const old = selectedFlight;
+    const body = lastSearchBodyRef.current;
+    setFareRecheck({ state: 'checking', reason });
+    if (!old || !body) { setFareRecheck({ state: 'error', reason }); return; }
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/flights/search`, {
+        method: 'POST', retry: true,
+        headers: { 'Content-Type': 'application/json', 'X-Search-Kind': 'recheck' },
+        body: JSON.stringify(body),
+      });
+      const data = await handleApiResponse(res, 'Search failed');
+      const fresh = data.flights || [];
+      const key = itineraryKey(old);
+      const same = fresh.find(f => itineraryKey(f) === key);
+      const options = (same?.fare_options?.length ? same.fare_options : (same ? [same] : []))
+        .filter(o => o && o.price > 0 && o.raw_offering);
+      const cheapest = (list) => list.reduce((a, b) => (b.price < a.price ? b : a), list[0]);
+      const sameFamily = options.filter(o => o.brand_name && o.brand_name === old.fare_family && o.cabin_class === old.cabin_class);
+      const sameCabin = options.filter(o => o.cabin_class === old.cabin_class);
+      const fare = sameFamily.length ? cheapest(sameFamily) : sameCabin.length ? cheapest(sameCabin) : null;
+      if (!same || !fare) {
+        reportJourneyStep('Fare re-checked', { detail: 'Flight no longer available in a fresh search' });
+        setFareRecheck({ state: 'gone', fresh });
+        return;
+      }
+      reportJourneyStep('Fare re-checked', {
+        detail: `Was ${old.currency} ${Math.round(old.price).toLocaleString()} (${old.fare_family || old.cabin_class}), now ${fare.currency} ${Math.round(fare.price).toLocaleString()} (${fare.brand_name || fare.cabin_class})`,
+      });
+      setFareRecheck({ state: 'changed', fresh, flight: same, fare, oldPrice: old.price, oldCurrency: old.currency, oldFamily: old.fare_family });
+    } catch (e) {
+      setFareRecheck({ state: 'error', reason: e.message || reason });
+    }
+  };
+
+  const continueWithNewFare = () => {
+    const { flight, fare, fresh } = fareRecheck;
+    setFlights(fresh);
+    setSelectedFlight(flightWithFare(flight, fare));
+    setBookingError('');
+    setBookingStep('passenger');
+    setFareRecheck(null);
+    reportJourneyStep('Continued with new fare', { detail: `${fare.currency} ${Math.round(fare.price).toLocaleString()}`, amount: fare.price, currency: fare.currency });
+    showNotification('Fare updated. Your details are kept — press Continue to carry on.', 'info');
+  };
+
+  const chooseAnotherFlight = () => {
+    if (fareRecheck?.fresh) setFlights(fareRecheck.fresh);
+    setFareRecheck(null);
+    closeBookingFlow();
+  };
+
   const handleSelectFlight = (flight, fareOption) => {
     // Round trip, outbound step: don't book yet — lock in this outbound and
     // advance to the return-selection screen (only combinable returns show).
@@ -2733,22 +2825,7 @@ export default function App() {
       return;
     }
 
-    setSelectedFlight({
-      ...flight,
-      price: fareOption.price,
-      currency: fareOption.currency,
-      price_breakdown: fareOption.price_breakdown,
-      cabin_class: fareOption.cabin_class,
-      fare_family: fareOption.brand_name,
-      raw_offering: fareOption.raw_offering,
-      baggage_allowance: fareOption.baggage_allowance,
-      change_policy: fareOption.change_policy,
-      cancel_policy: fareOption.cancel_policy,
-      // Fare benefits from Travelport (seat selection / meals / bags:
-      // Included, Chargeable or Not Offered) — the Options step tells the
-      // customer what their chosen fare already covers.
-      brand_attributes: fareOption.brand_attributes
-    });
+    setSelectedFlight(flightWithFare(flight, fareOption));
     setBookingStep('passenger');
     setBookingError('');
     setDataConfirmAgreed(false);
@@ -2967,6 +3044,11 @@ export default function App() {
       setBookingStep('options');
 
     } catch (err) {
+      if (isFareChangedError(err)) {
+        setBookingStep('passenger');
+        recheckFare(err.message);
+        return;
+      }
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
       setBookingStep('passenger');
@@ -3036,6 +3118,11 @@ export default function App() {
           return;
         }
       } catch (err) {
+        if (isFareChangedError(err)) {
+          setBookingStep('review');
+          recheckFare(err.message);
+          return;
+        }
         const errMsg = err.message || String(err);
         setBookingError(errMsg);
         setBookingStep('review');
@@ -3091,6 +3178,13 @@ export default function App() {
       }
       await proceedToPayment(pnrTicket);
     } catch (err) {
+      // Only /bookings/confirm answers with these messages, i.e. before any
+      // PNR exists — never after one was created.
+      if (isFareChangedError(err)) {
+        setBookingStep('review');
+        recheckFare(err.message);
+        return;
+      }
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
       setBookingStep('review');
@@ -10606,6 +10700,66 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               );
             })()}
 
+          </div>
+        </div>
+      )}
+
+      {/* Fare changed after search: live re-check of the same flights */}
+      {fareRecheck && (
+        <div className="modal-overlay animate-fade-only fare-recheck-overlay">
+          <div className="fare-recheck" role="dialog" aria-modal="true" aria-label="Fare update">
+            {fareRecheck.state === 'checking' && (
+              <>
+                <div className="spinner"></div>
+                <h3>Checking the latest fare for your flight…</h3>
+                <p>The fare you picked has just changed at the airline. We're getting the current price for the same flights.</p>
+              </>
+            )}
+            {fareRecheck.state === 'changed' && (() => {
+              const { fare, oldPrice, oldCurrency, oldFamily } = fareRecheck;
+              const diff = Math.round(fare.price - oldPrice);
+              const sameCur = fare.currency === oldCurrency;
+              return (
+                <>
+                  <h3>{sameCur && diff === 0 ? 'Your flight is still available' : sameCur && diff < 0 ? 'Good news — the fare has gone down' : 'The fare for your flight has changed'}</h3>
+                  <p>{sameCur && diff === 0
+                    ? 'The airline asked us to confirm your fare again. The same flights are available at:'
+                    : sameCur && diff < 0
+                      ? 'The airline has updated the fare. The same flights are available now at:'
+                      : 'The seats at the price you saw were just sold. The same flights are available now at:'}</p>
+                  <div className="fare-recheck-prices">
+                    {!(sameCur && diff === 0) && <span className="fare-recheck-old">{oldCurrency} {Math.round(oldPrice).toLocaleString()}</span>}
+                    <span className="fare-recheck-new">{fare.currency} {Math.round(fare.price).toLocaleString()}</span>
+                  </div>
+                  <p className="fare-recheck-note">
+                    {fare.brand_name || fare.cabin_class}{oldFamily && fare.brand_name && fare.brand_name !== oldFamily ? ` (was ${oldFamily})` : ''}
+                    {sameCur && diff > 0 ? ` · ${fare.currency} ${diff.toLocaleString()} more` : ''}
+                  </p>
+                  <div className="fare-recheck-actions">
+                    <button className="btn btn-primary" onClick={continueWithNewFare}>Continue with this fare</button>
+                    <button className="btn btn-secondary" onClick={chooseAnotherFlight}>Choose another flight</button>
+                  </div>
+                </>
+              );
+            })()}
+            {fareRecheck.state === 'gone' && (
+              <>
+                <h3>This flight is no longer available</h3>
+                <p>The airline has just sold the last seats on this flight. Here are the flights available right now.</p>
+                <div className="fare-recheck-actions">
+                  <button className="btn btn-primary" onClick={chooseAnotherFlight}>See available flights</button>
+                </div>
+              </>
+            )}
+            {fareRecheck.state === 'error' && (
+              <>
+                <h3>The fare for this flight has changed</h3>
+                <p>We couldn't get the current price just now. Please search again to see today's fares.</p>
+                <div className="fare-recheck-actions">
+                  <button className="btn btn-primary" onClick={chooseAnotherFlight}>Back to results</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

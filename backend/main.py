@@ -178,6 +178,8 @@ async def _journey_and_ip(request: Request, call_next):
             return JSONResponse(status_code=403, content={
                 "detail": "We can't process requests from your network right now. Please contact Tick and Book."})
         step = insights.endpoint_step(request.method, path) if insights.current_journey() else None
+        if step == "Search" and request.headers.get("x-search-kind"):
+            step = None   # a ±days check or fare re-check, not the customer's own search
         response = await call_next(request)
         if step:
             if response.status_code < 400:
@@ -282,10 +284,14 @@ def friendly_travelport_error(raw_message: str) -> str:
     error, or the original message unchanged if it doesn't match one."""
     upper = (raw_message or "").upper()
     if any(marker in upper for marker in _STALE_OFFER_MARKERS):
-        return (
+        friendly = (
             "This flight's fare or availability has changed since you searched. "
             "Please go back and search again to see current prices."
         )
+        # Keep Travelport's own words on the booking journey for the admin.
+        insights.mark("Travelport availability check", "fail",
+                      "The fare/seat offered in the search is no longer available", raw_error=raw_message)
+        return friendly
     return raw_message
 
 
@@ -675,7 +681,8 @@ def _notify_cancel_failure(locator_code: str, error_message: str, recorded_statu
 @app.post("/api/flights/search")
 async def search_flights(request: FlightSearchRequest, http_request: Request,
                          customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
-    kind = "nearby" if http_request.headers.get("x-search-kind") == "nearby" else "search"
+    kind = http_request.headers.get("x-search-kind")
+    kind = kind if kind in ("nearby", "recheck") else "search"
     return await _search_core(request, kind=kind, customer_id=customer_id,
                               user_agent=http_request.headers.get("user-agent"))
 

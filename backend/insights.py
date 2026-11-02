@@ -287,7 +287,8 @@ def endpoint_step(method: str, path: str) -> str | None:
 
 
 # Steps the website itself reports (things that happen only in the browser).
-CLIENT_STEPS = {"Flight selected", "Payment returned", "Payment cancelled", "Left the payment page"}
+CLIENT_STEPS = {"Flight selected", "Payment returned", "Payment cancelled", "Left the payment page",
+                "Fare re-checked", "Continued with new fare"}
 
 
 # ── Search log ────────────────────────────────────────────────────────────────
@@ -324,7 +325,7 @@ def log_search(req, offers: list, providers: dict, duration_ms: int, error: str 
                 providers_json, result_count, cheapest_price, cheapest_currency, cheapest_airline, duration_ms,
                 error_message, offers_json)
               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-           (current_journey() if kind == "search" else None, kind, current_ip(), (user_agent or "")[:255],
+           (current_journey() if kind in ("search", "recheck") else None, kind, current_ip(), (user_agent or "")[:255],
             customer_id, trip, origin, dest, dep, ret, json.dumps(legs) if legs else None,
             req.adult_count, req.child_count, req.infant_count, getattr(req, "student_count", 0),
             req.cabin_preference or "All", json.dumps(providers), len(offers),
