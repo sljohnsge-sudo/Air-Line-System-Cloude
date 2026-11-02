@@ -154,7 +154,7 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
             {roundTrip && d.ret && <span className="nearby-day-ret">Return {short(d.ret)}</span>}
             <span className="nearby-day-price">
               {d.state === 'loading' && <span className="nearby-day-wait">Checking…</span>}
-              {d.state === 'done' && `${d.currency || currency} ${Math.floor(d.price).toLocaleString()}`}
+              {d.state === 'done' && <><span className="nearby-day-cur">{d.currency || currency}</span> {Math.floor(d.price).toLocaleString()}</>}
               {d.state === 'none' && 'No flights'}
               {d.state === 'error' && 'Unavailable'}
               {d.state === 'past' && '—'}
