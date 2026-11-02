@@ -5757,27 +5757,44 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     </button>
                   </div>
                 )}
-                {/* 3 days before, 5 after: live Travelport searches, all at once */}
-                {!loadingFlights && !searchError && flights.length > 0 && searchType !== 'multicity' && (
-                  <NearbyDates
-                    key={`${searchOrigin}-${searchDest}-${searchDate}-${returnDate}-${searchType}-${adultCount}${childCount}${infantCount}${studentCount}-${cabinPref}`}
-                    apiBase={API_BASE}
-                    origin={searchOrigin}
-                    destination={searchDest}
-                    date={searchDate}
-                    returnDate={returnDate}
-                    roundTrip={searchType === 'roundtrip'}
-                    counts={{ adults: adultCount, children: childCount, infants: infantCount, students: studentCount }}
-                    cabin={cabinPref}
-                    currentCheapest={Math.min(...flights.map(f => f.price).filter(x => x > 0))}
-                    currency={flights[0]?.currency}
-                    onPick={(dep, ret) => {
-                      setSearchDate(dep);
-                      if (ret) setReturnDate(ret);
-                      handleSearch(null, { origin: searchOrigin, destination: searchDest, date: dep, type: searchType === 'roundtrip' ? 'roundtrip' : null, returnDate: ret });
-                    }}
-                  />
-                )}
+                {/* Fare Calendar button with the Cheapest / Best value / Fastest cards beside it */}
+                <div className="results-toprow">
+                  {!loadingFlights && !searchError && flights.length > 0 && searchType !== 'multicity' && (
+                    <NearbyDates
+                      key={`${searchOrigin}-${searchDest}-${searchDate}-${returnDate}-${searchType}-${adultCount}${childCount}${infantCount}${studentCount}-${cabinPref}`}
+                      apiBase={API_BASE}
+                      origin={searchOrigin}
+                      destination={searchDest}
+                      date={searchDate}
+                      returnDate={returnDate}
+                      roundTrip={searchType === 'roundtrip'}
+                      counts={{ adults: adultCount, children: childCount, infants: infantCount, students: studentCount }}
+                      cabin={cabinPref}
+                      currentCheapest={Math.min(...flights.map(f => f.price).filter(x => x > 0))}
+                      currency={flights[0]?.currency}
+                      onPick={(dep, ret) => {
+                        setSearchDate(dep);
+                        if (ret) setReturnDate(ret);
+                        handleSearch(null, { origin: searchOrigin, destination: searchDest, date: dep, type: searchType === 'roundtrip' ? 'roundtrip' : null, returnDate: ret });
+                      }}
+                    />
+                  )}
+                  {!loadingFlights && !searchError && pickCheapest && (
+                    <div className="fare-picks" role="group" aria-label="Compare the best options">
+                      {[
+                        ['cheapest', 'Cheapest', pickCheapest],
+                        ['best', 'Best value', pickBest],
+                        ['fastest', 'Fastest', pickFastest],
+                      ].map(([kind, label, f]) => (
+                        <button key={kind} type="button" className={`fare-pick fare-pick-${kind}`} onClick={() => scrollToCard(f)}>
+                          <span className="fare-pick-label">{label}</span>
+                          <span className="fare-pick-price">{f.currency} {Math.floor(f.price).toLocaleString()}</span>
+                          <span className="fare-pick-meta">{fmtTripTime(f)}{f.legs?.length > 1 ? ' both ways' : ''} · {f.airline}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {!loadingFlights && (
                   <ShareFaresBar
                     items={Object.values(shareFares)}
@@ -5792,21 +5809,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 )}
                 {!loadingFlights && !searchError && sharedSet && flights.length > 0 && (
                   <SharedFaresBanner count={sharedFlightKeys.length} found={sharedFound} onDismiss={() => setSharedFlightKeys(null)} />
-                )}
-                {!loadingFlights && !searchError && pickCheapest && (
-                  <div className="fare-picks" role="group" aria-label="Compare the best options">
-                    {[
-                      ['cheapest', 'Cheapest', pickCheapest],
-                      ['best', 'Best value', pickBest],
-                      ['fastest', 'Fastest', pickFastest],
-                    ].map(([kind, label, f]) => (
-                      <button key={kind} type="button" className={`fare-pick fare-pick-${kind}`} onClick={() => scrollToCard(f)}>
-                        <span className="fare-pick-label">{label}</span>
-                        <span className="fare-pick-price">{f.currency} {Math.floor(f.price).toLocaleString()}</span>
-                        <span className="fare-pick-meta">{fmtTripTime(f)}{f.legs?.length > 1 ? ' both ways' : ''} · {f.airline}</span>
-                      </button>
-                    ))}
-                  </div>
                 )}
 
                 {!loadingFlights && !searchError && flights.length > 0 && (

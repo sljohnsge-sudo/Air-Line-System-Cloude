@@ -4305,3 +4305,14 @@ button, input, select, textarea { font-family: inherit; }
 .price-grid-cell .nearby-day-cur { font-size: 0.52rem; }
 .price-grid thead tr:last-child th { position: sticky; top: 0; z-index: 2; }
 .price-grid tbody th { position: sticky; left: 0; z-index: 1; }
+
+/* One row: Fare Calendar button + compact Cheapest / Best value / Fastest */
+.results-toprow { display: flex; align-items: stretch; gap: 0.5rem; margin-bottom: 0.65rem; flex-wrap: wrap; }
+.results-toprow .fare-cal-bar { margin: 0; }
+.results-toprow .fare-cal-btn { height: 100%; }
+.results-toprow .fare-picks { flex: 1; min-width: 0; margin: 0; }
+.results-toprow .fare-pick { padding: 0.28rem 0.6rem; gap: 0; border-radius: 8px; }
+.results-toprow .fare-pick-label { font-size: 0.56rem; }
+.results-toprow .fare-pick-price { font-size: 0.8rem; }
+.results-toprow .fare-pick-meta { font-size: 0.6rem; }
+@media (max-width: 760px) { .results-toprow .fare-picks { flex-basis: 100%; } }
