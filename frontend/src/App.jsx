@@ -2268,6 +2268,13 @@ export default function App() {
     };
   }, [bookingStep, ticketLocator, crossSellAvailable, tripCrossSell.loc]);
 
+  // A fare that can't take a special-meal request (e.g. "Meals: Not Offered",
+  // or after the fare re-check switched fares) never sends one picked earlier.
+  useEffect(() => {
+    if (!selectedFlight || ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes).meals) return;
+    setTravelers(prev => (prev.some(t => t.meal_code) ? prev.map(t => (t.meal_code ? { ...t, meal_code: null } : t)) : prev));
+  }, [selectedFlight]);
+
   // ── PayCorp return handler ──────────────────────────────────────────────
   // After a card payment, PayCorp redirects the browser back here with
   // ?locator=<PNR>&reqid=<...> (success/pending) or &payment=cancelled.
@@ -8739,7 +8746,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
                 {/* Special assistance — sent to the airline as SSRs with the booking */}
                 {(() => {
-                  const support = ssrSupport(selectedFlight.raw_offering);
+                  const support = ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes);
                   const t = travelers[activePassengerIdx] || {};
                   return (
                     <div style={{ marginTop: '0.25rem' }}>
@@ -8750,7 +8757,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           <div className="pax-control">
                             <Ico.IconMeal size={16} className="pax-control-icon" />
                             <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
-                              <option value="">No special meal</option>
+                              <option value="">{support.mealsNotServed ? 'No meal service on this fare' : 'No special meal'}</option>
                               {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
                             </select>
                           </div>
@@ -8767,7 +8774,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         </div>
                       </div>
                       <div className="pax-note">
-                        <Ico.IconInfo size={14} />{support.note || 'Sent to the airline with your booking. Requests depend on the airline confirming them.'}
+                        <Ico.IconInfo size={14} />{support.note || 'Free of charge — sent to the airline with your booking. The airline confirms each request.'}
                       </div>
                     </div>
                   );

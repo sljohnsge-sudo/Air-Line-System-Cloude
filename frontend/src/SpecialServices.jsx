@@ -39,8 +39,12 @@ const NDC_MEAL_CARRIERS = ['AA', 'QF', 'UA'];
 const legsOf = (ro) => !ro ? [] : ro.outbound && ro.inbound ? [ro.outbound, ro.inbound] : ro.legs || [ro];
 
 // What the selected fare lets a passenger request online:
-// { meals, wheelchair, note }.
-export function ssrSupport(rawOffering) {
+// { meals, wheelchair, note, mealsNotServed }. brandAttributes are the fare's
+// benefits from Travelport's search (e.g. { classification: 'Meals',
+// inclusion: 'Not Offered' }): a fare with no meal service can't take a
+// special-meal request. These requests are free service requests (SSRs) —
+// nothing is charged for them; paid meals are a separate extra.
+export function ssrSupport(rawOffering, brandAttributes = []) {
   const legs = legsOf(rawOffering);
   const isGds = legs.length > 0 && legs.every(l => l.fare_source === 'GDS');
   const carrier = legs[0]?.segments?.[0]?.carrier;
@@ -48,8 +52,14 @@ export function ssrSupport(rawOffering) {
   if (!isGds && carrier === 'EK') {
     return { meals: false, wheelchair: false, note: 'Meal and wheelchair requests for this Emirates fare can be made with the airline after booking.' };
   }
+  const mealsNotServed = (brandAttributes || []).some(a =>
+    /meal/i.test(a?.classification || '') && /not offered/i.test(a?.inclusion || ''));
+  if (mealsNotServed) {
+    return { meals: false, wheelchair: true, mealsNotServed: true,
+      note: 'This fare has no meal service, so special meals can\'t be requested. Wheelchair assistance is free of charge — the airline confirms it.' };
+  }
   const meals = isGds || NDC_MEAL_CARRIERS.includes(carrier);
-  return { meals, wheelchair: true, note: meals ? '' : 'This airline doesn\'t take meal requests online for this fare — you can ask the airline after booking.' };
+  return { meals, wheelchair: true, note: meals ? '' : 'This airline doesn\'t take meal requests online for this fare — you can ask the airline after booking. Wheelchair assistance is free of charge.' };
 }
 
 const label = (code) => (MEAL_OPTIONS.find(o => o[0] === code) || WHEELCHAIR_OPTIONS.find(o => o[0] === code) || [code, code])[1];
