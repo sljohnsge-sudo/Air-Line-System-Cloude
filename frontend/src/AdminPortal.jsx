@@ -1907,7 +1907,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
               <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
                 <div style={{ fontSize: '0.85rem', flex: 1, minWidth: 0 }}>
                   <div>
-                    <strong style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>{n.locator_code}</strong>
+                    <strong style={{ fontFamily: 'var(--font-body)', letterSpacing: '0.05em' }}>{n.locator_code}</strong>
                     {n.payment_txn_ref && <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{' · Payment ref '}{n.payment_txn_ref}</span>}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>

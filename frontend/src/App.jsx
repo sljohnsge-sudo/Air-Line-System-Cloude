@@ -6281,7 +6281,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                         Cheapest
                                       </div>
                                     )}
-                                    <div style={{ fontSize: '0.58rem', opacity: 0.9, marginTop: '0.1rem', fontWeight: '600', fontFamily: 'monospace' }}>
+                                    <div style={{ fontSize: '0.58rem', opacity: 0.9, marginTop: '0.1rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>
                                       Fare Basis: {(fo.fare_basis_codes || []).join(', ')} ({(fo.classes_of_service || []).join(', ')})
                                     </div>
                                   </div>
@@ -6927,7 +6927,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               </span>
                             </td>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>{p.full_name || '—'}</td>
-                            <td style={{ padding: '0.6rem 0.85rem', fontFamily: 'monospace', color: '#334155' }}>{p.passport_number || '—'}</td>
+                            <td style={{ padding: '0.6rem 0.85rem', fontFamily: 'var(--font-body)', color: '#334155' }}>{p.passport_number || '—'}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{fmtDate(p.passport_expiry, '—')}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{fmtDate(p.date_of_birth, '—')}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{p.gender || '—'}</td>
@@ -6961,7 +6961,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         {segs.length > 0 ? segs.map((seg, i) => (
                           <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#64748b' }}>{i + 1}</td>
-                            <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#c3122e', fontFamily: 'monospace' }}>{seg.flight_number}</td>
+                            <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#c3122e', fontFamily: 'var(--font-body)' }}>{seg.flight_number}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{seg.carrier_name || seg.carrier}</td>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#1e293b' }}>{seg.departure_airport}{seg.departure_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.departure_terminal})</span>}</td>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#1e293b' }}>{seg.arrival_airport}{seg.arrival_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.arrival_terminal})</span>}</td>
@@ -7050,7 +7050,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                 }}>
                                   <span style={{
                                     background: taxColors[tx.code] || '#64748b', color: 'white',
-                                    padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '800', fontFamily: 'monospace'
+                                    padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '800', fontFamily: 'var(--font-body)'
                                   }}>{tx.code}</span>
                                   <span style={{ color: '#475569' }}>{tx.description}</span>
                                   <span style={{ fontWeight: '700', color: taxColors[tx.code] || '#1e293b' }}>
@@ -7337,7 +7337,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               <td style={{ padding: '0.6rem 0.85rem' }}>{r.departure_airport} → {r.arrival_airport}</td>
                               <td style={{ padding: '0.6rem 0.85rem' }}>{r.cabin_class}</td>
                               <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#047857' }}>{r.class_of_service || '—'}</td>
-                              <td style={{ padding: '0.6rem 0.85rem', fontFamily: 'monospace' }}>{r.ticket_number || '—'}</td>
+                              <td style={{ padding: '0.6rem 0.85rem', fontFamily: 'var(--font-body)' }}>{r.ticket_number || '—'}</td>
                               <td style={{ padding: '0.6rem 0.85rem', textAlign: 'right' }}>{Number(r.pax_base_fare).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                               <td style={{ padding: '0.6rem 0.85rem', textAlign: 'right', color: '#64748b' }}>{Number(r.pax_total_taxes).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                               {allTaxCodes.map(c => (
@@ -8133,7 +8133,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
                     <div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>PNR / Booking Reference</div>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--gs-crimson)', fontFamily: 'monospace' }}>{locator}</div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--gs-crimson)', fontFamily: 'var(--font-body)' }}>{locator}</div>
                     </div>
                     <div style={{
                       fontSize: '0.72rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '4px',
@@ -10271,16 +10271,16 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <div className="ticket-ref-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '1rem 1.25rem', marginBottom: '2rem' }}>
                 <div>
                   <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em' }}>Agency Reference (PNR)</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#c3122e', fontFamily: 'monospace' }}>{issuedTicket.locator_code || issuedTicket.pnr}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#c3122e', fontFamily: 'var(--font-body)' }}>{issuedTicket.locator_code || issuedTicket.pnr}</div>
                 </div>
                 <div style={{ borderLeft: '1px dashed #cbd5e1', paddingLeft: '1rem' }}>
                   <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em' }}>Airline Confirmation</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#2563eb', fontFamily: 'monospace' }}>{issuedTicket.airline_pnr || 'Awaiting Code'}</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#2563eb', fontFamily: 'var(--font-body)' }}>{issuedTicket.airline_pnr || 'Awaiting Code'}</div>
                   {issuedTicket.airline_pnr_source && <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.1rem' }}>Carrier: {issuedTicket.airline_pnr_source}</div>}
                 </div>
                 <div style={{ borderLeft: '1px dashed #cbd5e1', paddingLeft: '1rem' }}>
                   <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em' }}>E-Ticket Number</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f766e', fontFamily: 'monospace' }}>{issuedTicket.ticket_number || 'PENDING'}</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f766e', fontFamily: 'var(--font-body)' }}>{issuedTicket.ticket_number || 'PENDING'}</div>
                   <div style={{ fontSize: '0.65rem', color: issuedTicket.ticket_issuance_diagnostic ? '#b45309' : '#64748b', marginTop: '0.1rem' }}>
                     {issuedTicket.ticket_number
                       ? '✓ Valid for Travel'
@@ -10302,7 +10302,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Seats &amp; Extras — EMD Numbers</div>
                   {(issuedTicket.emd_numbers || []).map((e, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.8rem', padding: '0.2rem 0' }}>
-                      <span><strong style={{ fontFamily: 'monospace', color: '#0f766e' }}>{e.number}</strong> — {e.description || 'Seat / extra'}</span>
+                      <span><strong style={{ fontFamily: 'var(--font-body)', color: '#0f766e' }}>{e.number}</strong> — {e.description || 'Seat / extra'}</span>
                       {e.amount != null && <span style={{ color: '#475569' }}>{e.currency || issuedTicket.currency} {Number(e.amount).toLocaleString()}</span>}
                     </div>
                   ))}

@@ -67,7 +67,7 @@ export function LiveStatusDetails({ data }) {
       <div style={section}>Tickets</div>
       {empty(data.tickets) ? <div style={muted}>No ticket issued yet.</div> : data.tickets.map(t => (
         <div key={t.number} style={{ ...row, alignItems: 'flex-start' }}>
-          <span><strong style={{ fontFamily: 'monospace' }}>{t.number}</strong> <span style={muted}>{details(t.passenger, t.issued && `issued ${t.issued}`)}</span></span>
+          <span><strong style={{ fontFamily: 'var(--font-body)' }}>{t.number}</strong> <span style={muted}>{details(t.passenger, t.issued && `issued ${t.issued}`)}</span></span>
           <span style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
             {t.error ? <span style={muted}>{t.error}</span>
               : (t.coupons || []).map((c, i) => (

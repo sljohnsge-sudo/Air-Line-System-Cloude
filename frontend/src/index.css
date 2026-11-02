@@ -1,7 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --font-heading: 'Libre Baskerville', serif;
+  --font-heading: 'Plus Jakarta Sans', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
   
   /* George Steuart Official Brand Colors (Crimson, Charcoal, White) */
@@ -1270,7 +1270,7 @@ body {
   background: #ffffff;
   padding: 0.15rem 0.65rem;
   border-radius: var(--radius-sm);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-body);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1531,7 +1531,7 @@ body {
 .autocomplete-code {
   font-weight: 700;
   color: var(--gs-crimson);
-  font-family: monospace;
+  font-family: var(--font-body);
   font-size: 1rem;
   background: #fff0f2;
   padding: 2px 6px;
@@ -2091,7 +2091,7 @@ body {
 .rc-flight-num {
   font-size: 0.65rem;
   color: var(--text-muted);
-  font-family: monospace;
+  font-family: var(--font-body);
   letter-spacing: 0.05em;
 }
 
@@ -2143,7 +2143,7 @@ body {
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--gs-crimson);
-  font-family: monospace;
+  font-family: var(--font-body);
   letter-spacing: 0.05em;
   margin: 0.05rem 0;
 }
@@ -3321,7 +3321,7 @@ body {
 .booking-line .bl-route { grid-area: route; white-space: nowrap; }
 .booking-line .bl-dep { grid-area: dep; white-space: nowrap; }
 .booking-line .bl-pnr { grid-area: pnr; color: var(--gs-red, #c8102e); }
-.booking-line .bl-ticket { font-family: monospace; font-size: 0.7rem; }
+.booking-line .bl-ticket { font-family: var(--font-body); font-size: 0.7rem; }
 .booking-line .bl-pax { grid-area: pax; white-space: nowrap; }
 .booking-line .bl-fare { grid-area: fare; text-align: right; white-space: nowrap; }
 .booking-line .bl-status { grid-area: status; }
@@ -4057,7 +4057,7 @@ body {
 .ins-click:hover td { background: #f1f5f9; }
 .ins-sub { color: var(--text-muted); font-size: 0.72rem; }
 .ins-small { font-size: 0.74rem; }
-.ins-mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.76rem; }
+.ins-mono { font-family: var(--font-body); font-size: 0.76rem; }
 .ins-pill { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: #e2e8f0; color: #334155; }
 .ins-pill.ticketed { background: #dcfce7; color: #166534; }
 .ins-pill.failed { background: #fee2e2; color: #991b1b; }
@@ -4071,7 +4071,7 @@ body {
 .ins-step.fail .ins-step-icon { background: #fee2e2; color: #991b1b; }
 .ins-step-name { font-weight: 700; }
 .ins-step-detail { color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.1rem; }
-.ins-step-raw { color: #991b1b; font-size: 0.76rem; margin-top: 0.15rem; font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.ins-step-raw { color: #991b1b; font-size: 0.76rem; margin-top: 0.15rem; font-family: var(--font-body); overflow-wrap: anywhere; }
 .ins-explain { font-size: 0.82rem; margin: 0.75rem 0 0; }
 .ins-provs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
 .ins-chip { background: #f1f5f9; border: 1px solid var(--border-color); border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.74rem; }
@@ -4169,3 +4169,6 @@ body {
   color: #123B70; background: #EAF4FC; border: 1px solid #cfe5f7; border-radius: 10px; padding: 0.65rem 0.8rem; }
 .seat-cond-manage svg { flex-shrink: 0; margin-top: 0.12rem; }
 .nearby-day-ret { font-size: 0.66rem; color: #94a3b8; font-weight: 600; white-space: nowrap; }
+
+/* One font everywhere: buttons and form fields don't inherit it by default */
+button, input, select, textarea { font-family: inherit; }

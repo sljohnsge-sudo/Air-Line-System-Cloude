@@ -94,7 +94,7 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           {travelers.map((t, i) => (
             <div key={i} style={line}>
               <span><strong>{travelerName(t)}</strong> <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{t.passenger_type || 'ADT'}</span></span>
-              <span style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{tickets[i] || (i === 0 && tickets.length === 0 ? 'Not ticketed yet' : '')}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem' }}>{tickets[i] || (i === 0 && tickets.length === 0 ? 'Not ticketed yet' : '')}</span>
             </div>
           ))}
           {Array.isArray(b.emd_numbers) && b.emd_numbers.length > 0 && (

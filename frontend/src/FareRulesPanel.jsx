@@ -122,7 +122,7 @@ export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 
                 const rest = fare.summary.filter(s => s !== key);
                 return (
                   <div>
-                    {key && <div style={{ marginBottom: '0.25rem' }}><strong>{key.name}:</strong> <span style={{ fontFamily: 'monospace' }}>{key.value}</span></div>}
+                    {key && <div style={{ marginBottom: '0.25rem' }}><strong>{key.name}:</strong> <span style={{ fontFamily: 'var(--font-body)' }}>{key.value}</span></div>}
                     {rest.length > 0 && (
                       <>
                         <button type="button" onClick={() => setShowAll(s => ({ ...s, [i]: !(s[i] ?? alwaysOpen) }))} style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', padding: 0, fontSize: '0.74rem', fontWeight: 600 }}>
@@ -131,7 +131,7 @@ export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 
                         {(showAll[i] ?? alwaysOpen) && (
                           <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                             {rest.map((s, k) => (
-                              <div key={k}><strong>{s.name}:</strong> <span style={{ fontFamily: 'monospace' }}>{s.value}</span></div>
+                              <div key={k}><strong>{s.name}:</strong> <span style={{ fontFamily: 'var(--font-body)' }}>{s.value}</span></div>
                             ))}
                           </div>
                         )}

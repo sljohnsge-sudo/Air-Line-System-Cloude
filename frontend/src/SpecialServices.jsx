@@ -84,7 +84,7 @@ export function SsrStatusList({ items }) {
         return (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', padding: '0.25rem 0', flexWrap: 'wrap' }}>
             <span>
-              {s.kind === 'wheelchair' ? '♿' : '🍽'} <strong>{s.passenger_name}</strong> — {label(s.code)} <span style={{ fontFamily: 'monospace', color: '#64748b' }}>({s.code})</span>
+              {s.kind === 'wheelchair' ? '♿' : '🍽'} <strong>{s.passenger_name}</strong> — {label(s.code)} <span style={{ fontFamily: 'var(--font-body)', color: '#64748b' }}>({s.code})</span>
               {s.error && <span style={{ display: 'block', fontSize: '0.72rem', color: '#991b1b' }}>{s.error}</span>}
             </span>
             <span style={{ fontSize: '0.7rem', fontWeight: 700, color: st.color, background: st.bg, padding: '0.15rem 0.5rem', borderRadius: '20px', whiteSpace: 'nowrap' }}>{st.text}</span>
