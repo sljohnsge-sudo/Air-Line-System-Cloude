@@ -4219,3 +4219,31 @@ button, input, select, textarea { font-family: inherit; }
 .nearby-day.current .nearby-day-cur { color: var(--gs-crimson); }
 .nearby-day-wait { font-size: 0.62rem; }
 .nearby-day-note { font-size: 0.55rem; }
+
+/* Strip with a calendar button at the end (round trips) */
+.nearby-dates.with-grid { grid-template-columns: repeat(9, minmax(0, 1fr)) 44px; }
+.nearby-grid-btn { align-items: center; justify-content: center; color: #475569; }
+.nearby-grid-btn:hover { color: var(--gs-crimson); }
+
+/* Departure × return price calendar (pop-up) */
+.price-grid-box { background: #ffffff; border-radius: 12px; width: min(960px, 96vw); max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25); overflow: hidden; }
+.price-grid-head { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; border-bottom: 1px solid #e2e8f0; font-size: 0.9rem; font-weight: 700; color: #0f172a; }
+.price-grid-wait { font-weight: 500; color: #94a3b8; font-size: 0.78rem; }
+.price-grid-close { background: none; border: none; font-size: 1.5rem; line-height: 1; color: #64748b; cursor: pointer; }
+.price-grid-scroll { overflow: auto; padding: 0.6rem 1rem 1rem; }
+.price-grid { border-collapse: collapse; width: 100%; font-size: 0.78rem; }
+.price-grid th, .price-grid td { border: 1px solid #e5e7eb; padding: 0.45rem 0.3rem; text-align: center; white-space: nowrap; }
+.price-grid thead th { background: #e5e7eb; color: #334155; font-weight: 500; }
+.price-grid tbody th { background: #e5e7eb; color: #334155; font-weight: 500; }
+.price-grid .price-grid-axis { background: #ffffff; border: none; color: #475569; font-weight: 700; font-size: 0.8rem; }
+.price-grid .price-grid-corner { background: #ffffff; border: none; }
+.price-grid td.current { background: #e5e7eb; }
+.price-grid-cell { background: none; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 500; color: #0f172a; padding: 0; }
+.price-grid-cell:hover:not(:disabled) { text-decoration: underline; }
+.price-grid-cell:disabled { cursor: default; }
+.price-grid-cell .nearby-day-cur { color: inherit; font-size: 0.6rem; }
+.price-grid-cell.low { color: #15803d; }
+.price-grid-cell.mid { color: #d97706; }
+.price-grid-cell.high { color: #dc2626; }
+.price-grid-dot { color: #cbd5e1; }
+.price-grid-na { background: #fafafa; }

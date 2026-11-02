@@ -848,6 +848,18 @@ function RcEndpoint({ time, airport, terminal, date, align }) {
   );
 }
 
+// Take-off / landing icons for the outbound and return legs (no words).
+function LegIcon({ kind, size = 16 }) {
+  const d = kind === 'return' ? 'M2.5 19h19v2h-19v-2zm7.18-5.73l4.35 1.16 5.31 1.42c.8.21 1.62-.26 1.84-1.06.21-.8-.26-1.62-1.06-1.84l-5.31-1.42-2.76-9.02L10.12 2v8.28L5.15 8.95l-.93-2.32-1.45-.39v5.17l1.6.43 5.31 1.43z' : 'M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10l-6.9-6.43-1.93.51 4.14 7.17-4.97 1.33-1.97-1.54-1.45.39 2.59 4.49L21 11.49c.81-.23 1.28-1.05 1.07-1.85z';
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" role="img"
+         aria-label={kind === 'return' ? 'Return' : 'Departure'}>
+      <title>{kind === 'return' ? 'Return' : 'Departure'}</title>
+      <path d={d} />
+    </svg>
+  );
+}
+
 function ItineraryRow({ leg, label }) {
   const segments = leg.segments && leg.segments.length > 0 ? leg.segments : null;
   const isConnecting = segments && segments.length > 1;
@@ -859,9 +871,12 @@ function ItineraryRow({ leg, label }) {
           position: 'absolute', top: '-0.6rem', left: '0.75rem',
           background: '#eef2f7', color: '#475569', fontSize: '0.6rem',
           fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase',
-          borderRadius: '6px', padding: '0.1rem 0.45rem'
-        }}>
-          {label}
+          borderRadius: '6px', padding: '0.1rem 0.45rem',
+          display: 'inline-flex', alignItems: 'center'
+        }} title={label}>
+          {label === 'Departure' ? <LegIcon kind="departure" size={15} />
+            : label === 'Return' ? <LegIcon kind="return" size={15} />
+            : label}
         </div>
       )}
       {isConnecting ? (

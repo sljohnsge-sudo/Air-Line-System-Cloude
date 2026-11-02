@@ -914,6 +914,13 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
     offers.sort(key=lambda o: (o.get("price") if o.get("price") is not None else float("inf")))
     await asyncio.to_thread(insights.log_search, request, offers, providers, elapsed_ms, None,
                             customer_id, user_agent, kind)
+    if kind == "nearby":
+        # The date strip / price calendar only needs the cheapest fare. Sending
+        # all ~150 offers (several MB each) made the server spend seconds
+        # encoding every reply, which queued the parallel date searches.
+        cheapest = next((o for o in offers if (o.get("price") or 0) > 0), None)
+        return {"flights": [{"price": cheapest["price"], "currency": cheapest.get("currency")}] if cheapest else [],
+                "count": len(offers)}
     return {"flights": offers, "count": len(offers)}
 
 
