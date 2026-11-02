@@ -4232,3 +4232,26 @@ button, input, select, textarea { font-family: inherit; }
 .rc-airport { color: #475569; font-weight: 600; letter-spacing: 0.02em; }
 .rc-segment-flow .rc-airport { color: #94a3b8; }
 .rc-mid-endpoint::before { border-top: 2px dotted #cbd5e1; opacity: 1; }
+
+/* ── Results colour theme (from the approved mockup, 2026-11-02) ────────
+   Colours only — layout as above. Red = selection / action, green =
+   price & cheapest, blue = fastest, amber = layover. */
+.nearby-day.current { background: #fdf1f2; border-color: var(--gs-crimson); }
+.nearby-day.current .nearby-day-date, .nearby-day.current .nearby-day-price, .nearby-day.current .nearby-day-note { color: var(--gs-crimson); }
+.cabin-tab.active { background: var(--gs-crimson); border-color: var(--gs-crimson); color: #ffffff; }
+
+.fare-pick-cheapest { --pick-colour: #15803d; background: #f0faf3; border-color: #a7dcb6; }
+.fare-pick-best { --pick-colour: #c3122e; background: #fdf1f2; border-color: #f3b8c0; }
+.fare-pick-fastest { --pick-colour: #1d4ed8; background: #eff5ff; border-color: #b9cdf5; }
+.fare-pick-cheapest { border-top: 1px solid #a7dcb6; } .fare-pick-best { border-top: 1px solid #f3b8c0; } .fare-pick-fastest { border-top: 1px solid #b9cdf5; }
+.fare-pick-label { color: var(--pick-colour); font-weight: 700; }
+
+.rc-leg-label { background: #eef2f7; color: #475569; border-radius: 6px; padding: 0.05rem 0.5rem; }
+.rc-airport, .rc-segment-flow .rc-airport { color: var(--gs-crimson); font-weight: 700; }
+.rc-layover-badge, .rc-layover-badge.short { background: #fdebd3; color: #9a3412; border-radius: 6px; padding: 0.05rem 0.4rem; }
+.rc-layover-badge.short .rc-layover-badge-time { color: #9a3412; }
+.rc-seat-note { background: #ecfdf3; border: 1px solid #a7dcb6; color: #15803d; border-radius: 6px; padding: 0.1rem 0.45rem; font-weight: 600; }
+
+.rc-price-col { background: #fdf1f2; }
+.rc-price-cabin { color: #15803d; font-weight: 600; }
+.rc-price-amount, .rc-price-currency { color: #1d6b3a; }
