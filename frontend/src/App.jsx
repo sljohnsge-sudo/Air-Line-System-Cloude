@@ -5793,6 +5793,22 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 {!loadingFlights && !searchError && sharedSet && flights.length > 0 && (
                   <SharedFaresBanner count={sharedFlightKeys.length} found={sharedFound} onDismiss={() => setSharedFlightKeys(null)} />
                 )}
+                {!loadingFlights && !searchError && pickCheapest && (
+                  <div className="fare-picks" role="group" aria-label="Compare the best options">
+                    {[
+                      ['cheapest', 'Cheapest', pickCheapest],
+                      ['best', 'Best value', pickBest],
+                      ['fastest', 'Fastest', pickFastest],
+                    ].map(([kind, label, f]) => (
+                      <button key={kind} type="button" className={`fare-pick fare-pick-${kind}`} onClick={() => scrollToCard(f)}>
+                        <span className="fare-pick-label">{label}</span>
+                        <span className="fare-pick-price">{f.currency} {Math.floor(f.price).toLocaleString()}</span>
+                        <span className="fare-pick-meta">{fmtTripTime(f)}{f.legs?.length > 1 ? ' both ways' : ''} · {f.airline}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {!loadingFlights && !searchError && flights.length > 0 && (
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                     {[['any', 'All Classes'], ['Economy', 'Economy'], ['PremiumEconomy', 'Premium Economy'], ['Business', 'Business'], ['First', 'First Class']].map(([val, lbl]) => (
@@ -5814,22 +5830,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         }}
                       >
                         {lbl}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {!loadingFlights && !searchError && pickCheapest && (
-                  <div className="fare-picks" role="group" aria-label="Compare the best options">
-                    {[
-                      ['cheapest', 'Cheapest', pickCheapest],
-                      ['best', 'Best value', pickBest],
-                      ['fastest', 'Fastest', pickFastest],
-                    ].map(([kind, label, f]) => (
-                      <button key={kind} type="button" className={`fare-pick fare-pick-${kind}`} onClick={() => scrollToCard(f)}>
-                        <span className="fare-pick-label">{label}</span>
-                        <span className="fare-pick-price">{f.currency} {Math.floor(f.price).toLocaleString()}</span>
-                        <span className="fare-pick-meta">{fmtTripTime(f)}{f.legs?.length > 1 ? ' both ways' : ''} · {f.airline}</span>
                       </button>
                     ))}
                   </div>
