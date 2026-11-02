@@ -1785,6 +1785,13 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         # EMDs before they are recorded as ours.
         with addon_deadlines.locator_lock(locator_code):
             ticket = services.issue_ticket(locator_code)
+            # issue_ticket() returns the held booking when Travelport gives no
+            # ticket number without an error (e.g. "NO FARES") — that is NOT
+            # a ticket: handled below as paid-but-not-ticketed, never saved
+            # as a success.
+            if not ticket.get("ticket_number"):
+                raise ValueError(ticket.get("ticket_issuance_diagnostic")
+                                 or "Travelport returned no ticket number")
             database.record_emds(locator_code, [e.get("number") for e in ticket.get("emd_numbers") or []
                                                 if isinstance(e, dict)], "ours_ticketing")
     except Exception as e:

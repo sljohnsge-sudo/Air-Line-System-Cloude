@@ -73,6 +73,24 @@ def _api_get(url: str) -> dict:
         return response.json()
 
 
+def _schedule_change_pending(wb_result: dict) -> bool:
+    """True when the airline changed the schedule after booking: an Offer of
+    @type OfferModify with scheduleChangeInd=true, or a GDS segment status TK
+    (Travelport's Workbench Commit docs: "a value in OfferStatus/StatusAir/
+    code of either TK or UN indicates the flight has schedule change
+    information"). Such a PNR can't be ticketed until the change is
+    accepted — Jetstar JJ0VDH / JJ0V8S (2026-11-02) answered "NO FARES"."""
+    res = (wb_result.get("ReservationResponse", {}).get("Reservation", {})
+           or wb_result.get("Reservation", {}) or wb_result or {})
+    if any(o.get("scheduleChangeInd") for o in res.get("Offer", []) or []):
+        return True
+    for rc in res.get("Receipt", []) or []:
+        for st in ((rc.get("Confirmation") or {}).get("OfferStatus") or {}).get("StatusAir", []) or []:
+            if st.get("code") == "TK":
+                return True
+    return False
+
+
 def _api_post(url: str, payload: dict | str | None) -> dict:
     """Internal helper for POST requests with automatic token retry.
     payload=None sends no body and no Content-Type (Post Commit Workbench)."""
@@ -659,6 +677,34 @@ def issue_ticket(locator_code: str) -> dict:
 
         logger.info(f"Step 1 OK: workbench ID = {workbench_id}")
 
+        # ── Step 1b: accept an airline schedule change first ──────────────
+        # Workbench Commit with scheduleChangeAcceptedInd=true updates the
+        # booking with the airline's new schedule (TK -> HK). That commit
+        # closes this workbench, so a fresh one is opened for ticketing.
+        if _schedule_change_pending(wb_result):
+            logger.info(f"Step 1b: {locator_code} has an airline schedule change — accepting it before ticketing")
+            # Same wrapper as the booking commit (workbench_service); the bare
+            # {"scheduleChangeAcceptedInd": true} from the spec sample is
+            # refused live: 400 INVALID INPUT FORMAT (1586).
+            accept = _api_post(f"{TravelportConfig.base_path()}/air/book/reservation/reservations/{workbench_id}",
+                               {"ReservationQueryCommitReservation": {"scheduleChangeAcceptedInd": True}})
+            accept_errors = (accept.get("ReservationResponse", {}).get("Result", {}) or {}).get("Error", []) or []
+            if accept_errors:
+                raise ValueError("Schedule change could not be accepted: " +
+                                 "; ".join(f"{e.get('Message')} ({e.get('SourceCode')})" for e in accept_errors))
+            wb_result = _api_post(wb_url, None)
+            reservation = (
+                wb_result.get("ReservationResponse", {}).get("Reservation", {}) or
+                wb_result.get("ReservationWorkbench", {}) or
+                wb_result
+            )
+            workbench_id = reservation.get("Identifier", {}).get("value") or wb_result.get("id")
+            if not workbench_id:
+                raise ValueError("No workbench ID returned after accepting the schedule change")
+            if _schedule_change_pending(wb_result):
+                raise ValueError("The airline's schedule change is still pending after accepting it")
+            logger.info(f"Step 1b OK: schedule change accepted; new workbench ID = {workbench_id}")
+
         # Extract the Offer local id and UUID from the workbench (needed for Payment step)
         offer_local_id = None    # e.g. "offer_1"
         offer_uuid = None        # Travelport UUID
@@ -1012,6 +1058,14 @@ def issue_ticket(locator_code: str) -> dict:
                     commit_result.get("ReservationResponse", {}).get("Result", {}).get("Error", []) or
                     commit_result.get("Result", {}).get("Error", [])
                 )
+                warnings = (
+                    commit_result.get("ReservationResponse", {}).get("Result", {}).get("Warning", []) or
+                    commit_result.get("Result", {}).get("Warning", [])
+                )
+                said = "; ".join(f"{w.get('Message')}" + (f" ({w.get('SourceCode')})" if w.get("SourceCode") else "")
+                                 for w in [*errors, *warnings] if w.get("Message"))
+                if said:
+                    ticket_issuance_diagnostic = ticket_issuance_diagnostic or f"Travelport: {said}"
                 for err in errors:
                     logger.warning(
                         f"Commit warning [{err.get('SourceCode')}]: {err.get('Message')} "
