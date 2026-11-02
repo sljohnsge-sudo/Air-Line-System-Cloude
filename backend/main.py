@@ -277,6 +277,7 @@ _STALE_OFFER_MARKERS = (
     "0 AVAIL",
     "SOLD OUT",
     "NOT AVAILABLE AND CANNOT BE BOOKED",
+    "UNAVAILABLE IN THE REQUESTED CLASS",   # AirPrice: the booking class sold out (MH / TG, 2026-11-02)
 )
 
 
@@ -822,11 +823,11 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
                 legs=legs,
                 content_source=request.content_source
             )
-            last_offers = services.parse_flight_offers(
+            last_offers = [o for o in services.parse_flight_offers(
                 raw, legs=legs,
                 origin=request.origin.upper() if request.origin else None,
                 destination=request.destination.upper() if request.destination else None,
-            )
+            ) if not _offer_carriers(o) & PAUSED_CARRIERS]
             mismatched = [o for o in last_offers if o.get("currency") and o["currency"] != TravelportConfig.DEFAULT_CURRENCY]
             if not mismatched:
                 return last_offers
@@ -1366,6 +1367,8 @@ def initiate_booking(request: BookingInitiateRequest):
     Initiates booking: Creates GDS workbench, adds selected offer, and returns seat map.
     """
     logger.info("Initiating booking and fetching live seat map...")
+    if {str(s.get("carrier") or "").upper() for s in _segments_of_offering(request.raw_offering)} & PAUSED_CARRIERS:
+        raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
     _journey_booking_info(request.travelers, request.raw_offering)
     _check_travelers_for_trip(request.travelers, request.raw_offering)
     raw_offering = request.raw_offering
@@ -1509,6 +1512,8 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     # AVAILABLE" on a held PNR, JJ0VZ9) — never try one at booking; the
     # website offers them in Manage Booking after the ticket is issued.
     carriers = {str(s.get("carrier") or "").upper() for s in _segments_of_offering(raw_offering)}
+    if carriers & PAUSED_CARRIERS:
+        raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
     if carriers & PAID_SEATS_AFTER_TICKET_CARRIERS and any((s.price or 0) > 0 for s in selected_seats or []):
         logger.info(f"Dropping paid seat(s) for {sorted(carriers)} — sold only after ticketing")
         selected_seats = [s for s in selected_seats if not (s.price or 0) > 0]
@@ -2130,6 +2135,20 @@ NDC_INSTANT_PAY_CARRIERS = {"EK"}
 # Airlines that sell paid seats only once the ticket is issued (Emirates):
 # offered after ticketing in Manage Booking, never at booking.
 PAID_SEATS_AFTER_TICKET_CARRIERS = {"EK"}
+
+# Airlines taken off sale: hidden from search and refused at booking and
+# payment, so no customer is charged for a ticket that can't be issued.
+# TK: every ticket refused with 4165 "MANDATORY SSR DETAILS DOES NOT EXIST
+# IN THE RESERVATION" (10 sandbox PNRs, 2026-11-02) — Travelport case open.
+PAUSED_CARRIERS = {"TK"}
+PAUSED_CARRIER_DETAIL = ("This airline isn't available for online booking right now. "
+                         "You have not been charged — please choose another flight.")
+
+
+def _offer_carriers(offer: dict) -> set:
+    """Every marketing / operating airline code on a search offer."""
+    segs = [s for leg in (offer.get("legs") or [offer]) for s in (leg.get("segments") or [])]
+    return {str(s.get(k) or "").upper() for s in segs for k in ("carrier", "operating_carrier", "marketing_carrier") if s.get(k)}
 
 
 def _ndc_carrier_of(raw_offering: dict) -> str:
@@ -3343,6 +3362,8 @@ def payments_init(request: PaymentInitRequestBody):
                 if problem["status"] == segment_status.AIRLINE_CANCELLED:
                     _notify_airline_problem(ref.upper(), problem["codes"])
                 raise HTTPException(status_code=409, detail=problem["message"])
+            if {str(f)[:2].upper() for f in (live_codes or {})} & PAUSED_CARRIERS:
+                raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
             _release_if_schedule_changed(ref.upper(), live_codes)
             _release_if_fare_unticketable(ref.upper(), booking.get("fare_source"))
             # Seats/extras the airline only "requested" at booking but has
