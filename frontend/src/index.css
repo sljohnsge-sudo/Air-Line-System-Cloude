@@ -4140,3 +4140,26 @@ body {
   .bw-orbit, .bw-center, .bw-dots i, .bw-steps li { animation: none; }
   .bw-dots i { opacity: 1; }
 }
+
+/* Search card, bottom area — quieter: popular destinations and recent
+   searches read as light text links, so the Search button stands out. */
+#flight-search .popular-routes { gap: 0.15rem; }
+#flight-search .popular-routes-label,
+#flight-search .recent-searches-label {
+  display: inline-flex; align-items: center; gap: 0.3rem; margin-right: 0.45rem;
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #94a3b8;
+}
+#flight-search .popular-route {
+  background: transparent; border: none; border-radius: 6px; padding: 0.28rem 0.55rem;
+  font-size: 0.86rem; font-weight: 600; color: #123B70;
+}
+#flight-search .popular-route:hover { background: #EAF4FC; }
+#flight-search .popular-route.active { background: #EAF4FC; color: #123B70; box-shadow: inset 0 -2px 0 #123B70; }
+#flight-search .recent-searches.recent-searches-below {
+  margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px solid #eef2f7; gap: 0.15rem;
+}
+#flight-search .recent-search {
+  background: transparent; border: none; border-radius: 6px; padding: 0.24rem 0.55rem;
+  font-size: 0.82rem; font-weight: 500; color: #475569;
+}
+#flight-search .recent-search:hover { background: #f1f5f9; color: #123B70; }

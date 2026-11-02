@@ -2040,12 +2040,8 @@ export default function App() {
   const [expandedFareIds, setExpandedFareIds] = useState({});
   // Fare cards ticked to share by WhatsApp / email — fareCardKey -> text summary.
   const [shareFares, setShareFares] = useState({});
-  // The customer's own last searches (this browser only, max 3) — shown as
-  // one-tap chips on the home search. Nothing is invented: only searches they ran.
-  const [recentSearches, setRecentSearches] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('tb_recent_searches') || '[]').slice(0, 3); } catch { return []; }
-  });
-  const [rerunRecent, setRerunRecent] = useState(null);
+  // Recent-search chips were removed from the home search — forget what they saved.
+  useEffect(() => { try { localStorage.removeItem('tb_recent_searches'); } catch { /* storage off */ } }, []);
   // Live fare re-check after Travelport says the searched fare changed.
   const [fareRecheck, setFareRecheck] = useState(null);
   const lastSearchBodyRef = useRef(null);
@@ -2053,25 +2049,6 @@ export default function App() {
   // reaches the end of the e-ticket; closing it keeps it closed for that PNR.
   const [tripCrossSell, setTripCrossSell] = useState({ loc: null, open: false });
   const ticketEndRef = useRef(null);
-  useEffect(() => {
-    if (!rerunRecent) return;
-    const r = rerunRecent;
-    setRerunRecent(null);
-    handleSearch(null, { origin: r.origin, destination: r.destination, date: r.date, type: r.type === 'roundtrip' ? 'roundtrip' : null, returnDate: r.returnDate });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rerunRecent]);
-  const runRecentSearch = (r) => {
-    // never reuse a date that has passed — keep the dates already in the search box
-    const today = new Date().toISOString().split('T')[0];
-    const useOld = r.date >= today;
-    const date = useOld ? r.date : searchDate;
-    const ret = r.type === 'roundtrip' ? (useOld ? r.returnDate : returnDate) : null;
-    setSearchOrigin(r.origin); setSearchDest(r.destination); setSearchType(r.type);
-    setSearchDate(date); if (ret) setReturnDate(ret);
-    setAdultCount(r.adults || 1); setChildCount(r.children || 0); setInfantCount(r.infants || 0); setStudentCount(r.students || 0);
-    if (r.cabin) setCabinPref(r.cabin);
-    setRerunRecent({ ...r, date, returnDate: ret });
-  };
   // Opened from a shared link: these flights (flightIdentity) are shown
   // first, at their live price. Cleared by "Show all flights" or a new search.
   const [sharedFlightKeys, setSharedFlightKeys] = useState(() => initialResultsPayload?.shared || null);
@@ -2650,19 +2627,6 @@ export default function App() {
       }));
     }
 
-    if (effectiveSearchType !== 'multicity' && origin && destination && date) {
-      const entry = {
-        origin, destination, date, type: effectiveSearchType,
-        returnDate: effectiveSearchType === 'roundtrip' ? (overrides.returnDate || returnDate || null) : null,
-        adults: adultCount, children: childCount, infants: infantCount, students: studentCount, cabin: cabinPref,
-      };
-      const same = (a) => a.origin === entry.origin && a.destination === entry.destination && a.date === entry.date && a.returnDate === entry.returnDate;
-      setRecentSearches(prev => {
-        const next = [entry, ...prev.filter(a => !same(a))].slice(0, 3);
-        try { localStorage.setItem('tb_recent_searches', JSON.stringify(next)); } catch { /* storage off: just don't remember */ }
-        return next;
-      });
-    }
 
     // Guarantee search animation is visible for at least 6s — long enough to
     // actually register/play, not just flash on screen for a live search
@@ -4595,7 +4559,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <div className="search-buttons">
                 {searchType !== 'multicity' && (
                   <div className="popular-routes" aria-label="Popular routes from Colombo">
-                    <span className="popular-routes-label">Popular from Colombo:</span>
+                    <span className="popular-routes-label">Popular from Colombo</span>
                     {POPULAR_ROUTES.map(([code, city]) => (
                       <button key={code} type="button"
                               className={`popular-route${searchOrigin === 'CMB' && searchDest === code ? ' active' : ''}`}
@@ -4610,21 +4574,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   {loadingFlights ? 'Searching Travelport...' : 'Search Live Flights'}
                 </button>
               </div>
-              {/* The customer's own recent searches — below the search box */}
-              {recentSearches.length > 0 && (
-                <div className="recent-searches recent-searches-below" aria-label="Your recent searches">
-                  <span className="recent-searches-label">Your recent searches:</span>
-                  {recentSearches.map((r, i) => {
-                    const d = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-                    return (
-                      <button key={i} type="button" className="recent-search" onClick={() => runRecentSearch(r)}
-                              title="Search this again">
-                        {r.origin} → {r.destination} · {d(r.date)}{r.returnDate ? ` – ${d(r.returnDate)}` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </form>
           </section>
           {/* Hint that there is more below the search */}
