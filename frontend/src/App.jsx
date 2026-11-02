@@ -6039,7 +6039,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '600' }}>
                                 from {displayCurrency}
                               </div>
-                              <div style={{ fontSize: '1.35rem', fontWeight: '800', color: '#245d38', lineHeight: '1.1' }}>
+                              <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#245d38', lineHeight: '1.1' }}>
                                 {Math.floor(displayPrice).toLocaleString()}
                               </div>
                               <div style={{ fontSize: '0.65rem', color: '#245d38', fontWeight: '700', marginTop: '2px' }}>
@@ -6074,9 +6074,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                   color: 'white',
                                   border: 'none',
                                   borderRadius: '6px',
-                                  padding: '0.5rem 1rem',
+                                  padding: '0.42rem 0.9rem',
                                   fontWeight: '700',
-                                  fontSize: '0.8rem',
+                                  fontSize: '0.74rem',
                                   cursor: 'pointer',
                                   whiteSpace: 'nowrap',
                                   outline: 'none'
