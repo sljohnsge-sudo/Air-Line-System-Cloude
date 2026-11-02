@@ -1389,6 +1389,29 @@ export default function App() {
     localStorage.removeItem('customerProfile');
   };
 
+  // Check My Ticket Status is for signed-in customers: anyone else is sent to
+  // the sign-in page first and brought back here once signed in (kept in
+  // sessionStorage so it survives the Google / Microsoft sign-in redirect).
+  const AFTER_SIGN_IN_KEY = 'tb_after_sign_in';
+  useEffect(() => {
+    if (activeTab === 'ticketStatus' && !customerToken && !adminToken) {
+      try { sessionStorage.setItem(AFTER_SIGN_IN_KEY, 'ticketStatus'); } catch { /* storage off */ }
+      setActiveTab('account');
+      showNotification('Please sign in to check your ticket status.', 'info');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, customerToken, adminToken]);
+  useEffect(() => {
+    if (!customerToken) return;
+    let next = null;
+    try { next = sessionStorage.getItem(AFTER_SIGN_IN_KEY); sessionStorage.removeItem(AFTER_SIGN_IN_KEY); } catch { /* storage off */ }
+    if (next === 'ticketStatus') {
+      setTicketStatusResult(null); setTicketStatusError('');
+      setActiveTab('ticketStatus');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerToken]);
+
   // Google/Microsoft sign-in: the backend does the whole OAuth exchange
   // server-side (see /api/customers/oauth/{provider}/callback) and redirects
   // the browser back here with the finished access token in the URL --
