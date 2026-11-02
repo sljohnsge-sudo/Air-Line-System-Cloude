@@ -3,6 +3,7 @@ import BookingLineList from './BookingLineList.jsx';
 import BookingDetailView from './BookingDetailView.jsx';
 import BookingStatusPage from './BookingStatusPage.jsx';
 import { COUNTRIES } from './countries.js';
+import { fmtDate } from './dateFormat.js';
 
 export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation, visaEnabled }) {
   const [activeSection, setActiveSection] = useState('bookings');
@@ -584,7 +585,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
                   <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Your Visa Consultation History</div>
                   {visaHistory.map(v => (
                     <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.3rem 0', borderBottom: '1px solid var(--border-color)' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{v.nationality} → {v.destination} · {v.slot_date} {v.slot_time}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{v.nationality} → {v.destination} · {fmtDate(v.slot_date)} {v.slot_time}</span>
                       <span style={{ fontWeight: '700', textTransform: 'capitalize' }}>{v.status}</span>
                     </div>
                   ))}
@@ -609,7 +610,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
               ) : (
                 cancellationRequests.map(r => (
                   <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.4rem 0', borderBottom: '1px solid var(--border-color)' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>PNR {r.booking_locator} · Travel {r.travel_date}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>PNR {r.booking_locator} · Travel {fmtDate(r.travel_date)}</span>
                     <span style={{
                       fontWeight: '700', textTransform: 'capitalize',
                       color: r.status === 'resolved' ? '#166534' : r.status === 'rejected' ? '#991b1b' : '#b45309',

@@ -44,7 +44,7 @@ def _local(deadline_utc) -> str:
     if isinstance(deadline_utc, str):
         deadline_utc = datetime.fromisoformat(deadline_utc.rstrip("Z"))
     local = deadline_utc + timedelta(minutes=TravelportConfig.AGENCY_UTC_OFFSET_MINUTES)
-    return local.strftime("%a %d %b %Y, %H:%M") + " (Sri Lanka time)"
+    return local.strftime("%a %d/%m/%Y %H:%M") + " (Sri Lanka time)"
 
 
 def _money(currency, amount) -> str:

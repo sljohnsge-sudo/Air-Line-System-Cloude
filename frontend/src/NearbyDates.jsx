@@ -5,6 +5,7 @@
 // fare per day; tapping a day runs that search. At most two searches run at
 // a time so Travelport isn't flooded. Nothing here is estimated or cached.
 import React, { useState } from 'react';
+import { fmtDateWeekday } from './dateFormat.js';
 
 const shift = (iso, days) => {
   const d = new Date(`${iso}T00:00:00`);
@@ -12,7 +13,7 @@ const shift = (iso, days) => {
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
-const label = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const label = (iso) => fmtDateWeekday(iso);
 
 export default function NearbyDates({ apiBase, origin, destination, date, returnDate, roundTrip, counts, cabin, currentCheapest, currency, onPick }) {
   const [days, setDays] = useState(null);   // [{ offset, date, ret, state: 'loading'|'done'|'none'|'error'|'past', price }]

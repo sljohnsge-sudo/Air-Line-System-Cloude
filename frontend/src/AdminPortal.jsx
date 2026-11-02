@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
 import CancelBookingDialog from './CancelBookingDialog.jsx';
+import { fmtDate, fmtDateTime } from './dateFormat.js';
 import AdminInsights, { InsightAlerts } from './AdminInsights.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
@@ -1481,7 +1482,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                           Proposed by <strong>{r.proposed_by_username}</strong>
                         </div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                          {new Date(r.requested_at).toLocaleString()}
+                          {fmtDateTime(r.requested_at)}
                         </div>
                       </div>
                     </div>
@@ -1551,7 +1552,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           {adminsList.map(a => (
             <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.85rem' }}>
               <span><strong>{a.username}</strong>{a.full_name && ` — ${a.full_name}`}{a.id === currentAdminId && ' (you)'}</span>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Since {new Date(a.created_at).toLocaleDateString()}</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Since {fmtDate(a.created_at)}</span>
             </div>
           ))}
         </div>
@@ -1696,7 +1697,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
               <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
                 <div style={{ fontSize: '0.85rem' }}>
                   <strong>{r.old_email}</strong> → <strong style={{ color: 'var(--gs-crimson)' }}>{r.new_email}</strong>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Requested {new Date(r.requested_at).toLocaleString()}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Requested {fmtDateTime(r.requested_at)}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <button className="btn btn-primary btn-sm" disabled={emailRequestActionId === r.id} onClick={() => reviewEmailRequest(r.id, 'approve')}>Approve</button>
@@ -1727,7 +1728,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
               <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
                 <div style={{ fontSize: '0.85rem' }}>
                   <div>
-                    <strong style={{ color: 'var(--gs-crimson)' }}>{r.slot_date} at {r.slot_time}</strong>
+                    <strong style={{ color: 'var(--gs-crimson)' }}>{fmtDate(r.slot_date)} at {r.slot_time}</strong>
                     {' — '}{r.nationality} → {r.destination}
                     {!r.email_sent && <span style={{ color: '#b45309', fontWeight: 700 }}> · email not sent</span>}
                   </div>
@@ -1739,7 +1740,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                   </div>
                   {r.notes && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Notes: {r.notes}</div>}
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    Requested {new Date(r.requested_at).toLocaleString()}
+                    Requested {fmtDateTime(r.requested_at)}
                     {r.customer_id ? ' · Signed-in customer' : ' · Public form (not signed in)'}
                   </div>
                 </div>
@@ -1779,14 +1780,14 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                 <div style={{ fontSize: '0.85rem' }}>
                   <div>
                     <strong style={{ color: 'var(--gs-crimson)' }}>{r.booking_locator}</strong>
-                    {' — '}Travel date {r.travel_date}
+                    {' — '}Travel date {fmtDate(r.travel_date)}
                     {r.all_passengers_cancelling ? ' · All passengers' : ' · Partial passengers'}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                     {r.requester_name} · {r.email} · {r.phone}
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    Requested {new Date(r.requested_at).toLocaleString()}
+                    Requested {fmtDateTime(r.requested_at)}
                     {r.customer_id ? ' · Signed-in customer' : ' · Public form (not signed in)'}
                   </div>
                 </div>
@@ -1840,7 +1841,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                     {n.error_message}
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    {new Date(n.created_at).toLocaleString()}
+                    {fmtDateTime(n.created_at)}
                     {n.email_sent ? ' · Email sent' : ' · Email not sent (recent alert already went out, or no active recipients)'}
                   </div>
                 </div>
@@ -1913,7 +1914,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
                     {n.error_message}
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    {new Date(n.created_at).toLocaleString()}
+                    {fmtDateTime(n.created_at)}
                     {n.email_sent ? ' · Email sent' : ' · Email not sent'}
                   </div>
                 </div>
@@ -2290,10 +2291,10 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             {packageRequests.map(r => (
               <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
                 <div style={{ fontSize: '0.85rem' }}>
-                  <div><strong style={{ color: 'var(--gs-crimson)' }}>{r.package_title}</strong> — {(r.adults_count || r.children_count || r.infants_count) ? `${r.adults_count} Adult${r.adults_count === 1 ? '' : 's'}${r.children_count > 0 ? `, ${r.children_count} Child${r.children_count === 1 ? '' : 'ren'}` : ''}${r.infants_count > 0 ? `, ${r.infants_count} Infant${r.infants_count === 1 ? '' : 's'}` : ''}` : `${r.num_travelers} traveler(s)`}{r.preferred_date && ` · Preferred: ${r.preferred_date}`}</div>
+                  <div><strong style={{ color: 'var(--gs-crimson)' }}>{r.package_title}</strong> — {(r.adults_count || r.children_count || r.infants_count) ? `${r.adults_count} Adult${r.adults_count === 1 ? '' : 's'}${r.children_count > 0 ? `, ${r.children_count} Child${r.children_count === 1 ? '' : 'ren'}` : ''}${r.infants_count > 0 ? `, ${r.infants_count} Infant${r.infants_count === 1 ? '' : 's'}` : ''}` : `${r.num_travelers} traveler(s)`}{r.preferred_date && ` · Preferred: ${fmtDate(r.preferred_date)}`}</div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>{r.full_name} · {r.email} · {r.phone}</div>
                   {r.notes && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem', fontStyle: 'italic' }}>"{r.notes}"</div>}
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Requested {new Date(r.requested_at).toLocaleString()}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Requested {fmtDateTime(r.requested_at)}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <button className="btn btn-primary btn-sm" disabled={packageRequestActionId === r.id} onClick={() => reviewPackageRequest(r.id, 'resolve')}>Confirm</button>
@@ -2797,7 +2798,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {forceIssuedLog.map(l => (
               <div key={l.id} style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.65rem 0.9rem', fontSize: '0.8rem' }}>
-                <div><strong style={{ color: 'var(--gs-crimson)' }}>{l.locator_code}</strong> — by {l.admin_username} on {new Date(l.created_at).toLocaleString()}</div>
+                <div><strong style={{ color: 'var(--gs-crimson)' }}>{l.locator_code}</strong> — by {l.admin_username} on {fmtDateTime(l.created_at)}</div>
                 <div style={{ color: 'var(--text-secondary)', marginTop: '0.15rem' }}>{l.reason}</div>
                 {(l.gateway_response_code || l.gateway_response_text) && (
                   <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.15rem' }}>

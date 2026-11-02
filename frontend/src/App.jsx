@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import TickBookLogo from './TickBookLogo.jsx';
 import HomeFeatures from './HomeFeatures.jsx';
 import NearbyDates from './NearbyDates.jsx';
+import { fmtDate, fmtDateTime, fmtDateWeekday } from './dateFormat.js';
 import BookingWaitLoader from './BookingWaitLoader.jsx';
 import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
 
@@ -349,15 +350,14 @@ const formatDisplayDate = (iso) => {
   if (!iso) return '';
   const d = new Date(`${iso}T00:00:00`);
   if (isNaN(d.getTime())) return iso;
-  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
-  return `${weekday} ${d.getMonth() + 1}/${d.getDate()}`;
+  return fmtDateWeekday(iso);
 };
 
 // ── Combined "21 Oct – 28 Oct" label for the single date-range field ──
 const formatDateRangeDisplay = (departure, returnD, roundTrip) => {
   if (!departure) return '';
   if (!roundTrip || !returnD) return formatDisplayDate(departure);
-  return `${formatDisplayDate(departure)} – ${formatDisplayDate(returnD)}`;
+  return `${fmtDate(departure)} – ${fmtDate(returnD)}`;
 };
 
 // ── Interleave GDS/NDC results so neither source dominates a long stretch ──
@@ -629,7 +629,7 @@ const yfDate = (iso) => {
   const d = iso?.split('T')[0];
   const dt = d ? new Date(`${d}T00:00:00`) : null;
   if (!dt || isNaN(dt)) return d || '';
-  return `${dt.toLocaleDateString('en-GB', { weekday: 'short' })}, ${dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  return fmtDateWeekday(d);
 };
 const rcFmtDuration = (iso) => iso ? iso.replace('PT', '').replace('H', 'h ').replace('M', 'm') : '';
 
@@ -642,7 +642,7 @@ const rcFmtDateShort = (iso) => {
   const [, m, d] = ymd.split('-');
   const monthIdx = parseInt(m, 10) - 1;
   if (!d || monthIdx < 0 || monthIdx > 11) return ymd;
-  return `${parseInt(d, 10)} ${RC_MONTH_ABBR[monthIdx]}`;
+  return fmtDate(ymd);
 };
 
 // ── Relay animation for connecting flights ──────────────────────────────
@@ -843,7 +843,7 @@ function RcEndpoint({ time, airport, terminal, date, align }) {
     <div className={`rc-endpoint${align === 'right' ? ' rc-endpoint-right' : ''}`}>
       <div className="rc-time">{time}</div>
       <div className="rc-airport">{airport}{terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> Terminal {terminal}</span>}</div>
-      <div className="rc-date">{date}</div>
+      <div className="rc-date">{fmtDate(date)}</div>
     </div>
   );
 }
@@ -1178,11 +1178,11 @@ function SegmentTimeline({ segments, terminalConnections = [] }) {
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 1.25rem', marginTop: '0.2rem', fontSize: '0.75rem', color: '#475569' }}>
                 <div>
-                  <div style={{ color: '#334155', fontWeight: 600 }}>{seg.departure_time?.split('T')[0] || seg.departure_time?.split(' ')[0]}</div>
+                  <div style={{ color: '#334155', fontWeight: 600 }}>{fmtDate(seg.departure_time)}</div>
                   <div><span style={{ color: '#94a3b8' }}>Depart: </span><strong>{seg.departure_time?.split('T')[1]?.slice(0,5) || seg.departure_time?.split(' ')[1]?.slice(0,5)}</strong></div>
                 </div>
                 <div>
-                  <div style={{ color: '#334155', fontWeight: 600 }}>{seg.arrival_time?.split('T')[0] || seg.arrival_time?.split(' ')[0]}</div>
+                  <div style={{ color: '#334155', fontWeight: 600 }}>{fmtDate(seg.arrival_time)}</div>
                   <div><span style={{ color: '#94a3b8' }}>Arrive: </span><strong>{seg.arrival_time?.split('T')[1]?.slice(0,5) || seg.arrival_time?.split(' ')[1]?.slice(0,5)}</strong></div>
                 </div>
                 {seg.aircraft_type && (
@@ -2973,7 +2973,7 @@ export default function App() {
       const [by, bm, bd] = dob.split('-').map(Number), [y, m, d] = day.split('-').map(Number);
       return y - by - ((m < bm || (m === bm && d < bd)) ? 1 : 0);
     };
-    const niceDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const niceDate = (iso) => fmtDate(iso);
 
     for (let i = 0; i < travelers.length; i++) {
       const t = travelers[i];
@@ -3828,8 +3828,8 @@ export default function App() {
 *Airline PNR:* ${issuedTicket.airline_pnr || 'N/A'}
 *Flight:* ${issuedTicket.flight_number} (${issuedTicket.airline})
 *Route:* ${issuedTicket.departure_airport}${issuedTicket.departure_terminal ? ` (Terminal ${issuedTicket.departure_terminal})` : ''} ➔ ${issuedTicket.arrival_airport}${issuedTicket.arrival_terminal ? ` (Terminal ${issuedTicket.arrival_terminal})` : ''}
-*Departure:* ${issuedTicket.departure_time}
-*Arrival:* ${issuedTicket.arrival_time}
+*Departure:* ${fmtDateTime(issuedTicket.departure_time)}
+*Arrival:* ${fmtDateTime(issuedTicket.arrival_time)}
 *Cabin:* ${issuedTicket.cabin_class}
 *Seat:* ${issuedTicket.seat_number || 'Not assigned'}
 *Ticket No:* ${issuedTicket.ticket_number || 'PENDING (GDS PNR Confirmed)'}
@@ -6928,8 +6928,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             </td>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>{p.full_name || '—'}</td>
                             <td style={{ padding: '0.6rem 0.85rem', fontFamily: 'monospace', color: '#334155' }}>{p.passport_number || '—'}</td>
-                            <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{p.passport_expiry || '—'}</td>
-                            <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{p.date_of_birth || '—'}</td>
+                            <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{fmtDate(p.passport_expiry, '—')}</td>
+                            <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{fmtDate(p.date_of_birth, '—')}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{p.gender || '—'}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{p.nationality || '—'}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{p.email || '—'}</td>
@@ -6965,8 +6965,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{seg.carrier_name || seg.carrier}</td>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#1e293b' }}>{seg.departure_airport}{seg.departure_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.departure_terminal})</span>}</td>
                             <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#1e293b' }}>{seg.arrival_airport}{seg.arrival_terminal && <span style={{ fontSize: '0.75em', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.arrival_terminal})</span>}</td>
-                            <td style={{ padding: '0.6rem 0.85rem', color: '#334155', whiteSpace: 'nowrap' }}>{seg.departure_time}</td>
-                            <td style={{ padding: '0.6rem 0.85rem', color: '#334155', whiteSpace: 'nowrap' }}>{seg.arrival_time}</td>
+                            <td style={{ padding: '0.6rem 0.85rem', color: '#334155', whiteSpace: 'nowrap' }}>{fmtDateTime(seg.departure_time)}</td>
+                            <td style={{ padding: '0.6rem 0.85rem', color: '#334155', whiteSpace: 'nowrap' }}>{fmtDateTime(seg.arrival_time)}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#334155' }}>{seg.duration?.replace('PT','').replace('H','h ').replace('M','m') || '—'}</td>
                             <td style={{ padding: '0.6rem 0.85rem', color: '#b45309', fontWeight: '600', whiteSpace: 'nowrap' }}>{seg.layover_minutes > 0 ? `${Math.floor(seg.layover_minutes / 60)}h ${seg.layover_minutes % 60}m` : '—'}</td>
                           </tr>
@@ -7314,7 +7314,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           return (
                             <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                               <td style={{ padding: '0.6rem 0.85rem', fontWeight: '800', color: '#1e40af' }}>{r.locator_code}</td>
-                              <td style={{ padding: '0.6rem 0.85rem', color: '#475569' }}>{r.booking_date ? r.booking_date.slice(0, 10) : '—'}</td>
+                              <td style={{ padding: '0.6rem 0.85rem', color: '#475569' }}>{fmtDate(r.booking_date, '—')}</td>
                               <td style={{ padding: '0.6rem 0.85rem', fontWeight: '700', color: '#475569' }}>{r.airline_pnr || '—'}</td>
                               <td style={{ padding: '0.6rem 0.85rem' }}>
                                 <span style={{
@@ -7568,7 +7568,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✅</div>
               <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Hotel Booking Confirmed</h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.25rem' }}>
-                {hotelBookingConfirmation.property_name} · {hotelBookingConfirmation.check_in_date} → {hotelBookingConfirmation.check_out_date}
+                {hotelBookingConfirmation.property_name} · {fmtDate(hotelBookingConfirmation.check_in_date)} → {fmtDate(hotelBookingConfirmation.check_out_date)}
               </p>
               <div style={{ display: 'inline-block', textAlign: 'left', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1.25rem 1.5rem' }}>
                 <p style={{ margin: '0 0 0.4rem' }}><strong>Locator:</strong> {hotelBookingConfirmation.locator_code || '—'}</p>
@@ -7591,7 +7591,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectedHotelRoom(null)} style={{ marginBottom: '1rem' }}>← Back to Rooms</button>
               <h2 className="section-title" style={{ marginBottom: '0.2rem' }}>{selectedHotelProperty.property_name}</h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1rem' }}>
-                {selectedHotelRoom.room_description} · {selectedHotelProperty.check_in_date} → {selectedHotelProperty.check_out_date}
+                {selectedHotelRoom.room_description} · {fmtDate(selectedHotelProperty.check_in_date)} → {fmtDate(selectedHotelProperty.check_out_date)}
               </p>
               <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--gs-crimson)', marginBottom: '1.25rem' }}>
                 {selectedHotelRoom.currency} {Number(selectedHotelRoom.total_price).toLocaleString()} <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>total for stay</span>
@@ -7956,7 +7956,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1.25rem', textAlign: 'center' }}>
                   <p style={{ fontWeight: 800, color: '#166534', margin: '0 0 0.35rem' }}>✅ Consultation Booked</p>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                    {consultSuccess.slot_date} at {consultSuccess.slot_time}. We'll be in touch at {consultSuccess.email}.
+                    {fmtDate(consultSuccess.slot_date)} at {consultSuccess.slot_time}. We'll be in touch at {consultSuccess.email}.
                   </p>
                   {!consultSuccess.email_sent && (
                     <p style={{ fontSize: '0.75rem', color: '#92400e', marginTop: '0.6rem' }}>
@@ -9952,9 +9952,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     const rows = [
                       ['Name (as on passport)', `${t.first_name || ''} ${t.last_name || ''}`.trim()],
                       ['Gender', t.gender],
-                      ['Date of birth', t.date_of_birth],
+                      ['Date of birth', fmtDate(t.date_of_birth)],
                       ['Passport number', t.passport_number],
-                      ['Passport expiry', t.passport_expiry],
+                      ['Passport expiry', fmtDate(t.passport_expiry)],
                       ['Nationality', t.nationality || '—'],
                       ['Passport issued by', t.passport_issue_country || t.nationality || '—'],
                       ['Email', t.email],
@@ -10204,6 +10204,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 </div>
               ))}
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>You are charged only for seats and extras the airline confirms.</div>
+              <div className="seat-cond-manage">
+                <Ico.IconInfo size={15} />
+                <span>After booking, <strong>sign in to Manage Booking</strong> to see your booking and add or change seats and extras when the airline allows it.</span>
+              </div>
               <button type="button" className="btn btn-primary" style={{ alignSelf: 'flex-end' }} onClick={() => setSeatConditionPopup(null)}>OK, I understand</button>
             </div>
           </div>
@@ -10257,7 +10261,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <h1 style={{ fontFamily: 'var(--font-heading)', color: '#c3122e', fontSize: '1.35rem', fontWeight: '700', margin: '0 0 0.5rem 0' }}>ELECTRONIC TICKET RECEIPT</h1>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
                     <strong>Booking Status:</strong> <span style={{ color: issuedTicket.status === 'Ticketed' ? '#0f766e' : '#b45309', fontWeight: '700' }}>{issuedTicket.status === 'Ticketed' ? 'ISSUED / CONFIRMED' : 'RESERVATION ON HOLD'}</span><br />
-                    <strong>Date of Issue:</strong> {issuedTicket.booking_date || new Date().toISOString().split('T')[0]}<br />
+                    <strong>Date of Issue:</strong> {fmtDate(issuedTicket.booking_date || new Date())}<br />
                     <strong>Issuing Agent:</strong> George Steuart Travel via Travelport TripServices
                   </div>
                 </div>
@@ -10377,7 +10381,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               </tr>
                               <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={{ padding: '0.35rem 0.75rem', color: '#64748b', fontWeight: '500' }}>Passport Expiry:</td>
-                                <td style={{ padding: '0.35rem 0.75rem', fontWeight: '600', color: '#1e293b' }}>{t.passport_expiry || (pIdx === 0 ? issuedTicket.passport_expiry : null) || '—'}</td>
+                                <td style={{ padding: '0.35rem 0.75rem', fontWeight: '600', color: '#1e293b' }}>{fmtDate(t.passport_expiry || (pIdx === 0 ? issuedTicket.passport_expiry : null), '—')}</td>
                               </tr>
                               <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={{ padding: '0.35rem 0.75rem', color: '#64748b', fontWeight: '500' }}>Nationality:</td>
@@ -10389,7 +10393,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               </tr>
                               <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={{ padding: '0.35rem 0.75rem', color: '#64748b', fontWeight: '500' }}>Date of Birth:</td>
-                                <td style={{ padding: '0.35rem 0.75rem', fontWeight: '600', color: '#1e293b' }}>{t.date_of_birth || (pIdx === 0 ? issuedTicket.date_of_birth : null) || '—'}</td>
+                                <td style={{ padding: '0.35rem 0.75rem', fontWeight: '600', color: '#1e293b' }}>{fmtDate(t.date_of_birth || (pIdx === 0 ? issuedTicket.date_of_birth : null), '—')}</td>
                               </tr>
                               {pIdx === 0 && (
                                 <>
@@ -10461,11 +10465,11 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                 </td>
                                 <td style={{ padding: '0.6rem 0.5rem' }}>
                                   <strong style={{ fontSize: '0.85rem' }}>{seg.departure_airport}</strong>{seg.departure_terminal && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.departure_terminal})</span>}<br />
-                                  <span>{seg.departure_time}</span>
+                                  <span>{fmtDateTime(seg.departure_time)}</span>
                                 </td>
                                 <td style={{ padding: '0.6rem 0.5rem' }}>
                                   <strong style={{ fontSize: '0.85rem' }}>{seg.arrival_airport}</strong>{seg.arrival_terminal && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}> (Terminal {seg.arrival_terminal})</span>}<br />
-                                  <span>{seg.arrival_time}</span>
+                                  <span>{fmtDateTime(seg.arrival_time)}</span>
                                 </td>
                                 <td style={{ padding: '0.6rem 0.5rem' }}>
                                   <strong>{issuedTicket.cabin_class || 'Economy'}</strong><br />

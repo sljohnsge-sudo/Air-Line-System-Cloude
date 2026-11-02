@@ -16,6 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from config.email_config import EmailConfig
+from utils.dates import fmt_date, fmt_datetime
 
 
 def _send(to_addr: str, subject: str, body: str) -> tuple[bool, str | None]:
@@ -57,10 +58,10 @@ def send_visa_consultation_email(booking: dict) -> tuple[bool, str | None]:
         return False, "No consultant email on file for this country and no general VISA_CONSULTANT_EMAIL configured."
 
     consultant_line = f" (assigned to {booking['consultant_names']})" if booking.get("consultant_names") else ""
-    subject = f"New Visa Consultation Booking — {booking['slot_date']} {booking['slot_time']}"
+    subject = f"New Visa Consultation Booking — {fmt_date(booking['slot_date'])} {booking['slot_time']}"
     body = (
         f"A customer has booked a visa consultation slot{consultant_line}.\n\n"
-        f"Date:        {booking['slot_date']}\n"
+        f"Date:        {fmt_date(booking['slot_date'])}\n"
         f"Time:        {booking['slot_time']}\n\n"
         f"Nationality: {booking['nationality']}\n"
         f"Destination: {booking['destination']}\n\n"
@@ -88,7 +89,7 @@ def send_ticket_share_email(to_addr: str, ticket: dict) -> tuple[bool, str | Non
         f"Ticket Number:   {ticket.get('ticket_number') or 'Pending'}\n"
         f"Flight:          {ticket.get('flight_number') or ''} ({ticket.get('airline') or ''})\n"
         f"Route:           {ticket.get('departure_airport') or ''} → {ticket.get('arrival_airport') or ''}\n"
-        f"Departure:       {ticket.get('departure_time') or ''}\n"
+        f"Departure:       {fmt_datetime(ticket.get('departure_time'))}\n"
         f"Cabin:           {ticket.get('cabin_class') or 'Economy'}\n"
         f"Fare:            {ticket.get('currency') or ''} {ticket.get('total_fare') or ''}\n"
         f"Status:          {ticket.get('status') or ''}\n\n"

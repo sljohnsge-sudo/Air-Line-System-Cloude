@@ -54,6 +54,7 @@ import services
 import auth
 import hotel_database
 import insights
+from utils.dates import fmt_date, fmt_datetime
 from services import seat_rules, fare_rule_service
 from services.special_services import MEAL_SSR_TYPES, merge_ssr_status
 from services import segment_status
@@ -277,6 +278,12 @@ _STALE_OFFER_MARKERS = (
     "SOLD OUT",
     "NOT AVAILABLE AND CANNOT BE BOOKED",
 )
+
+
+# Shown when Travelport / the airline errors while making the booking (before
+# any payment). The real error is logged and kept on the booking journey.
+BOOKING_NOT_CONFIRMED_DETAIL = ("The airline couldn't confirm your booking just now. You have not been charged — "
+                                "please try again in a moment, or choose another flight.")
 
 
 def friendly_travelport_error(raw_message: str) -> str:
@@ -1021,7 +1028,7 @@ def _check_travelers_for_trip(travelers: list, raw_offering: dict) -> None:
     def age_on(dob, day):
         return day.year - dob.year - ((day.month, day.day) < (dob.month, dob.day))
 
-    fmt = lambda d: d.strftime("%d %b %Y")
+    fmt = lambda d: d.strftime("%d/%m/%Y")
     problems = []
     for i, t in enumerate(travelers, 1):
         t = t.model_dump() if hasattr(t, "model_dump") else t
@@ -1343,13 +1350,12 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
         else:
             detail = f"Travelport booking API error: {error_msg[:400]}"
         logger.error(f"Booking failed with HTTPStatusError: {error_msg}. Details: {response_text[:300]}")
-        raise HTTPException(status_code=502, detail=detail)
+        insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking", raw_error=detail)
+        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
     except Exception as e:
         logger.error(f"Booking failed: {e}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"Travelport booking error: {str(e)}"
-        )
+        insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking", raw_error=str(e))
+        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
 
 
 # ── STEPS 4 & 10: Initiate Booking (Workbench & Seatmap) ──────────────────────
@@ -1709,13 +1715,13 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         status_code = e.response.status_code
         response_text = e.response.text
         logger.error(f"Confirmation failed with HTTPStatusError: {error_msg}. Details: {response_text[:300]}")
-        raise HTTPException(status_code=502, detail=f"Travelport confirmation API error: {error_msg[:400]}")
+        insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking",
+                      raw_error=f"HTTP {status_code}: {response_text[:600]}")
+        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
     except Exception as e:
         logger.error(f"Confirmation failed: {e}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"Travelport booking error: {str(e)}"
-        )
+        insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking", raw_error=str(e))
+        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
     finally:
         services.end_flow_trace_id(trace_token)
 
@@ -5416,7 +5422,7 @@ async def admin_send_fare_alert(search_id: int, request: FareAlertRequest,
         raise HTTPException(status_code=409, detail="The live fare is not cheaper than what the customer saw — nothing sent.")
     site = os.getenv("PUBLIC_SITE_URL", "").rstrip("/")
     route = f"{old['origin']} → {old['destination']}"
-    dates = old["departure_date"] + (f" – {old['return_date']}" if old.get("return_date") else "")
+    dates = fmt_date(old["departure_date"]) + (f" – {fmt_date(old['return_date'])}" if old.get("return_date") else "")
     body = (
         f"Hello,\n\nGood news — the fare for the trip you looked at has dropped.\n\n"
         f"Route:    {route}\nDates:    {dates}\n"
@@ -5525,7 +5531,7 @@ def _reminder_text(kind: str, row: dict) -> tuple[str, str, str]:
                 f"Dear {first},\n\nHappy birthday from all of us at Tick and Book! "
                 f"We hope your year ahead is full of great journeys.\n\nTick and Book\n",
                 f"Happy birthday {first}! Wishing you a year of great journeys - Tick and Book")
-    exp = row.get("passport_expiry")
+    exp = fmt_date(row.get("passport_expiry"))
     when = "has expired" if row.get("expired") else f"expires on {exp}"
     return ("Your passport is due for renewal",
             f"Dear {first},\n\nOur records show the passport ending {row.get('passport_last4')} that you travelled "

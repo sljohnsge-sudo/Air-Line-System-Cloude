@@ -5,6 +5,7 @@
 // anything; "Confirm cancel" then does it. If Travelport's answer moved in
 // between, the backend refuses with the new quote and staff confirm again.
 import { useState } from 'react';
+import { fmtDate } from './dateFormat.js';
 
 const ACTION_LABELS = {
   void: 'Void ticket — full refund',
@@ -150,7 +151,7 @@ export default function CancelBookingDialog({ locator, apiBase, fetchWithRetry, 
                     <div key={d.number} style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.45rem 0.7rem' }}>
                       <span><strong>{d.kind}</strong> {d.number} · {d.passenger_type}{d.description ? ` · ${d.description}` : ''}</span>
                       <span style={{ color: 'var(--text-muted)' }}>
-                        {d.ticketed_date ? `Issued ${d.ticketed_date} · ` : ''}
+                        {d.ticketed_date ? `Issued ${fmtDate(d.ticketed_date)} · ` : ''}
                         {d.coupon_statuses ? `${d.coupon_statuses.join(', ')} · ` : ''}
                         {money(d.currency || quote.currency, d.amount)}
                       </span>

@@ -12,14 +12,14 @@
 import React, { useState, useEffect } from 'react';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import { encryptForUrl } from './urlCrypto.js';
+import { fmtDateWeekday } from './dateFormat.js';
 
 const fmtTime = (iso) => iso?.split('T')[1]?.slice(0, 5) || iso?.split(' ')[1]?.slice(0, 5) || '';
 const isoDay = (iso) => iso?.split('T')[0] || iso?.split(' ')[0] || '';
 const fmtDate = (iso) => {
   const d = isoDay(iso);
   if (!d) return '';
-  const dt = new Date(`${d}T00:00:00`);
-  return isNaN(dt) ? d : dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  return fmtDateWeekday(d);
 };
 const fmtDuration = (iso) => iso ? iso.replace('PT', '').replace('H', 'h ').replace('M', 'm').trim() : '';
 const cabinName = (c) => c === 'PremiumEconomy' ? 'Premium Economy' : (c || 'Economy');

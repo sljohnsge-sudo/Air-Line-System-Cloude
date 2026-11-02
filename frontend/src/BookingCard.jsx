@@ -1,6 +1,7 @@
 // Shared boarding-pass card — used by both the guest "My Bookings" tab and
 // the logged-in Customer Portal, so the markup only exists in one place.
 
+import { fmtDateTime } from './dateFormat.js';
 export const cleanPassengerName = (name) => {
   if (!name) return '';
   const parts = name.trim().toUpperCase().split(/\s+/);
@@ -61,7 +62,7 @@ export default function BookingCard({ booking: b, onViewTicket, onCancelBooking,
         <div className="detail-item"><span className="detail-label">PASSENGER</span><span className="detail-val">{cleanPassengerName(b.passenger_name)}</span></div>
         <div className="detail-item"><span className="detail-label">PNR / LOCATOR</span><span className="detail-val highlight">{b.locator_code}</span></div>
         <div className="detail-item"><span className="detail-label">TICKET NO</span><span className="detail-val">{b.ticket_number || '—'}</span></div>
-        <div className="detail-item"><span className="detail-label">DEPARTURE</span><span className="detail-val">{b.departure_time}</span></div>
+        <div className="detail-item"><span className="detail-label">DEPARTURE</span><span className="detail-val">{fmtDateTime(b.departure_time)}</span></div>
         <div className="detail-item"><span className="detail-label">CABIN CLASS</span><span className="detail-val">{b.cabin_class}</span></div>
         <div className="detail-item"><span className="detail-label">FARE</span><span className="detail-val highlight">{b.currency} {b.total_fare?.toFixed(2)}</span></div>
         {b.refund_amount !== null && b.refund_amount !== undefined && (

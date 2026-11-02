@@ -4,9 +4,10 @@
 // what customers entered and what Travelport (later Amadeus) returned — the
 // backend (backend/insights.py) never generates or estimates any of it.
 import { useEffect, useState, useCallback } from 'react';
+import { fmtDate, fmtDateTime } from './dateFormat.js';
 
-const fmtDT = (v) => (v ? new Date(String(v).replace(' ', 'T')).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
-const fmtD = (v) => (v ? new Date(`${String(v).slice(0, 10)}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const fmtDT = (v) => fmtDateTime(v, '—');
+const fmtD = (v) => fmtDate(v, '—');
 const money = (amt, cur) => (amt || amt === 0 ? `${cur || ''} ${Math.round(Number(amt)).toLocaleString()}`.trim() : '—');
 const STATUS_LABEL = { ticketed: 'Ticketed', failed: 'Failed', booking: 'In progress', searching: 'Searching' };
 

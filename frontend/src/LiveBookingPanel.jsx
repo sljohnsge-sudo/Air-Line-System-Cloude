@@ -4,6 +4,7 @@
 // seat, extra and special request with the airline's confirmation. Nothing
 // comes from our booking record.
 import { useEffect, useState } from 'react';
+import { fmtDateTime } from './dateFormat.js';
 
 const tone = (status) => {
   const s = (status || '').toLowerCase();
@@ -127,7 +128,7 @@ export default function LiveBookingPanel({ locator, apiBase, fetchWithRetry, aut
 
   useEffect(() => { load(); }, [locator]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const retrieved = data?.retrieved_at ? new Date(data.retrieved_at).toLocaleString() : '';
+  const retrieved = data?.retrieved_at ? fmtDateTime(data.retrieved_at) : '';
 
   return (
     <section className="glass-panel" style={{ padding: '0.9rem 1.1rem' }}>

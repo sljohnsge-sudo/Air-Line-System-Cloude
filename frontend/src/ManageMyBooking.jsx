@@ -4,6 +4,7 @@
 // (/api/manage-booking/*); prices shown are Travelport's live prices with
 // our markup, and the amount charged is set server-side, never here.
 import { useEffect, useState } from 'react';
+import { fmtDateTime } from './dateFormat.js';
 
 const money = (cur, amt) => `${cur || ''} ${Number(amt || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
 const box = { border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 0.9rem', marginTop: '0.75rem', background: 'white' };
@@ -28,7 +29,7 @@ export async function startAddonPayment({ apiBase, fetchWithRetry, addon }) {
 // A payment deadline from the backend (UTC ISO) in the customer's own time.
 export function formatDeadline(iso) {
   if (!iso) return '';
-  return new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return fmtDateTime(iso);
 }
 
 const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Requested — not charged unless the airline confirms', sent: 'Sent to the airline', failed: 'Not added' };

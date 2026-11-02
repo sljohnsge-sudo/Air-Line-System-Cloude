@@ -3,6 +3,7 @@
 // opens that booking's detail view (BookingDetailView). Layout is a CSS grid
 // (.booking-lines in index.css) that stacks each row into two lines on a phone.
 import { cleanPassengerName } from './BookingCard.jsx';
+import { fmtDateTime } from './dateFormat.js';
 
 const CANCELLED = ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'];
 
@@ -25,7 +26,7 @@ const isUpcoming = (b) => {
   return last.slice(0, 10) >= new Date().toISOString().slice(0, 10);
 };
 
-const time = (iso) => { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+const time = (iso) => fmtDateTime(iso);
 
 // liveStatuses: locator -> {checked, status, retrieved_at, missing, error}
 // from /customers/me/bookings/refresh-status (upcoming bookings only).
@@ -58,7 +59,7 @@ export default function BookingLineList({ bookings, liveStatuses = {}, refreshin
               <small>{b.flight_number}{b.cabin_class ? ` · ${b.cabin_class}` : ''}</small>
             </span>
             <span className="bl-route"><strong>{routeOf(b)}</strong></span>
-            <span className="bl-dep">{(b.departure_time || '').replace('T', ' ').slice(0, 16)}</span>
+            <span className="bl-dep">{fmtDateTime(b.departure_time)}</span>
             <span className="bl-pnr"><strong>{b.locator_code}</strong><small className="bl-ticket">{b.ticket_number || 'Not ticketed'}</small></span>
             <span className="bl-pax">{cleanPassengerName(b.passenger_name)}</span>
             <span className="bl-fare"><strong>{b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>

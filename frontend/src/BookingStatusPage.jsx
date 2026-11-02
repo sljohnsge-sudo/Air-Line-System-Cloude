@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { LiveStatusDetails } from './LiveBookingPanel.jsx';
 import ManageMyBooking, { startAddonPayment, formatDeadline } from './ManageMyBooking.jsx';
+import { fmtDateTime } from './dateFormat.js';
 
 // prefill: {query, lastName, key} — set when opened from a My Bookings detail page; looks it up at once.
 export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, prefill }) {
@@ -69,7 +70,7 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
     }
   }, [prefill?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const retrieved = data?.retrieved_at ? new Date(data.retrieved_at).toLocaleString() : '';
+  const retrieved = data?.retrieved_at ? fmtDateTime(data.retrieved_at) : '';
 
   return (
     <div>

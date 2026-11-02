@@ -4,6 +4,7 @@
 // Booking Status page (BookingStatusPage) pre-filled for this booking. The
 // ticket and cancellation actions live here rather than on the list row.
 import { cleanPassengerName } from './BookingCard.jsx';
+import { fmtDateTime } from './dateFormat.js';
 
 const CANCELLED = ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'];
 
@@ -12,7 +13,7 @@ const money = (currency, amount) =>
     ? '—'
     : `${currency || ''} ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
 
-const dt = (s) => (s || '').replace('T', ' ').slice(0, 16);
+const dt = (s) => fmtDateTime(s);
 
 const label = { fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' };
 const panel = { padding: '0.9rem 1.1rem', marginBottom: '0.9rem' };
