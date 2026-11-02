@@ -4030,20 +4030,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <button type="button" className={`search-type-tab ${searchType === 'oneway' ? 'active' : ''}`} onClick={() => setSearchType('oneway')}><Ico.IconPlane size={15} className="trip-tab-icon" />One Way</button>
               <button type="button" className={`search-type-tab ${searchType === 'roundtrip' ? 'active' : ''}`} onClick={() => setSearchType('roundtrip')}><Ico.IconSwap size={15} className="trip-tab-icon" />Round Trip</button>
               <button type="button" className={`search-type-tab ${searchType === 'multicity' ? 'active' : ''}`} onClick={() => setSearchType('multicity')}><Ico.IconRoute size={15} className="trip-tab-icon" />Multi City</button>
-              {recentSearches.length > 0 && (
-                <div className="recent-searches" aria-label="Your recent searches">
-                  <span className="recent-searches-label">Recent:</span>
-                  {recentSearches.map((r, i) => {
-                    const d = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-                    return (
-                      <button key={i} type="button" className="recent-search" onClick={() => runRecentSearch(r)}
-                              title="Search this again">
-                        {r.origin} → {r.destination} · {d(r.date)}{r.returnDate ? ` – ${d(r.returnDate)}` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
 
             <form onSubmit={handleSearch} className="search-form">
@@ -4624,6 +4610,21 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   {loadingFlights ? 'Searching Travelport...' : 'Search Live Flights'}
                 </button>
               </div>
+              {/* The customer's own recent searches — below the search box */}
+              {recentSearches.length > 0 && (
+                <div className="recent-searches recent-searches-below" aria-label="Your recent searches">
+                  <span className="recent-searches-label">Your recent searches:</span>
+                  {recentSearches.map((r, i) => {
+                    const d = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                    return (
+                      <button key={i} type="button" className="recent-search" onClick={() => runRecentSearch(r)}
+                              title="Search this again">
+                        {r.origin} → {r.destination} · {d(r.date)}{r.returnDate ? ` – ${d(r.returnDate)}` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </form>
           </section>
           {/* Hint that there is more below the search */}
