@@ -4255,3 +4255,11 @@ button, input, select, textarea { font-family: inherit; }
 .rc-price-col { background: #fdf1f2; }
 .rc-price-cabin { color: #15803d; font-weight: 600; }
 .rc-price-amount, .rc-price-currency { color: #1d6b3a; }
+
+/* Fare chooser pop-up: compact one-line rows so every fare fits one screen */
+.fc-line { display: flex; align-items: center; gap: 0.3rem; font-size: 0.66rem; line-height: 1.35; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-line > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.fc-line strong { color: #1e293b; }
+.fc-rules button { padding-top: 0.2rem !important; padding-bottom: 0.2rem !important; font-size: 0.66rem !important; }
+.fc-line.fc-wrap { white-space: normal; align-items: flex-start; }
+.fc-line.fc-wrap > span:last-child { overflow: visible; }

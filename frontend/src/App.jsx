@@ -6174,12 +6174,12 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                   {/* Card Header */}
                                   <div style={{
                                     background: isCheapest ? '#245d38' : '#1e293b',
-                                    padding: '0.55rem 0.75rem',
+                                    padding: '0.4rem 0.65rem',
                                     color: 'white',
                                     position: 'relative'
                                   }}>
-                                    <div style={{ fontSize: '0.78rem', fontWeight: '800', letterSpacing: '0.01em', paddingRight: isCheapest ? '3.6rem' : 0 }}>{fo.brand_name}</div>
-                                    <div style={{ fontSize: '1.05rem', fontWeight: '800', marginTop: '0.15rem' }}>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.01em', paddingRight: isCheapest ? '3.6rem' : 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={fo.brand_name}>{fo.brand_name}</div>
+                                    <div style={{ fontSize: '0.98rem', fontWeight: '800', marginTop: '0.05rem' }}>
                                       {fo.currency} {Math.floor(fo.price).toLocaleString()}
                                     </div>
                                     {isCheapest && (
@@ -6199,46 +6199,34 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                         Cheapest
                                       </div>
                                     )}
-                                    <div style={{ fontSize: '0.58rem', opacity: 0.9, marginTop: '0.1rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>
+                                    <div style={{ fontSize: '0.56rem', opacity: 0.85, fontWeight: '600', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       Fare Basis: {(fo.fare_basis_codes || []).join(', ')} ({(fo.classes_of_service || []).join(', ')})
                                     </div>
                                   </div>
 
                                   {/* Card Body */}
-                                  <div style={{ padding: '0.55rem 0.75rem 0.65rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.45rem', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                  <div style={{ padding: '0.4rem 0.65rem 0.5rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.3rem', justifyContent: 'space-between' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
 
-                                      {/* Baggage Allowance Section */}
+                                      {/* Baggage: one line */}
                                       {fo.baggage_allowance && fo.baggage_allowance.length > 0 && (
-                                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.35rem' }}>
-                                          <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Baggage Allowance</div>
-                                          {fo.baggage_allowance.map((bag, bIdx) => (
-                                            <div key={bIdx} style={{ fontSize: '0.7rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.05rem' }}>
-                                              <span>🧳</span>
-                                              <span>{bag.type}: <strong>{bag.allowance}</strong></span>
-                                            </div>
-                                          ))}
+                                        <div className="fc-line" title={fo.baggage_allowance.map(b => `${b.type}: ${b.allowance}`).join(' · ')}>
+                                          <span>🧳</span>
+                                          <span>{fo.baggage_allowance.map(b => `${/carry|cabin/i.test(b.type) ? 'Cabin' : 'Checked'} ${b.allowance}`).join(' · ')}</span>
                                         </div>
                                       )}
 
-                                      {/* Policies Section */}
-                                      <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.35rem' }}>
-                                        <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Rules & Policies</div>
-                                        <div style={{ fontSize: '0.66rem', lineHeight: 1.3, color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', marginTop: '0.05rem' }}>
-                                          <span style={{ fontSize: '0.7rem' }}>🔄</span>
-                                          <div>
-                                            <strong style={{ color: '#1e293b' }}>Changes:</strong> <span style={{ fontWeight: '500' }}>{fo.change_policy}</span>
-                                          </div>
+                                      {/* Changes / cancellations: one line each, full text on hover */}
+                                      <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.3rem' }}>
+                                        <div className="fc-line fc-wrap" title={`Changes: ${fo.change_policy}`}>
+                                          <span>🔄</span><span><strong>Changes:</strong> {fo.change_policy}</span>
                                         </div>
-                                        <div style={{ fontSize: '0.66rem', lineHeight: 1.3, color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', marginTop: '0.2rem' }}>
-                                          <span style={{ fontSize: '0.7rem' }}>❌</span>
-                                          <div>
-                                            <strong style={{ color: '#1e293b' }}>Cancellations:</strong> <span style={{ fontWeight: '500' }}>{fo.cancel_policy}</span>
-                                          </div>
+                                        <div className="fc-line fc-wrap" title={`Cancellations: ${fo.cancel_policy}`}>
+                                          <span>❌</span><span><strong>Cancel:</strong> {fo.cancel_policy}</span>
                                         </div>
                                         {/* Full change/cancel conditions, live from Travelport's Fare Rules API */}
                                         {flight.source !== 'AD' && fo.raw_offering && (
-                                          <div style={{ marginTop: '0.3rem' }}>
+                                          <div className="fc-rules" style={{ marginTop: '0.25rem' }}>
                                             <FareRulesPanel apiBase={API_BASE} rawOffering={fo.raw_offering} title="Full fare rules" />
                                           </div>
                                         )}
@@ -6247,18 +6235,17 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                       {/* Brand Attributes Section */}
                                       {fo.brand_attributes && fo.brand_attributes.length > 0 && (
                                         <div>
-                                          <div style={{ fontSize: '0.56rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>Fare Benefits</div>
-                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem 0.3rem' }}>
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.15rem 0.2rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.3rem' }}>
                                             {fo.brand_attributes.map((attr, aIdx) => {
                                               const labelMap = {
-                                                'CheckedBag': 'Checked baggage allowance',
-                                                'CarryOn': 'Cabin baggage allowance',
-                                                'WiFi': 'On-board Wi-Fi access',
-                                                'Meals': 'Meals & beverage service',
-                                                'SeatAssignment': 'Standard seat selection',
-                                                'PremiumSeat': 'Premium/preferred seating',
-                                                'Refund': 'Ticket refund options',
-                                                'Rebooking': 'Rebooking/flight change'
+                                                'CheckedBag': 'Checked bag',
+                                                'CarryOn': 'Cabin bag',
+                                                'WiFi': 'Wi-Fi',
+                                                'Meals': 'Meals',
+                                                'SeatAssignment': 'Seat',
+                                                'PremiumSeat': 'Preferred seat',
+                                                'Refund': 'Refund',
+                                                'Rebooking': 'Changes'
                                               };
                                               
                                               const displayLabel = labelMap[attr.classification] || attr.classification.replace(/([A-Z])/g, ' $1').trim();
@@ -6281,7 +6268,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                               
                                               return (
                                                 <div key={aIdx} title={`${displayLabel}: ${attr.inclusion}`}
-                                                     style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: bg, border: `1px solid ${border}`, borderRadius: '999px', padding: '0.05rem 0.4rem 0.05rem 0.1rem' }}>
+                                                     style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', background: bg, border: `1px solid ${border}`, borderRadius: '999px', padding: '0 0.35rem 0 0.1rem' }}>
                                                   <span style={{
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
@@ -6296,7 +6283,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                                     fontWeight: '800',
                                                     flexShrink: 0
                                                   }}>{icon}</span>
-                                                  <span style={{ fontSize: '0.62rem', color: color, fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                                  <span style={{ fontSize: '0.6rem', color: color, fontWeight: '600', whiteSpace: 'nowrap' }}>
                                                     {displayLabel}
                                                   </span>
                                                 </div>
@@ -6320,19 +6307,22 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                         color: 'white',
                                         border: 'none',
                                         borderRadius: '6px',
-                                        padding: '0.45rem 0.75rem',
+                                        padding: '0.38rem 0.6rem',
                                         fontWeight: '700',
-                                        fontSize: '0.74rem',
+                                        fontSize: '0.72rem',
                                         cursor: 'pointer',
                                         width: '100%',
                                         transition: 'background 0.2s',
                                         outline: 'none',
-                                        marginTop: '0.35rem'
+                                        marginTop: '0.2rem',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
                                       }}
                                       onMouseEnter={e => e.target.style.opacity = 0.9}
                                       onMouseLeave={e => e.target.style.opacity = 1}
                                     >
-                                      {`Select ${fo.brand_name}`}
+                                      Select
                                     </button>
                                   </div>
                                 </div>
