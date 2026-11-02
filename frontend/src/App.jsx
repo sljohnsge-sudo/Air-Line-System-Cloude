@@ -1999,6 +1999,10 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('tb_recent_searches') || '[]').slice(0, 3); } catch { return []; }
   });
   const [rerunRecent, setRerunRecent] = useState(null);
+  // "Complete your trip" pop-up: opens once per ticket when the customer
+  // reaches the end of the e-ticket; closing it keeps it closed for that PNR.
+  const [tripCrossSell, setTripCrossSell] = useState({ loc: null, open: false });
+  const ticketEndRef = useRef(null);
   useEffect(() => {
     if (!rerunRecent) return;
     const r = rerunRecent;
@@ -2199,6 +2203,29 @@ export default function App() {
     setNotification({ message: displayMessage, type, sticky });
     if (!sticky) setTimeout(() => setNotification(n => (n && n.sticky ? n : null)), 5000);
   };
+
+  const crossSellAvailable = !!(featureFlags.hotels_enabled || featureFlags.visa_enabled || featureFlags.packages_enabled);
+  const ticketLocator = issuedTicket?.locator_code || issuedTicket?.pnr || null;
+  useEffect(() => {
+    if (bookingStep !== 'ticket' || !ticketLocator || !crossSellAvailable || tripCrossSell.loc === ticketLocator) return;
+    // Checked on every scroll (the ticket scrolls inside its own panel, so
+    // listen in the capture phase) and once shortly after it opens, in case
+    // the whole ticket already fits on screen.
+    const check = () => {
+      const el = ticketEndRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) setTripCrossSell({ loc: ticketLocator, open: true });
+    };
+    const firstLook = setTimeout(check, 1200);
+    window.addEventListener('scroll', check, { capture: true, passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      clearTimeout(firstLook);
+      window.removeEventListener('scroll', check, { capture: true });
+      window.removeEventListener('resize', check);
+    };
+  }, [bookingStep, ticketLocator, crossSellAvailable, tripCrossSell.loc]);
 
   // ── PayCorp return handler ──────────────────────────────────────────────
   // After a card payment, PayCorp redirects the browser back here with
@@ -10543,15 +10570,20 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <button className="btn btn-secondary" onClick={closeBookingFlow} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Close</button>
             </div>
 
+            {/* End of the e-ticket: reaching it opens the "Complete your trip" pop-up. */}
+            <div ref={ticketEndRef} className="no-print" aria-hidden="true" style={{ height: 1 }} />
+
             {/* "Complete your trip" — the other Tick and Book services for the
-                destination just booked (only the ones switched on in admin).
-                Not printed and not in the PDF. */}
-            {(featureFlags.hotels_enabled || featureFlags.visa_enabled || featureFlags.packages_enabled) && (() => {
+                destination just booked (only the ones switched on in admin),
+                as a pop-up with a close button. Not printed and not in the PDF. */}
+            {crossSellAvailable && tripCrossSell.open && tripCrossSell.loc === ticketLocator && (() => {
               const segs = issuedTicket.segments || [];
               const isReturnTrip = segs.length > 1 && issuedTicket.arrival_airport && issuedTicket.arrival_airport === issuedTicket.departure_airport;
               const dest = isReturnTrip ? (segs[Math.ceil(segs.length / 2) - 1]?.arrival_airport || issuedTicket.arrival_airport) : issuedTicket.arrival_airport;
               return (
-                <div className="no-print trip-crosssell">
+                <div className="no-print trip-crosssell trip-crosssell-popup" role="dialog" aria-label="Complete your trip">
+                  <button type="button" className="trip-crosssell-close" aria-label="Close"
+                    onClick={() => setTripCrossSell({ loc: ticketLocator, open: false })}>×</button>
                   <div className="trip-crosssell-title">Complete your trip{dest ? ` to ${dest}` : ''}</div>
                   <div className="trip-crosssell-actions">
                     {featureFlags.hotels_enabled && (
