@@ -11,8 +11,11 @@
 // is replaced by the fresh Travelport price as soon as it arrives.
 // prefetchNearby() starts these searches together with the main search, so
 // the strip is usually full by the time the results appear.
-// Round trips also get a calendar button: a departure × return grid of live
-// prices (7 × 7 days around the customer's dates), searched only when opened.
+// Round trips also get the Fare Calendar: a departure × return grid of live
+// prices (7 × 7 days around the customer's dates), searched only when opened —
+// from the calendar button or by tapping a date. Travelport's API has no
+// fare-calendar / flexible-date search (checked v11.37.3), so it is built
+// from individual live searches.
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fmtDateWeekday } from './dateFormat.js';
@@ -118,7 +121,7 @@ const money = (p, cur) => <><span className="nearby-day-cur">{cur}</span> {Math.
 // Departure × return calendar: live Travelport price for every pair of dates
 // around the customer's, a few searches at a time; cheapest third green,
 // middle amber, dearest red.
-function PriceGrid({ q, date, returnDate, currentCheapest, currency, onPick, onClose }) {
+function PriceGrid({ q, date, returnDate, focusDep, currentCheapest, currency, onPick, onClose }) {
   // Departure columns never start in the past: near today the window slides forward.
   const depFirst = Math.max(-GRID, Math.min(0, Math.round((today0() - new Date(`${date}T00:00:00`)) / 86400000)));
   const deps = Array.from({ length: GRID * 2 + 1 }, (_, i) => shift(date, depFirst + i));
@@ -164,16 +167,16 @@ function PriceGrid({ q, date, returnDate, currentCheapest, currency, onPick, onC
 
   return createPortal(
     <div className="modal-overlay" style={{ animation: 'none' }} onClick={onClose}>
-      <div className="price-grid-box" onClick={e => e.stopPropagation()} role="dialog" aria-label="Prices by departure and return date">
+      <div className="price-grid-box" onClick={e => e.stopPropagation()} role="dialog" aria-label="Fare Calendar">
         <div className="price-grid-head">
-          <span>Prices by date{waiting ? <span className="price-grid-wait"> · checking {waiting} more…</span> : null}</span>
+          <span>Fare Calendar{waiting ? <span className="price-grid-wait"> · checking {waiting} more…</span> : null}</span>
           <button type="button" className="price-grid-close" aria-label="Close" onClick={onClose}>×</button>
         </div>
         <div className="price-grid-scroll">
           <table className="price-grid">
             <thead>
               <tr><th className="price-grid-corner" /><th colSpan={deps.length} className="price-grid-axis"><AxisIcon d={TAKEOFF} name="Departure" /></th></tr>
-              <tr><th className="price-grid-corner price-grid-axis"><AxisIcon d={LANDING} name="Return" /></th>{deps.map(d => <th key={d} title={label(d)}>{short(d)}</th>)}</tr>
+              <tr><th className="price-grid-corner price-grid-axis"><AxisIcon d={LANDING} name="Return" /></th>{deps.map(d => <th key={d} title={label(d)} className={d === focusDep ? 'focus' : ''}>{short(d)}</th>)}</tr>
             </thead>
             <tbody>
               {rets.map(ret => (
@@ -184,7 +187,7 @@ function PriceGrid({ q, date, returnDate, currentCheapest, currency, onPick, onC
                     const current = dep === date && ret === returnDate;
                     if (!c) return <td key={dep} className="price-grid-na" />;
                     return (
-                      <td key={dep} className={current ? 'current' : ''}>
+                      <td key={dep} className={`${current ? 'current' : ''}${dep === focusDep && !current ? ' focus' : ''}`}>
                         {c.state === 'done' ? (
                           <button type="button" className={`price-grid-cell${tone(c.price)}`}
                                   disabled={current} onClick={() => { onClose(); onPick(dep, ret); }}
@@ -209,6 +212,8 @@ function PriceGrid({ q, date, returnDate, currentCheapest, currency, onPick, onC
 export default function NearbyDates({ apiBase, origin, destination, date, returnDate, roundTrip, counts, cabin, currentCheapest, currency, onPick }) {
   const [days, setDays] = useState([]);   // [{ offset, date, ret, state: 'loading'|'done'|'none'|'error'|'past', price }]
   const [gridOpen, setGridOpen] = useState(false);
+  const [gridFocus, setGridFocus] = useState(null);   // departure date the customer tapped
+  const openCalendar = (dep) => { setGridFocus(dep); setGridOpen(true); };
   const q = { apiBase, origin, destination, roundTrip, counts, cabin };
 
   useEffect(() => {
@@ -240,24 +245,27 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const showGrid = roundTrip && returnDate;
   if (!days.length) return null;
   // Highlight a day only when it is genuinely cheaper than the customer's dates
   const found = days.filter(d => d.offset !== 0 && d.state === 'done' && d.price > 0);
   const lowest = found.length ? Math.min(...found.map(d => d.price)) : null;
   const cheapest = lowest != null && lowest < currentCheapest ? lowest : null;
-  const showGrid = roundTrip && returnDate;
   return (
     <>
       <div className={`nearby-dates${showGrid ? ' with-grid' : ''}`} role="group" aria-label="Cheapest live fare for nearby dates">
         {days.map(d => {
           const isCurrent = d.offset === 0;
-          const clickable = !isCurrent && d.state === 'done';
+          // Round trip: tapping a date opens the Fare Calendar on that departure
+          // so the customer picks the return too. One way: search that date.
+          const opensCalendar = showGrid && d.state !== 'past';
+          const clickable = opensCalendar || (!isCurrent && d.state === 'done');
           return (
             <button
               key={d.date} type="button"
               className={`nearby-day${isCurrent ? ' current' : ''}${d.state === 'done' && d.price === cheapest ? ' cheapest' : ''}`}
               disabled={!clickable}
-              onClick={() => clickable && onPick(d.date, d.ret)}
+              onClick={() => { if (opensCalendar) openCalendar(d.date); else if (clickable) onPick(d.date, d.ret); }}
               title={roundTrip && d.ret ? `${label(d.date)} – ${label(d.ret)}` : label(d.date)}
             >
               <span className="nearby-day-date">{short(d.date)}</span>
@@ -272,8 +280,8 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
           );
         })}
         {showGrid && (
-          <button type="button" className="nearby-day nearby-grid-btn" onClick={() => setGridOpen(true)}
-                  title="Prices by departure and return date" aria-label="Prices by departure and return date">
+          <button type="button" className="nearby-day nearby-grid-btn" onClick={() => openCalendar(date)}
+                  title="Fare Calendar" aria-label="Fare Calendar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <rect x="3" y="4.5" width="18" height="16" rx="2" />
               <line x1="3" y1="9" x2="21" y2="9" /><line x1="8" y1="2.5" x2="8" y2="6.5" /><line x1="16" y1="2.5" x2="16" y2="6.5" />
@@ -283,7 +291,7 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
         )}
       </div>
       {gridOpen && (
-        <PriceGrid q={q} date={date} returnDate={returnDate} currentCheapest={currentCheapest} currency={currency}
+        <PriceGrid q={q} date={date} returnDate={returnDate} focusDep={gridFocus} currentCheapest={currentCheapest} currency={currency}
                    onPick={onPick} onClose={() => setGridOpen(false)} />
       )}
     </>
