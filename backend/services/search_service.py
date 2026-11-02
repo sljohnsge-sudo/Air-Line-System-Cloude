@@ -138,7 +138,8 @@ def search_flights(
     student_count: int = 0,
     cabin_preference: Optional[str] = None,
     legs: Optional[list] = None,
-    content_source: Optional[str] = None
+    content_source: Optional[str] = None,
+    max_upsells: Optional[int] = None
 ) -> dict:
     """
     STEP 2: Search for available flights from Travelport.
@@ -240,7 +241,10 @@ def search_flights(
             # Travelport's own API docs assistant. 4 is the max GDS allows and
             # is what actually surfaces Business/First/PremiumEconomy upsell
             # brands/cabins for a route, instead of Economy-only results.
-            "maxNumberOfUpsellsToReturn": TravelportConfig.MAX_UPSELLS,
+            # max_upsells=0 (nearby-dates strip): Travelport returns only the
+            # lowest priced offer — all the strip needs, and a much smaller,
+            # faster response than the full fare-family list.
+            "maxNumberOfUpsellsToReturn": TravelportConfig.MAX_UPSELLS if max_upsells is None else max_upsells,
             # Travelport GDS certification guidance allows 0, 999, or omitting
             # this field. Empirically on this sandbox account, omitting it (or
             # sending 0) disables server-side caching for journey-based search,

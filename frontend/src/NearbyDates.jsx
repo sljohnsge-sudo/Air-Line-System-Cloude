@@ -15,6 +15,7 @@ const BEFORE = 3;
 const AFTER = 5;
 const KEEP_MS = 10 * 60 * 1000;
 const seen = new Map();   // search key -> { state, price, currency, at }
+const inFlight = new Map();   // search key -> pending search, so a day is never searched twice at once
 
 const shift = (iso, days) => {
   const d = new Date(`${iso}T00:00:00`);
@@ -23,6 +24,11 @@ const shift = (iso, days) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 const label = (iso) => fmtDateWeekday(iso);
+// Short box label so nine days fit: "Mon 02/11"
+const short = (iso) => {
+  const d = new Date(`${iso}T00:00:00`);
+  return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+};
 
 export default function NearbyDates({ apiBase, origin, destination, date, returnDate, roundTrip, counts, cabin, currentCheapest, currency, onPick }) {
   const [days, setDays] = useState([]);   // [{ offset, date, ret, state: 'loading'|'done'|'none'|'error'|'past', price }]
@@ -34,7 +40,13 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
     return hit && Date.now() - hit.at < KEEP_MS ? hit : null;
   };
 
-  const searchOne = async (dep, ret) => {
+  const searchOne = (dep, ret) => {
+    const k = keyOf(dep, ret);
+    if (!inFlight.has(k)) inFlight.set(k, searchLive(dep, ret).finally(() => inFlight.delete(k)));
+    return inFlight.get(k);
+  };
+
+  const searchLive = async (dep, ret) => {
     const legs = roundTrip
       ? [{ origin, destination, departure_date: dep }, { origin: destination, destination: origin, departure_date: ret }]
       : null;
@@ -112,7 +124,8 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
             onClick={() => clickable && onPick(d.date, d.ret)}
             title={roundTrip && d.ret ? `${label(d.date)} – ${label(d.ret)}` : label(d.date)}
           >
-            <span className="nearby-day-date">{label(d.date)}</span>
+            <span className="nearby-day-date">{short(d.date)}</span>
+            {roundTrip && d.ret && <span className="nearby-day-ret">Return {short(d.ret)}</span>}
             <span className="nearby-day-price">
               {d.state === 'loading' && <span className="nearby-day-wait">Checking…</span>}
               {d.state === 'done' && `${d.currency || currency} ${Math.floor(d.price).toLocaleString()}`}

@@ -821,7 +821,8 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
                 student_count=request.student_count,
                 cabin_preference=request.cabin_preference,
                 legs=legs,
-                content_source=request.content_source
+                content_source=request.content_source,
+                max_upsells=0 if kind == "nearby" else None,
             )
             last_offers = [o for o in services.parse_flight_offers(
                 raw, legs=legs,
