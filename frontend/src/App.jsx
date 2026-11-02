@@ -855,14 +855,7 @@ function ItineraryRow({ leg, label }) {
   return (
     <div className="rc-itinerary">
       {label && (
-        <div style={{
-          position: 'absolute', top: '-0.6rem', left: '0.75rem',
-          background: 'var(--gs-crimson)', color: 'white', fontSize: '0.6rem',
-          fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase',
-          borderRadius: '3px', padding: '0.1rem 0.45rem'
-        }}>
-          {label}
-        </div>
+        <div className="rc-leg-label">{label}</div>
       )}
       {isConnecting ? (
         <div className="rc-segment-flow">
@@ -5518,7 +5511,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
               {/* Filter Sidebar (detailed price range + all options) */}
               <aside className="results-sidebar" style={{ top: `${67 + 66}px`, height: `calc(100vh - ${67 + 66}px)` }}>
-                <div className="sidebar-header">Refine Results</div>
+                <div className="sidebar-header">Filters</div>
 
                 {/* Sort Group — collapsed by default */}
                 <div className="filter-group">
@@ -5752,7 +5745,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                       )
                     )}
                   </div>
-                  <div className="results-live-badge">● Live GDS Data</div>
+                  
                 </div>
                 {/* 3 days before, 5 after: live Travelport searches, all at once */}
                 {!loadingFlights && !searchError && flights.length > 0 && searchType !== 'multicity' && (
@@ -5791,24 +5784,13 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <SharedFaresBanner count={sharedFlightKeys.length} found={sharedFound} onDismiss={() => setSharedFlightKeys(null)} />
                 )}
                 {!loadingFlights && !searchError && flights.length > 0 && (
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                  <div className="cabin-tabs" role="group" aria-label="Cabin class">
                     {[['any', 'All Classes'], ['Economy', 'Economy'], ['PremiumEconomy', 'Premium Economy'], ['Business', 'Business'], ['First', 'First Class']].map(([val, lbl]) => (
                       <button
                         key={val}
                         type="button"
                         onClick={() => setFilterCabin(val)}
-                        style={{
-                          padding: '0.45rem 0.9rem',
-                          borderRadius: '999px',
-                          border: filterCabin === val ? '1px solid var(--gs-crimson)' : '1px solid var(--border-color)',
-                          background: filterCabin === val ? 'var(--gs-crimson)' : 'white',
-                          color: filterCabin === val ? 'white' : '#1e293b',
-                          fontWeight: 700,
-                          fontSize: '0.82rem',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          whiteSpace: 'nowrap'
-                        }}
+                        className={`cabin-tab${filterCabin === val ? ' active' : ''}`}
                       >
                         {lbl}
                       </button>
@@ -5906,18 +5888,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           🔗 Shared with you · live price
                         </div>
                       )}
-                      {/* Total Duration — top of the card, centered and prominent. */}
-                      {flight.duration && (
-                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', boxSizing: 'border-box', padding: '0.5rem 0.9rem 0' }}>
-                          <span style={{
-                            fontSize: '0.7rem', fontWeight: '800', color: '#1a1a1a',
-                            background: 'transparent', border: 'none', borderRadius: '999px',
-                            padding: '0.2rem 0.75rem', letterSpacing: '0.02em'
-                          }}>
-                            Total Duration: {flight.duration.replace('PT', '').replace('H', 'h ').replace('M', 'm')}
-                          </span>
-                        </div>
-                      )}
                       <div className="rc-top-row" style={{ display: 'flex', alignItems: 'stretch', width: '100%', flex: 1 }}>
                         <div className="rc-airline-col">
                           {/* Airline Logo: use Travelport URL if provided, else Google Flights CDN by IATA code */}
@@ -5937,8 +5907,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             </span>
                           </div>
                           <div className="rc-airline-name">{flight.airline}</div>
-                          {/* IATA airline code badge — from Travelport */}
-                          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.15rem', flexWrap: 'wrap' }}>
+                          {/* Airline code / GDS-NDC / provider badges are internal
+                              detail — shown to signed-in staff only. */}
+                          {adminToken && <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.15rem', flexWrap: 'wrap' }}>
                             <div style={{ fontSize: '0.65rem', fontWeight: '700', color: '#64748b', background: '#f1f5f9', borderRadius: '3px', padding: '0.1rem 0.35rem', letterSpacing: '0.03em' }}>
                               {flight.airline_code}
                             </div>
@@ -5962,14 +5933,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               }}>
                               {flight.source === 'AD' ? 'AD · Amadeus' : 'TP · Travelport'}
                             </div>
+                          </div>}
+                          <div className="rc-flight-num">
+                            {flight.flight_number}{flight.aircraft_type ? ` · ${flight.aircraft_type}` : ''}
                           </div>
-                          <div className="rc-flight-num">{flight.flight_number}</div>
-                          {/* Aircraft type from Travelport equipment field */}
-                          {flight.aircraft_type && (
-                            <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '0.2rem', fontWeight: '500' }}>
-                              ✈ {flight.aircraft_type}
-                            </div>
-                          )}
                           {flight.stops > 0 && <div className="rc-stops-badge">{flight.stops} Stop{flight.stops > 1 ? 's' : ''}</div>}
                           {flight.stops === 0 && <div className="rc-nonstop-badge">Non-stop</div>}
                           {/* Seat-map availability badge — heuristic from carrier code Travelport returned.
@@ -5981,27 +5948,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               10 flights per search also made requests slow enough to intermittently
                               hit "NetworkError" on real networks. The initiate-time check is the single
                               source of truth. */}
-                          {flight.seat_map_heuristic === true ? (
-                            <div title="This airline typically supports seat selection via Travelport GDS. The actual seat map will be confirmed when you proceed to booking." style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                              marginTop: '0.4rem', padding: '0.2rem 0.55rem',
-                              borderRadius: '4px', fontSize: '0.6rem', fontWeight: '700',
-                              background: '#f0fdf4', border: '1px solid #86efac', color: '#15803d',
-                              letterSpacing: '0.02em', maxWidth: '100%', flexWrap: 'wrap'
-                            }}>
-                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
-                              Seat Selection Available
-                            </div>
-                          ) : (
-                            <div title="Seat selection via Travelport GDS is not available for this carrier." style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                              marginTop: '0.4rem', padding: '0.2rem 0.55rem',
-                              borderRadius: '4px', fontSize: '0.6rem', fontWeight: '600',
-                              background: '#f8fafc', border: '1px solid #cbd5e1', color: '#64748b',
-                              letterSpacing: '0.02em', maxWidth: '100%', flexWrap: 'wrap'
-                            }}>
-                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                              Seat Selection Not Available
+                          {flight.seat_map_heuristic === true && (
+                            <div className="rc-seat-note" title="This airline typically supports seat selection. The actual seat map is confirmed when you continue to booking.">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                              Seat selection
                             </div>
                           )}
                         </div>
@@ -6025,22 +5975,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
                         <div className="rc-price-col">
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
-                            <div style={{
-                              fontSize: '0.68rem', fontWeight: '800', color: '#245d38',
-                              background: 'transparent', border: '1.5px solid #245d38', borderRadius: '999px',
-                              padding: '0.2rem 0.7rem', letterSpacing: '0.02em', whiteSpace: 'nowrap'
-                            }}>
-                              {activeCabin === 'PremiumEconomy' ? 'Premium Economy' : activeCabin} Class
-                            </div>
                             <div style={{ textAlign: 'right' }}>
-                              <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '600' }}>
-                                from {displayCurrency}
-                              </div>
-                              <div style={{ fontSize: '1.35rem', fontWeight: '800', color: '#245d38', lineHeight: '1.1' }}>
-                                {Math.floor(displayPrice).toLocaleString()}
-                              </div>
-                              <div style={{ fontSize: '0.65rem', color: '#245d38', fontWeight: '700', marginTop: '2px' }}>
-                                Lowest price
+                              <div className="rc-price-cabin">{activeCabin === 'PremiumEconomy' ? 'Premium Economy' : activeCabin} · from</div>
+                              <div className="rc-price-amount">
+                                <span className="rc-price-currency">{displayCurrency}</span> {Math.floor(displayPrice).toLocaleString()}
                               </div>
                               {/* Seats left at this fare, straight from Travelport
                                   (Product.Quantity) — shown only when it's low. */}
@@ -6066,22 +6004,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                     handleSelectFlight(flight, selectedFareOption);
                                   }
                                 }}
-                                style={{
-                                  background: '#245d38',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  padding: '0.5rem 1rem',
-                                  fontWeight: '700',
-                                  fontSize: '0.8rem',
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap',
-                                  outline: 'none'
-                                }}
-                                onMouseEnter={e => e.target.style.opacity = 0.9}
-                                onMouseLeave={e => e.target.style.opacity = 1}
+                                className="rc-select-btn"
                               >
-                                Select Flight
+                                Select
                               </button>
                             )}
                             <button
@@ -6110,57 +6035,40 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                 <path d="M6 9l6 6 6-6" />
                               </svg>
                             </button>
-                            <ShareToggle
-                              checked={!!shareFares[fId]}
-                              onChange={on => setShareFares(prev => {
-                                const next = { ...prev };
-                                if (on) next[fId] = buildShareItem({ flight, cabin: activeCabin, fareOption: selectedFareOption, price: displayPrice, currency: displayCurrency, grandTotal,
-                                  paxLabel: [[adultCount, 'adult'], [childCount, 'child'], [infantCount, 'infant'], [studentCount, 'student']]
-                                    .filter(([n]) => n > 0).map(([n, w]) => `${n} ${w}${n > 1 ? (w === 'child' ? 'ren' : 's') : ''}`).join(', ') });
-                                else delete next[fId];
-                                return next;
-                              })}
-                            />
                           </div>
                         </div>
                       </div>
 
-                      {/* ── "More Information" — click opens the flight segment breakdown in a popup ── */}
-                      <div style={{ borderTop: '1px solid #e2e8f0', background: '#fafbfc', width: '100%', boxSizing: 'border-box' }}>
-                        <button
-                          type="button"
-                          onClick={() => setSegmentInfoModalFlight(flight)}
-                          style={{
-                            display: 'flex', width: '100%', boxSizing: 'border-box', flexWrap: 'wrap',
-                            alignItems: 'center', gap: '0.5rem',
-                            padding: '0.4rem 0.8rem', background: 'transparent', border: 'none', cursor: 'pointer',
-                            textAlign: 'left', outline: 'none', font: 'inherit',
-                          }}
-                        >
-                          <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.62rem', color: '#1e293b', fontWeight: '600', flexShrink: 0 }}>
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-                              <circle cx="12" cy="12" r="10" />
-                              <line x1="12" y1="11" x2="12" y2="16" />
-                              <circle cx="12" cy="7.5" r="0.5" fill="currentColor" stroke="none" />
-                            </svg>
-                            More Information
-                          </h4>
-                          {/* Cabin class + baggage — one horizontal line, centered in the bar */}
-                          <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <span style={{
-                              fontSize: '0.6rem', fontWeight: '800', color: '#1e293b',
-                              background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '999px',
-                              padding: '0.08rem 0.5rem', whiteSpace: 'nowrap'
-                            }}>
-                              {activeCabin === 'PremiumEconomy' ? 'Premium Economy' : activeCabin} Class
-                            </span>
-                            {selectedFareOption?.baggage_allowance?.map((bag, bIdx) => (
-                              <span key={bIdx} style={{ fontSize: '0.6rem', color: '#334155', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                                🧳 {bag.type}: {bag.allowance}
-                              </span>
-                            ))}
-                          </span>
+                      {/* ── Quiet bottom row: More information (opens the segment
+                          breakdown), total time, baggage; share on the right. ── */}
+                      <div className="rc-foot">
+                        <button type="button" className="rc-foot-more" onClick={() => setSegmentInfoModalFlight(flight)}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="11" x2="12" y2="16" />
+                            <circle cx="12" cy="7.5" r="0.5" fill="currentColor" stroke="none" />
+                          </svg>
+                          More information
                         </button>
+                        {flight.duration && (
+                          <span className="rc-foot-item">Total {flight.duration.replace('PT', '').replace('H', 'h ').replace('M', 'm').toLowerCase()}</span>
+                        )}
+                        {selectedFareOption?.baggage_allowance?.map((bag, bIdx) => (
+                          <span key={bIdx} className="rc-foot-item">{bag.type}: {bag.allowance}</span>
+                        ))}
+                        <span className="rc-foot-share">
+                                <ShareToggle
+                                  checked={!!shareFares[fId]}
+                                  onChange={on => setShareFares(prev => {
+                                    const next = { ...prev };
+                                    if (on) next[fId] = buildShareItem({ flight, cabin: activeCabin, fareOption: selectedFareOption, price: displayPrice, currency: displayCurrency, grandTotal,
+                                      paxLabel: [[adultCount, 'adult'], [childCount, 'child'], [infantCount, 'infant'], [studentCount, 'student']]
+                                        .filter(([n]) => n > 0).map(([n, w]) => `${n} ${w}${n > 1 ? (w === 'child' ? 'ren' : 's') : ''}`).join(', ') });
+                                    else delete next[fId];
+                                    return next;
+                                  })}
+                                />
+                        </span>
                       </div>
 
                       {/* ── Cabin Select and Fare Options — shown as a pop-up
