@@ -11,6 +11,12 @@ const ICONS = {
       <path d="M-4 3l-2 9M6 3l2 9M-9 -1h9a3 3 0 0 1 3 3v1" />
     </g>
   ),
+  calendar: (
+    <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="-12" y="-10" width="24" height="22" rx="3" />
+      <path d="M-12 -3h24M-6 -14v6M6 -14v6M-6 3h2M1 3h2M-6 8h2M1 8h2" />
+    </g>
+  ),
   ticket: (
     <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M-13 -7h26v4a3 3 0 0 0 0 6v4h-26v-4a3 3 0 0 0 0-6z" />

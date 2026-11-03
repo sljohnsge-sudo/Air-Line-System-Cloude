@@ -20,6 +20,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fmtDateWeekday } from './dateFormat.js';
+import BookingWaitLoader from './BookingWaitLoader.jsx';
 
 const TAKEOFF = 'M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10l-6.9-6.43-1.93.51 4.14 7.17-4.97 1.33-1.97-1.54-1.45.39 2.59 4.49L21 11.49c.81-.23 1.28-1.05 1.07-1.85z';
 const LANDING = 'M2.5 19h19v2h-19v-2zm7.18-5.73l4.35 1.16 5.31 1.42c.8.21 1.62-.26 1.84-1.06.21-.8-.26-1.62-1.06-1.84l-5.31-1.42-2.76-9.02L10.12 2v8.28L5.15 8.95l-.93-2.32-1.45-.39v5.17l1.6.43 5.31 1.43z';
@@ -169,14 +170,21 @@ function PriceGrid({ q, date, returnDate, focusDep, currentCheapest, currency, o
   const lo = prices[0], hi = prices[prices.length - 1], step = (hi - lo) / 3;
   const tone = (p) => (prices.length < 2 || hi === lo ? ' low' : p <= lo + step ? ' low' : p <= lo + 2 * step ? ' mid' : ' high');
   const waiting = Object.values(cells).filter(c => c.state === 'loading').length;
+  const total = Object.keys(cells).length;
 
   return createPortal(
     <div className="modal-overlay" style={{ animation: 'none' }} onClick={onClose}>
       <div className="price-grid-box" onClick={e => e.stopPropagation()} role="dialog" aria-label="Fare Calendar">
         <div className="price-grid-head">
-          <span>Fare Calendar{waiting ? <span className="price-grid-wait"> · checking {waiting} more…</span> : null}</span>
+          <span>Fare Calendar</span>
           <button type="button" className="price-grid-close" aria-label="Close" onClick={onClose}>×</button>
         </div>
+        {waiting > 0 ? (
+          <div className="price-grid-loading">
+            <BookingWaitLoader icon="calendar" title="Checking live fares for every date"
+              subtitle={`${total - waiting} of ${total} fares found · live from the airlines`} />
+          </div>
+        ) : (
         <div className="price-grid-scroll">
           <table className="price-grid">
             <thead>
@@ -208,6 +216,7 @@ function PriceGrid({ q, date, returnDate, focusDep, currentCheapest, currency, o
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>,
     document.body
@@ -221,7 +230,7 @@ function PriceGrid({ q, date, returnDate, focusDep, currentCheapest, currency, o
 // the main search. Cheapest third of the price range green, middle amber,
 // dearest red. Round trips can switch to the departure × return grid.
 const SPAN = 14;
-function MonthCalendar({ q, date, returnDate, roundTrip, currentCheapest, currency, onPick, onClose, onCompareReturns }) {
+function MonthCalendar({ q, date, returnDate, roundTrip, currentCheapest, currency, onPick, onClose }) {
   const ret = roundTrip && returnDate ? returnDate : null;
   const days = Array.from({ length: SPAN * 2 + 1 }, (_, i) => shift(date, i - SPAN));
   const usable = (d) => !isPast(d) && !(ret && d > ret);
@@ -275,14 +284,15 @@ function MonthCalendar({ q, date, returnDate, roundTrip, currentCheapest, curren
     <div className="modal-overlay" style={{ animation: 'none' }} onClick={onClose}>
       <div className="price-grid-box fare-month-box" onClick={e => e.stopPropagation()} role="dialog" aria-label="Fare Calendar">
         <div className="price-grid-head">
-          <span>Fare Calendar{waiting ? <span className="price-grid-wait"> · checking {waiting} more…</span> : null}</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            {roundTrip && returnDate && (
-              <button type="button" className="fare-month-switch" onClick={onCompareReturns}>Compare return dates</button>
-            )}
-            <button type="button" className="price-grid-close" aria-label="Close" onClick={onClose}>×</button>
-          </span>
+          <span>Fare Calendar</span>
+          <button type="button" className="price-grid-close" aria-label="Close" onClick={onClose}>×</button>
         </div>
+        {waiting > 0 ? (
+          <div className="price-grid-loading">
+            <BookingWaitLoader icon="calendar" title="Checking live fares for every date"
+              subtitle={`${Object.keys(cells).length - waiting} of ${Object.keys(cells).length} fares found · live from the airlines`} />
+          </div>
+        ) : (<>
         <div className="fare-month-sub">
           Cheapest fare by departure date{ret ? ` · return ${label(ret)}` : ''} · live from Travelport
         </div>
@@ -313,6 +323,7 @@ function MonthCalendar({ q, date, returnDate, roundTrip, currentCheapest, curren
             );
           })}
         </div>
+        </>)}
       </div>
     </div>,
     document.body
@@ -334,19 +345,19 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
   return (
     <>
       <div className="fare-cal-bar">
-        <button type="button" className="fare-cal-btn" onClick={() => setOpen('month')}>
+        <button type="button" className="fare-cal-btn" onClick={() => setOpen(roundTrip && returnDate ? 'grid' : 'month')}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
             <rect x="3" y="4.5" width="18" height="16" rx="2" />
             <line x1="3" y1="9" x2="21" y2="9" /><line x1="8" y1="2.5" x2="8" y2="6.5" /><line x1="16" y1="2.5" x2="16" y2="6.5" />
             <path d="M7 12.5h2M11 12.5h2M15 12.5h2M7 16h2M11 16h2M15 16h2" />
           </svg>
           <span>Fare Calendar</span>
-          <span className="fare-cal-hint">Cheapest fares 2 weeks either side</span>
+          <span className="fare-cal-hint">{roundTrip && returnDate ? 'Departure & return dates · 7 days either side' : 'Cheapest fares 2 weeks either side'}</span>
         </button>
       </div>
       {open === 'month' && (
         <MonthCalendar q={q} date={date} returnDate={returnDate} roundTrip={roundTrip} currentCheapest={currentCheapest} currency={currency}
-                       onPick={onPick} onClose={() => setOpen(null)} onCompareReturns={() => setOpen('grid')} />
+                       onPick={onPick} onClose={() => setOpen(null)} />
       )}
       {open === 'grid' && (
         <PriceGrid q={q} date={date} returnDate={returnDate} focusDep={date} currentCheapest={currentCheapest} currency={currency}
