@@ -4374,20 +4374,6 @@ button, input, select, textarea { font-family: inherit; }
   .booking-fullpage > .modal-content > .modal-flight-summary { top: 0.5rem; }
 }
 
-.pax-pair, .pax-contact { display: contents; }
-@media (min-width: 1100px) {
-  .booking-fullpage .pax-form > .pax-pair {
-    grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.5rem; align-items: start;
-  }
-  .booking-fullpage .pax-pair > .pax-contact { display: block; }
-  .booking-fullpage .pax-pair .form-grid-2,
-  .booking-fullpage .pax-form .pax-pair .form-grid-2 .form-grid-2 {
-    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.85rem;
-  }
-  .booking-fullpage .pax-pair > div:not(.pax-contact) { margin-top: 0 !important; }
-  .booking-fullpage .pax-form .pax-pair .form-grid-2:has(.pax-email) > .form-group { grid-column: auto; }
-}
-
 /* Passenger step buttons: under the total price on the Your Flight side card
    (wider than 960px); at the end of the form on a phone, where the card sits
    above the form. */
@@ -4398,16 +4384,4 @@ button, input, select, textarea { font-family: inherit; }
     display: flex; flex-direction: column; gap: 0.5rem; padding: 0 1.1rem 1.1rem;
   }
   .yf-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; }
-}
-/* Below the wide layout the contact / special-assistance wrappers are
-   invisible: their parts sit in the form grid like the other sections. */
-@media (max-width: 1099px) {
-  .pax-form > .pax-pair > *,
-  .pax-form .pax-contact > * { grid-column: 1 / -1; }
-  .pax-form .pax-contact > .form-grid-2 { display: contents; }
-  .pax-form .pax-contact > .form-grid-2 > * { grid-column: auto; }
-}
-@media (min-width: 1100px) {
-  /* a little more room for the mobile number (it has the country code box) */
-  .booking-fullpage .pax-pair > .pax-contact > .form-grid-2 { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
 }
