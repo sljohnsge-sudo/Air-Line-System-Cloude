@@ -4375,21 +4375,21 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 /* Passenger Details step on a laptop / desktop: "Your Flight" becomes one
-   strip across the top (above the page title) and the form takes the full
+   strip under the page title (above the form) and the form takes the full
    width. Other booking steps keep the side card (it lists picked extras). */
 @media (min-width: 1100px) {
   .booking-fullpage > .modal-content.booking-compact { grid-template-columns: minmax(0, 1fr); }
   .booking-fullpage > .modal-content.booking-compact > .wz-banner { grid-row: 1; }
   .booking-fullpage > .modal-content.booking-compact > .booking-stepper { grid-row: 2; }
-  .booking-fullpage > .modal-content.booking-compact > .modal-header { grid-row: 4; }
+  .booking-fullpage > .modal-content.booking-compact > .modal-header { grid-row: 3; }
   .booking-fullpage > .modal-content.booking-compact > .modal-flight-summary.yf-card {
-    grid-column: 1; grid-row: 3; position: static;
+    grid-column: 1; grid-row: 4; position: static;
     display: grid !important;
     grid-template-rows: repeat(3, auto);
     grid-auto-flow: column;
     grid-auto-columns: auto;
     align-items: center;
-    margin: 0.35rem 0 0 !important;
+    margin: 0 0 0.6rem !important;
   }
   .booking-compact > .yf-card > * { margin: 0 !important; }
   .booking-compact > .yf-card > .yf-head {
@@ -4407,7 +4407,7 @@ button, input, select, textarea { font-family: inherit; }
   }
   .booking-compact > .yf-card > .yf-row .label { flex: 0 0 5.5rem; font-size: 0.66rem; }
   .booking-compact > .yf-card > .yf-row .val { font-size: 0.76rem; }
-  .booking-compact > .yf-card > .yf-row .val > span { display: inline !important; }
+  .booking-compact > .yf-card > .yf-row .val > span { display: inline !important; white-space: nowrap; }
   .booking-compact > .yf-card > .yf-row .val > span + span::before { content: ' · '; }
   .booking-compact > .yf-card > .yf-total {
     grid-row: 1 / span 3; align-self: stretch;
