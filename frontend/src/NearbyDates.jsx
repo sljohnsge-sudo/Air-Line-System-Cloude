@@ -10,8 +10,6 @@
 // that runs, a day already found in the last 10 minutes keeps showing its
 // earlier Travelport price (so picking a day doesn't flash "Checking…"), and
 // is replaced by the fresh Travelport price as soon as it arrives.
-// prefetchNearby() starts these searches together with the main search, so
-// the strip is usually full by the time the results appear.
 // Round trips also get the Fare Calendar: a departure × return grid of live
 // prices (15 × 15 days around the customer's dates), searched only when opened —
 // from the calendar button or by tapping a date. Travelport's API has no
@@ -32,9 +30,10 @@ const BEFORE = 3;
 const AFTER = 5;
 const GRID = 7;   // departure × return grid: 7 days either side of each date
 const GRID_PARALLEL = 10;   // calendar searches running at once
-const KEEP_MS = 10 * 60 * 1000;
-const seen = new Map();   // search key -> { state, price, currency, at }
-const inFlight = new Map();   // search key -> pending search, so a day is never searched twice at once
+// Every price is a fresh live Travelport search when the calendar opens —
+// nothing is stored or shown again later. Only a search that is still
+// running is shared (so the same day is never searched twice at once).
+const inFlight = new Map();   // search key -> pending search
 
 const shift = (iso, days) => {
   const d = new Date(`${iso}T00:00:00`);
@@ -53,10 +52,6 @@ const isPast = (iso) => new Date(`${iso}T00:00:00`) < today0();
 
 const keyOf = (q, dep, ret) => [q.origin, q.destination, dep, ret || '', q.counts.adults, q.counts.children,
   q.counts.infants, q.counts.students, q.cabin || ''].join('|');
-const remembered = (q, dep, ret) => {
-  const hit = seen.get(keyOf(q, dep, ret));
-  return hit && Date.now() - hit.at < KEEP_MS ? hit : null;
-};
 
 // The days around the customer's departure date. Flights can't be booked on
 // days that have passed, so when the date is close to today the window slides
@@ -75,24 +70,11 @@ const windowDays = (date, returnDate, roundTrip) => {
 const searchOne = (q, dep, ret) => {
   const k = keyOf(q, dep, ret);
   if (!inFlight.has(k)) {
-    inFlight.set(k, searchLive(q, dep, ret)
-      .then(best => {
-        seen.set(k, { ...(best ? { state: 'done', price: best.price, currency: best.currency } : { state: 'none' }), at: Date.now() });
-        return best;
-      })
-      .catch(e => { seen.delete(k); throw e; })
-      .finally(() => inFlight.delete(k)));
+    inFlight.set(k, searchLive(q, dep, ret).finally(() => inFlight.delete(k)));
   }
   return inFlight.get(k);
 };
 
-// Start the nearby-date searches together with the main search.
-export function prefetchNearby(q, date, returnDate) {
-  if (!q.origin || !q.destination || !date) return;
-  windowDays(date, returnDate, q.roundTrip)
-    .filter(d => d.offset !== 0 && !d.past)
-    .forEach(d => searchOne(q, d.date, d.ret).catch(() => {}));
-}
 
 const searchLive = async (q, dep, ret) => {
     const { apiBase, origin, destination, roundTrip, counts, cabin } = q;
@@ -134,7 +116,7 @@ function PriceGrid({ q, date, returnDate, focusDep, currentCheapest, currency, o
     rets.forEach(ret => deps.forEach(dep => {
       if (!valid(dep, ret)) return;
       if (dep === date && ret === returnDate && currentCheapest > 0) out[`${dep}|${ret}`] = { state: 'done', price: currentCheapest, currency };
-      else out[`${dep}|${ret}`] = remembered(q, dep, ret) || { state: 'loading' };
+      else out[`${dep}|${ret}`] = { state: 'loading' };
     }));
     return out;
   });
@@ -239,7 +221,7 @@ function MonthCalendar({ q, date, returnDate, roundTrip, currentCheapest, curren
     days.forEach(d => {
       if (!usable(d)) return;
       if (d === date && currentCheapest > 0) out[d] = { state: 'done', price: currentCheapest, currency };
-      else out[d] = remembered(q, d, ret) || { state: 'loading' };
+      else out[d] = { state: 'loading' };
     });
     return out;
   });
@@ -334,13 +316,6 @@ export default function NearbyDates({ apiBase, origin, destination, date, return
   const [open, setOpen] = useState(null);   // 'month' | 'grid' | null
   const q = { apiBase, origin, destination, roundTrip, counts, cabin };
 
-  // The fare already shown for the customer's own dates counts as found.
-  useEffect(() => {
-    if (currentCheapest > 0) {
-      seen.set(keyOf(q, date, roundTrip && returnDate ? returnDate : null), { state: 'done', price: currentCheapest, currency, at: Date.now() });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <>

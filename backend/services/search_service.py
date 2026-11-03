@@ -17,7 +17,10 @@ Correct payload schema (from Travelport developer portal):
 """
 
 import contextlib
+import copy
+import json
 import threading
+from concurrent.futures import Future
 import httpx
 import logging
 import re
@@ -147,7 +150,40 @@ def _search_client() -> httpx.Client:
         return _SEARCH_CLIENT
 
 
-def search_flights(
+# Identical searches arriving at the same moment (same route, dates,
+# passengers, cabin) share the one live Travelport call that is already
+# running. Nothing is kept afterwards: the entry is removed the moment the
+# answer arrives, so every later search goes to Travelport again.
+_IN_FLIGHT: dict = {}
+_IN_FLIGHT_LOCK = threading.Lock()
+
+
+def search_flights(*args, **kwargs) -> dict:
+    """Live Travelport search (see _search_flights_live); a duplicate of a
+    search still in flight waits for that same live answer."""
+    key = json.dumps([args, kwargs], sort_keys=True, default=str)
+    with _IN_FLIGHT_LOCK:
+        pending = _IN_FLIGHT.get(key)
+        if pending is None:
+            pending = _IN_FLIGHT[key] = Future()
+            owner = True
+        else:
+            owner = False
+    if not owner:
+        return copy.deepcopy(pending.result())
+    try:
+        result = _search_flights_live(*args, **kwargs)
+        pending.set_result(result)
+        return result
+    except BaseException as e:
+        pending.set_exception(e)
+        raise
+    finally:
+        with _IN_FLIGHT_LOCK:
+            _IN_FLIGHT.pop(key, None)
+
+
+def _search_flights_live(
     origin: Optional[str] = None,
     destination: Optional[str] = None,
     departure_date: Optional[str] = None,

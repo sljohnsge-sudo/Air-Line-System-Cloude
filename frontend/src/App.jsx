@@ -4,7 +4,7 @@ import { useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import TickBookLogo from './TickBookLogo.jsx';
 import HomeFeatures from './HomeFeatures.jsx';
-import NearbyDates, { prefetchNearby } from './NearbyDates.jsx';
+import NearbyDates from './NearbyDates.jsx';
 import { fmtDate, fmtDateTime, fmtDateWeekday } from './dateFormat.js';
 import BookingWaitLoader from './BookingWaitLoader.jsx';
 import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
@@ -2640,16 +2640,6 @@ export default function App() {
         destination: l.dest,
         departure_date: l.date
       }));
-    }
-
-    // Nearby-date prices search alongside the main search, so the strip on
-    // the results page is usually already filled when the results appear.
-    if (effectiveSearchType !== 'multicity') {
-      prefetchNearby({
-        apiBase: API_BASE, origin, destination, roundTrip: effectiveSearchType === 'roundtrip',
-        counts: { adults: adultCount, children: childCount, infants: infantCount, students: studentCount },
-        cabin: cabinPref,
-      }, date, effectiveSearchType === 'roundtrip' ? (overrides.returnDate || returnDate) : null);
     }
 
 

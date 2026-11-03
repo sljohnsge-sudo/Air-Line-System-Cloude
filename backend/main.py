@@ -33,6 +33,7 @@ Booking Workflow:
 """
 
 import asyncio
+import gzip
 import hashlib
 import json
 import logging
@@ -83,6 +84,18 @@ app = FastAPI(
     description="Live Travelport TripServices v11 integration. No mock data.",
     version="2.0.0"
 )
+
+
+@app.on_event("startup")
+async def _bigger_worker_pool():
+    """Each live Travelport search holds a worker thread for its whole wait
+    (asyncio.to_thread). Python's default pool is only cpu+4 threads (16
+    here), so with ~20 customers searching at once the rest queued for a
+    free thread and waited up to ~15 s extra (load test 2026-11-03). The
+    threads mostly wait on the network, so a larger pool is cheap."""
+    from concurrent.futures import ThreadPoolExecutor
+    asyncio.get_running_loop().set_default_executor(
+        ThreadPoolExecutor(max_workers=int(os.getenv("API_WORKER_THREADS", "64")), thread_name_prefix="api"))
 
 
 @app.on_event("startup")
@@ -761,8 +774,21 @@ async def search_flights(request: FlightSearchRequest, http_request: Request,
                          customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
     kind = http_request.headers.get("x-search-kind")
     kind = kind if kind in ("nearby", "recheck") else "search"
-    return await _search_core(request, kind=kind, customer_id=customer_id,
-                              user_agent=http_request.headers.get("user-agent"))
+    result = await _search_core(request, kind=kind, customer_id=customer_id,
+                                user_agent=http_request.headers.get("user-agent"))
+    # A full result list is 1-9 MB of JSON. Building (and gzipping) it on the
+    # event loop made every other customer's request wait behind it, so it is
+    # done on a worker thread; gzip cuts the download to about a tenth.
+    gzip_ok = "gzip" in (http_request.headers.get("accept-encoding") or "").lower()
+    body, headers = await asyncio.to_thread(_encode_search_reply, result, gzip_ok)
+    return Response(content=body, media_type="application/json", headers=headers)
+
+
+def _encode_search_reply(result: dict, gzip_ok: bool) -> tuple[bytes, dict]:
+    body = json.dumps(result, separators=(",", ":"), default=str).encode("utf-8")
+    if gzip_ok and len(body) > 2048:
+        return gzip.compress(body, compresslevel=5), {"Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
+    return body, {"Vary": "Accept-Encoding"}
 
 
 async def _search_core(request: FlightSearchRequest, kind: str = "search", customer_id: Optional[int] = None,
