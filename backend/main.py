@@ -4460,6 +4460,40 @@ def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
     return {"bookings": bookings, "count": len(bookings)}
 
 
+# Passengers from this customer's earlier bookings, newest first, so the
+# Passenger Details form can fill them in after sign-in. Each person once
+# (same name + date of birth); special requests (meal / wheelchair) are left
+# out on purpose -- those are asked fresh for every trip.
+_SAVED_TRAVELLER_FIELDS = (
+    "first_name", "last_name", "date_of_birth", "gender",
+    "passport_number", "passport_expiry", "nationality", "passport_issue_country",
+    "email", "phone", "birth_place", "document_issue_date", "issued_for_geo_political_area",
+    "phone_extension", "phone_area_city_code", "phone_city_code",
+    "address_street", "address_city", "address_state_name", "address_state_value",
+    "address_country", "address_postal_code",
+)
+
+
+@app.get("/api/customers/me/saved-travellers")
+def customer_saved_travellers(current: dict = Depends(auth.get_current_customer)):
+    seen, travellers = set(), []
+    for b in database.get_bookings_for_customer(current["customer_id"]):
+        for t in (b.get("travelers") if isinstance(b.get("travelers"), list) else []):
+            if not isinstance(t, dict) or not t.get("first_name") or not t.get("last_name"):
+                continue
+            key = (str(t["first_name"]).strip().upper(), str(t["last_name"]).strip().upper(), t.get("date_of_birth") or "")
+            if key in seen:
+                continue
+            seen.add(key)
+            travellers.append({
+                **{f: t.get(f) for f in _SAVED_TRAVELLER_FIELDS if t.get(f) not in (None, "")},
+                "passenger_type": t.get("passenger_type") or "ADT",
+            })
+            if len(travellers) >= 20:
+                return {"travellers": travellers}
+    return {"travellers": travellers}
+
+
 # Travelport's view of a booking -> the status shown in My Bookings. A
 # confirmed/ticketed booking keeps its own status (Confirmed / Ticketed).
 _LIVE_LIST_STATUS = {

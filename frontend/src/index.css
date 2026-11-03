@@ -4388,3 +4388,25 @@ button, input, select, textarea { font-family: inherit; }
 
 /* Special Request (optional) box under its toggle on Passenger Details */
 .pax-optional-box { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem 1rem 0.25rem; margin-bottom: 0.75rem; }
+
+/* Sign-in on Passenger Information (PaxSignIn.jsx) */
+.pax-signin { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; position: relative; font-size: 0.74rem; font-weight: 500; color: #475569; }
+.pax-signin-btn {
+  background: #fff; border: 1px solid #c9d6e8; border-radius: 999px; padding: 0.22rem 0.85rem;
+  font-size: 0.74rem; font-weight: 700; color: var(--tb-navy, #123b70); cursor: pointer;
+}
+.pax-signin-btn:hover { border-color: var(--tb-navy, #123b70); }
+.pax-signin-fill { height: 28px; border: 1px solid #c9d6e8; border-radius: 6px; font-size: 0.74rem; padding: 0 0.4rem; background: #fff; color: #0f172a; max-width: 15rem; }
+.pax-signin-pop {
+  position: absolute; top: calc(100% + 0.4rem); right: 0; z-index: 20; width: 16rem;
+  display: flex; flex-direction: column; gap: 0.45rem;
+  background: #fff; border: 1px solid var(--border-color); border-radius: 10px; padding: 0.8rem;
+  box-shadow: 0 10px 28px rgba(15, 42, 85, 0.18);
+}
+.pax-signin-pop .form-input { height: 34px; font-size: 0.8rem; }
+.pax-signin-title { font-size: 0.8rem; font-weight: 700; color: #0f172a; }
+.pax-signin-error { font-size: 0.72rem; color: #b91c1c; }
+@media (max-width: 560px) { .pax-signin-who { display: none; } }
+
+/* Space between the optional sections at the end of Passenger Details */
+.booking-fullpage .pax-form .pax-more { margin-top: 0.55rem; }

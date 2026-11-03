@@ -42,6 +42,7 @@ import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
 import * as Ico from './WizardIcons.jsx';
+import PaxSignIn from './PaxSignIn.jsx';
 import { buildShareItem, flightIdentity, ShareToggle, ShareFaresBar, SharedFaresBanner } from './ShareFares.jsx';
 
 // Same-origin API: the server's web server sends /api to the backend, and in
@@ -2117,7 +2118,7 @@ export default function App() {
   const [travelers, setTravelers] = useState([]);
   const [activePassengerIdx, setActivePassengerIdx] = useState(0);
   const [showExtraTravelerFields, setShowExtraTravelerFields] = useState(false);
-  const [showSpecialRequest, setShowSpecialRequest] = useState(false);
+  const [showSpecialRequest, setShowSpecialRequest] = useState(true);
   const [bookingError, setBookingError] = useState('');
   // Per-passenger, per-field validation messages -- { [passengerIdx]: { fieldName: message } }
   // -- shown right under the offending input itself, not just as one generic
@@ -2906,6 +2907,14 @@ export default function App() {
     }
     setTravelers(travelerList);
     setActivePassengerIdx(0);
+  };
+
+  // Fill one passenger from a signed-in customer's earlier booking. Special
+  // requests are never copied: meal / wheelchair are asked fresh every trip.
+  const fillTravelerFromSaved = (idx, saved) => {
+    const { passenger_type, meal_code, wheelchair, ...details } = saved || {};
+    if (details.gender) details.gender = { M: 'Male', F: 'Female' }[String(details.gender).toUpperCase()] || details.gender;
+    setTravelers(prev => prev.map((t, i) => (i === idx ? { ...t, ...details } : t)));
   };
 
   const handleTravelerChange = (field, value) => {
@@ -8583,7 +8592,18 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             {/* STEP: Passenger Details Form */}
             {bookingStep === 'passenger' && (
               <form id="pax-form" onSubmit={handlePassengerNext} className="booking-modal-form pax-form">
-                <div className="pax-section-head"><span className="pax-section-icon"><Ico.IconUser size={18} /></span>Passenger Information</div>
+                <div className="pax-section-head">
+                  <span className="pax-section-icon"><Ico.IconUser size={18} /></span>Passenger Information
+                  <PaxSignIn
+                    apiBase={API_BASE}
+                    customerToken={customerToken}
+                    customerProfile={customerProfile}
+                    onLogin={handleCustomerLogin}
+                    travelers={travelers}
+                    activeIdx={activePassengerIdx}
+                    onFill={fillTravelerFromSaved}
+                  />
+                </div>
                 {travelers.length > 1 && (
                   <div className="passenger-tabs" style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.65rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
                     {travelers.map((t, idx) => {
