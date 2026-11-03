@@ -4,6 +4,7 @@
 // form), offers new customers a free account, or lets them continue as a
 // guest. Passenger 1 is filled automatically with the account holder; any
 // passenger can be filled from the "Fill from a previous traveller" list.
+// Signed in, the bar offers Sign out (the details already typed stay).
 // Special requests (meal / wheelchair) are never copied — the backend leaves
 // them out and so does onFill.
 import React, { useState, useEffect, useRef } from 'react';
@@ -15,7 +16,7 @@ const SEEN_KEY = 'tb_pax_signin_prompt_seen';
 const promptSeen = () => { try { return sessionStorage.getItem(SEEN_KEY) === '1'; } catch { return false; } };
 const markPromptSeen = () => { try { sessionStorage.setItem(SEEN_KEY, '1'); } catch { /* storage off */ } };
 
-export default function PaxSignIn({ apiBase, customerToken, customerProfile, onLogin, travelers, activeIdx, onFill }) {
+export default function PaxSignIn({ apiBase, customerToken, customerProfile, onLogin, onLogout, travelers, activeIdx, onFill }) {
   // Opens by itself once per visit for a guest; the bar's button reopens it.
   const [open, setOpen] = useState(() => !customerToken && !promptSeen());
   const [mode, setMode] = useState('login'); // 'login' | 'register'
@@ -148,6 +149,7 @@ export default function PaxSignIn({ apiBase, customerToken, customerProfile, onL
           </select>
         )}
         {saved?.length === 0 && <span className="pax-signin-note">· no earlier trips to fill from yet</span>}
+        <button type="button" className="pax-signin-btn" onClick={() => { autoFilled.current = false; onLogout(); }}>Sign out</button>
       </div>
     );
   }

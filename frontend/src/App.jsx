@@ -8599,6 +8599,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     customerToken={customerToken}
                     customerProfile={customerProfile}
                     onLogin={handleCustomerLogin}
+                    onLogout={handleCustomerLogout}
                     travelers={travelers}
                     activeIdx={activePassengerIdx}
                     onFill={fillTravelerFromSaved}
