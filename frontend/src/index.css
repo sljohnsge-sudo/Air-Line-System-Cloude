@@ -4397,16 +4397,38 @@ button, input, select, textarea { font-family: inherit; }
 }
 .pax-signin-btn:hover { border-color: var(--tb-navy, #123b70); }
 .pax-signin-fill { height: 28px; border: 1px solid #c9d6e8; border-radius: 6px; font-size: 0.74rem; padding: 0 0.4rem; background: #fff; color: #0f172a; max-width: 15rem; }
-.pax-signin-pop {
-  position: absolute; top: calc(100% + 0.4rem); right: 0; z-index: 20; width: 16rem;
-  display: flex; flex-direction: column; gap: 0.45rem;
-  background: #fff; border: 1px solid var(--border-color); border-radius: 10px; padding: 0.8rem;
-  box-shadow: 0 10px 28px rgba(15, 42, 85, 0.18);
-}
-.pax-signin-pop .form-input { height: 34px; font-size: 0.8rem; }
-.pax-signin-title { font-size: 0.8rem; font-weight: 700; color: #0f172a; }
 .pax-signin-error { font-size: 0.72rem; color: #b91c1c; }
-@media (max-width: 560px) { .pax-signin-who { display: none; } }
+.pax-signin-note { color: #94a3b8; }
+@media (max-width: 560px) { .pax-signin-who, .pax-signin-note { display: none; } }
+
+/* Sign-in pop-up when Passenger Details opens for a guest */
+.pax-signin-overlay {
+  position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 23, 42, 0.45); padding: 1rem;
+}
+.pax-signin-modal {
+  position: relative; width: 100%; max-width: 25rem; display: flex; flex-direction: column; gap: 0.6rem;
+  background: #fff; border-radius: 14px; padding: 1.5rem 1.5rem 1.1rem; box-shadow: 0 24px 60px rgba(15, 42, 85, 0.3);
+}
+.pax-signin-modal h3 { margin: 0; font-size: 1.15rem; color: var(--tb-navy, #123b70); }
+.pax-signin-lead { margin: 0 0 0.25rem; font-size: 0.85rem; color: #475569; line-height: 1.45; }
+.pax-signin-benefits { margin: -0.1rem 0 0.25rem; padding-left: 1.1rem; font-size: 0.82rem; color: #334155; line-height: 1.55; }
+.pax-signin-modal .form-input { height: 40px; font-size: 0.88rem; }
+.pax-signin-modal .btn-primary { width: 100%; justify-content: center; margin-top: 0.15rem; }
+.pax-signin-x {
+  position: absolute; top: 0.55rem; right: 0.7rem; border: none; background: none; font-size: 1.4rem; line-height: 1;
+  color: #94a3b8; cursor: pointer;
+}
+.pax-signin-x:hover { color: #0f172a; }
+.pax-signin-switch { font-size: 0.8rem; color: #475569; text-align: center; }
+.pax-signin-switch button, .pax-signin-guest {
+  border: none; background: none; padding: 0; cursor: pointer; font: inherit; font-weight: 700; color: var(--tb-navy, #123b70);
+}
+.pax-signin-switch button { text-decoration: underline; }
+.pax-signin-guest { align-self: center; font-size: 0.8rem; color: #64748b; padding-top: 0.15rem; }
+.pax-signin-guest:hover { color: #0f172a; text-decoration: underline; }
 
 /* Space between the optional sections at the end of Passenger Details */
 .booking-fullpage .pax-form .pax-more { margin-top: 0.55rem; }
+.pax-signin-modal .btn-primary { background: var(--tb-navy, #123b70); border-color: var(--tb-navy, #123b70); color: #fff; }
+.pax-signin-modal .btn-primary:hover { background: var(--tb-navy-hover, #0e2f5a); border-color: var(--tb-navy-hover, #0e2f5a); }
