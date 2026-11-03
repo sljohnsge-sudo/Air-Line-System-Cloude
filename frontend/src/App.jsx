@@ -44,12 +44,9 @@ import AirportSearchSelect from './AirportSearchSelect.jsx';
 import * as Ico from './WizardIcons.jsx';
 import { buildShareItem, flightIdentity, ShareToggle, ShareFaresBar, SharedFaresBanner } from './ShareFares.jsx';
 
-// Use whatever host the page was loaded from (not a hardcoded 'localhost') so
-// this also works when someone on the same network opens this machine's LAN
-// IP instead of localhost — the backend runs on the same machine, port 8000.
-// Production sets VITE_API_BASE (e.g. https://api.example.lk/api) at build
-// time so the site talks to the API over HTTPS; see frontend/.env.example.
-const API_BASE = import.meta.env.VITE_API_BASE || `http://${window.location.hostname}:8000/api`;
+// Same-origin API: the server's web server sends /api to the backend, and in
+// development Vite does the same (vite.config.js proxy -> port 8000).
+const API_BASE = '/api';
 // Amadeus-only features (seat maps, fare rules, cancellation requests) call
 // amadeus-backend directly instead of going through the Travelport backend's
 // proxy -- its CORS allows this origin specifically for that purpose.
@@ -8698,6 +8695,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'passport_issue_country')}
                   </div>
                 </div>
+                {/* Contact + special assistance: side by side on a wide screen (index.css .pax-pair) */}
+                <div className="pax-pair">
+                <div className="pax-contact">
                 <div className="pax-subhead">Contact details <span>We send the e-ticket and flight updates here</span></div>
                 <div className="form-grid-2">
                   <div className="form-group">
@@ -8737,6 +8737,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {renderFieldError(activePassengerIdx, 'email')}
                   </div>
                 </div>
+                </div>
 
                 {/* Special assistance — sent to the airline as SSRs with the booking */}
                 {(() => {
@@ -8773,6 +8774,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     </div>
                   );
                 })()}
+                </div>
 
                 <button type="button" className="pax-more" onClick={() => setShowExtraTravelerFields(v => !v)}>
                   <Ico.IconChevronDown size={18} style={{ transform: showExtraTravelerFields ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
