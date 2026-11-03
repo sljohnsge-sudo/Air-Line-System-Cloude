@@ -13,6 +13,27 @@ import { createPortal } from 'react-dom';
 const TYPE_LABEL = { ADT: 'Adult', CNN: 'Child', INF: 'Infant', STU: 'Student' };
 const SEEN_KEY = 'tb_pax_signin_prompt_seen';
 
+// "aaa@gamil.com" -> "aaa@gmail.com": a likely typo in a common email
+// domain (one or two letters off), offered as a one-click fix.
+const COMMON_DOMAINS = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'live.com', 'msn.com', 'aol.com', 'protonmail.com', 'ymail.com', 'sltnet.lk'];
+const editDistance = (a, b) => {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+};
+export const emailTypoFix = (email) => {
+  const m = /^([^@\s]+)@([^@\s]+\.[^@\s]+)$/.exec((email || '').trim().toLowerCase());
+  if (!m || COMMON_DOMAINS.includes(m[2])) return null;
+  const best = COMMON_DOMAINS.map(d => [d, editDistance(m[2], d)]).sort((x, y) => x[1] - y[1])[0];
+  return best && best[1] <= 2 ? `${m[1]}@${best[0]}` : null;
+};
+
 const promptSeen = () => { try { return sessionStorage.getItem(SEEN_KEY) === '1'; } catch { return false; } };
 const markPromptSeen = () => { try { sessionStorage.setItem(SEEN_KEY, '1'); } catch { /* storage off */ } };
 
@@ -113,6 +134,11 @@ export default function PaxSignIn({ apiBase, customerToken, customerProfile, onL
           <input className="form-input" placeholder="Full name" autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} />
         )}
         <input type="email" className="form-input" placeholder="Email address" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
+        {emailTypoFix(email) && (
+          <div className="pax-signin-typo">
+            Did you mean <button type="button" onClick={() => { setEmail(emailTypoFix(email)); setError(''); }}>{emailTypoFix(email)}</button>?
+          </div>
+        )}
         <input type="password" className="form-input" placeholder={mode === 'register' ? 'Choose a password (6+ characters)' : 'Password'}
           autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} />
         {error && <div className="pax-signin-error">{error}</div>}
