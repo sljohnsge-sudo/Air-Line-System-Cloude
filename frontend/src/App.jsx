@@ -2117,6 +2117,7 @@ export default function App() {
   const [travelers, setTravelers] = useState([]);
   const [activePassengerIdx, setActivePassengerIdx] = useState(0);
   const [showExtraTravelerFields, setShowExtraTravelerFields] = useState(false);
+  const [showSpecialRequest, setShowSpecialRequest] = useState(false);
   const [bookingError, setBookingError] = useState('');
   // Per-passenger, per-field validation messages -- { [passengerIdx]: { fieldName: message } }
   // -- shown right under the offending input itself, not just as one generic
@@ -8748,49 +8749,53 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                 </div>
 
+                <button type="button" className="pax-more" onClick={() => setShowSpecialRequest(v => !v)}>
+                  <Ico.IconChevronDown size={18} style={{ transform: showSpecialRequest ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
+                  Special Request (optional)
+                </button>
+
+                {/* Special assistance — sent to the airline as SSRs with the booking */}
+                {showSpecialRequest && (() => {
+                    const support = ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes);
+                    const t = travelers[activePassengerIdx] || {};
+                    return (
+                      <div className="pax-optional-box">
+                        <div className="form-grid-2">
+                          <div className="form-group">
+                            <label className="form-label">Special meal</label>
+                            <div className="pax-control">
+                              <Ico.IconMeal size={16} className="pax-control-icon" />
+                              <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
+                                <option value="">{support.mealsNotServed ? 'No meal service on this fare' : 'No special meal'}</option>
+                                {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Wheelchair assistance</label>
+                            <div className="pax-control">
+                              <Ico.IconWheelchair size={16} className="pax-control-icon" />
+                              <select className="form-select" disabled={!support.wheelchair} value={t.wheelchair || ''} onChange={e => handleTravelerChange('wheelchair', e.target.value || null)}>
+                                <option value="">Not needed</option>
+                                {WHEELCHAIR_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="pax-note">
+                          <Ico.IconInfo size={14} />{support.note || 'Free of charge — sent to the airline with your booking. The airline confirms each request.'}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                 <button type="button" className="pax-more" onClick={() => setShowExtraTravelerFields(v => !v)}>
                   <Ico.IconChevronDown size={18} style={{ transform: showExtraTravelerFields ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
-                  Special Assistance, Additional Document &amp; Contact Details (optional)
+                  Additional Document &amp; Contact Details (optional)
                 </button>
 
                 {showExtraTravelerFields && (
                   <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '1rem', marginBottom: '1rem' }}>
-                    {/* Special assistance — sent to the airline as SSRs with the booking */}
-                    {(() => {
-                      const support = ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes);
-                      const t = travelers[activePassengerIdx] || {};
-                      return (
-                        <div style={{ marginBottom: '0.5rem' }}>
-                          <div className="pax-subhead">Special assistance <span>Optional · sent to the airline with your booking</span></div>
-                          <div className="form-grid-2">
-                            <div className="form-group">
-                              <label className="form-label">Special meal</label>
-                              <div className="pax-control">
-                                <Ico.IconMeal size={16} className="pax-control-icon" />
-                                <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
-                                  <option value="">{support.mealsNotServed ? 'No meal service on this fare' : 'No special meal'}</option>
-                                  {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
-                                </select>
-                              </div>
-                            </div>
-                            <div className="form-group">
-                              <label className="form-label">Wheelchair assistance</label>
-                              <div className="pax-control">
-                                <Ico.IconWheelchair size={16} className="pax-control-icon" />
-                                <select className="form-select" disabled={!support.wheelchair} value={t.wheelchair || ''} onChange={e => handleTravelerChange('wheelchair', e.target.value || null)}>
-                                  <option value="">Not needed</option>
-                                  {WHEELCHAIR_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="pax-note">
-                            <Ico.IconInfo size={14} />{support.note || 'Free of charge — sent to the airline with your booking. The airline confirms each request.'}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                    <div className="pax-subhead">Additional document &amp; contact details</div>
                     <div className="form-grid-2">
                       <div className="form-group">
                         <label className="form-label">Place of Birth</label>
