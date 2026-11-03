@@ -1052,7 +1052,10 @@ def save_booking(ticket: dict) -> dict:
                 pnr=VALUES(pnr), ticket_number=VALUES(ticket_number),
                 status=IF(status IN ('Cancelled','Voided','Refunded'), status, VALUES(status)),
                 passenger_name=VALUES(passenger_name),
-                passenger_email=VALUES(passenger_email), customer_id=VALUES(customer_id),
+                passenger_email=VALUES(passenger_email),
+                -- a live re-read (View / Print Ticket, Check My Ticket Status)
+                -- carries no customer_id: keep the account link it already has
+                customer_id=COALESCE(VALUES(customer_id), customer_id),
                 passport_number=VALUES(passport_number),
                 flight_number=VALUES(flight_number), airline=VALUES(airline),
                 departure_airport=VALUES(departure_airport), arrival_airport=VALUES(arrival_airport),

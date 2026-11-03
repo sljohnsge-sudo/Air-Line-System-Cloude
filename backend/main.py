@@ -2817,8 +2817,31 @@ def live_booking_status(locator_code: str, principal: Optional[dict] = Depends(a
     return data
 
 
+def _attach_live_addons(ticket: dict, locator_code: str) -> None:
+    """Seats, extras, special requests and their EMDs exactly as Travelport
+    holds them now (live_booking_service) — what the ticket shows, not our
+    record of what was asked for. Paid-later extras appear here too."""
+    lb = live_booking_service.get_live_booking(locator_code, with_coupons=False)
+    ticket["live_addons"] = {k: lb.get(k) or [] for k in ("seats", "extras", "special_services")}
+    ticket["live_addons"]["retrieved_at"] = lb.get("retrieved_at")
+    seats = [x for x in lb.get("seats") or [] if x.get("seat") and (x.get("status") or "").lower() == "confirmed"]
+    if seats:
+        # Same "FLIGHT: SEAT" label the ticket page already reads per flight.
+        ticket["seat_number"] = ", ".join(f"{(x.get('flights') or [''])[0]}: {x['seat']}" for x in seats)
+    emds: dict = {}
+    for x in (lb.get("seats") or []) + (lb.get("extras") or []):
+        if x.get("emd"):
+            label = f"Seat {x['seat']}" if x.get("seat") else (x.get("description") or "Extra")
+            emds.setdefault(x["emd"], []).append(f"{label} ({', '.join(x.get('flights') or [])})" if x.get("flights") else label)
+    if emds:
+        ticket["emd_numbers"] = [{"number": n, "description": "; ".join(d)} for n, d in emds.items()]
+        if ticket.get("emd_status") == "pending":
+            ticket["emd_status"] = None
+
+
 @app.get("/api/bookings/retrieve/{locator_code}")
-def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth.get_optional_principal)):
+def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth.get_optional_principal),
+                     live_only: bool = Query(False, description="View / Print Ticket: never fall back to our saved copy")):
     """
     STEP 8 — Retrieve a reservation's details from Travelport by PNR.
     We fetch live from Travelport to ensure latest status and PNR link,
@@ -2835,9 +2858,16 @@ def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth
 
         # Save/update the local cache
         database.save_booking(ticket)
+        if live_only:
+            _attach_live_addons(ticket, locator_code)
+            if principal and principal.get("role") == "customer" and principal.get("customer_id"):
+                ticket["extras_invoices"] = _paid_addon_invoices(locator_code, principal["customer_id"])
         return ticket if _can_see_private(principal, cached) else _public_booking_view(ticket)
     except Exception as e:
         logger.warning(f"Live retrieval failed for PNR {locator_code}: {e}")
+        if live_only:
+            raise HTTPException(status_code=502, detail="We couldn't get your ticket from the airline just now. "
+                                                        "Please try again in a moment.")
         # Fallback to local cache if offline or error occurs -- but only when
         # the cache actually has something useful. A PNR that Travelport now
         # says doesn't exist (purged/expired on their side, or never fully

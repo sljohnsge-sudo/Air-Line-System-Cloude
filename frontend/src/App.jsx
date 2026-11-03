@@ -2145,6 +2145,7 @@ export default function App() {
 
   // Issued ticket (Step 10 popup)
   const [issuedTicket, setIssuedTicket] = useState(null);
+  const [ticketFetch, setTicketFetch] = useState(null); // View / Print Ticket: {ticket, error} while Travelport answers
   // Which tab to return to when a viewed (not just-issued) ticket is closed.
   // Opening a ticket always pushes the URL to /booking/:token (see
   // computeCanonicalPath), and tabFromPath() maps that to 'book' for the
@@ -2570,7 +2571,7 @@ export default function App() {
       if (locator && issuedTicket?.locator_code !== locator && issuedTicket?.pnr !== locator) {
         (async () => {
           try {
-            const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${locator}`, { headers: signedInHeaders() });
+            const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${locator}?live_only=true`, { headers: signedInHeaders() });
             const data = await handleApiResponse(res, 'Failed to load ticket');
             setIssuedTicket(data);
             setBookingStep('ticket');
@@ -2588,21 +2589,23 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, location.search]);
 
+  // View / Print Ticket: the ticket is read live from Travelport (seats,
+  // extras, special requests and EMDs as the airline holds them now) and
+  // shown only once that answer is in — never our saved copy.
   const handleViewTicket = async (ticket) => {
+    const locator = ticket.locator_code || ticket.pnr;
     setTicketOriginTab(activeTab);
-    setIssuedTicket(ticket);
-    setBookingStep('ticket');
-    
-    // Background PNR refresh
+    setTicketFetch({ ticket, error: '' });
     try {
-      const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${ticket.locator_code || ticket.pnr}`, { headers: signedInHeaders() });
-      if (res.ok) {
-        const updated = await res.json();
-        setIssuedTicket(updated);
-        fetchBookings();
-      }
+      const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${locator}?live_only=true`, { headers: signedInHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : "We couldn't get your ticket from the airline just now. Please try again in a moment.");
+      setIssuedTicket(data);
+      setBookingStep('ticket');
+      setTicketFetch(null);
+      fetchBookings();
     } catch (e) {
-      console.warn("Background PNR refresh failed:", e);
+      setTicketFetch({ ticket, error: e.message || String(e) });
     }
   };
 
@@ -10269,6 +10272,25 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         </div>
       )}
 
+      {ticketFetch && (
+        <div className="modal-overlay animate-fade-only" style={{ zIndex: 9999 }}>
+          <div className="modal-content glass-panel" style={{ maxWidth: '460px', width: '92%', padding: '1.5rem', textAlign: 'center' }}>
+            {ticketFetch.error ? (
+              <>
+                <div className="error-banner" style={{ textAlign: 'left' }}>{ticketFetch.error}</div>
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '1rem' }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => handleViewTicket(ticketFetch.ticket)}>Try again</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setTicketFetch(null)}>Close</button>
+                </div>
+              </>
+            ) : (
+              <BookingWaitLoader icon="ticket" title="Getting your ticket from the airline"
+                                 subtitle="Live seats, extras and documents from Travelport" />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── TICKET POPUP (STEP 10) ──────────────────────────────────────── */}
       {bookingStep === 'ticket' && issuedTicket && (
         <div className="modal-overlay animate-fade-only" style={{ zIndex: 9999, overflowY: 'auto', display: 'block', padding: '2rem 1rem' }}>
@@ -10349,6 +10371,40 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                 </div>
               </div>
+
+              {/* Seats, extras and special requests exactly as the airline
+                  holds them now (live_addons, read at View / Print Ticket). */}
+              {issuedTicket.live_addons && (() => {
+                const la = issuedTicket.live_addons;
+                const rows = [
+                  ...(la.seats || []).map(x => ({ ...x, label: `Seat ${x.seat}` })),
+                  ...(la.extras || []).map(x => ({ ...x, label: x.description || 'Extra' })),
+                  ...(la.special_services || []).map(x => ({ ...x, label: x.description || x.code })),
+                ];
+                if (!rows.length) return null;
+                const tone = (st) => /confirm/i.test(st || '') ? ['#dcfce7', '#166534'] : /reject|cancel|refus/i.test(st || '') ? ['#fee2e2', '#991b1b'] : ['#fef3c7', '#92400e'];
+                return (
+                  <div style={{ marginBottom: '1.5rem', padding: '0.75rem 1rem', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#fff' }}>
+                    <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>
+                      Seats, extras &amp; special requests — live from the airline{la.retrieved_at ? ` · checked ${fmtDateTime(la.retrieved_at)}` : ''}
+                    </div>
+                    {rows.map((x, i) => {
+                      const [bg, fg] = tone(x.status);
+                      return (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', fontSize: '0.8rem', padding: '0.3rem 0', borderBottom: i < rows.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <span>
+                            <strong>{x.label}</strong>
+                            <span style={{ color: '#64748b' }}>
+                              {(x.flights || []).length ? ` · ${x.flights.join(', ')}` : ''}{x.passenger ? ` · ${x.passenger}` : ''}{x.emd ? ` · EMD ${x.emd}` : ''}
+                            </span>
+                          </span>
+                          <span style={{ background: bg, color: fg, fontWeight: 700, fontSize: '0.7rem', padding: '0.1rem 0.55rem', borderRadius: '999px', whiteSpace: 'nowrap' }}>{x.status || '—'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* EMDs — Travelport's payment documents for paid seats/extras,
                   issued in the same commit as the ticket. */}
@@ -10683,10 +10739,42 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         );
                       })()}
                       <div style={{ borderTop: '1px dashed #cbd5e1', margin: '0.25rem 0' }}></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: '#c3122e', fontSize: '0.9rem' }}>
-                        <span>Grand Total Paid:</span>
-                        <span>{issuedTicket.currency} {issuedTicket.total_fare?.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                      </div>
+                      {(() => {
+                        // Seats/extras paid after booking (Manage My Booking,
+                        // each with its own invoice) are added at the end.
+                        const later = issuedTicket.extras_invoices || [];
+                        const laterTotal = later.reduce((t, i) => t + (Number(i.amount) || 0), 0);
+                        const fmt = (n) => `${issuedTicket.currency} ${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                        if (!later.length) return (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: '#c3122e', fontSize: '0.9rem' }}>
+                            <span>Grand Total Paid:</span>
+                            <span>{fmt(issuedTicket.total_fare)}</span>
+                          </div>
+                        );
+                        return (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: '#334155' }}>
+                              <span>Paid at booking:</span>
+                              <span>{fmt(issuedTicket.total_fare)}</span>
+                            </div>
+                            {later.map(i => (
+                              <div key={i.invoice_number} style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                                <span>Seats &amp; extras paid {i.paid_at ? fmtDate(i.paid_at) : 'later'} (invoice {i.invoice_number}):</span>
+                                <span>{fmt(i.amount)}</span>
+                              </div>
+                            ))}
+                            <div style={{ borderTop: '1px dashed #cbd5e1', margin: '0.25rem 0' }}></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
+                              <span>Total paid for seats &amp; extras after booking:</span>
+                              <strong>{fmt(laterTotal)}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: '#c3122e', fontSize: '0.9rem' }}>
+                              <span>Grand Total Paid:</span>
+                              <span>{fmt((issuedTicket.total_fare || 0) + laterTotal)}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '0.65rem', marginTop: '0.5rem' }}>
                         <span>Booking Status:</span>
                         <strong style={{ color: '#0f766e' }}>{issuedTicket.status || 'CONFIRMED'}</strong>
