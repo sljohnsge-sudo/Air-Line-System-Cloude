@@ -350,11 +350,16 @@ const formatDisplayDate = (iso) => {
   return fmtDateWeekday(iso);
 };
 
-// ── Combined "21 Oct – 28 Oct" label for the single date-range field ──
+// ── Combined "04/11/26 – 11/11/26" label for the single date-range field ──
+// Two-digit year so both dates fit inside the search box.
+const fmtDateShortYear = (iso) => {
+  const [y, m, d] = String(iso).split('-');
+  return y && m && d ? `${d.slice(0, 2)}/${m}/${y.slice(-2)}` : fmtDate(iso);
+};
 const formatDateRangeDisplay = (departure, returnD, roundTrip) => {
   if (!departure) return '';
   if (!roundTrip || !returnD) return formatDisplayDate(departure);
-  return `${fmtDate(departure)} – ${fmtDate(returnD)}`;
+  return `${fmtDateShortYear(departure)} – ${fmtDateShortYear(returnD)}`;
 };
 
 // ── Interleave GDS/NDC results so neither source dominates a long stretch ──
