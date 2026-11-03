@@ -6303,21 +6303,33 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                         </div>
                                       )}
 
-                                      {/* Changes / cancellations: one line each, full text on hover */}
-                                      <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.3rem' }}>
-                                        <div className="fc-line fc-wrap" title={`Changes: ${fo.change_policy}`}>
-                                          <span>🔄</span><span><strong>Changes:</strong> {fo.change_policy}</span>
-                                        </div>
-                                        <div className="fc-line fc-wrap" title={`Cancellations: ${fo.cancel_policy}`}>
-                                          <span>❌</span><span><strong>Cancel:</strong> {fo.cancel_policy}</span>
-                                        </div>
-                                        {/* Full change/cancel conditions, live from Travelport's Fare Rules API */}
-                                        {flight.source !== 'AD' && fo.raw_offering && (
-                                          <div className="fc-rules" style={{ marginTop: '0.25rem' }}>
-                                            <FareRulesPanel apiBase={API_BASE} rawOffering={fo.raw_offering} title="Full fare rules" />
+                                      {/* Changes / cancellations: one line each, full text on hover.
+                                          With live fare rules these lines show only until the rules
+                                          load (or if they can't), so nothing is shown twice. */}
+                                      {(() => {
+                                        const policyLines = (
+                                          <>
+                                            <div className="fc-line fc-wrap" title={`Changes: ${fo.change_policy}`}>
+                                              <span>🔄</span><span><strong>Changes:</strong> {fo.change_policy}</span>
+                                            </div>
+                                            <div className="fc-line fc-wrap" title={`Cancellations: ${fo.cancel_policy}`}>
+                                              <span>❌</span><span><strong>Cancel:</strong> {fo.cancel_policy}</span>
+                                            </div>
+                                          </>
+                                        );
+                                        return (
+                                          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.3rem' }}>
+                                            {/* Full change/cancel conditions, live from Travelport's Fare Rules API */}
+                                            {flight.source !== 'AD' && fo.raw_offering ? (
+                                              <div className="fc-rules">
+                                                <FareRulesPanel apiBase={API_BASE} rawOffering={fo.raw_offering} title="Fare rules" defaultOpen consolidated>
+                                                  {policyLines}
+                                                </FareRulesPanel>
+                                              </div>
+                                            ) : policyLines}
                                           </div>
-                                        )}
-                                      </div>
+                                        );
+                                      })()}
 
                                       {/* Brand Attributes Section */}
                                       {fo.brand_attributes && fo.brand_attributes.length > 0 && (

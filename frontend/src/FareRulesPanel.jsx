@@ -35,8 +35,74 @@ function penaltyLabel(p) {
   return label;
 }
 
+// "QR659 CMB-DOH · QR1022 DOH-DXB" -> "CMB → DXB" (whole journey of one fare)
+function legName(fare) {
+  const routes = (fare.flights || []).map(f => (f.split(' ')[1] || '').split('-')).filter(r => r.length === 2);
+  return routes.length ? `${routes[0][0]} → ${routes[routes.length - 1][1]}` : (fare.brand_name || 'Fare');
+}
+
+// One list for the customer: each rule once; when the outbound and return
+// fares differ, the rule shows each journey's value under it.
+function consolidate(fares) {
+  const rows = new Map();
+  fares.forEach(fare => {
+    const leg = legName(fare);
+    (fare.penalties || []).forEach(p => {
+      const label = penaltyLabel(p);
+      if (!rows.has(label)) rows.set(label, { label, values: [] });
+      const v = penaltyValue(p);
+      if (!rows.get(label).values.some(x => x.leg === leg && x.text === v.text)) rows.get(label).values.push({ leg, ...v });
+    });
+  });
+  return [...rows.values()];
+}
+
+// Short customer wording: "Change before departure", "Cancel after departure"
+const shortLabel = (label) => label.replace(/^Cancellation/, 'Cancel').replace(' · ', ' ');
+
+function ConsolidatedRules({ fares, fallback }) {
+  const rows = consolidate(fares);
+  // The airline filed no amount we can show (e.g. a fee in another currency):
+  // keep the fare's own Changes / Cancel lines from the search.
+  const vague = rows.length === 0 || rows.some(r => r.values.some(v => v.text === 'Fee applies' || v.text.startsWith('See conditions')));
+  const notes = [...new Set(fares.flatMap(f => f.notes || []))];
+  // Nothing structured came back: show the airline's wording once (no repeats).
+  const wording = rows.length ? [] : [...new Map(fares.flatMap(f => f.summary || []).map(s => [`${s.name}|${s.value}`, s])).values()];
+  return (
+    <div>
+      {rows.map(r => {
+        const same = r.values.every(v => v.text === r.values[0].text);
+        return (
+          <div key={r.label} style={{ padding: '0.12rem 0', borderBottom: '1px solid #f1f5f9' }}>
+            {same ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
+                <span style={{ color: '#475569' }}>{shortLabel(r.label)}</span>
+                <strong style={{ color: r.values[0].color, whiteSpace: 'nowrap' }}>{r.values[0].text}</strong>
+              </div>
+            ) : (
+              <>
+                <div style={{ color: '#475569' }}>{shortLabel(r.label)}</div>
+                {r.values.map(v => (
+                  <div key={v.leg} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', paddingLeft: '0.5rem' }}>
+                    <span style={{ color: '#94a3b8' }}>{v.leg}</span>
+                    <strong style={{ color: v.color, whiteSpace: 'nowrap' }}>{v.text}</strong>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        );
+      })}
+      {vague && fallback && <div style={{ marginTop: '0.2rem' }}>{fallback}</div>}
+      {!fallback && wording.map((s, k) => <div key={k} style={{ marginTop: '0.2rem' }}><strong>{s.name}:</strong> {s.value}</div>)}
+      {notes.length > 0 && <div style={{ marginTop: '0.3rem', color: '#92400e' }}>{notes.join(' ')}</div>}
+    </div>
+  );
+}
+
 // alwaysOpen: the Review step shows the rules in full, with no collapse toggle.
-export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 'Fare rules', defaultOpen = false, alwaysOpen = false }) {
+// consolidated: the fare chooser shows each rule once (no per-flight repeats).
+export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 'Fare rules', defaultOpen = false, alwaysOpen = false, consolidated = false, children }) {
   const [open, setOpen] = useState(alwaysOpen);
   const [state, setState] = useState({ loading: false, error: '', fares: null });
   const [showAll, setShowAll] = useState({});
@@ -86,16 +152,18 @@ export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 
       </button>
       )}
       {open && (
-        <div style={{ padding: '0 0.75rem 0.75rem', fontSize: '0.76rem', color: '#334155' }}>
-          {state.loading && <div style={{ color: '#64748b' }}>Loading the airline's fare rules…</div>}
+        <div style={{ padding: consolidated ? '0 0.6rem 0.4rem' : '0 0.75rem 0.75rem', fontSize: consolidated ? '0.7rem' : '0.76rem', color: '#334155' }}>
+          {state.loading && (consolidated && children ? children : <div style={{ color: '#64748b' }}>Loading the airline's fare rules…</div>)}
           {state.error && (
             <div style={{ color: '#b91c1c' }}>
+              {consolidated && children && <div style={{ color: '#334155' }}>{children}</div>}
               {state.error}{' '}
               <button type="button" onClick={load} style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}>Try again</button>
             </div>
           )}
-          {state.fares && state.fares.length === 0 && <div style={{ color: '#64748b' }}>The airline returned no fare rules for this fare.</div>}
-          {(state.fares || []).map((fare, i) => (
+          {state.fares && state.fares.length === 0 && (consolidated && children ? children : <div style={{ color: '#64748b' }}>The airline returned no fare rules for this fare.</div>)}
+          {consolidated && state.fares?.length > 0 && <ConsolidatedRules fares={state.fares} fallback={children} />}
+          {!consolidated && (state.fares || []).map((fare, i) => (
             <div key={i} style={{ borderTop: i ? '1px dashed #e2e8f0' : 'none', paddingTop: i ? '0.6rem' : 0, marginTop: i ? '0.6rem' : 0 }}>
               {(fare.flights?.length > 0 || fare.brand_name) && (
                 <div style={{ fontWeight: 700, color: '#475569', marginBottom: '0.35rem' }}>
@@ -146,8 +214,8 @@ export default function FareRulesPanel({ apiBase, rawOffering, locator, title = 
             </div>
           ))}
           {state.fares?.length > 0 && (
-            <div style={{ marginTop: '0.5rem', fontSize: '0.68rem', color: '#94a3b8' }}>
-              From the airline's filed fare rules via Travelport, in the currency the airline files them in.
+            <div style={{ marginTop: consolidated ? '0.2rem' : '0.5rem', fontSize: '0.68rem', color: '#94a3b8' }}>
+              {consolidated ? 'Live from the airline via Travelport.' : "From the airline's filed fare rules via Travelport, in the currency the airline files them in."}
             </div>
           )}
         </div>
