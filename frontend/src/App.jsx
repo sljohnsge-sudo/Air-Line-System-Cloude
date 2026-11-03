@@ -2961,28 +2961,36 @@ export default function App() {
     const { local } = splitPhone(travelers[activePassengerIdx]?.phone);
     handleTravelerChange('phone', `+${dial}${local}`);
   };
+  // The number box takes the local number. A number typed in full
+  // international form ("0094 77…", "+94 77…") sets the country code from
+  // it instead of being kept as digits; a Sri Lankan number typed with its
+  // trunk zero ("077…") drops the 0.
   const handleTravelerPhoneLocalChange = (local) => {
+    const typed = local.trim();
+    if (/^(\+|00)/.test(typed)) {
+      const intl = splitPhone(`+${typed.replace(/^(\+|00)/, '').replace(/\D/g, '')}`);
+      handleTravelerChange('phone', `+${intl.dial}${intl.local}`);
+      return;
+    }
     const { dial } = splitPhone(travelers[activePassengerIdx]?.phone);
-    handleTravelerChange('phone', `+${dial}${local.replace(/\D/g, '')}`);
+    let digits = typed.replace(/\D/g, '');
+    if (dial === '94') digits = digits.replace(/^0+/, '');
+    handleTravelerChange('phone', `+${dial}${digits}`);
   };
 
-  // Nationality drives the phone country code — selecting a country auto-fills
-  // the Phone field with its dialing code, but only when Phone is still empty
-  // so it never overwrites a number the traveler already typed. It also
+  // The phone country code stays +94 Sri Lanka by default whatever the
+  // nationality (the customer changes it in its own drop-down). Nationality
   // defaults Passport Issue Country to match (the common case), but only
   // when that field hasn't been set independently — a traveler's passport
   // issuing country can differ from their nationality, so it stays editable.
   const handleNationalityChange = (code) => {
-    const nat = NATIONALITIES.find(n => n.code === code);
     setTravelers(prev => {
       const updated = [...prev];
       const current = updated[activePassengerIdx] || {};
-      const shouldFillPhone = nat && (!current.phone || current.phone.trim() === '');
       const shouldFillIssueCountry = !current.passport_issue_country || current.passport_issue_country === current.nationality;
       updated[activePassengerIdx] = {
         ...current,
         nationality: code,
-        phone: shouldFillPhone ? `+${nat.dial}` : current.phone,
         passport_issue_country: shouldFillIssueCountry ? code : current.passport_issue_country
       };
       return updated;
