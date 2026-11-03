@@ -33,7 +33,7 @@ export function formatDeadline(iso) {
   return fmtDateTime(iso);
 }
 
-const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Sent to the airline — waiting for its confirmation (not charged)', sent: 'Sent to the airline', failed: 'Not added' };
+const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Sent to the airline — waiting for its confirmation (not charged)', sent: 'Sent to the airline', failed: 'Not Added' };
 
 function SeatMap({ map, chosen, onPick }) {
   // An aisle sits between two neighbouring aisle-seat columns (C|D, G|H).
@@ -165,7 +165,11 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
           {(result.kind === 'ssr' ? result.results : [...(result.seats || []), ...(result.extras || [])]).map((i, n) => (
             <div key={n} style={{ fontSize: '0.8rem', padding: '0.2rem 0' }}>
               <strong>{i.seat_number ? `Seat ${i.seat_number}` : i.name || i.code}</strong>{i.price ? ` · ${money(i.currency, i.price)}` : ''} — {STATUS_TEXT[i.status] || i.status}
-              {(i.reason || i.error) && i.status !== 'pending' ? <span style={muted}> ({i.reason || i.error})</span> : null}
+              {(i.reason || i.error) && i.status !== 'pending' ? (
+                i.status === 'failed'
+                  ? <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.15rem' }}>{i.reason || i.error}</div>
+                  : <span style={muted}> ({i.reason || i.error})</span>
+              ) : null}
             </div>
           ))}
           {result.kind === 'ssr' && result.results?.some(r => r.status === 'sent') && !(result.special_services || []).length && (
