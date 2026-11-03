@@ -4374,48 +4374,6 @@ button, input, select, textarea { font-family: inherit; }
   .booking-fullpage > .modal-content > .modal-flight-summary { top: 0.5rem; }
 }
 
-/* Passenger Details step on a laptop / desktop: "Your Flight" becomes one
-   strip under the page title (above the form) and the form takes the full
-   width. Other booking steps keep the side card (it lists picked extras). */
-@media (min-width: 1100px) {
-  .booking-fullpage > .modal-content.booking-compact { grid-template-columns: minmax(0, 1fr); }
-  .booking-fullpage > .modal-content.booking-compact > .wz-banner { grid-row: 1; }
-  .booking-fullpage > .modal-content.booking-compact > .booking-stepper { grid-row: 2; }
-  .booking-fullpage > .modal-content.booking-compact > .modal-header { grid-row: 3; }
-  .booking-fullpage > .modal-content.booking-compact > .modal-flight-summary.yf-card {
-    grid-column: 1; grid-row: 4; position: static;
-    display: grid !important;
-    grid-template-rows: repeat(3, auto);
-    grid-auto-flow: column;
-    grid-auto-columns: auto;
-    align-items: center;
-    margin: 0 0 0.6rem !important;
-  }
-  .booking-compact > .yf-card > * { margin: 0 !important; }
-  .booking-compact > .yf-card > .yf-head {
-    grid-row: 1 / span 3; align-self: stretch;
-    flex-direction: column; justify-content: center; gap: 0.3rem;
-    padding: 0.5rem 0.9rem; font-size: 0.82rem; white-space: nowrap;
-  }
-  .booking-compact > .yf-card > .yf-leg {
-    grid-row: 1 / span 3; align-self: stretch;
-    padding: 0.5rem 1rem !important; border-bottom: none; border-right: 1px solid #edf1f6;
-  }
-  .booking-compact > .yf-card .yf-leg-icon { margin-top: 0.35rem; }
-  .booking-compact > .yf-card > .yf-row {
-    padding: 0.18rem 1rem !important; border-bottom: none; align-items: baseline;
-  }
-  .booking-compact > .yf-card > .yf-row .label { flex: 0 0 5.5rem; font-size: 0.66rem; }
-  .booking-compact > .yf-card > .yf-row .val { font-size: 0.76rem; }
-  .booking-compact > .yf-card > .yf-row .val > span { display: inline !important; white-space: nowrap; }
-  .booking-compact > .yf-card > .yf-row .val > span + span::before { content: ' · '; }
-  .booking-compact > .yf-card > .yf-total {
-    grid-row: 1 / span 3; align-self: stretch;
-    display: flex; flex-direction: column; justify-content: center;
-    margin: 0.45rem 0.6rem 0.45rem 0.4rem !important; padding: 0.4rem 1rem !important; white-space: nowrap;
-  }
-}
-
 .pax-pair, .pax-contact { display: contents; }
 @media (min-width: 1100px) {
   .booking-fullpage .pax-form > .pax-pair {
@@ -4430,10 +4388,11 @@ button, input, select, textarea { font-family: inherit; }
   .booking-fullpage .pax-form .pax-pair .form-grid-2:has(.pax-email) > .form-group { grid-column: auto; }
 }
 
-/* Passenger step buttons: under the Your Flight side card when it is a side
-   card (961-1099px wide); in the form on a phone and on the top-strip layout. */
+/* Passenger step buttons: under the total price on the Your Flight side card
+   (wider than 960px); at the end of the form on a phone, where the card sits
+   above the form. */
 .yf-actions { display: none; }
-@media (min-width: 961px) and (max-width: 1099px) {
+@media (min-width: 961px) {
   .booking-fullpage > .modal-content.booking-compact .pax-actions { display: none !important; }
   .booking-compact > .yf-card > .yf-actions {
     display: flex; flex-direction: column; gap: 0.5rem; padding: 0 1.1rem 1.1rem;
@@ -4447,4 +4406,8 @@ button, input, select, textarea { font-family: inherit; }
   .pax-form .pax-contact > * { grid-column: 1 / -1; }
   .pax-form .pax-contact > .form-grid-2 { display: contents; }
   .pax-form .pax-contact > .form-grid-2 > * { grid-column: auto; }
+}
+@media (min-width: 1100px) {
+  /* a little more room for the mobile number (it has the country code box) */
+  .booking-fullpage .pax-pair > .pax-contact > .form-grid-2 { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
 }
