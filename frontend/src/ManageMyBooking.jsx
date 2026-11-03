@@ -20,7 +20,7 @@ export async function startAddonPayment({ apiBase, fetchWithRetry, addon }) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ amount: addon.amount, currency: addon.currency, client_ref: addon.addon_id,
                            return_url: `${base}?addon=${addon.addon_id}`, cancel_url: `${base}?addon=${addon.addon_id}&payment=cancelled`,
-                           comment: `George Steuart Travel - seats/extras ${addon.addon_id}` }),
+                           comment: `Tick and Book - seats/extras ${addon.addon_id}` }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not start the payment');

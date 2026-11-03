@@ -3154,7 +3154,7 @@ export default function App() {
               return_url: `${baseUrl}?ndc_pending=${bookData.pending_id}`,
               cancel_url: `${baseUrl}?ndc_pending=${bookData.pending_id}&payment=cancelled`,
               client_ref: bookData.pending_id,
-              comment: `George Steuart Travel - NDC ${bookData.pending_id}`
+              comment: `Tick and Book - NDC ${bookData.pending_id}`
             })
           });
           const payData = await handleApiResponse(payRes, 'Failed to start payment');
@@ -3257,7 +3257,7 @@ export default function App() {
         return_url: `${baseUrl}?locator=${pnrTicket.locator_code}`,
         cancel_url: `${baseUrl}?locator=${pnrTicket.locator_code}&payment=cancelled`,
         client_ref: pnrTicket.locator_code,
-        comment: `George Steuart Travel - ${pnrTicket.locator_code}`
+        comment: `Tick and Book - ${pnrTicket.locator_code}`
       })
     });
     const payData = await handleApiResponse(payRes, 'Failed to start payment');
