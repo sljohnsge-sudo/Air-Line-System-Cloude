@@ -4714,15 +4714,16 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
     with services.flow_trace_id() as trace_id:
         result = services.add_seats_and_extras_to_pnr(locator, travelers, seats, extras)
     items = result["seats"] + result["extras"]
-    for i in items:  # airline wording customers can act on (seen live on UL, 2026-10-30)
+    for i in items:  # the Manage My Booking wording for workbench_service.customer_seat_reason()
         reason = (i.get("reason") or "").upper()
-        if "SEAT DATA ALREADY EXISTS" in reason:
+        if "ALREADY HAS A SEAT" in reason:
             i["reason"] = "This passenger already has a seat on this flight. Changing a seat online isn't available yet — please contact us."
-        elif "PAID SEAT IS NOT AVAILABLE" in reason:
+        elif "WON'T SELL THIS SEAT" in reason:
             i["reason"] = ("The airline won't sell this seat to this passenger (for example with a wheelchair request, "
                            "or a seat it keeps for other travellers). Please choose another seat or contact us.")
-        elif "INTERNAL SERVER ERROR" in reason:
-            i["reason"] = "The airline's system couldn't book this seat just now. Please try another seat or contact us."
+        elif "DIDN'T ACCEPT THIS SEAT ONLINE" in reason:
+            i["reason"] = ("The airline didn't accept this seat online. You haven't been charged — "
+                           "you can choose your seat with the airline at check-in.")
     paid = [i for i in items if i["status"] == "confirmed" and (i.get("price") or 0) > 0]
     # "Requested" (pending) items are kept so they're billed if the airline
     # confirms them later (services/addon_billing.py) — never charged before.

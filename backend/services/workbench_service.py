@@ -50,6 +50,25 @@ def _api_post(url: str, payload: dict | str | None, session_id: str | None = Non
         return response.json() if response.content else {}
 
 
+def customer_seat_reason(error: str) -> str:
+    """Travelport/airline seat refusal -> what the customer reads. The raw
+    text stays in the log. 1G 2999 "UNKNOWN ERROR" is what Emirates answers
+    for every seat, free or paid, in pre-prod (2026-11-02/03, e.g.
+    TraceID_A047C1BC96AC) — an airline/Travelport-side refusal."""
+    text = (error or "").upper()
+    if "UNKNOWN ERROR" in text or "INTERNAL SERVER ERROR" in text:
+        return "The airline didn't accept this seat online"
+    if "PAID SEAT IS NOT AVAILABLE" in text:
+        return "The airline won't sell this seat to this passenger (for example with a wheelchair request)"
+    if "SEAT DATA ALREADY EXISTS" in text:
+        return "This passenger already has a seat on this flight"
+    if "SEATING RANGE" in text or "HOURS PRIOR TO DEPARTURE" in text:
+        return "Too close to departure to choose seats online — the airline assigns them at check-in"
+    if "NOT AVAILABLE" in text:
+        return "This seat was just taken or isn't available any more"
+    return "The airline didn't accept this seat online"
+
+
 def _raise_if_error(result: dict, step_name: str) -> None:
     """
     Per Travelport support feedback on submitted logs: a GDS Add Offer call
@@ -2249,8 +2268,9 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
                             item["reason"] = "Travelport did not return an offer for this seat"
                 except Exception as e:
                     seat_rules.learn(str(e))  # remember the airline's seating-range rule
+                    logger.warning(f"{locator_code}: Seat Book for {flight} refused: {e}")
                     for item, _ in entries:
-                        item["reason"] = str(e)
+                        item["reason"] = customer_seat_reason(str(e))
 
         # ── Extras: re-shop on this workbench, book each chosen item ──
         if extras_out:

@@ -343,6 +343,18 @@ function DateRangeCalendar({ departureValue, returnValue, minDate, roundTrip, on
   );
 }
 
+// Older bookings saved Travelport's raw refusal ("Travelport Seat Book
+// failed: UNKNOWN ERROR"); shown in the customer's words (the same wording
+// the backend now saves: workbench_service.customer_seat_reason).
+const customerAddonReason = (reason) => {
+  const t = String(reason || '').toUpperCase();
+  if (!t.startsWith('TRAVELPORT ')) return reason;
+  if (t.includes('PAID SEAT IS NOT AVAILABLE')) return "The airline won't sell this seat to this passenger (for example with a wheelchair request)";
+  if (t.includes('SEAT DATA ALREADY EXISTS')) return 'This passenger already has a seat on this flight';
+  if (t.includes('SEATING RANGE') || t.includes('HOURS PRIOR TO DEPARTURE')) return 'Too close to departure to choose seats online — the airline assigns them at check-in';
+  return "The airline didn't accept this online";
+};
+
 // ── Human-readable date display for the search form's date buttons ─────────
 const formatDisplayDate = (iso) => {
   if (!iso) return '';
@@ -10377,7 +10389,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <div style={{ marginBottom: '1.5rem', padding: '0.75rem 1rem', border: '1px solid #fed7aa', borderRadius: '8px', background: '#fff7ed', fontSize: '0.78rem', color: '#9a3412' }}>
                     <div style={{ fontWeight: '800', marginBottom: '0.25rem' }}>Not confirmed by the airline (not charged)</div>
                     {refused.map((i, idx) => (
-                      <div key={idx}>{i.seat_number ? `Seat ${i.seat_number}${i.flight_number ? ` (${i.flight_number})` : ''}` : i.name}{i.reason ? ` — ${i.reason}` : ''}</div>
+                      <div key={idx}>{i.seat_number ? `Seat ${i.seat_number}${i.flight_number ? ` (${i.flight_number})` : ''}` : i.name}{i.reason ? ` — ${customerAddonReason(i.reason)}` : ''}</div>
                     ))}
                     <div style={{ marginTop: '0.4rem', fontWeight: '600' }}>You have not been charged for these. You can choose a seat with the airline at check-in.</div>
                   </div>
