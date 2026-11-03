@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import AddonInvoice from './AddonInvoice.jsx';
 import BookingLineList from './BookingLineList.jsx';
 import BookingDetailView from './BookingDetailView.jsx';
 import BookingStatusPage from './BookingStatusPage.jsx';
@@ -25,6 +26,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [statusPrefill, setStatusPrefill] = useState(null);
   // Result of a Manage My Booking add-on payment, after returning from PayCorp.
   const [addonPaymentResult, setAddonPaymentResult] = useState(null);
+  const [addonInvoiceOpen, setAddonInvoiceOpen] = useState(null);
   const [liveStatuses, setLiveStatuses] = useState({});
   const [refreshingStatuses, setRefreshingStatuses] = useState(false);
 
@@ -191,7 +193,8 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not complete the payment');
         if (data.status === 'completed') {
-          setAddonPaymentResult({ ok: true, message: `Paid — the airline issued ${(data.emds || []).map(e => `EMD ${e.number}`).join(', ') || 'your document'}.` });
+          setAddonPaymentResult({ ok: true, invoice: data.addon_id || addon,
+            message: `Payment confirmed — thank you. The airline has issued ${(data.emds || []).map(e => `EMD ${e.number}`).join(', ') || 'the document'} for your seats/extras.` });
         } else if (data.status === 'emd_failed') {
           setAddonPaymentResult({ ok: false, message: 'Your payment was received but the airline didn\u2019t issue the document yet. Our team has been alerted and will complete it or refund you.' });
         } else {
@@ -469,9 +472,18 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
               {addonPaymentResult && (
                 <div className={addonPaymentResult.ok ? '' : 'error-banner'} style={addonPaymentResult.ok ? { background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.7rem 0.9rem', marginBottom: '0.9rem', fontSize: '0.85rem', color: '#166534' } : { marginBottom: '0.9rem' }}>
                   {addonPaymentResult.message}
+                  {addonPaymentResult.ok && addonPaymentResult.invoice && (
+                    <div style={{ marginTop: '0.45rem' }}>
+                      <button className="btn btn-primary btn-sm" onClick={() => setAddonInvoiceOpen(addonPaymentResult.invoice)}>View invoice</button>
+                    </div>
+                  )}
                 </div>
               )}
               <BookingStatusPage apiBase={API_BASE} fetchWithRetry={fetchWithRetry} authToken={customerToken} prefill={statusPrefill} />
+              {addonInvoiceOpen && (
+                <AddonInvoice addonId={addonInvoiceOpen} apiBase={API_BASE} fetchWithRetry={fetchWithRetry} authToken={customerToken}
+                              onClose={() => setAddonInvoiceOpen(null)} />
+              )}
             </>
           )}
 

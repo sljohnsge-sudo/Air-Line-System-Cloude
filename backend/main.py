@@ -4628,6 +4628,10 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
             addon_billing.reconcile_held_booking(live["locator_code"])
     except Exception as e:
         logger.warning(f"Pending seats/extras check for {live['locator_code']} failed: {e}")
+    try:
+        live["extras_invoices"] = _paid_addon_invoices(live["locator_code"], current["customer_id"])
+    except Exception as e:
+        logger.warning(f"Extras invoices for {live['locator_code']} failed: {e}")
     return live
 
 
@@ -4854,8 +4858,94 @@ def manage_booking_complete_payment(request: AddonPaymentCompleteRequest, curren
                 raise HTTPException(status_code=502, detail="Your payment was received but the airline didn't issue the document yet. "
                                                             "Our team has been alerted and will complete it or refund you.")
             addon_deadlines.mark_paid(locator, addon["items"], issued["emds"])
-    database.finish_addon_payment(addon["addon_id"], "completed", {**issued, "trace_id": trace_id})
-    return {"status": "completed", "emds": issued["emds"], "trace_id": trace_id}
+    database.finish_addon_payment(addon["addon_id"], "completed", {**issued, "trace_id": trace_id,
+                                                                    "payment_reference": payment.get("txn_reference")})
+    return {"status": "completed", "emds": issued["emds"], "addon_id": addon["addon_id"], "trace_id": trace_id}
+
+
+# ── Invoice for seats/extras paid after booking ───────────────────────────────
+
+def _flat_segments(raw: dict) -> list:
+    """Flights of a saved booking in itinerary order (segment_numbers are
+    1-based positions in this list)."""
+    out = []
+    for leg in raw.get("legs") or [raw]:
+        out += leg.get("segments") or [leg]
+    return out
+
+
+def _addon_invoice(addon: dict, customer: dict | None) -> dict:
+    result = json.loads(addon.get("result_json") or "{}")
+    cached = database.get_booking_by_locator(addon["locator_code"]) or {}
+    raw = json.loads(cached.get("raw_ticket_json") or "{}") or dict(cached)
+    segs = _flat_segments(raw)
+    travelers = raw.get("travelers") or []
+    emds = list(result.get("emds") or [])
+    # One EMD can cover several items (both bags of one payment share it),
+    # and the issue answer names only the first: the live booking shows the
+    # EMD on every item, so it is read from there when Travelport answers.
+    live_emds: dict = {}
+    try:
+        for x in live_booking_service.get_live_booking(addon["locator_code"], with_coupons=False).get("extras") or []:
+            if x.get("emd"):
+                live_emds.setdefault((x.get("name") or x.get("description") or "").upper(), []).append(x["emd"])
+    except Exception as e:
+        logger.warning(f"Invoice {addon['addon_id']}: live EMDs not read: {e}")
+    lines = []
+    for i in addon["items"]:
+        nums = [n for n in (i.get("segment_numbers") or []) if 0 < n <= len(segs)]
+        flights = [segs[n - 1] for n in nums]
+        t = travelers[i["passenger_idx"]] if isinstance(i.get("passenger_idx"), int) and i["passenger_idx"] < len(travelers) else {}
+        # The airline's EMD carries its own wording of the item.
+        airline_text = (i.get("airline_name") or i.get("description") or "").upper()
+        emd = next((e for e in emds if (e.get("description") or "").upper() == airline_text), None)
+        if emd:
+            emds.remove(emd)
+        if live_emds.get(airline_text):
+            emd = {"number": live_emds[airline_text].pop(0)}
+        lines.append({
+            "description": _item_name(i),
+            "airline_description": i.get("airline_name") or i.get("description"),
+            "kind": i.get("kind"),
+            "passenger": " ".join(x for x in (t.get("first_name"), t.get("last_name")) if x) or None,
+            "flights": [{"flight": f.get("flight_number"), "from": f.get("departure_airport"), "to": f.get("arrival_airport"),
+                         "date": (f.get("departure_time") or "")[:10]} for f in flights],
+            "emd": (emd or {}).get("number"),
+            "refundable": i.get("refundable"),
+            "amount": round(float(i.get("price") or 0), 2),
+        })
+    tickets = [t.get("number") for t in raw.get("ticket_numbers") or [] if t.get("number")] or \
+        ([raw["ticket_number"]] if raw.get("ticket_number") else [])
+    return {
+        "invoice_number": addon["addon_id"],
+        "issued_at": addon["completed_at"].isoformat() if addon.get("completed_at") else None,
+        "status": "Paid",
+        "locator": addon["locator_code"],
+        "airline_locator": raw.get("airline_pnr"),
+        "tickets": tickets,
+        "billed_to": {"name": (customer or {}).get("full_name"), "email": (customer or {}).get("email")},
+        "lines": lines,
+        "total": round(float(addon["amount"]), 2),
+        "currency": addon["currency"],
+        "payment": {"method": "Card", "reference": result.get("payment_reference")},
+        "brand": os.getenv("BRAND_NAME", "Tick and Book"),
+    }
+
+
+def _paid_addon_invoices(locator: str, customer_id: int) -> list:
+    return [{"invoice_number": r["addon_id"], "amount": float(r["amount"]), "currency": r["currency"],
+             "paid_at": r["completed_at"].isoformat() if r.get("completed_at") else None}
+            for r in database.get_addon_payments_for_locator(locator)
+            if r["status"] == "completed" and r.get("customer_id") == customer_id]
+
+
+@app.get("/api/manage-booking/invoice/{addon_id}")
+def manage_booking_invoice(addon_id: str, current: dict = Depends(auth.get_current_customer)):
+    """Detailed invoice for seats/extras the customer paid after booking."""
+    addon = database.get_addon_payment(addon_id)
+    if not addon or addon.get("customer_id") != current["customer_id"] or addon["status"] != "completed":
+        raise HTTPException(status_code=404, detail="Invoice not found.")
+    return _addon_invoice(addon, database.get_customer_by_email(current["sub"]))
 
 
 # ── Loyalty Program (Customer) ────────────────────────────────────────────────

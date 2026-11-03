@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { LiveStatusDetails } from './LiveBookingPanel.jsx';
 import ManageMyBooking, { startAddonPayment, formatDeadline } from './ManageMyBooking.jsx';
 import { fmtDateTime } from './dateFormat.js';
+import AddonInvoice from './AddonInvoice.jsx';
 
 // prefill: {query, lastName, key} — set when opened from a My Bookings detail page; looks it up at once.
 export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, prefill }) {
@@ -19,6 +20,7 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
   const [loading, setLoading] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [invoiceId, setInvoiceId] = useState(null);
 
   // Seats/extras the airline confirmed after they were requested, on a
   // ticketed booking: price fixed server-side, then the usual card payment.
@@ -134,6 +136,17 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
               </div>
             </div>
           )}
+          {data.extras_invoices?.length > 0 && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.6rem 0.9rem', margin: '0.7rem 0 0.2rem', fontSize: '0.82rem', color: '#166534' }}>
+              <strong>Paid seats and extras</strong>
+              {data.extras_invoices.map(i => (
+                <div key={i.invoice_number} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                  <span>Invoice {i.invoice_number} · {i.currency} {Number(i.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}{i.paid_at ? ` · paid ${fmtDateTime(i.paid_at)}` : ''}</span>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setInvoiceId(i.invoice_number)}>View invoice</button>
+                </div>
+              ))}
+            </div>
+          )}
           <LiveStatusDetails data={data} />
         </section>
       )}
@@ -145,6 +158,9 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
           <ManageMyBooking manageToken={data.manage_token} apiBase={apiBase} fetchWithRetry={fetchWithRetry} authToken={authToken}
                            onChanged={() => lookup()} />
         </section>
+      )}
+      {invoiceId && (
+        <AddonInvoice addonId={invoiceId} apiBase={apiBase} fetchWithRetry={fetchWithRetry} authToken={authToken} onClose={() => setInvoiceId(null)} />
       )}
     </div>
   );
