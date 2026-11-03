@@ -262,7 +262,7 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
 
           <div style={box}>
             <h5 style={h5}>Extras</h5>
-            {options.extras_error && <div style={muted}>Extras not available: {options.extras_error}</div>}
+            {options.extras_error && <div style={{ fontSize: '0.8rem', color: '#475569' }}>{options.extras_error}</div>}
             {(options.extras || []).length === 0 && !options.extras_error && <div style={muted}>The airline offers no extras for this booking.</div>}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '0.3rem' }}>
               {(options.extras || []).map((x, i) => (

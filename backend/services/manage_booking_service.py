@@ -40,6 +40,11 @@ logger = logging.getLogger(__name__)
 NDC_ADDONS_REFUSED = ("Seats and extras are not available for your selected flight segment and cannot be added to this booking. "
                       "Please contact the airline directly or call 011 222 2222 for further assistance.")
 
+# 1G 8604 "ANCILLARIES ARE NOT AVAILABLE FOR THE REQUESTED FLIGHT DATA":
+# the airline sells no extras through Travelport (every Emirates booking).
+EXTRAS_NOT_OFFERED = ("Extra baggage and other extras are not available for your selected flight and cannot be added to "
+                      "this booking. Please contact the airline directly or call 011 222 2222 for further assistance.")
+
 WHEELCHAIR_LABELS = {"WCHR": "Wheelchair — can walk short distances and climb stairs",
                      "WCHS": "Wheelchair — can't climb stairs",
                      "WCHC": "Wheelchair — needs carrying to the cabin seat"}
@@ -173,7 +178,8 @@ def get_options(locator: str, live: dict) -> dict:
                              | {"passenger": names.get(x.get("traveler_identifier_ref"))}
                              for x in workbench_service.get_ancillary_offers(wb, uuid_)]
         except Exception as e:
-            out["extras_error"] = str(e)
+            logger.warning(f"{locator}: extras shop refused: {e}")
+            out["extras_error"] = EXTRAS_NOT_OFFERED if "NOT AVAILABLE FOR THE REQUESTED FLIGHT" in str(e).upper() else                 "The airline's extras couldn't be loaded just now. Please try again in a few minutes."
     finally:
         _discard(wb)
     return out
