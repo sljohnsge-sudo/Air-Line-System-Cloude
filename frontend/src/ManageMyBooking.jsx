@@ -5,6 +5,7 @@
 // our markup, and the amount charged is set server-side, never here.
 import { useEffect, useState } from 'react';
 import { fmtDateTime } from './dateFormat.js';
+import BookingWaitLoader from './BookingWaitLoader.jsx';
 
 const money = (cur, amt) => `${cur || ''} ${Number(amt || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
 const box = { border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 0.9rem', marginTop: '0.75rem', background: 'white' };
@@ -32,7 +33,7 @@ export function formatDeadline(iso) {
   return fmtDateTime(iso);
 }
 
-const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Requested — not charged unless the airline confirms', sent: 'Sent to the airline', failed: 'Not added' };
+const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Sent to the airline — waiting for its confirmation (not charged)', sent: 'Sent to the airline', failed: 'Not added' };
 
 function SeatMap({ map, chosen, onPick }) {
   // An aisle sits between two neighbouring aisle-seat columns (C|D, G|H).
@@ -103,7 +104,7 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
     })();
   }, [manageToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) return <div className="loading-state" style={{ padding: '1rem 0' }}><div className="spinner"></div><p>Loading seats and extras from the airline…</p></div>;
+  if (loading) return <BookingWaitLoader icon="seat" title="Loading seats and extras from the airline" subtitle="Live from the airline — this can take a few seconds" />;
   if (error && !options) return <div className="error-banner">{error}</div>;
 
   const travelers = options.travelers || [];
@@ -154,6 +155,10 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
     <div>
       {error && <div className="error-banner" style={{ marginTop: '0.5rem' }}>{error}</div>}
 
+      {busy === 'addons' && (
+        <BookingWaitLoader icon="seat" title="Sending your choices to the airline" subtitle="Waiting for the airline's answer — please don't close this page" />
+      )}
+
       {result && (
         <div style={{ ...box, background: '#f8fafc' }}>
           <h5 style={h5}>Result from the airline</h5>
@@ -165,6 +170,12 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
           ))}
           {result.kind === 'ssr' && result.results?.some(r => r.status === 'sent') && !(result.special_services || []).length && (
             <div style={muted}>The airline accepted the request but doesn't send a status back for this booking — it will show at check-in.</div>
+          )}
+          {result.kind === 'addons' && [...(result.seats || []), ...(result.extras || [])].some(i => i.status === 'pending') && (
+            <div style={{ marginTop: '0.5rem', padding: '0.55rem 0.7rem', borderRadius: '6px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.8rem', color: '#1e3a8a' }}>
+              We've sent your request to the airline for confirmation. Nothing is charged now. As soon as the airline confirms
+              or declines, we'll let you know by email and SMS — if it confirms, you can pay here on Booking Status to keep it.
+            </div>
           )}
           {result.payment_required && (
             <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>

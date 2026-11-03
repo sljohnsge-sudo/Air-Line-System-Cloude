@@ -2,6 +2,7 @@
 Automatic customer emails and SMS about seats/extras on a booking.
 
 Events (services/addon_deadlines.py, addon_billing.py and main.py call these):
+  requested    sent to the airline, waiting for its answer — nothing charged yet
   payment_due  the airline confirmed an extra — items, price, deadline, link
   reminder     extras_reminder_hours before the deadline (admin setting, 6)
   removed      not paid in time, taken off the booking — flight and ticket unchanged
@@ -81,7 +82,13 @@ def _compose(event: str, locator: str, items: list, info: dict) -> tuple[str, st
     total = _money(items[0].get("currency"), sum(float(i.get("price") or 0) for i in items)) if items else ""
     deadline = _local(info["deadline_utc"]) if info.get("deadline_utc") else None
     unchanged = "Your flight booking and ticket are not affected."
-    if event == "payment_due":
+    if event == "requested":
+        subject = f"We've sent your extras request to the airline — booking {locator}"
+        body = (f"We have sent these extras on booking {locator} to the airline for confirmation:\n{_lines(items)}\n\n"
+                f"Nothing has been charged. As soon as the airline confirms (or declines), we'll email and text you; "
+                f"if it confirms, you can then pay online to keep them. {unchanged}\n\nBooking Status: {link}\n")
+        sms = f"{BRAND}: booking {locator} - {names} sent to the airline for confirmation. Not charged; we'll tell you when it answers."
+    elif event == "payment_due":
         subject = f"Payment due for your extras — booking {locator}"
         body = (f"The airline has confirmed these extras on booking {locator}:\n{_lines(items)}\n\nTotal: {total}\n"
                 + (f"Please pay by {deadline}. If they aren't paid by then, they are removed from your booking and "

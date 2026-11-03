@@ -62,6 +62,7 @@ from services import segment_status
 from services import live_booking_service
 from services import manage_booking_service
 from services import addon_billing
+from services import customer_notify
 from services import addon_deadlines
 from services import email_service, sms_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
@@ -4729,6 +4730,12 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
     response = {"seats": result["seats"], "extras": result["extras"], "trace_id": trace_id, "payment_required": False}
     if not paid and not pending:
         return response
+    if pending:
+        # Email + SMS: the request is with the airline; its answer
+        # (payment_due / refused) follows from the extras sweep.
+        customer_notify.notify(locator, "requested", [{"key": i["offer_id"], "name": i.get("name") or (f"Seat {i['seat_number']}" if i.get("seat_number") else "Extra"),
+                                                    "price": i.get("price"), "currency": i.get("currency")} for i in pending])
+        response["airline_pending"] = True
     res_after = None
     if live["ticketed"]:
         # Travelport renumbers offer ids as items come and go; its offer
