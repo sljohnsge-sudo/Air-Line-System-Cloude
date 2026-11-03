@@ -69,6 +69,93 @@ function SeatMap({ map, chosen, onPick }) {
   );
 }
 
+// Extras laid out like the booking flow's Options step: one block per flight
+// (Departure / Return, from Travelport's own segment_numbers), and per
+// passenger one drop-down each for Additional baggage, Meal and Lounge.
+// Items sold for several flights at once get their own block.
+const EXTRA_CATS = [
+  { code: 'BG', label: 'Additional baggage' },
+  { code: 'ML', label: 'Meal' },
+  { code: 'LG', label: 'Lounge' },
+];
+
+// Round trip (ends where it began): the return starts at the first flight
+// that leaves 12 hours or more after the previous one landed.
+function flightDirections(flights) {
+  const list = [...flights].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+  const roundTrip = list.length > 1 && list[0].from && list[0].from === list[list.length - 1].to;
+  let back = false;
+  return list.map((f, i) => {
+    if (roundTrip && i > 0 && !back) {
+      const gap = (new Date((f.departure || '').replace(' ', 'T')) - new Date((list[i - 1].arrival || '').replace(' ', 'T'))) / 3.6e6;
+      if (gap >= 12) back = true;
+    }
+    return { ...f, dir: roundTrip ? (back ? 'Return' : 'Departure') : `Flight ${i + 1}` };
+  });
+}
+
+function ExtrasByFlight({ extras, flights, travelers, pick, setPick }) {
+  const flown = flightDirections(flights);
+  const groupOf = (x) => {
+    const nums = [...new Set(x.segment_numbers || [])].sort((a, b) => a - b);
+    return nums.length === 1 ? `F${nums[0]}` : `M${nums.join(',')}`;
+  };
+  const titleOf = (g) => {
+    const nums = g.slice(1).split(',').filter(Boolean).map(Number);
+    const fs = nums.map(n => flown[n - 1]).filter(Boolean);
+    if (g.startsWith('F') && fs[0]) return `${fs[0].dir} · ${fs[0].flight} ${fs[0].from} → ${fs[0].to}`;
+    const dirs = new Set(fs.map(f => f.dir));
+    return dirs.size === 1 && fs.length ? `${fs[0].dir} · all flights` : 'Whole trip';
+  };
+  const order = (g) => Math.min(...g.slice(1).split(',').filter(Boolean).map(Number), 99) * 10 + (g.startsWith('F') ? 0 : 5);
+  const groups = [...new Set(extras.map(groupOf))].sort((a, b) => order(a) - order(b));
+  const label = { fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 };
+  return groups.map(g => {
+    // Per flight all three are shown (one the airline doesn't offer is
+    // greyed out), as in the booking flow; a multi-flight block only shows
+    // what it has.
+    const cats = g.startsWith('F') ? EXTRA_CATS
+      : EXTRA_CATS.filter(c => extras.some(x => groupOf(x) === g && (x.category_code || '').toUpperCase() === c.code));
+    if (!cats.length) return null;
+    return (
+      <div key={g} style={{ marginTop: '0.6rem' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--gs-crimson, #c8102e)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{titleOf(g)}</div>
+        {travelers.map(t => {
+          const mine = extras.map((x, i) => ({ x, i })).filter(({ x }) => groupOf(x) === g && x.traveler_identifier_ref === t.id);
+          if (!mine.length) return null;
+          return (
+            <div key={t.id} style={{ marginTop: '0.4rem', padding: '0.55rem 0.7rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.35rem' }}>{t.name}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '0.5rem' }}>
+                {cats.map(c => {
+                  const opts = mine.filter(({ x }) => (x.category_code || '').toUpperCase() === c.code).sort((a, b) => (a.x.price || 0) - (b.x.price || 0));
+                  const key = `${t.id}|${g}|${c.code}`;
+                  const fl = g.startsWith('F') ? flown[Number(g.slice(1)) - 1] : null;
+                  return (
+                    <label key={c.code} style={label}>
+                      {c.code === 'LG' && fl ? `Lounge at ${fl.from}` : c.label}
+                      <select className="form-select" value={pick[key] ?? ''} disabled={!opts.length}
+                              onChange={e => setPick(p => ({ ...p, [key]: e.target.value }))}
+                              style={{ fontSize: '0.8rem', height: '34px', fontWeight: 400 }}>
+                        <option value="">{opts.length ? 'No selection' : 'Not offered on this flight'}</option>
+                        {opts.map(({ x, i }) => (
+                          <option key={i} value={i}>
+                            {x.name} — {money(x.currency, x.price)}{x.refundable === true ? ' · Refundable' : x.refundable === false ? ' · Non-refundable' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  });
+}
+
 export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, authToken, onChanged }) {
   const [options, setOptions] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,7 +163,7 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
   const [busy, setBusy] = useState('');
   const [ssr, setSsr] = useState({});          // traveler_id -> {wheelchair, meal}
   const [seatPick, setSeatPick] = useState({}); // `${flight}|${traveler}` -> seat
-  const [extraPick, setExtraPick] = useState({}); // index -> true
+  const [extraPick, setExtraPick] = useState({}); // `${traveler}|${group}|${category}` -> index in options.extras
   const [mapFlight, setMapFlight] = useState(null);
   const [mapTraveler, setMapTraveler] = useState(null);
   const [result, setResult] = useState(null);
@@ -111,7 +198,7 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
   const nameOf = (id) => travelers.find(t => t.id === id)?.name || '';
   const map = (options.seat_maps || []).find(m => m.flight_number === mapFlight);
   const chosenSeats = Object.entries(seatPick).map(([k, s]) => { const [flight, traveler] = k.split('|'); return { flight, traveler, seat: s }; });
-  const chosenExtras = Object.keys(extraPick).filter(k => extraPick[k]).map(k => options.extras[Number(k)]);
+  const chosenExtras = Object.values(extraPick).filter(v => v !== '' && v != null).map(v => options.extras[Number(v)]).filter(Boolean);
   const total = chosenSeats.reduce((a, c) => a + (c.seat.price || 0), 0) + chosenExtras.reduce((a, x) => a + (x.price || 0), 0);
   const currency = chosenSeats[0]?.seat.currency || chosenExtras[0]?.currency || 'LKR';
 
@@ -264,15 +351,10 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
             <h5 style={h5}>Extras</h5>
             {options.extras_error && <div style={{ fontSize: '0.8rem', color: '#475569' }}>{options.extras_error}</div>}
             {(options.extras || []).length === 0 && !options.extras_error && <div style={muted}>The airline offers no extras for this booking.</div>}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '0.3rem' }}>
-              {(options.extras || []).map((x, i) => (
-                <label key={i} style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.78rem', padding: '0.3rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={!!extraPick[i]} onChange={e => setExtraPick(p => ({ ...p, [i]: e.target.checked }))} />
-                  <span style={{ flex: 1 }}>{x.name}<br /><span style={muted}>{x.passenger}</span></span>
-                  <strong style={{ whiteSpace: 'nowrap' }}>{money(x.currency, x.price)}</strong>
-                </label>
-              ))}
-            </div>
+            {(options.extras || []).length > 0 && (
+              <ExtrasByFlight extras={options.extras} flights={options.flights || []} travelers={travelers}
+                              pick={extraPick} setPick={setExtraPick} />
+            )}
           </div>
 
           <div style={{ ...box, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>

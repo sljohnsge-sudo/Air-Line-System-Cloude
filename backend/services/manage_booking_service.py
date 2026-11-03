@@ -174,7 +174,8 @@ def get_options(locator: str, live: dict) -> dict:
         try:
             names = {t["id"]: t["name"] for t in live.get("travelers") or []}
             out["extras"] = [{k: x.get(k) for k in ("name", "airline_name", "description", "segment_numbers", "price",
-                                                     "currency", "refundable", "service_type", "traveler_identifier_ref")}
+                                                     "currency", "refundable", "service_type", "category_code",
+                                                     "traveler_identifier_ref")}
                              | {"passenger": names.get(x.get("traveler_identifier_ref"))}
                              for x in workbench_service.get_ancillary_offers(wb, uuid_)]
         except Exception as e:
