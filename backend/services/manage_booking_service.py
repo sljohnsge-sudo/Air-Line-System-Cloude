@@ -37,9 +37,8 @@ logger = logging.getLogger(__name__)
 
 # Re-tested 2026-11-03: Ancillary Price still answers 500 INTERNAL SERVER
 # ERROR for QR NDC (TraceID_0358C2C77479) — a Travelport-side fault.
-NDC_ADDONS_REFUSED = ("Seats and extras for this airline's booking (NDC) can't be added online yet — the airline's system "
-                      "isn't accepting them through our connection at the moment. Special requests above still work. "
-                      "If you need a seat or extra now, please contact us and we'll arrange it with the airline.")
+NDC_ADDONS_REFUSED = ("Seats and extras are not available for your selected flight segment and cannot be added to this booking. "
+                      "Please contact the airline directly or call 011 222 2222 for further assistance.")
 
 WHEELCHAIR_LABELS = {"WCHR": "Wheelchair — can walk short distances and climb stairs",
                      "WCHS": "Wheelchair — can't climb stairs",
