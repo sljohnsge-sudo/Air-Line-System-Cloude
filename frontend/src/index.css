@@ -4429,3 +4429,22 @@ button, input, select, textarea { font-family: inherit; }
   .booking-fullpage .pax-pair > div:not(.pax-contact) { margin-top: 0 !important; }
   .booking-fullpage .pax-form .pax-pair .form-grid-2:has(.pax-email) > .form-group { grid-column: auto; }
 }
+
+/* Passenger step buttons: under the Your Flight side card when it is a side
+   card (961-1099px wide); in the form on a phone and on the top-strip layout. */
+.yf-actions { display: none; }
+@media (min-width: 961px) and (max-width: 1099px) {
+  .booking-fullpage > .modal-content.booking-compact .pax-actions { display: none !important; }
+  .booking-compact > .yf-card > .yf-actions {
+    display: flex; flex-direction: column; gap: 0.5rem; padding: 0 1.1rem 1.1rem;
+  }
+  .yf-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; }
+}
+/* Below the wide layout the contact / special-assistance wrappers are
+   invisible: their parts sit in the form grid like the other sections. */
+@media (max-width: 1099px) {
+  .pax-form > .pax-pair > *,
+  .pax-form .pax-contact > * { grid-column: 1 / -1; }
+  .pax-form .pax-contact > .form-grid-2 { display: contents; }
+  .pax-form .pax-contact > .form-grid-2 > * { grid-column: auto; }
+}

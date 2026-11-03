@@ -8427,6 +8427,14 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 );
               })()}
 
+              {/* Passenger step: Cancel / Continue under the side card (index.css
+                  shows these only while Your Flight is a side card) */}
+              {bookingStep === 'passenger' && (
+                <div className="yf-actions">
+                  <button type="submit" form="pax-form" className="btn btn-primary">Continue to Options<Ico.IconChevronRight size={18} /></button>
+                  <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}><Ico.IconChevronLeft size={18} />Cancel</button>
+                </div>
+              )}
             </div>
 
             {bookingError && (
@@ -8573,7 +8581,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
             {/* STEP: Passenger Details Form */}
             {bookingStep === 'passenger' && (
-              <form onSubmit={handlePassengerNext} className="booking-modal-form pax-form">
+              <form id="pax-form" onSubmit={handlePassengerNext} className="booking-modal-form pax-form">
                 <div className="pax-section-head"><span className="pax-section-icon"><Ico.IconUser size={18} /></span>Passenger Information</div>
                 {travelers.length > 1 && (
                   <div className="passenger-tabs" style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.65rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
