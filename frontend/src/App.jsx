@@ -2145,6 +2145,9 @@ export default function App() {
 
   // Issued ticket (Step 10 popup)
   const [issuedTicket, setIssuedTicket] = useState(null);
+  // Options step: with no seat map from Travelport the Choose seats card
+  // stays folded to one line; the customer can open it to see why.
+  const [seatDetailsOpen, setSeatDetailsOpen] = useState(false);
   const [ticketFetch, setTicketFetch] = useState(null); // View / Print Ticket: {ticket, error} while Travelport answers
   // Which tab to return to when a viewed (not just-issued) ticket is closed.
   // Opening a ticket always pushes the URL to /booking/:token (see
@@ -9583,7 +9586,14 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             : 'Not available online for this flight'}
                         </div>
                       </div>
+                      {seatMaps.length === 0 && (
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSeatDetailsOpen(o => !o)}
+                                aria-expanded={seatDetailsOpen} style={{ padding: '0.35rem 0.8rem', fontSize: '0.78rem' }}>
+                          {seatDetailsOpen ? 'Hide details ▴' : 'See details ▾'}
+                        </button>
+                      )}
                     </div>
+                    {(seatMaps.length > 0 || seatDetailsOpen) && (<>
                     {seatFareNote && (
                       <div style={{ ...noteStyle, marginTop: '0.6rem' }}>{seatFareNote}</div>
                     )}
@@ -9620,6 +9630,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         {addonsNote || "Seat selection isn't available online for this flight."} You can choose your seat with the airline at online check-in, which opens before departure (times are set by each airline).
                       </div>
                     )}
+                    </>)}
                   </div>
 
                   {/* 2. Additional baggage, meals and lounge */}
