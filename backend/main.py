@@ -305,6 +305,10 @@ def friendly_travelport_error(raw_message: str) -> str:
     """Returns a customer-facing message for a known stale-offer/availability
     error, or the original message unchanged if it doesn't match one."""
     upper = (raw_message or "").upper()
+    if "504" in upper or "GATEWAY TIME-OUT" in upper or "GATEWAY TIMEOUT" in upper or "TIMED OUT" in upper:
+        insights.mark("Travelport availability check", "fail", "Travelport took too long to answer", raw_error=raw_message)
+        return ("The airline's system is taking longer than usual to answer. Please try again in a moment — "
+                "you have not been charged.")
     if any(marker in upper for marker in _STALE_OFFER_MARKERS):
         friendly = (
             "This flight's fare or availability has changed since you searched. "
@@ -1412,6 +1416,15 @@ def initiate_booking(request: BookingInitiateRequest):
     _check_travelers_for_trip(request.travelers, request.raw_offering)
     raw_offering = request.raw_offering
     travelers = [t.model_dump() for t in request.travelers]
+    if not request.include_addons:
+        # Booking flow (flight only): the checks above are all this step
+        # needs. Travelport is asked once, at Review & Pay (AirPrice + book),
+        # which reports a changed fare or closed class there — a second
+        # add-offer here only added a slow call that could time out (flydubai
+        # 504 after 31 s, 2026-11-06).
+        return {"workbench_id": None, "offer_id": None,
+                "seat_map": None, "seat_maps": [], "seat_map_available": False,
+                "ancillaries": [], "ancillaries_available": False}
     workbench_id = None
     if not _offering_is_gds(raw_offering):
         # Not bookable with Travelport in Phase 1 — offering seats/extras the
@@ -1442,11 +1455,6 @@ def initiate_booking(request: BookingInitiateRequest):
 
         if not offer_id:
             offer_id = "offer_1"
-
-        if not request.include_addons:
-            return {"workbench_id": workbench_id, "offer_id": offer_id,
-                    "seat_map": None, "seat_maps": [], "seat_map_available": False,
-                    "ancillaries": [], "ancillaries_available": False}
 
         # STEP 10: Fetch live seat map(s) — one per flight/leg. A round-trip
         # offer returns two (outbound + return); a one-way offer returns one.
