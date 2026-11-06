@@ -64,12 +64,12 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           <div><div style={label}>Baggage</div>{b.baggage_allowance || '—'}</div>
           <div><div style={label}>Payment</div>{b.payment_method || '—'}</div>
         </div>
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.8rem' }}>
-          <button className="btn btn-primary btn-sm" onClick={() => onLiveStatus(b)}>Live status & manage booking</button>
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.8rem', alignItems: 'center' }}>
           <button className="btn btn-secondary btn-sm" onClick={() => onViewTicket(b)}>📋 View / Print Ticket</button>
           {!cancelled && onRequestCancellation && (
             <button className="btn btn-secondary btn-sm" onClick={() => onRequestCancellation(b)}>Request Cancellation</button>
           )}
+          <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => onLiveStatus(b)}>Live status & manage booking</button>
         </div>
       </section>
 
