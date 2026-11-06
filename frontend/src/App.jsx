@@ -2082,6 +2082,12 @@ export default function App() {
   // Live fare re-check after Travelport says the searched fare changed.
   const [fareRecheck, setFareRecheck] = useState(null);
   const lastSearchBodyRef = useRef(null);
+  // Fares the airline refused at booking (fare key -> times), so the fare
+  // re-check stops offering the same fare again and again — 22 bookings
+  // looped up to 590 times on 2026-11-07 (AirPrice "FLIGHT SEGMENTS
+  // UNAVAILABLE IN THE REQUESTED CLASS" while the search still sold it).
+  // Cleared on every new search.
+  const refusedFaresRef = useRef(new Map());
   // "Complete your trip" pop-up: opens once per ticket when the customer
   // reaches the end of the e-ticket; closing it keeps it closed for that PNR.
   const [tripCrossSell, setTripCrossSell] = useState({ loc: null, open: false });
@@ -2691,6 +2697,7 @@ export default function App() {
         cabin_preference: cabinPref === 'All' ? null : (cabinPref || null)
       };
       lastSearchBodyRef.current = searchBody;
+      refusedFaresRef.current = new Map();
       const searchPromise = fetchWithRetry(`${API_BASE}/flights/search`, {
         method: 'POST',
         retry: true, // a search only reads, so it is safe to resend
@@ -2780,15 +2787,26 @@ export default function App() {
       const data = await handleApiResponse(res, 'Search failed');
       const fresh = data.flights || [];
       const key = itineraryKey(old);
+      // The fare just refused counts once more; after MAX_SAME_FARE_TRIES the
+      // same fare (same flights, fare family, cabin and price) isn't offered
+      // again — another fare of the flight is, or "no longer available".
+      const MAX_SAME_FARE_TRIES = 3;
+      const fareKey = (family, cabin, price) => `${key}|${family || ''}|${cabin || ''}|${Math.round(price || 0)}`;
+      const refused = refusedFaresRef.current;
+      const oldKey = fareKey(old.fare_family, old.cabin_class, old.price);
+      refused.set(oldKey, (refused.get(oldKey) || 0) + 1);
       const same = fresh.find(f => itineraryKey(f) === key);
-      const options = (same?.fare_options?.length ? same.fare_options : (same ? [same] : []))
+      const allOptions = (same?.fare_options?.length ? same.fare_options : (same ? [same] : []))
         .filter(o => o && o.price > 0 && o.raw_offering);
+      const options = allOptions.filter(o => (refused.get(fareKey(o.brand_name, o.cabin_class, o.price)) || 0) < MAX_SAME_FARE_TRIES);
       const cheapest = (list) => list.reduce((a, b) => (b.price < a.price ? b : a), list[0]);
       const sameFamily = options.filter(o => o.brand_name && o.brand_name === old.fare_family && o.cabin_class === old.cabin_class);
       const sameCabin = options.filter(o => o.cabin_class === old.cabin_class);
       const fare = sameFamily.length ? cheapest(sameFamily) : sameCabin.length ? cheapest(sameCabin) : null;
       if (!same || !fare) {
-        reportJourneyStep('Fare re-checked', { detail: 'Flight no longer available in a fresh search' });
+        reportJourneyStep('Fare re-checked', { detail: same && allOptions.length > options.length
+          ? `The airline refused the same fare ${MAX_SAME_FARE_TRIES} times — shown as no longer available`
+          : 'Flight no longer available in a fresh search' });
         setFareRecheck({ state: 'gone', fresh });
         return;
       }
