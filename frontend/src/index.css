@@ -4453,26 +4453,35 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 /* Booking: "Manage my booking" message while the ticket is being issued —
-   large text with a gentle glow so it catches the eye while the customer waits. */
+   large text on the brand navy with a pulsing coral glow so it is seen while
+   the customer waits. The booking pages make every box in the step white
+   (".booking-fullpage > .modal-content > :not(...)"), so these rules are
+   marked !important to win over it (its :not() list outranks a class). */
+.booking-fullpage > .modal-content > .mmb-promo,
 .mmb-promo {
-  margin: 1rem auto 0; max-width: 760px; text-align: center;
-  padding: 1.1rem 1.4rem; border-radius: 14px;
-  background: linear-gradient(135deg, #0f2a55, #1c4a86);
-  color: #fff; border: 2px solid #72bceb;
-  animation: mmb-glow 1.6s ease-in-out infinite;
+  margin: 1rem auto 0 !important; max-width: 760px; text-align: center;
+  padding: 1.25rem 1.5rem !important; border-radius: 14px !important;
+  background: linear-gradient(135deg, #0c2550 0%, #123B70 55%, #1c4a86 100%) !important;
+  color: #ffffff; border: 2px solid #E98270 !important;
+  animation: mmb-glow 1.4s ease-in-out infinite;
 }
 .mmb-promo-title {
-  font-size: 1.45rem; font-weight: 800; letter-spacing: 0.01em; margin-bottom: 0.4rem;
-  background: linear-gradient(90deg, #ffffff 0%, #ffd27a 40%, #ffffff 60%, #ffffff 100%);
-  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: mmb-shine 2.4s linear infinite;
+  font-size: 1.6rem; font-weight: 800; letter-spacing: 0.01em; margin-bottom: 0.45rem;
+  color: #ffffff;
+  background: linear-gradient(90deg, #ffffff 0%, #ffffff 35%, #FFC56E 50%, #ffffff 65%, #ffffff 100%);
+  background-size: 300% 100%; -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: mmb-shine 2.2s linear infinite;
 }
-.mmb-promo-text { font-size: 1rem; line-height: 1.55; color: #e2ecfb; }
-.mmb-promo-text strong { color: #ffd27a; }
+.mmb-promo-text { font-size: 1.05rem; line-height: 1.6; color: #ffffff; }
+.mmb-promo-text strong { color: #FFC56E; }
 @keyframes mmb-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(114, 188, 235, 0.0), 0 8px 24px rgba(15, 42, 85, 0.25); }
-  50% { box-shadow: 0 0 0 6px rgba(114, 188, 235, 0.35), 0 8px 28px rgba(15, 42, 85, 0.35); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(233, 130, 112, 0.0), 0 10px 26px rgba(12, 37, 80, 0.30); border-color: #E98270; }
+  50% { box-shadow: 0 0 0 8px rgba(233, 130, 112, 0.45), 0 10px 32px rgba(12, 37, 80, 0.40); border-color: #FFC56E; }
 }
-@keyframes mmb-shine { from { background-position: 100% 0; } to { background-position: -150% 0; } }
-@media (prefers-reduced-motion: reduce) { .mmb-promo, .mmb-promo-title { animation: none; } .mmb-promo-title { color: #fff; background: none; } }
-@media (max-width: 640px) { .mmb-promo-title { font-size: 1.15rem; } .mmb-promo-text { font-size: 0.9rem; } }
+@keyframes mmb-shine { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .mmb-promo, .mmb-promo-title { animation: none; }
+  .mmb-promo-title { background: none; -webkit-text-fill-color: #ffffff; }
+}
+@media (max-width: 640px) { .mmb-promo-title { font-size: 1.2rem; } .mmb-promo-text { font-size: 0.92rem; } }
