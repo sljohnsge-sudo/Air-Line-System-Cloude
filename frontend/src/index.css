@@ -4485,3 +4485,25 @@ button, input, select, textarea { font-family: inherit; }
   .mmb-promo-title { background: none; -webkit-text-fill-color: #ffffff; }
 }
 @media (max-width: 640px) { .mmb-promo-title { font-size: 1.2rem; } .mmb-promo-text { font-size: 0.92rem; } }
+
+/* Cabin seat map in Manage my booking (CabinSeatMap.jsx) — the booking
+   flow's seat page as a pop-up. */
+.cabin-map-overlay {
+  position: fixed; inset: 0; z-index: 100000; background: rgba(15, 23, 42, 0.5);
+  display: flex; justify-content: center; align-items: flex-start; overflow-y: auto; padding: 1.5rem 1rem;
+}
+.cabin-map-modal {
+  width: 100%; max-width: 1100px; background: #fff; border-radius: 12px; padding: 1.25rem 1.4rem;
+  box-shadow: 0 24px 60px rgba(15, 42, 85, 0.3);
+}
+.cabin-map-body { display: flex; gap: 1.5rem; max-height: 70vh; }
+.cabin-map-sidebar {
+  width: 270px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 1rem;
+  border-right: 1px solid var(--border-color); padding-right: 1.25rem; overflow-y: auto;
+}
+.cabin-map-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+@media (max-width: 760px) {
+  .cabin-map-body { flex-direction: column; max-height: none; }
+  .cabin-map-sidebar { width: auto; border-right: none; padding-right: 0; }
+  .cabin-map-panel { max-height: 70vh; }
+}

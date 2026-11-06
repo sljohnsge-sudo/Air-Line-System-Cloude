@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { fmtDateTime } from './dateFormat.js';
 import BookingWaitLoader from './BookingWaitLoader.jsx';
+import CabinSeatMap, { mapIsOpen } from './CabinSeatMap.jsx';
 
 const money = (cur, amt) => `${cur || ''} ${Number(amt || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
 const box = { border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 0.9rem', marginTop: '0.75rem', background: 'white' };
@@ -35,39 +36,6 @@ export function formatDeadline(iso) {
 
 const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Sent to the airline — waiting for its confirmation (not charged)', sent: 'Sent to the airline (not confirmed yet)', failed: 'Not Added' };
 
-function SeatMap({ map, chosen, onPick }) {
-  // An aisle sits between two neighbouring aisle-seat columns (C|D, G|H).
-  const cols = map.columns || [];
-  const aisleAfter = new Set(cols.filter((c, i) => c.position === 'Aisle' && cols[i + 1]?.position === 'Aisle').map(c => c.value));
-  return (
-    <div style={{ overflowX: 'auto', paddingBottom: '0.3rem' }}>
-      <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '3px' }}>
-        {map.rows.map(row => (
-          <div key={row.row_number} style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-            <span style={{ width: '22px', fontSize: '0.62rem', color: 'var(--text-muted)', textAlign: 'right' }}>{row.row_number}</span>
-            {row.seats.map((s, i) => {
-              const gap = aisleAfter.has(s.col) ? { marginRight: '12px' } : {};
-              if (s.type === 'empty' || s.status === 'empty') return <span key={i} style={{ width: '24px', height: '24px', ...gap }} />;
-              const open = s.status === 'available';
-              const picked = chosen === s.seat_number;
-              return (
-                <button key={i} type="button" disabled={!open} onClick={() => onPick(s)}
-                        title={open ? `${s.seat_number} · ${s.price ? money(s.currency, s.price) : 'Free'}` : `${s.seat_number} · not available`}
-                        style={{ ...gap, width: '24px', height: '24px', fontSize: '0.5rem', padding: 0, borderRadius: '4px', cursor: open ? 'pointer' : 'not-allowed',
-                                 border: picked ? '2px solid var(--gs-crimson, #c8102e)' : '1px solid #cbd5e1',
-                                 background: picked ? 'var(--gs-crimson, #c8102e)' : !open ? '#e2e8f0' : s.price ? '#fef3c7' : '#dcfce7',
-                                 color: picked ? 'white' : '#334155' }}>
-                  {s.col}
-                </button>
-              );
-            })}
-            {row.exit_row && <span style={{ fontSize: '0.55rem', color: '#b45309', marginLeft: '2px' }}>EXIT</span>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // Extras laid out like the booking flow's Options step: one block per flight
 // (Departure / Return, from Travelport's own segment_numbers), and per
@@ -164,8 +132,7 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
   const [ssr, setSsr] = useState({});          // traveler_id -> {wheelchair, meal}
   const [seatPick, setSeatPick] = useState({}); // `${flight}|${traveler}` -> seat
   const [extraPick, setExtraPick] = useState({}); // `${traveler}|${group}|${category}` -> index in options.extras
-  const [mapFlight, setMapFlight] = useState(null);
-  const [mapTraveler, setMapTraveler] = useState(null);
+  const [cabinFor, setCabinFor] = useState(null); // flight number whose cabin map is open
   const [result, setResult] = useState(null);
 
   const post = async (path, body) => {
@@ -184,8 +151,6 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
       try {
         const o = await post('/manage-booking/options', {});
         setOptions(o);
-        setMapFlight(o.seat_maps?.[0]?.flight_number || null);
-        setMapTraveler(o.travelers?.[0]?.id || null);
       } catch (e) { setError(e.message); }
       setLoading(false);
     })();
@@ -196,7 +161,6 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
 
   const travelers = options.travelers || [];
   const nameOf = (id) => travelers.find(t => t.id === id)?.name || '';
-  const map = (options.seat_maps || []).find(m => m.flight_number === mapFlight);
   const chosenSeats = Object.entries(seatPick).map(([k, s]) => { const [flight, traveler] = k.split('|'); return { flight, traveler, seat: s }; });
   const chosenExtras = Object.values(extraPick).filter(v => v !== '' && v != null).map(v => options.extras[Number(v)]).filter(Boolean);
   const total = chosenSeats.reduce((a, c) => a + (c.seat.price || 0), 0) + chosenExtras.reduce((a, x) => a + (x.price || 0), 0);
@@ -323,40 +287,59 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
       ) : (
         <>
           <div style={box}>
-            <h5 style={h5}>Seats</h5>
-            {options.seat_map_error && <div style={muted}>Seat map not available: {options.seat_map_error}</div>}
-            {(options.seat_maps || []).length > 0 && (
-              <>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-                  <select className="form-input" style={{ maxWidth: '200px', padding: '0.3rem 0.5rem', fontSize: '0.78rem' }} value={mapFlight || ''} onChange={e => setMapFlight(e.target.value)}>
-                    {options.seat_maps.map(m => <option key={m.flight_number} value={m.flight_number}>{m.flight_number} {m.departure_airport} → {m.arrival_airport}</option>)}
-                  </select>
-                  <select className="form-input" style={{ maxWidth: '220px', padding: '0.3rem 0.5rem', fontSize: '0.78rem' }} value={mapTraveler || ''} onChange={e => setMapTraveler(e.target.value)}>
-                    {travelers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+            <h5 style={h5}>Choose seats</h5>
+            <div style={muted}>Pick a seat on the aircraft cabin map. Free seats cost nothing; for a paid seat you pay only once the airline confirms it.
+              A seat already on the booking can't be swapped online yet.</div>
+            {options.seat_map_error && <div style={{ ...muted, marginTop: '0.4rem' }}>Seat map not available: {options.seat_map_error}</div>}
+            {(() => {
+              const flown = flightDirections(options.flights || []);
+              const maps = options.seat_maps || [];
+              const rows = flown.length ? flown : maps.map(m => ({ flight: m.flight_number, from: m.departure_airport, to: m.arrival_airport, dir: 'Flight' }));
+              if (!rows.length) return null;
+              return (
+                <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  {rows.map(f => {
+                    const m = maps.find(x => x.flight_number === f.flight);
+                    const ok = mapIsOpen(m);
+                    const picked = travelers.map(t => ({ t, s: seatPick[`${f.flight}|${t.id}`] })).filter(x => x.s);
+                    return (
+                      <div key={f.flight} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.6rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--gs-crimson, #c8102e)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{f.dir}</div>
+                          <div style={{ fontSize: '0.84rem', fontWeight: 700 }}>{f.flight} · {f.from} → {f.to}</div>
+                          <div style={{ fontSize: '0.75rem', marginTop: '0.1rem', color: ok ? '#166534' : '#92400e' }}>
+                            {ok ? '✓ Seat selection available' : m?.seat_condition?.closed ? `✕ Seat selection has closed (the airline closes it ${m.seat_condition.hours} hours before departure)` : '✕ Seat selection not available online for this flight'}
+                          </div>
+                          {picked.length > 0 && (
+                            <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              {picked.map(({ t, s: seat }) => (
+                                <span key={t.id} style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                                  {t.name}: {seat.seat_number} · {seat.price ? money(seat.currency, seat.price) : 'Free'}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button type="button" className={ok ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'} disabled={!ok} onClick={() => setCabinFor(f.flight)}
+                                style={ok ? {} : { background: '#f1f5f9', color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed' }}>
+                          {ok ? (picked.length ? 'Change seat' : 'Choose seat') : 'Not available'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-                {map?.seat_condition?.text && <div style={{ ...muted, marginBottom: '0.4rem' }}>{map.seat_condition.text}</div>}
-                <div style={{ ...muted, marginBottom: '0.4rem' }}>
-                  <span style={{ background: '#dcfce7', padding: '0 0.3rem', borderRadius: '3px' }}>Free</span>{' '}
-                  <span style={{ background: '#fef3c7', padding: '0 0.3rem', borderRadius: '3px' }}>Paid</span>{' '}
-                  <span style={{ background: '#e2e8f0', padding: '0 0.3rem', borderRadius: '3px' }}>Taken</span> · hover a seat for its price.
-                  A seat already on the booking can't be swapped online yet.
-                </div>
-                {map && <SeatMap map={map} chosen={seatPick[`${mapFlight}|${mapTraveler}`]?.seat_number}
-                                 onPick={s => setSeatPick(p => ({ ...p, [`${mapFlight}|${mapTraveler}`]: s }))} />}
-                {chosenSeats.map(c => (
-                  <div key={`${c.flight}|${c.traveler}`} style={{ fontSize: '0.78rem', marginTop: '0.3rem' }}>
-                    {c.flight} · {nameOf(c.traveler)} · <strong>Seat {c.seat.seat_number}</strong> · {c.seat.price ? money(c.seat.currency, c.seat.price) : 'Free'}{' '}
-                    <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '0 0.4rem', fontSize: '0.68rem' }}
-                            onClick={() => setSeatPick(p => { const n = { ...p }; delete n[`${c.flight}|${c.traveler}`]; return n; })}>Remove</button>
-                  </div>
-                ))}
-              </>
+              );
+            })()}
+            {cabinFor && (
+              <CabinSeatMap maps={options.seat_maps || []} travelers={travelers} startFlight={cabinFor}
+                            labelOf={(fn) => flightDirections(options.flights || []).find(x => x.flight === fn)?.dir || 'Flight'}
+                            picks={seatPick} setPicks={setSeatPick} onClose={() => setCabinFor(null)} />
             )}
           </div>
 
           <div style={box}>
-            <h5 style={h5}>Extras</h5>
+            <h5 style={h5}>Add extras</h5>
+            <div style={{ ...muted, marginBottom: '0.2rem' }}>Extra baggage, meals and lounges for each flight. You pay only once the airline confirms them.</div>
             {options.extras_error && <div style={{ fontSize: '0.8rem', color: '#475569' }}>{options.extras_error}</div>}
             {(options.extras || []).length === 0 && !options.extras_error && <div style={muted}>The airline offers no extras for this booking.</div>}
             {(options.extras || []).length > 0 && (
