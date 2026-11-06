@@ -62,6 +62,28 @@ export function ssrSupport(rawOffering, brandAttributes = []) {
   return { meals, wheelchair: true, note: meals ? '' : 'This airline doesn\'t take meal requests online for this fare — you can ask the airline after booking. Wheelchair assistance is free of charge.' };
 }
 
+// What each airline does with a wheelchair request, from its live answers
+// on our bookings (Travelport pre-prod, Oct-Nov 2026): Qatar confirms
+// (adding "PLS ACQUIRE MEDICAL CLEARENCE IF REQUIRED"), Emirates confirms,
+// SriLankan keeps it pending (confirmed closer to departure). A passenger
+// who must be carried (WCHC) needs the airline's medical clearance.
+const WHEELCHAIR_BY_AIRLINE = {
+  QR: 'Qatar Airways confirms wheelchair requests online. It may ask for medical clearance (a MEDIF form) depending on the passenger\'s condition.',
+  EK: 'Emirates confirms wheelchair requests online.',
+  UL: 'SriLankan Airlines records the request with your booking and confirms it closer to departure — you can check it in Manage my booking.',
+};
+
+// The condition shown under the wheelchair choice for this fare's airline.
+export function wheelchairCondition(rawOffering, code) {
+  if (!code) return '';
+  const carrier = legsOf(rawOffering)[0]?.segments?.[0]?.carrier;
+  const airline = WHEELCHAIR_BY_AIRLINE[carrier] || 'The airline confirms wheelchair requests itself — the answer shows in Manage my booking.';
+  const carried = code === 'WCHC'
+    ? ' A passenger who needs to be carried to and from the seat usually needs the airline\'s medical clearance (MEDIF) and may need to travel with a companion — please contact the airline at least 48 hours before departure.'
+    : '';
+  return `${airline}${carried} Wheelchair assistance is free of charge.`;
+}
+
 const label = (code) => (MEAL_OPTIONS.find(o => o[0] === code) || WHEELCHAIR_OPTIONS.find(o => o[0] === code) || [code, code])[1];
 
 const STATUS = {

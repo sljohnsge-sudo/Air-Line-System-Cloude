@@ -35,7 +35,7 @@ import downloadIcon from './assets/download_icon.png';
 import BookingCard from './BookingCard.jsx';
 import CancelBookingDialog from './CancelBookingDialog.jsx';
 import FareRulesPanel from './FareRulesPanel.jsx';
-import { MEAL_OPTIONS, WHEELCHAIR_OPTIONS, ssrSupport, SsrStatusList } from './SpecialServices.jsx';
+import { MEAL_OPTIONS, WHEELCHAIR_OPTIONS, ssrSupport, SsrStatusList, wheelchairCondition } from './SpecialServices.jsx';
 import AdminPortal from './AdminPortal.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
@@ -8911,6 +8911,11 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         <div className="pax-note">
                           <Ico.IconInfo size={14} />{support.note || 'Free of charge — sent to the airline with your booking. The airline confirms each request.'}
                         </div>
+                        {t.wheelchair && (
+                          <div className="pax-note" style={{ color: '#1e3a8a' }}>
+                            <Ico.IconWheelchair size={14} />{wheelchairCondition(selectedFlight.raw_offering, t.wheelchair)}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -10217,6 +10222,16 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 subtitle="We're securing your seats with the airline. This can take up to a minute — please don't close or refresh this page."
                 steps={['Checking your fare', 'Reserving your seats', 'Preparing secure payment']}
               />
+            )}
+            {bookingStep === 'processing' && (
+              <div className="mmb-promo" role="note">
+                <div className="mmb-promo-title">Personalise your journey after booking</div>
+                <div className="mmb-promo-text">
+                  Once your ticket is issued, sign in to <strong>My Account → Manage my booking</strong> to choose your
+                  seat from the live seat map, add extra baggage, meals and other services, and enjoy more member benefits.
+                  You pay only for what the airline confirms.
+                </div>
+              </div>
             )}
 
             {/* STEP: Seats/extras result — shown only when the airline did
