@@ -40,7 +40,7 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import httpx
@@ -678,9 +678,65 @@ def _live_airline_problem(locator_code: str) -> Optional[dict]:
 
 
 # Shown when the airline changed the schedule after booking, before payment.
-# Worded so the booking pages start the live fare re-check (isFareChangedError).
-SCHEDULE_CHANGED_DETAIL = ("The airline has just changed this flight's schedule, so this fare has changed and "
-                           "must be checked again. You have not been charged.")
+# Not a fare re-check: Travelport's search keeps offering the old time, so a
+# re-check would offer the same flight and loop (Jetstar JQ6 CMB-MEL,
+# 2026-11-06: 19:55 in search, 19:50 at the airline). The booking pages show
+# "choose another flight" for this message.
+SCHEDULE_CHANGED_DETAIL = ("The airline has changed the timing of this flight, so it can't be booked online right now. "
+                           "You have not been charged — please choose another flight.")
+
+# Flights re-timed by the airline after booking stay blocked for this long, so
+# customers aren't booked and released again on every try (each try made and
+# cancelled a PNR). In memory: one backend process (see start_backend_production.bat).
+SCHEDULE_BLOCK_HOURS = 12
+_schedule_blocked: dict = {}  # "JQ6|2026-11-07" -> blocked until (UTC)
+
+
+def _schedule_block_key(flight: str, departure_time: str | None) -> str:
+    return f"{segment_status.norm_flight_no(flight)}|{str(departure_time or '')[:10]}"
+
+
+def _block_schedule_changed(locator_code: str, flights: list) -> None:
+    until = datetime.utcnow() + timedelta(hours=SCHEDULE_BLOCK_HOURS)
+    cached = database.get_booking_by_locator(locator_code) or {}
+    raw = json.loads(cached.get("raw_ticket_json") or "{}") or dict(cached)
+    segs = [sg for leg in (raw.get("legs") or [raw]) for sg in (leg.get("segments") or [leg])]
+    for f in flights:
+        dates = {str(sg.get("departure_time") or "")[:10] for sg in segs
+                 if segment_status.norm_flight_no(sg.get("flight_number")) == segment_status.norm_flight_no(f)}
+        for d in (dates or {""}):
+            _schedule_blocked[_schedule_block_key(f, d)] = until
+    logger.warning(f"{locator_code}: blocked {flights} for {SCHEDULE_BLOCK_HOURS} h after the airline's schedule change")
+
+
+def _refuse_if_schedule_blocked(raw_offering: dict) -> None:
+    now = datetime.utcnow()
+    for k, until in list(_schedule_blocked.items()):
+        if until <= now:
+            _schedule_blocked.pop(k, None)
+    for sg in _segments_of_offering(raw_offering):
+        flight = sg.get("flight_number") or f"{sg.get('carrier') or ''}{sg.get('number') or ''}"
+        if _schedule_block_key(flight, sg.get("departure_time")) in _schedule_blocked \
+                or _schedule_block_key(flight, "") in _schedule_blocked:
+            raise HTTPException(status_code=409, detail=SCHEDULE_CHANGED_DETAIL)
+
+
+def _release_unpaid_booking(locator_code: str, reason: str) -> None:
+    """Cancel an unpaid booking at Travelport before any payment and save it
+    as Cancelled, so My Bookings doesn't keep showing it as Confirmed.
+    (set_airline_status refused the old "... released before payment" wording,
+    so Jetstar JJ27K3/KB/KD/KV of 2026-11-06 stayed "Confirmed".) Saved only
+    when Travelport confirmed the cancel; otherwise the unpaid hold lapses."""
+    try:
+        services.cancel_reservation(locator_code)
+    except Exception as e:
+        logger.warning(f"Could not release unpaid PNR {locator_code} ({reason}): {e}")
+        return
+    try:
+        database.record_cancellation(locator_code, "Cancelled", "Released before payment", None, None,
+                                     {"reason": reason, "charged": False})
+    except Exception as db_err:
+        logger.error(f"Could not save the released status for {locator_code}: {db_err}")
 
 
 def _release_if_schedule_changed(locator_code: str, codes: dict) -> None:
@@ -688,23 +744,22 @@ def _release_if_schedule_changed(locator_code: str, codes: dict) -> None:
     (segment status TK): its stored fare is for the old schedule and
     Travelport refuses to ticket it ("NO FARES" / "FILED FARE IS NO LONGER
     VALID") — Jetstar JJ0VDH, JJ0V8S and JJ0VRB on 2026-11-02 were charged
-    first and then could not be ticketed. The unpaid PNR is released and the
-    customer goes to the live fare re-check; nothing is charged."""
+    first and then could not be ticketed. The unpaid PNR is released, the
+    flight is blocked for a while (Travelport's search keeps offering the old
+    time) and the customer is asked to choose another flight; nothing is
+    charged."""
     if "TK" not in set(codes.values()):
         return
     changed = ", ".join(f for f, c in codes.items() if c == "TK")
     logger.warning(f"{locator_code}: airline schedule change ({changed}) before payment — releasing the unpaid booking")
-    insights.mark("Airline schedule check", "fail", f"Airline changed the schedule of {changed} after booking — "
-                  "booking released before payment, customer sent to the fare re-check",
-                  raw_error=json.dumps(codes))
     try:
-        services.cancel_reservation(locator_code)
+        _block_schedule_changed(locator_code, [f for f, c in codes.items() if c == "TK"])
     except Exception as e:
-        logger.warning(f"Could not release unpaid PNR {locator_code} after the schedule change: {e}")
-    try:
-        database.set_airline_status(locator_code, "Schedule changed - released before payment")
-    except Exception as db_err:
-        logger.error(f"Could not save the released status for {locator_code}: {db_err}")
+        logger.warning(f"Could not block the re-timed flight(s) of {locator_code}: {e}")
+    insights.mark("Airline schedule check", "fail", f"Airline changed the schedule of {changed} after booking — "
+                  "booking released before payment, customer asked to choose another flight",
+                  raw_error=json.dumps(codes))
+    _release_unpaid_booking(locator_code, f"Airline changed the schedule of {changed}")
     raise HTTPException(status_code=409, detail=SCHEDULE_CHANGED_DETAIL)
 
 
@@ -731,14 +786,7 @@ def _release_if_fare_unticketable(locator_code: str, fare_source: Optional[str])
     insights.mark("Fare check before payment", "fail",
                   "Fare no longer ticketable — booking released before payment, customer sent to the fare re-check",
                   raw_error=problem)
-    try:
-        services.cancel_reservation(locator_code)
-    except Exception as e:
-        logger.warning(f"Could not release unpaid PNR {locator_code} after the fare check: {e}")
-    try:
-        database.set_airline_status(locator_code, "Fare changed - released before payment")
-    except Exception as db_err:
-        logger.error(f"Could not save the released status for {locator_code}: {db_err}")
+    _release_unpaid_booking(locator_code, f"Fare no longer ticketable: {problem}")
     raise HTTPException(status_code=409, detail=FARE_CHANGED_DETAIL)
 
 
@@ -1413,6 +1461,7 @@ def initiate_booking(request: BookingInitiateRequest):
     logger.info("Initiating booking and fetching live seat map...")
     if {str(s.get("carrier") or "").upper() for s in _segments_of_offering(request.raw_offering)} & PAUSED_CARRIERS:
         raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
+    _refuse_if_schedule_blocked(request.raw_offering)
     _journey_booking_info(request.travelers, request.raw_offering)
     _check_travelers_for_trip(request.travelers, request.raw_offering)
     raw_offering = request.raw_offering
@@ -1567,6 +1616,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     carriers = {str(s.get("carrier") or "").upper() for s in _segments_of_offering(raw_offering)}
     if carriers & PAUSED_CARRIERS:
         raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
+    _refuse_if_schedule_blocked(raw_offering)
     if carriers & PAID_SEATS_AFTER_TICKET_CARRIERS and any((s.price or 0) > 0 for s in selected_seats or []):
         logger.info(f"Dropping paid seat(s) for {sorted(carriers)} — sold only after ticketing")
         selected_seats = [s for s in selected_seats if not (s.price or 0) > 0]

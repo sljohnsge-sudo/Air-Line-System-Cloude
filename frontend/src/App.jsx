@@ -620,6 +620,12 @@ const handleApiResponse = async (res, defaultError) => {
 const isFareChangedError = (err) => err?.status === 409 &&
   /(availability has changed|fare has changed|no longer available|now priced in|didn't confirm a price)/i.test(err.message || '');
 
+// The airline re-timed the flight after booking and Travelport's search still
+// shows the old time, so a fare re-check would loop on the same flight: the
+// customer is asked to choose another flight instead (main.py
+// SCHEDULE_CHANGED_DETAIL).
+const isScheduleBlockedError = (err) => /can't be booked online right now/i.test(err?.message || '');
+
 // Airlines that sell paid seats only once the ticket is issued — offered
 // after ticketing in Manage Booking, never during booking.
 const PAID_SEATS_AFTER_TICKET_CARRIERS = ['EK'];
@@ -3117,6 +3123,11 @@ export default function App() {
       setBookingStep('review');
 
     } catch (err) {
+      if (isScheduleBlockedError(err)) {
+        setBookingStep('passenger');
+        setFareRecheck({ state: 'schedule', message: err.message });
+        return;
+      }
       if (isFareChangedError(err)) {
         setBookingStep('passenger');
         recheckFare(err.message, 'passenger');
@@ -3251,6 +3262,11 @@ export default function App() {
       }
       await proceedToPayment(pnrTicket);
     } catch (err) {
+      if (isScheduleBlockedError(err)) {
+        setBookingStep('review');
+        setFareRecheck({ state: 'schedule', message: err.message });
+        return;
+      }
       // Only /bookings/confirm answers with these messages, i.e. before any
       // PNR exists — never after one was created.
       if (isFareChangedError(err)) {
@@ -10992,6 +11008,16 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 </>
               );
             })()}
+            {fareRecheck.state === 'schedule' && (
+              <>
+                <h3>This flight can't be booked online right now</h3>
+                <p>The airline has changed the timing of this flight, and its new schedule isn't available for online booking yet.
+                  You have not been charged. Please choose another flight.</p>
+                <div className="fare-recheck-actions">
+                  <button className="btn btn-primary" onClick={chooseAnotherFlight}>Choose another flight</button>
+                </div>
+              </>
+            )}
             {fareRecheck.state === 'gone' && (
               <>
                 <h3>This flight is no longer available</h3>
