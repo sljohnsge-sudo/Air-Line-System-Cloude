@@ -10,6 +10,7 @@ To modify ticket issuance or retrieval logic: edit only this file.
 
 import httpx
 import logging
+import time
 import uuid
 import database
 from config.travelport_config import TravelportConfig
@@ -271,9 +272,19 @@ def retrieve_reservation(locator_code: str) -> dict:
     logger.info(f"Retrieving reservation: {locator_code}")
 
     url = TravelportEndpoints.retrieve_reservation(locator_code)
-    raw = _api_get(url)
-
-    return _parse_reservation(raw, locator_code)
+    # Right after a booking or ticket is made, Travelport can answer 4392
+    # "RESERVATION RETRIEVE FAILED DUE TO A RESERVATION UPDATE IN PROGRESS.
+    # RETRY RESERVATION RETRIEVE" while the airline is still writing it — it
+    # asks for a retry, so wait and ask again (2 + 4 + 6 s at most).
+    for attempt in range(4):
+        raw = _api_get(url)
+        errors = ((raw.get("ReservationResponse") or {}).get("Result") or {}).get("Error") or []
+        busy = any(str(e.get("SourceCode")) == "4392" for e in errors)
+        if busy and attempt < 3 and "Reservation" not in (raw.get("ReservationResponse") or {}):
+            logger.warning(f"{locator_code}: reservation update in progress (4392) — retrying the retrieve")
+            time.sleep(2 * (attempt + 1))
+            continue
+        return _parse_reservation(raw, locator_code)
 
 
 def parse_commit_response(raw: dict, locator_code: str) -> dict:
@@ -747,6 +758,39 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
 
 # ── STEP 9: Issue Ticket ───────────────────────────────────────────────────────
 
+def _wait_for_airline_locator(locator_code: str, max_wait: int = 90, step: int = 5) -> None:
+    """GDS: the airline's own booking reference (a second Receipt locator,
+    e.g. {"source": "1A", "value": "FG9DDX"}) arrives some seconds after the
+    booking. Ticketing before it is there fails — Qatar "ELECTRONIC TICKET NOT
+    ISSUED VENDOR LOCATOR REQUIRED FOR QR" (2999; JJ2CWC, JJ2CX4), Emirates
+    "INTERNAL SERVER ERROR" (JJ2CPW), all paid ~35 s after booking on
+    2026-11-07 — while every GDS PNR ticketed that day had one. Waits for it
+    (read-only retrieves) and then lets ticketing go ahead either way."""
+    deadline = time.monotonic() + max_wait
+    waited = False
+    while True:
+        try:
+            raw = _api_get(TravelportEndpoints.retrieve_reservation(locator_code))
+        except Exception as e:
+            logger.warning(f"{locator_code}: airline reference check failed ({e}) — ticketing anyway")
+            return
+        res = (raw.get("ReservationResponse") or {}).get("Reservation") or {}
+        if not res:
+            return  # no verdict (e.g. 4392) — ticketing goes ahead as before
+        airline_refs = [((r.get("Confirmation") or {}).get("Locator") or {}).get("value")
+                        for r in res.get("Receipt") or [] if isinstance(r, dict)]
+        if any(v and v != locator_code for v in airline_refs):
+            if waited:
+                logger.info(f"{locator_code}: airline booking reference has arrived — issuing the ticket")
+            return
+        if time.monotonic() >= deadline:
+            logger.warning(f"{locator_code}: no airline booking reference after {max_wait} s — ticketing anyway")
+            return
+        logger.info(f"{locator_code}: waiting for the airline's booking reference before ticketing")
+        waited = True
+        time.sleep(step)
+
+
 def issue_ticket(locator_code: str) -> dict:
     """
     STEP 9: Issue the electronic ticket for a confirmed/held reservation.
@@ -769,6 +813,10 @@ def issue_ticket(locator_code: str) -> dict:
     extra_offers: list = []
 
     try:
+        # ── Step 0: GDS — the airline's own booking reference must be there ──
+        if ((database.get_booking_by_locator(locator_code) or {}).get("fare_source") or "GDS").upper() != "NDC":
+            _wait_for_airline_locator(locator_code)
+
         # ── Step 1: Create post-commit workbench from locator ─────────────────
         wb_url = TravelportEndpoints.create_workbench_from_locator(locator_code)
         logger.info(f"Step 1: POST buildfromlocator for PNR {locator_code}")

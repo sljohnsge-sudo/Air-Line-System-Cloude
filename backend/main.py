@@ -766,6 +766,29 @@ def _release_if_schedule_changed(locator_code: str, codes: dict) -> None:
 FARE_CHANGED_DETAIL = ("This fare has changed at the airline since you booked, so it must be checked again. "
                        "You have not been charged.")
 
+# A GDS stored fare is guaranteed only until 23:59 agency time on the day it
+# was booked. In the last 15 minutes before midnight (Sri Lanka) every new
+# booking's guarantee runs out too soon to pay and ticket, so a fare re-check
+# books the same flight again with the same 23:59 guarantee and loops — 8
+# bookings (TG, MH, SQ, GF, AI, EK, EY to CDG/FRA) went round 39 times on
+# 2026-11-06 23:47–23:59. Not a fare change: the customer is told to book
+# after midnight instead. Must not match the frontend's isFareChangedError /
+# isScheduleBlockedError wording.
+FARE_GUARANTEE_DAY_END_DETAIL = ("Airline fares for today close at midnight Sri Lanka time, so a booking can't be "
+                                 "paid for in the last few minutes before midnight. Your booking was released and "
+                                 "you have not been charged — please book again after 12:00 midnight.")
+FARE_GUARANTEE_ENDING_DETAIL = ("The airline's price for this booking runs out in the next few minutes, so it "
+                                "can't be paid for now. Your booking was released and you have not been charged — "
+                                "please book again in a little while.")
+_GUARANTEE_PROBLEM = "The stored fare's guarantee ends at"  # services.pre_payment_fare_check wording
+
+
+def _agency_day_ends_soon(minutes: int = 15) -> bool:
+    """True in the last `minutes` before midnight agency time (Sri Lanka)."""
+    local = datetime.utcnow() + timedelta(minutes=TravelportConfig.AGENCY_UTC_OFFSET_MINUTES)
+    midnight = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight - local <= timedelta(minutes=minutes)
+
 
 def _release_if_fare_unticketable(locator_code: str, fare_source: Optional[str]) -> None:
     """Last check before payment: the held booking's stored fare must still
@@ -783,6 +806,16 @@ def _release_if_fare_unticketable(locator_code: str, fare_source: Optional[str])
         insights.mark("Fare check before payment", "pass", "Stored fare still valid at Travelport")
         return
     logger.warning(f"{locator_code}: fare not ticketable before payment — {problem}; releasing the unpaid booking")
+    if problem.startswith(_GUARANTEE_PROBLEM):
+        # A re-check would make a new booking with the same guarantee end — no re-check, no loop.
+        day_end = _agency_day_ends_soon()
+        insights.mark("Fare check before payment", "fail",
+                      "Fare guarantee runs out " + ("at midnight" if day_end else "within 15 minutes")
+                      + " — booking released before payment, customer asked to book again later",
+                      raw_error=problem)
+        _release_unpaid_booking(locator_code, f"Fare guarantee ending: {problem}")
+        raise HTTPException(status_code=409,
+                            detail=FARE_GUARANTEE_DAY_END_DETAIL if day_end else FARE_GUARANTEE_ENDING_DETAIL)
     insights.mark("Fare check before payment", "fail",
                   "Fare no longer ticketable — booking released before payment, customer sent to the fare re-check",
                   raw_error=problem)
@@ -1335,6 +1368,16 @@ def _claim_booking_submission(raw_offering: dict, travelers: list[dict]) -> None
     _recent_booking_fingerprints[fp] = now
 
 
+def _release_booking_submission(raw_offering: dict, travelers: list[dict]) -> None:
+    """Frees the guard after a submission that booked nothing (Travelport
+    refused it), so the customer can go straight on — e.g. "Continue with this
+    fare" after the fare re-check. The re-checked offer often has the same
+    offer id as the refused one ("o1"), which the guard used to block for 20
+    s as "This exact booking was just submitted" (Batik Air OD298 CMB-MEL,
+    2026-11-06). A submission that made a PNR keeps the guard."""
+    _recent_booking_fingerprints.pop(_booking_fingerprint(raw_offering, travelers), None)
+
+
 # ── STEPS 4-9: Create Full Booking + Issue Ticket ─────────────────────────────
 
 @app.post("/api/bookings/create", status_code=status.HTTP_201_CREATED)
@@ -1623,6 +1666,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     _journey_booking_info(travelers, raw_offering)
     _check_travelers_for_trip(travelers, raw_offering)
     _claim_booking_submission(raw_offering, travelers)
+    booked_locator = None  # set once Travelport has made the PNR
 
     # One TraceId for every Travelport call this confirm makes — run_booking_flow()
     # (STEPS 4-7) plus the retrieve_reservation() calls (STEP 8) below all share
@@ -1642,6 +1686,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
             quoted_price=request.custom_price, quoted_currency=_quoted_currency(raw_offering),
         )
         locator_code = commit_result["locator_code"]
+        booked_locator = locator_code
         logger.info(f"PNR generated: {locator_code}")
 
         # STEP 8 only — ticket issuance (STEP 9) now happens separately via
@@ -1838,6 +1883,8 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
     finally:
         services.end_flow_trace_id(trace_token)
+        if booked_locator is None:
+            _release_booking_submission(raw_offering, travelers)
 
 
 # ── STEP 9: Issue Ticket — gated on PayCorp payment confirmation ──────────────
@@ -2268,7 +2315,15 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
         raise HTTPException(status_code=422, detail=str(e))
     locator = ip["locator_code"]
 
-    ticket = services.retrieve_reservation(locator)
+    # The tickets are issued at this point. A failed re-read must never turn
+    # into "not ticketed" + a refund (EK 1765757312231, 2026-11-06: issued,
+    # then 4392 "update in progress" on the re-read) — use the commit
+    # response instead.
+    try:
+        ticket = services.retrieve_reservation(locator)
+    except Exception as e:
+        logger.warning(f"{locator}: ticketed {ip['ticket_numbers']} but the re-read failed ({e}) — using the commit response")
+        ticket = services.parse_commit_response(ip["raw_response"], locator)
     if not ticket.get("flight_number"):
         commit_ticket = services.parse_commit_response(ip["raw_response"], locator)
         for key in ("flight_number", "airline", "airline_code", "departure_airport", "arrival_airport",
