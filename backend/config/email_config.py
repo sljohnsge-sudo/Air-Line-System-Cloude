@@ -21,6 +21,12 @@ class EmailConfig:
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Tick and Book")
 
+    # Tick and Book's own customer contact details for customer emails —
+    # each line shown only when set. Never George Steuart Travel's.
+    SUPPORT_PHONE: str = os.getenv("SUPPORT_PHONE", "").strip()
+    SUPPORT_EMAIL: str = os.getenv("SUPPORT_EMAIL", "").strip()
+    SUPPORT_ADDRESS: str = os.getenv("SUPPORT_ADDRESS", "").strip()
+
     # Fallback recipient when a destination country has no assigned officer
     # in the visa_consultants table (see database.get_visa_consultants_by_country).
     VISA_CONSULTANT_EMAIL: str = os.getenv("VISA_CONSULTANT_EMAIL", "")

@@ -43,6 +43,7 @@ import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
 import * as Ico from './WizardIcons.jsx';
 import PaxSignIn from './PaxSignIn.jsx';
+import { SUPPORT_ADDRESS, supportContactLine, supportHow } from './supportContact.js';
 import { buildShareItem, flightIdentity, ShareToggle, ShareFaresBar, SharedFaresBanner } from './ShareFares.jsx';
 
 // Same-origin API: the server's web server sends /api to the backend, and in
@@ -4756,7 +4757,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
           <footer className="footer">
             <div className="footer-brand" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <span style={{ alignSelf: 'flex-start' }}><TickBookLogo size={36} /></span>
-              <span className="footer-copy">© {new Date().getFullYear()} Tick and Book · operated by George Steuart Travel Ltd. All rights reserved.</span>
+              <span className="footer-copy">© {new Date().getFullYear()} Tick and Book. All rights reserved.</span>
             </div>
             <div className="footer-links">
               <a href="#" className="footer-link">Privacy Policy</a>
@@ -7599,10 +7600,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
                     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem', fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxHeight: '160px', overflowY: 'auto' }}>
                       <p style={{ margin: '0 0 0.5rem' }}>
-                        George Steuart Travels ("we," "us," "our," or the "Company") operates an online travel booking platform that enables customers to search, compare, book, and manage travel services, including airline tickets and hotel reservations. We are committed to protecting our customers' privacy and handling their personal information securely and transparently.
+                        Tick and Book ("we," "us," "our," or the "Company") operates an online travel booking platform that enables customers to search, compare, book, and manage travel services, including airline tickets and hotel reservations. We are committed to protecting our customers' privacy and handling their personal information securely and transparently.
                       </p>
                       <p style={{ margin: 0 }}>
-                        By using our Platform and providing the required consent, you authorize George Steuart Travels to collect and process your personal data for booking and managing travel services, communicating booking updates, and providing personalized marketing communications, promotions, and travel offers. Your personal data will be processed in accordance with applicable laws, including the Personal Data Protection Act No. 9 of 2022 of Sri Lanka, as amended or replaced. Where consent is the applicable legal basis, you may withdraw your consent to personalized marketing communications at any time.
+                        By using our Platform and providing the required consent, you authorize Tick and Book to collect and process your personal data for booking and managing travel services, communicating booking updates, and providing personalized marketing communications, promotions, and travel offers. Your personal data will be processed in accordance with applicable laws, including the Personal Data Protection Act No. 9 of 2022 of Sri Lanka, as amended or replaced. Where consent is the applicable legal basis, you may withdraw your consent to personalized marketing communications at any time.
                       </p>
                     </div>
                     <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer' }}>
@@ -10381,9 +10382,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     <TickBookLogo size={42} />
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
-                    <strong>Tick and Book</strong> — operated by George Steuart Travel Ltd. (Established 1835)<br />
-                    14, Leyden Bastian Road, Colombo 01, Sri Lanka<br />
-                    Tel: +94 11 232 5311 | Email: support@georgesteuart.lk
+                    <strong>Tick and Book</strong>
+                    {SUPPORT_ADDRESS && <><br />{SUPPORT_ADDRESS}</>}
+                    {supportContactLine() && <><br />{supportContactLine()}</>}
                   </div>
                 </div>
                 <div className="ticket-title-block" style={{ textAlign: 'right' }}>
@@ -10391,7 +10392,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
                     <strong>Booking Status:</strong> <span style={{ color: issuedTicket.status === 'Ticketed' ? '#0f766e' : '#b45309', fontWeight: '700' }}>{issuedTicket.status === 'Ticketed' ? 'ISSUED / CONFIRMED' : 'RESERVATION ON HOLD'}</span><br />
                     <strong>Date of Issue:</strong> {fmtDate(issuedTicket.booking_date || new Date())}<br />
-                    <strong>Issuing Agent:</strong> George Steuart Travel via Travelport TripServices
+                    <strong>Issuing Agent:</strong> Tick and Book via Travelport
                   </div>
                 </div>
               </div>
@@ -10865,7 +10866,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <li>Most international flights require passengers to arrive at the airport check-in counter at least 3 hours before departure. Check-in gates close exactly 60 minutes prior.</li>
                   <li><strong>Passport Validity:</strong> Ensure your passport is valid for at least 6 months from the date of your journey. Many destinations require specific entry visas.</li>
                   <li>Baggage policies may vary. Please contact Tick and Book support or the airline directly to purchase extra allowance.</li>
-                  <li>For support, flight updates, changes or cancellations, please contact the Tick and Book desk at +94 11 232 5311 or email travel@georgesteuart.lk.</li>
+                  <li>For support, flight updates, changes or cancellations, please contact the Tick and Book desk {supportHow()}.</li>
                 </ul>
               </div>
 

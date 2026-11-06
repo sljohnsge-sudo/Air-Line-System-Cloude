@@ -93,10 +93,12 @@ def send_ticket_share_email(to_addr: str, ticket: dict) -> tuple[bool, str | Non
         f"Cabin:           {ticket.get('cabin_class') or 'Economy'}\n"
         f"Fare:            {ticket.get('currency') or ''} {ticket.get('total_fare') or ''}\n"
         f"Status:          {ticket.get('status') or ''}\n\n"
-        f"For the full itinerary or a printable copy, please contact Tick and Book.\n\n"
-        f"Tick and Book — operated by George Steuart Travel Ltd. (Established 1835)\n"
-        f"14, Leyden Bastian Road, Colombo 01, Sri Lanka\n"
-        f"Tel: +94 11 232 5311 | Email: support@georgesteuart.lk\n"
+        f"For the full itinerary or a printable copy, sign in to My Account on Tick and Book.\n\n"
+        f"Tick and Book\n"
+        + (f"{EmailConfig.SUPPORT_ADDRESS}\n" if EmailConfig.SUPPORT_ADDRESS else "")
+        + (" | ".join(x for x in (f"Tel: {EmailConfig.SUPPORT_PHONE}" if EmailConfig.SUPPORT_PHONE else "",
+                                  f"Email: {EmailConfig.SUPPORT_EMAIL}" if EmailConfig.SUPPORT_EMAIL else "") if x) + "\n"
+           if (EmailConfig.SUPPORT_PHONE or EmailConfig.SUPPORT_EMAIL) else "")
     )
     return _send(to_addr, subject, body)
 
