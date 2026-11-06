@@ -2084,7 +2084,7 @@ export default function App() {
   const lastSearchBodyRef = useRef(null);
   // Fares the airline refused at booking (fare key -> times), so the fare
   // re-check stops offering the same fare again and again — 22 bookings
-  // looped up to 590 times on 2026-11-07 (AirPrice "FLIGHT SEGMENTS
+  // looped up to 59 times each on 2026-11-07 (AirPrice "FLIGHT SEGMENTS
   // UNAVAILABLE IN THE REQUESTED CLASS" while the search still sold it).
   // Cleared on every new search.
   const refusedFaresRef = useRef(new Map());
