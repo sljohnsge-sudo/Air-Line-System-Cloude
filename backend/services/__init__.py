@@ -9,7 +9,7 @@ from .workbench_service import create_workbench, add_offer_to_workbench, add_tra
 from .ticket_service import retrieve_reservation, issue_ticket, cancel_reservation, parse_commit_response, retrieve_ndc_ticket, pre_payment_fare_check, FareCheckUnavailable
 from .cancel_service import quote_cancellation, cancel_booking as cancel_travelport_booking, CancelError, CancelRefused, QuoteChanged
 from .invoice_service import retrieve_invoice_data
-from .paycorp_service import init_payment, complete_payment, PayCorpError
+from .payment_gateway import init_payment, complete_payment, PayCorpError  # NDB (CyberSource) or PayCorp, per .env
 from .pricing_service import get_settings as get_pricing_settings_cfg, apply_markup
 from .loyalty_service import award_points_for_booking, get_loyalty_summary
 from .email_service import send_visa_consultation_email, send_provider_failure_email, send_ticket_share_email, send_stuck_booking_email, send_cancel_failure_email

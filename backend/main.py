@@ -65,6 +65,7 @@ from services import addon_billing
 from services import customer_notify
 from services import addon_deadlines
 from services import email_service, sms_service
+from services import cybersource_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
@@ -3477,6 +3478,32 @@ def payments_init(request: PaymentInitRequestBody):
     except httpx.HTTPStatusError as e:
         logger.error(f"PayCorp init HTTP error: {e.response.status_code} — {e.response.text}")
         raise HTTPException(status_code=502, detail=f"PayCorp gateway error: {e.response.status_code}")
+
+
+# ── NDB Bank (CyberSource Secure Acceptance) pages ───────────────────────────
+# Hosted Checkout takes a signed form POST, so the payment link from
+# /api/payments/init opens this page, which posts the signed request to the
+# bank. The bank sends the customer back by POSTing the (signed) result to the
+# receipt page: the signature is checked, the result stored, and the browser
+# sent to the site's return address with ?reqid=… — the same way as before,
+# so ticketing still verifies the payment server-side before issuing.
+
+@app.get("/api/payments/cybersource/redirect/{reqid}")
+def cybersource_redirect(reqid: str):
+    try:
+        return Response(content=cybersource_service.checkout_form(reqid), media_type="text/html")
+    except services.PayCorpError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.post("/api/payments/cybersource/receipt")
+async def cybersource_receipt(request: Request):
+    form = {k: v for k, v in (await request.form()).items()}
+    try:
+        return RedirectResponse(cybersource_service.handle_receipt(form), status_code=303)
+    except services.PayCorpError as e:
+        logger.error(f"NDB/CyberSource receipt refused: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/payments/complete")

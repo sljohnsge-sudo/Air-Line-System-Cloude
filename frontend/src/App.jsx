@@ -3925,7 +3925,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
           <div className="spinner" style={{ marginBottom: '1.5rem' }}></div>
           <h3 style={{ color: 'white', fontWeight: '700' }}>Confirming Your Payment...</h3>
           <p style={{ color: 'rgba(255,255,255,0.7)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-            Verifying with PayCorp and issuing your e-ticket.
+            Verifying your payment with the bank and issuing your e-ticket.
           </p>
         </div>
       )}
@@ -10197,7 +10197,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 })()}
 
                 <div style={{ fontSize: '0.78rem', color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.6rem 0.9rem', marginBottom: '0.75rem' }}>
-                  💳 Your booking is confirmed with the airline first, then you go to <strong>Sampath PayCorp</strong>'s secure page to pay by card. Your ticket is issued as soon as payment goes through. This site never sees your card number.
+                  💳 Your booking is confirmed with the airline first, then you go to <strong>NDB Bank</strong>'s secure payment page to pay by card. Your ticket is issued as soon as payment goes through. This site never sees your card number.
                 </div>
 
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
