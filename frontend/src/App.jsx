@@ -3084,9 +3084,12 @@ export default function App() {
       const res = await fetchWithRetry(`${API_BASE}/bookings/initiate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Flight only: seats and extras are added after ticketing in
+        // My Account → Manage my booking (paid once the airline confirms).
         body: JSON.stringify({
           raw_offering: selectedFlight.raw_offering,
-          travelers
+          travelers,
+          include_addons: false
         })
       });
 
@@ -3111,7 +3114,7 @@ export default function App() {
         setSeatMaps(data.seat_maps && data.seat_maps.length > 0 ? data.seat_maps : [data.seat_map]);
       }
       setActiveSeatLeg(0);
-      setBookingStep('options');
+      setBookingStep('review');
 
     } catch (err) {
       if (isFareChangedError(err)) {
@@ -8330,16 +8333,15 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 are kept on their own step titles below instead of this (mismatched) step dial. */}
             <div className="booking-stepper wz-stepper" style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
   {(() => {
-                // Seats and extras now live together on one Options step (the
-                // seat map opens from it), like emirates.com's Options page.
+                // Booking is the flight only; seats and extras are added
+                // after ticketing in Manage my booking.
                 const steps = [
                   { key: 'passenger', label: 'Passenger Details' },
-                  { key: 'options', label: 'Options' },
                   { key: 'review', label: 'Review & Pay' }
                 ];
                 const activeIdx = steps.findIndex(st => bookingStep === st.key ||
-                  (st.key === 'options' && ['seats_loading', 'seats', 'ancillaries'].includes(bookingStep)) ||
-                  (st.key === 'review' && bookingStep === 'processing'));
+                  (st.key === 'passenger' && bookingStep === 'seats_loading') ||
+                  (st.key === 'review' && ['processing', 'options', 'seats', 'ancillaries'].includes(bookingStep)));
                 const icons = { passenger: Ico.IconUser, options: Ico.IconSeat, review: Ico.IconCard };
                 return steps.map((step, idx) => {
                   const StepIcon = icons[step.key];
@@ -8364,7 +8366,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <div>
               <h3>
                 {bookingStep === 'passenger' ? 'Passenger Details' :
-                 bookingStep === 'seats_loading' ? 'Checking Seats & Services...' :
+                 bookingStep === 'seats_loading' ? 'Checking Your Fare...' :
                  bookingStep === 'seats' ? 'Select Passenger Seats' :
                  bookingStep === 'seats_unavailable' ? 'Seat Selection Unavailable' :
                  bookingStep === 'ancillaries' ? 'Optional Extras' :
@@ -8467,7 +8469,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   shows these only while Your Flight is a side card) */}
               {bookingStep === 'passenger' && (
                 <div className="yf-actions">
-                  <button type="submit" form="pax-form" className="btn btn-primary">Continue to Options<Ico.IconChevronRight size={18} /></button>
+                  <button type="submit" form="pax-form" className="btn btn-primary">Continue to Review &amp; Pay<Ico.IconChevronRight size={18} /></button>
                   <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}><Ico.IconChevronLeft size={18} />Cancel</button>
                 </div>
               )}
@@ -8915,7 +8917,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
                 <div className="modal-actions pax-actions">
                   <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}><Ico.IconChevronLeft size={18} />Cancel</button>
-                  <button type="submit" className="btn btn-primary">Continue to Options<Ico.IconChevronRight size={18} /></button>
+                  <button type="submit" className="btn btn-primary">Continue to Review &amp; Pay<Ico.IconChevronRight size={18} /></button>
                 </div>
               </form>
             )}
@@ -8923,10 +8925,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             {/* STEP: Seats Loading */}
             {bookingStep === 'seats_loading' && (
               <BookingWaitLoader
-                icon="seat"
-                title="Checking seats & extras"
-                subtitle="We're getting the live seat map and extra services from the airline for your flight."
-                steps={['Confirming your fare', 'Loading the seat map', 'Checking extras']}
+                icon="ticket"
+                title="Checking your fare with the airline"
+                subtitle="Making sure your fare and seats on the flight are still available."
+                steps={['Confirming your fare', 'Checking passenger details']}
               />
             )}
 
@@ -10199,7 +10201,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 </label>
 
                 <div className="modal-actions">
-                  <button className="btn btn-secondary" onClick={() => setBookingStep('options')}>← Back to Options</button>
+                  <button className="btn btn-secondary" onClick={() => setBookingStep('passenger')}>← Back to Passenger Details</button>
                   <button className="btn btn-primary" disabled={!dataConfirmAgreed} onClick={handleConfirmBooking}>
                     {paymentMethod === 'card' ? 'Confirm Booking → Proceed to Payment' : 'Confirm Booking'}
                   </button>
@@ -10448,6 +10450,20 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               <SsrStatusList items={issuedTicket.ssr_status} />
 
               {/* This booking's fare conditions, live from Travelport (fromreservation) */}
+              {/* Seats and extras are added after ticketing, from the
+                  customer's account (paid once the airline confirms). */}
+              {issuedTicket.locator_code && /ticketed/i.test(issuedTicket.status || '') && (
+                <div className="no-print" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', border: '1px solid #bfdbfe', borderRadius: '8px', background: '#eff6ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '0.82rem', color: '#1e3a8a', lineHeight: 1.45 }}>
+                    <strong>Want to choose a seat or add extra baggage or a meal?</strong><br />
+                    Sign in to My Account and open <strong>Manage my booking</strong>. We send your request to the airline, and
+                    you pay only once the airline confirms it — we'll let you know by email and SMS.
+                  </div>
+                  <button className="btn btn-primary btn-sm" onClick={() => { const loc = issuedTicket.locator_code; closeBookingFlow(); navigate(`/account?status=${encodeURIComponent(loc)}`); }}>
+                    Add seats &amp; extras
+                  </button>
+                </div>
+              )}
               {issuedTicket.locator_code && (
                 <div className="no-print" style={{ marginBottom: '1.5rem' }}>
                   <FareRulesPanel apiBase={API_BASE} locator={issuedTicket.locator_code} title="Fare rules for this booking" />

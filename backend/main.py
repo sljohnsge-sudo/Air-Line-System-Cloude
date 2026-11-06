@@ -441,6 +441,10 @@ class BookingInitiateRequest(BaseModel):
     """Initiates booking and retrieves seatmap."""
     raw_offering: dict = Field(..., description="Full raw offer object from search response")
     travelers: List[TravelerInfo]
+    # The booking flow books and tickets the flight only; seats and extras
+    # are added after ticketing in Manage My Booking (paid once the airline
+    # confirms them). False skips the seat map and ancillary shop here.
+    include_addons: bool = True
 
 
 class SelectedSeat(BaseModel):
@@ -1438,6 +1442,11 @@ def initiate_booking(request: BookingInitiateRequest):
 
         if not offer_id:
             offer_id = "offer_1"
+
+        if not request.include_addons:
+            return {"workbench_id": workbench_id, "offer_id": offer_id,
+                    "seat_map": None, "seat_maps": [], "seat_map_available": False,
+                    "ancillaries": [], "ancillaries_available": False}
 
         # STEP 10: Fetch live seat map(s) — one per flight/leg. A round-trip
         # offer returns two (outbound + return); a one-way offer returns one.
