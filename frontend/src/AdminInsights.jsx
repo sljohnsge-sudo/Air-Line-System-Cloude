@@ -141,7 +141,7 @@ function Searches({ api, presetIp, onPresetUsed }) {
   useEffect(() => { if (presetIp !== undefined) load(); }, [ip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Section title="Search Records"
+    <Section title="Search Log"
       intro="Every customer flight search with what each provider returned and the results in the order shown (cheapest first) — proof of which fares were displayed."
       right={<div className="ins-filters">
         <input className="form-input" placeholder="Route e.g. CMB-DXB" value={route} onChange={e => setRoute(e.target.value)} />
@@ -276,8 +276,8 @@ function IpWatch({ api, onShowSearches }) {
   const shown = (rows || []).filter(r => !onlyFlagged || r.flags.length || r.blocked);
 
   return (
-    <Section title="IP Watch"
-      intro="Who is searching, how often and for what. Repeat searches on one route without booking usually mean someone waiting for a cheaper fare — re-check it live from Search Records and email them. Unusual volume can mean a scraper; you can block that IP."
+    <Section title="IP Monitor"
+      intro="Who is searching, how often and for what. Repeat searches on one route without booking usually mean someone waiting for a cheaper fare — re-check it live from Search Log and email them. Unusual volume can mean a scraper; you can block that IP."
       right={<div className="ins-filters">
         <label className="ins-check"><input type="checkbox" checked={onlyFlagged} onChange={e => setOnlyFlagged(e.target.checked)} /> Flagged / blocked only</label>
         <select className="form-input" value={days} onChange={e => setDays(Number(e.target.value))}>

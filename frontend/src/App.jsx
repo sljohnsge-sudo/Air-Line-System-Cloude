@@ -1364,7 +1364,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState(() => tabFromPath(window.location.pathname));
 
-  // Go-live module switches (Admin Portal -> Provider Control -> Go-Live
+  // Go-live module switches (Admin Console -> Providers & Modules -> Go-Live
   // Module Switches). Starts all-OFF (Phase 1 sells Travelport flights only),
   // so a disabled module never flashes into view or fires requests before
   // the fetch resolves, and stays hidden if the fetch fails. A module's nav

@@ -4893,3 +4893,64 @@ button, input, select, textarea { font-family: inherit; }
 .loy-visa .form-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tb-text); }
 .loy-visa .btn-primary { background: var(--tb-navy); border-color: var(--tb-navy); height: 44px; border-radius: 10px; }
 .loy-visa .btn-primary:hover:not(:disabled) { background: var(--tb-navy-hover); border-color: var(--tb-navy-hover); }
+
+/* ══ Admin console: header + grouped menu (AdminPortal.jsx) ════════════════
+   Tick and Book navy, as on the customer pages; --gs-* accents inside the
+   admin pages follow it. */
+.adm {
+  --gs-crimson: var(--tb-navy);
+  --gs-crimson-dark: var(--tb-navy-hover);
+  --gs-crimson-glow: rgba(114, 188, 235, 0.3);
+  --primary: var(--tb-navy);
+  --primary-hover: var(--tb-navy-hover);
+}
+.adm .btn-primary { background: var(--tb-navy); border-color: var(--tb-navy); color: #fff; }
+.adm .btn-primary:hover:not(:disabled) { background: var(--tb-navy-hover); border-color: var(--tb-navy-hover); }
+.adm-top {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding: 1.15rem 1.45rem; margin-bottom: 1.25rem; border-radius: 16px; color: #fff;
+  background: linear-gradient(110deg, var(--tb-navy-deep) 0%, var(--tb-navy) 55%, #2c5c97 100%);
+  box-shadow: 0 10px 28px rgba(12, 42, 82, 0.22);
+}
+.adm-eyebrow { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.7); }
+.adm-top h2 { margin: 0.15rem 0 0.1rem; color: #fff; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
+.adm-crumb { font-size: 0.8rem; color: rgba(255, 255, 255, 0.78); }
+.adm .adm-logout { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(255, 255, 255, 0.12); color: #fff; border: 1px solid rgba(255, 255, 255, 0.28); }
+.adm .adm-logout:hover { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.adm-layout { display: flex; gap: 1.25rem; align-items: flex-start; }
+.adm-nav {
+  width: 252px; flex: none; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto;
+  background: #fff; border: 1px solid var(--tb-border); border-radius: 14px; padding: 0.75rem;
+  box-shadow: 0 6px 20px rgba(18, 59, 112, 0.06); scrollbar-width: thin;
+}
+.adm-find {
+  width: 100%; height: 36px; border: 1px solid var(--tb-border); border-radius: 9px; padding: 0 0.7rem;
+  font: inherit; font-size: 0.82rem; color: var(--tb-text); background: #f8fbff; margin-bottom: 0.25rem;
+}
+.adm-find:focus { outline: none; border-color: var(--tb-sky); box-shadow: var(--tb-focus-ring); background: #fff; }
+.adm-group { padding-top: 0.55rem; }
+.adm-group + .adm-group { border-top: 1px solid #eef3f8; margin-top: 0.45rem; }
+.adm-group-title { font-size: 0.64rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tb-muted); padding: 0.1rem 0.55rem 0.35rem; }
+.adm-item {
+  width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.48rem 0.55rem; border: 0; background: none;
+  border-radius: 9px; font: inherit; font-size: 0.84rem; font-weight: 600; color: var(--tb-text); cursor: pointer; text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.adm-item .adm-icon { flex: none; color: var(--tb-muted); }
+.adm-item:hover { background: var(--tb-ice); color: var(--tb-navy); }
+.adm-item:hover .adm-icon { color: var(--tb-navy); }
+.adm-item[aria-current="page"] { background: var(--tb-navy); color: #fff; box-shadow: 0 3px 10px rgba(18, 59, 112, 0.2); }
+.adm-item[aria-current="page"] .adm-icon { color: #fff; }
+.adm-item:focus-visible { outline: none; box-shadow: var(--tb-focus-ring); }
+.adm-item-label { flex: 1; min-width: 0; }
+.adm-count { flex: none; min-width: 20px; text-align: center; font-size: 0.68rem; font-weight: 800; padding: 0.05rem 0.42rem; border-radius: 999px; background: var(--tb-coral-soft); color: #9a3b26; }
+.adm-item[aria-current="page"] .adm-count { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.adm-none { font-size: 0.8rem; color: var(--tb-muted); padding: 0.7rem 0.55rem; }
+.adm-nav-select { display: none; }
+@media (max-width: 900px) {
+  .adm-layout { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+  .adm-nav { display: none; }
+  .adm .adm-nav-select { display: block; height: 44px; border-radius: 10px; font-size: 0.9rem; }
+  .adm-top { padding: 1rem 1.1rem; }
+  .adm-top h2 { font-size: 1.25rem; }
+}

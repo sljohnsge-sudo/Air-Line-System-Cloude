@@ -34,6 +34,41 @@ function formatSettingsValue(v) {
   return String(v);
 }
 
+// Line icons for the admin menu (currentColor, 18px).
+const ADMIN_ICON_PATHS = {
+  alert: 'M12 8v5M12 16.5v.5M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+  bell: 'M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 0 0 4 0',
+  search: 'M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM20 20l-4.2-4.2',
+  link: 'M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2',
+  cancel: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9 9l6 6M15 9l-6 6',
+  mail: 'M3 5h18v14H3zM3.5 6l8.5 7 8.5-7',
+  user: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 21c0-4 3.6-7 8-7s8 3 8 7',
+  route: 'M6 15.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4zM18 3.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4zM8 18h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7',
+  list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+  shield: 'M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z',
+  gift: 'M3.5 9h17v4h-17zM5 13h14v8H5zM12 9v12M12 9C10.5 5 7 5.5 7 7.5S10 9 12 9zM12 9c1.5-4 5-3.5 5-1.5S14 9 12 9z',
+  chart: 'M4 20V10M10 20V4M16 20v-7M21 20H3',
+  tag: 'M3 12V4h8l10 10-8 8zM7.5 7.2a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z',
+  star: 'm12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z',
+  calendar: 'M3 4.5h18v16.5H3zM3 9.5h18M8 2.5v4M16 2.5v4',
+  passport: 'M4.5 2.5h15v19h-15zM12 6.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM8.5 17h7',
+  users: 'M9 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2.1.7 3.5 2.8 3.5 5.7',
+  globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z',
+  box: 'M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5zM3.5 7.5 12 12l8.5-4.5M12 12v9',
+  inbox: 'M3 13h5l1.5 3h5l1.5-3h5M5 5h14l2 8v6H3v-6z',
+  clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
+  check: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12.5l2.8 2.8L16.5 9.5',
+  sliders: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4',
+  key: 'M14.5 3.5a6 6 0 0 0-5.6 8.2L3 17.6V21h3.4l.8-.8V18h2.2v-2.2h2.2l1.2-1.2a6 6 0 1 0 1.7-11.1zM16.5 7.5h.01',
+  logout: 'M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l4-4-4-4M14 12H4',
+};
+function AdminIcon({ name }) {
+  return (
+    <svg className="adm-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ADMIN_ICON_PATHS[name] || ADMIN_ICON_PATHS.list} /></svg>
+  );
+}
+
 export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, API_BASE, AMADEUS_API_BASE, fetchWithRetry, handleApiResponse, onNavigate, onOpenInvoice }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +77,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
   const [activeAdminSection, setActiveAdminSection] = useState('pricing');
   const [insightJourneyId, setInsightJourneyId] = useState(null);
-  const [visaSectionOpen, setVisaSectionOpen] = useState(false);
+  const [adminNavFilter, setAdminNavFilter] = useState('');
 
   // Decoded from the JWT (unsigned, display-only -- the real trust boundary
   // is server-side) so the UI can grey out "Approve" on an admin's own
@@ -1233,120 +1268,99 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     );
   };
 
-  const visaGroupSectionIds = ['visa-requirements', 'visa-consultants', 'visa-assignments'];
-
-  const adminNavItems = [
-    { id: 'pricing', label: 'Pricing & Markup' },
-    { id: 'settings-approvals', label: 'Pending Approvals', count: pendingSettingsChanges.length },
-    { id: 'admins', label: 'Admin Users' },
-    { id: 'loyalty', label: 'Loyalty Program' },
-    { id: 'email-requests', label: 'Email Change Requests', count: emailRequests.length },
-    { id: 'visa-bookings', label: 'Visa Consultation Bookings', count: visaConsultations.length },
-    { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
-    { id: 'notifications', label: 'Fare Notifications', count: notifications.length },
-    { id: 'stuck-bookings', label: 'Stuck Bookings', count: stuckBookings.length },
-    { id: 'insight-journeys', label: 'Booking Journeys' },
-    { id: 'insight-searches', label: 'Search Records' },
-    { id: 'insight-ips', label: 'IP Watch' },
-    { id: 'insight-customers', label: 'Customer 360' },
-    { id: 'insight-reminders', label: 'Birthdays & Reminders' },
-    { id: 'providers', label: 'Provider Control' },
-    { id: 'packages', label: 'Tour Packages' },
-    { id: 'package-requests', label: 'Package Booking Requests', count: packageRequests.length },
-    {
-      group: 'VISA',
-      items: [
-        { id: 'visa-requirements', label: 'Visa Requirements' },
-        { id: 'visa-consultants', label: 'Visa Consultants' },
-        { id: 'visa-assignments', label: 'Visa Country Assignments' },
-      ],
-    },
-    { id: 'terminal-connections', label: 'Terminal Connections' },
-    { id: 'assign-booking', label: 'Assign Booking' },
-    { id: 'force-issue', label: 'Ticket Support' },
-    { id: 'reports', label: 'Reports' },
-    { id: 'tickets', label: 'Tickets & Invoices' },
+  // Admin menu: every page grouped by what staff use it for. Counts are the
+  // open items waiting on staff. (Was one flat list of 27; "Tickets &
+  // Invoices" only linked to other pages, so its links now sit on Booking
+  // Lookup, and Visa Consultation Bookings joined the other visa pages.)
+  const adminNavGroups = [
+    { group: 'Operations', items: [
+      { id: 'stuck-bookings', label: 'Ticketing Exceptions', icon: 'alert', count: stuckBookings.length },
+      { id: 'notifications', label: 'Supplier Alerts', icon: 'bell', count: notifications.length },
+      { id: 'force-issue', label: 'Booking Lookup', icon: 'search' },
+      { id: 'assign-booking', label: 'Link Booking to Customer', icon: 'link' },
+    ] },
+    { group: 'Customer Requests', items: [
+      { id: 'cancellations', label: 'Cancellations', icon: 'cancel', count: cancellationRequests.length },
+      { id: 'email-requests', label: 'Email Changes', icon: 'mail', count: emailRequests.length },
+    ] },
+    { group: 'Customers & Insights', items: [
+      { id: 'insight-customers', label: 'Customer 360', icon: 'user' },
+      { id: 'insight-journeys', label: 'Booking Journeys', icon: 'route' },
+      { id: 'insight-searches', label: 'Search Log', icon: 'list' },
+      { id: 'insight-ips', label: 'IP Monitor', icon: 'shield' },
+      { id: 'insight-reminders', label: 'Birthdays & Passports', icon: 'gift' },
+    ] },
+    { group: 'Commercial', items: [
+      { id: 'reports', label: 'Sales Reports', icon: 'chart' },
+      { id: 'pricing', label: 'Pricing & Markup', icon: 'tag' },
+      { id: 'loyalty', label: 'Loyalty Program', icon: 'star' },
+    ] },
+    { group: 'Visa Services', items: [
+      { id: 'visa-bookings', label: 'Consultation Bookings', icon: 'calendar', count: visaConsultations.length },
+      { id: 'visa-requirements', label: 'Visa Requirements', icon: 'passport' },
+      { id: 'visa-consultants', label: 'Consultants', icon: 'users' },
+      { id: 'visa-assignments', label: 'Country Assignments', icon: 'globe' },
+    ] },
+    { group: 'Tour Packages', items: [
+      { id: 'packages', label: 'Package Catalog', icon: 'box' },
+      { id: 'package-requests', label: 'Package Requests', icon: 'inbox', count: packageRequests.length },
+    ] },
+    { group: 'Content', items: [
+      { id: 'terminal-connections', label: 'Airport Transfer Times', icon: 'clock' },
+    ] },
+    { group: 'Administration', items: [
+      { id: 'settings-approvals', label: 'Change Approvals', icon: 'check', count: pendingSettingsChanges.length },
+      { id: 'providers', label: 'Providers & Modules', icon: 'sliders' },
+      { id: 'admins', label: 'Staff Accounts', icon: 'key' },
+    ] },
   ];
-  const visaGroupOpen = visaSectionOpen || visaGroupSectionIds.includes(activeAdminSection);
+  const navQuery = adminNavFilter.trim().toLowerCase();
+  const shownNavGroups = adminNavGroups
+    .map(g => ({ ...g, items: g.items.filter(i => !navQuery || `${g.group} ${i.label}`.toLowerCase().includes(navQuery)) }))
+    .filter(g => g.items.length);
+  const currentNav = adminNavGroups.flatMap(g => g.items.map(i => ({ ...i, group: g.group }))).find(i => i.id === activeAdminSection);
+  const openWork = stuckBookings.length + notifications.length + cancellationRequests.length + pendingSettingsChanges.length;
 
   return (
-    <div className="tab-content animate-fade">
-      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <h2 className="section-title" style={{ margin: 0 }}>Admin Portal — Pricing & Reports</h2>
-          <button className="btn btn-secondary btn-sm" onClick={onAdminLogout}>Log Out</button>
+    <div className="tab-content animate-fade adm">
+      <section className="adm-top">
+        <div>
+          <div className="adm-eyebrow">Tick and Book · Admin Console</div>
+          <h2>{currentNav ? currentNav.label : 'Admin Console'}</h2>
+          <div className="adm-crumb">{currentNav ? `${currentNav.group} / ${currentNav.label}` : ''}{openWork > 0 ? ` · ${openWork} item${openWork > 1 ? 's' : ''} waiting across Operations and Requests` : ''}</div>
         </div>
+        <button className="btn btn-secondary btn-sm adm-logout" onClick={onAdminLogout}>
+          <AdminIcon name="logout" /> Log out
+        </button>
       </section>
 
-      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-        <nav style={{ width: '230px', flexShrink: 0, position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-          {adminNavItems.map(item => {
-            if (item.group) {
-              return (
-                <div key={item.group}>
-                  <button
-                    type="button"
-                    onClick={() => setVisaSectionOpen(o => !o)}
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
-                      width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                      fontSize: '0.85rem', fontWeight: 700,
-                      background: 'transparent', color: 'var(--gs-dark)',
-                    }}
-                  >
-                    <span>{item.group}</span>
-                    <span style={{ fontSize: '0.7rem', transform: visaGroupOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
-                  </button>
-                  {visaGroupOpen && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', paddingLeft: '0.6rem' }}>
-                      {item.items.map(sub => (
-                        <button
-                          key={sub.id}
-                          type="button"
-                          onClick={() => setActiveAdminSection(sub.id)}
-                          style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
-                            padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                            fontSize: '0.85rem', fontWeight: activeAdminSection === sub.id ? 700 : 500,
-                            background: activeAdminSection === sub.id ? 'var(--gs-crimson)' : 'transparent',
-                            color: activeAdminSection === sub.id ? 'white' : 'var(--gs-dark)',
-                          }}
-                        >
-                          <span>{sub.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveAdminSection(item.id)}
-                style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
-                  padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                  fontSize: '0.85rem', fontWeight: activeAdminSection === item.id ? 700 : 500,
-                  background: activeAdminSection === item.id ? 'var(--gs-crimson)' : 'transparent',
-                  color: activeAdminSection === item.id ? 'white' : 'var(--gs-dark)',
-                }}
-              >
-                <span>{item.label}</span>
-                {item.count > 0 && (
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 700, padding: '0.05rem 0.45rem', borderRadius: '999px',
-                    background: activeAdminSection === item.id ? 'rgba(255,255,255,0.25)' : '#fef2f2',
-                    color: activeAdminSection === item.id ? 'white' : '#991b1b',
-                  }}>
-                    {item.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+      <div className="adm-layout">
+        <nav className="adm-nav" aria-label="Admin menu">
+          <input className="adm-find" type="search" placeholder="Find a page…" aria-label="Find a page"
+                 value={adminNavFilter} onChange={e => setAdminNavFilter(e.target.value)} />
+          {shownNavGroups.map(g => (
+            <div key={g.group} className="adm-group">
+              <div className="adm-group-title">{g.group}</div>
+              {g.items.map(item => (
+                <button key={item.id} type="button" className="adm-item" aria-current={activeAdminSection === item.id ? 'page' : undefined}
+                        onClick={() => { setActiveAdminSection(item.id); setAdminNavFilter(''); }}>
+                  <AdminIcon name={item.icon} />
+                  <span className="adm-item-label">{item.label}</span>
+                  {item.count > 0 && <span className="adm-count">{item.count}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+          {shownNavGroups.length === 0 && <div className="adm-none">No page matches “{adminNavFilter}”.</div>}
         </nav>
+        <select className="form-select adm-nav-select" aria-label="Admin menu" value={activeAdminSection}
+                onChange={e => setActiveAdminSection(e.target.value)}>
+          {adminNavGroups.map(g => (
+            <optgroup key={g.group} label={g.group}>
+              {g.items.map(i => <option key={i.id} value={i.id}>{i.label}{i.count > 0 ? ` (${i.count})` : ''}</option>)}
+            </optgroup>
+          ))}
+        </select>
 
         <div style={{ flex: 1, minWidth: 0 }}>
 
@@ -1432,7 +1446,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'settings-approvals' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Pending Approvals {pendingSettingsChanges.length > 0 && `(${pendingSettingsChanges.length})`}</h3>
+        <h3 className="results-heading">Change Approvals {pendingSettingsChanges.length > 0 && `(${pendingSettingsChanges.length})`}</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
           Changes to Pricing &amp; Markup or Loyalty Program settings don't take effect immediately — a different admin
           must review and approve them here first. You can't approve your own submission.
@@ -1542,7 +1556,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'admins' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Admin Users</h3>
+        <h3 className="results-heading">Staff Accounts</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
           At least two admin accounts are needed for the Pricing/Loyalty approval workflow above to actually work —
           otherwise there's no second admin who can approve your changes.
@@ -1816,7 +1830,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'notifications' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Fare Notifications {notifications.length > 0 && `(${notifications.length} new)`}</h3>
+        <h3 className="results-heading">Supplier Alerts {notifications.length > 0 && `(${notifications.length} new)`}</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
           Raised automatically when the unified flight search can't get fares back from Travelport (TP) or Amadeus
           (AD) — an email also goes out to the recipients below (at most once every 15 minutes per provider).
@@ -1825,7 +1839,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         {notificationsLoading ? (
           <div className="loading-state"><div className="spinner"></div><p>Loading notifications...</p></div>
         ) : notifications.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No new fare notifications.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No new supplier alerts.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {notifications.map(n => (
@@ -1853,7 +1867,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           </div>
         )}
 
-        <h4 style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>Notification recipients</h4>
+        <h4 style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>Alert recipients</h4>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '-0.4rem', marginBottom: '0.75rem' }}>
           Who gets emailed when a provider's fares fail to come back. Inactive addresses stay on the list but are skipped.
         </p>
@@ -1891,16 +1905,16 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'stuck-bookings' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Stuck Bookings {stuckBookings.length > 0 && `(${stuckBookings.length} new)`}</h3>
+        <h3 className="results-heading">Ticketing Exceptions {stuckBookings.length > 0 && `(${stuckBookings.length} new)`}</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
           Raised when a paid booking couldn't be ticketed at Travelport, or when a staff void / refund / cancel didn't go
-          through there. Each one needs checking by hand — an email also goes to the Fare Notifications recipients.
+          through there. Each one needs checking by hand — an email also goes to the Supplier Alerts recipients.
         </p>
         {stuckBookingsError && <div className="error-banner">{stuckBookingsError}</div>}
         {stuckBookingsLoading ? (
           <div className="loading-state"><div className="spinner"></div><p>Loading stuck bookings...</p></div>
         ) : stuckBookings.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No new stuck-booking alerts.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No open ticketing exceptions.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {stuckBookings.map(n => (
@@ -1930,7 +1944,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'providers' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Provider Control</h3>
+        <h3 className="results-heading">Providers &amp; Modules</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1.25rem' }}>
           Controls which GDS the unified flight search (Book Flights) actually queries. Switching providers here takes
           effect on the very next search — no restart needed. The current mode is{' '}
@@ -2053,7 +2067,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           When the airline confirms a paid seat or extra on a ticketed booking, the customer must pay for it by a deadline:
           the first of the two times below. If it isn't paid by then, it is removed from the PNR (checked every 15 minutes and
           whenever the customer opens Booking Status). Anything Travelport won't remove — paid seats on a ticketed booking, today —
-          shows in Stuck Bookings for staff to remove in Smartpoint.
+          shows in Ticketing Exceptions for staff to remove in Smartpoint.
         </p>
         {!providerSettingsLoading && providerSettings && (
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', maxWidth: '520px' }}>
@@ -2112,7 +2126,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       {activeAdminSection === 'packages' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem' }}>
-          <h3 className="results-heading" style={{ margin: 0 }}>Packages {packages.length > 0 && `(${packages.length})`}</h3>
+          <h3 className="results-heading" style={{ margin: 0 }}>Package Catalog {packages.length > 0 && `(${packages.length})`}</h3>
           <button className="btn btn-primary btn-sm" onClick={() => openPackageForm(null)}>+ Add Package</button>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.35rem', marginBottom: '0' }}>
@@ -2404,7 +2418,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       {activeAdminSection === 'terminal-connections' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem' }}>
-          <h3 className="results-heading" style={{ margin: 0 }}>Terminal Connections {terminalConnections.length > 0 && `(${terminalConnections.length})`}</h3>
+          <h3 className="results-heading" style={{ margin: 0 }}>Airport Transfer Times {terminalConnections.length > 0 && `(${terminalConnections.length})`}</h3>
           <button className="btn btn-primary btn-sm" onClick={() => openTerminalConnForm(null)}>+ Add Entry</button>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.35rem', marginBottom: '0' }}>
@@ -2684,7 +2698,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'assign-booking' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Assign Booking to Customer</h3>
+        <h3 className="results-heading">Link Booking to Customer</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
           For bookings made under a different email than the customer's account — link it directly after verifying ownership.
         </p>
@@ -2708,7 +2722,13 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'force-issue' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Ticket Support</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem' }}>
+          <h3 className="results-heading" style={{ margin: 0 }}>Booking Lookup</h3>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('bookings')}>All bookings &amp; tickets</button>
+            <button className="btn btn-secondary btn-sm" onClick={onOpenInvoice}>Invoice data</button>
+          </div>
+        </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
           When a customer asks about their booking, look it up here by PNR — the details come live from
           Travelport. This is view-only: admins cannot issue tickets. A ticket is issued only after the
@@ -2815,7 +2835,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'reports' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Reports</h3>
+        <h3 className="results-heading">Sales Reports</h3>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '1.25rem' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Start Date</label>
@@ -2872,18 +2892,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       </section>
       )}
 
-      {activeAdminSection === 'tickets' && (
-      <section className="search-section glass-panel">
-        <h3 className="results-heading">Ticket & Invoice Detail</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          Per-PNR ticket lists and Travelport invoice data are available in the existing tabs below.
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={() => onNavigate('bookings')}>View All Bookings / Tickets</button>
-          <button className="btn btn-secondary" onClick={onOpenInvoice}>View Invoice Data</button>
-        </div>
-      </section>
-      )}
 
         </div>
       </div>
