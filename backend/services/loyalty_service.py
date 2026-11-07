@@ -57,6 +57,8 @@ def get_loyalty_summary(email: str) -> dict:
         next_threshold = settings.get("tier_platinum_threshold", 15000)
     next_tier = {"Bronze": "Silver", "Silver": "Gold", "Gold": "Platinum", "Platinum": None}[tier]
     benefits_map = database.get_loyalty_tier_benefits_map()
+    thresholds = {"Bronze": 0, "Silver": settings.get("tier_silver_threshold", 1000),
+                  "Gold": settings.get("tier_gold_threshold", 5000), "Platinum": settings.get("tier_platinum_threshold", 15000)}
     return {
         "email": email,
         "points_balance": balance,
@@ -65,4 +67,10 @@ def get_loyalty_summary(email: str) -> dict:
         "next_tier": next_tier,
         "tier_benefits": benefits_map.get(tier, []),
         "next_tier_benefits": benefits_map.get(next_tier, []) if next_tier else [],
+        # Every tier with the points it starts at and its admin-set benefits,
+        # and the earning rate — for the customer's loyalty page.
+        "tiers": [{"name": t, "threshold": thresholds[t], "benefits": benefits_map.get(t, [])}
+                  for t in ("Bronze", "Silver", "Gold", "Platinum")],
+        "earn": {"points_per_lkr": settings.get("points_per_lkr", 0.01), "points_per_usd": settings.get("points_per_usd", 1.0)},
+        "member_since": account.get("created_at"),
     }

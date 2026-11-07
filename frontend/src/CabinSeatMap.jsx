@@ -198,7 +198,7 @@ export default function CabinSeatMap({ maps, travelers, labelOf, picks, setPicks
               </div>
             </div>
 
-            <div style={{ marginTop: 'auto', background: '#fff8f8', border: '1px solid var(--gs-crimson, #c8102e)', borderRadius: '6px', padding: '0.7rem', fontSize: '0.8rem' }}>
+            <div style={{ marginTop: 'auto', background: 'var(--tb-ice, #EAF4FC)', border: '1px solid var(--gs-crimson, #c8102e)', borderRadius: '6px', padding: '0.7rem', fontSize: '0.8rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Seat charges (all flights):</span>
                 <strong>{money(currency, seatCharges)}</strong>

@@ -3,15 +3,17 @@
 // on Travelport's post-commit workbench by the backend
 // (/api/manage-booking/*); prices shown are Travelport's live prices with
 // our markup, and the amount charged is set server-side, never here.
+//
+// view: which Booking Status tab is open — 'seats', 'extras' or 'requests'
+// (anything else renders nothing). The component stays mounted across tabs
+// so chosen seats and extras are kept while the customer moves between them.
 import { useEffect, useState } from 'react';
 import { fmtDateTime } from './dateFormat.js';
 import BookingWaitLoader from './BookingWaitLoader.jsx';
 import CabinSeatMap, { mapIsOpen } from './CabinSeatMap.jsx';
+import { IconSeat, IconBag, IconWheelchair, IconInfo } from './WizardIcons.jsx';
 
 const money = (cur, amt) => `${cur || ''} ${Number(amt || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
-const box = { border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 0.9rem', marginTop: '0.75rem', background: 'white' };
-const h5 = { margin: '0 0 0.5rem', fontSize: '0.88rem' };
-const muted = { color: 'var(--text-muted)', fontSize: '0.74rem' };
 // Card payment for an add-on on PayCorp's hosted page. The backend takes the
 // amount from the add-on record (never this page's figure); on return
 // CustomerPortal completes it and the airline issues the EMD.
@@ -34,7 +36,12 @@ export function formatDeadline(iso) {
   return fmtDateTime(iso);
 }
 
-const STATUS_TEXT = { confirmed: 'Confirmed by the airline', pending: 'Sent to the airline — waiting for its confirmation (not charged)', sent: 'Sent to the airline (not confirmed yet)', failed: 'Not Added' };
+const STATUS = {
+  confirmed: ['Confirmed by the airline', 'ok'],
+  pending: ['Waiting for the airline (not charged)', 'info'],
+  sent: ['Sent to the airline (not confirmed yet)', 'info'],
+  failed: ['Not added', 'bad'],
+};
 
 
 // Extras laid out like the booking flow's Options step: one block per flight
@@ -49,7 +56,7 @@ const EXTRA_CATS = [
 
 // Round trip (ends where it began): the return starts at the first flight
 // that leaves 12 hours or more after the previous one landed.
-function flightDirections(flights) {
+export function flightDirections(flights) {
   const list = [...flights].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
   const roundTrip = list.length > 1 && list[0].from && list[0].from === list[list.length - 1].to;
   let back = false;
@@ -71,13 +78,12 @@ function ExtrasByFlight({ extras, flights, travelers, pick, setPick }) {
   const titleOf = (g) => {
     const nums = g.slice(1).split(',').filter(Boolean).map(Number);
     const fs = nums.map(n => flown[n - 1]).filter(Boolean);
-    if (g.startsWith('F') && fs[0]) return `${fs[0].dir} · ${fs[0].flight} ${fs[0].from} → ${fs[0].to}`;
+    if (g.startsWith('F') && fs[0]) return [fs[0].dir, `${fs[0].flight} · ${fs[0].from} → ${fs[0].to}`];
     const dirs = new Set(fs.map(f => f.dir));
-    return dirs.size === 1 && fs.length ? `${fs[0].dir} · all flights` : 'Whole trip';
+    return dirs.size === 1 && fs.length ? [fs[0].dir, 'All flights'] : ['Whole trip', 'Every flight on the booking'];
   };
   const order = (g) => Math.min(...g.slice(1).split(',').filter(Boolean).map(Number), 99) * 10 + (g.startsWith('F') ? 0 : 5);
   const groups = [...new Set(extras.map(groupOf))].sort((a, b) => order(a) - order(b));
-  const label = { fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 };
   return groups.map(g => {
     // Per flight all three are shown (one the airline doesn't offer is
     // greyed out), as in the booking flow; a multi-flight block only shows
@@ -85,26 +91,26 @@ function ExtrasByFlight({ extras, flights, travelers, pick, setPick }) {
     const cats = g.startsWith('F') ? EXTRA_CATS
       : EXTRA_CATS.filter(c => extras.some(x => groupOf(x) === g && (x.category_code || '').toUpperCase() === c.code));
     if (!cats.length) return null;
+    const [dir, title] = titleOf(g);
     return (
-      <div key={g} style={{ marginTop: '0.6rem' }}>
-        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--gs-crimson, #c8102e)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{titleOf(g)}</div>
+      <div key={g} className="mmb-extra-group">
+        <div className="mmb-extra-title"><span className="mmb-dir">{dir}</span><strong>{title}</strong></div>
         {travelers.map(t => {
           const mine = extras.map((x, i) => ({ x, i })).filter(({ x }) => groupOf(x) === g && x.traveler_identifier_ref === t.id);
           if (!mine.length) return null;
           return (
-            <div key={t.id} style={{ marginTop: '0.4rem', padding: '0.55rem 0.7rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.35rem' }}>{t.name}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '0.5rem' }}>
+            <div key={t.id} className="mmb-extra-pax">
+              <div className="mmb-pax-name">{t.name}</div>
+              <div className="mmb-extra-fields">
                 {cats.map(c => {
                   const opts = mine.filter(({ x }) => (x.category_code || '').toUpperCase() === c.code).sort((a, b) => (a.x.price || 0) - (b.x.price || 0));
                   const key = `${t.id}|${g}|${c.code}`;
                   const fl = g.startsWith('F') ? flown[Number(g.slice(1)) - 1] : null;
                   return (
-                    <label key={c.code} style={label}>
-                      {c.code === 'LG' && fl ? `Lounge at ${fl.from}` : c.label}
+                    <label key={c.code} className="mmb-field">
+                      <span>{c.code === 'LG' && fl ? `Lounge at ${fl.from}` : c.label}</span>
                       <select className="form-select" value={pick[key] ?? ''} disabled={!opts.length}
-                              onChange={e => setPick(p => ({ ...p, [key]: e.target.value }))}
-                              style={{ fontSize: '0.8rem', height: '34px', fontWeight: 400 }}>
+                              onChange={e => setPick(p => ({ ...p, [key]: e.target.value }))}>
                         <option value="">{opts.length ? 'No selection' : 'Not offered on this flight'}</option>
                         {opts.map(({ x, i }) => (
                           <option key={i} value={i}>
@@ -124,7 +130,14 @@ function ExtrasByFlight({ extras, flights, travelers, pick, setPick }) {
   });
 }
 
-export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, authToken, onChanged }) {
+const PanelHead = ({ icon: Icon, title, sub }) => (
+  <div className="mmb-card-head">
+    <span className="mmb-icon"><Icon size={20} /></span>
+    <div><h3>{title}</h3>{sub && <p className="mmb-sub">{sub}</p>}</div>
+  </div>
+);
+
+export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, authToken, onChanged, view }) {
   const [options, setOptions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -141,7 +154,7 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
       body: JSON.stringify({ manage_token: manageToken, ...body }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Travelport did not answer');
+    if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'The airline did not answer');
     return data;
   };
 
@@ -156,15 +169,17 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
     })();
   }, [manageToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (!['seats', 'extras', 'requests'].includes(view)) return null;
   if (loading) return <BookingWaitLoader icon="seat" title="Loading seats and extras from the airline" subtitle="Live from the airline — this can take a few seconds" />;
   if (error && !options) return <div className="error-banner">{error}</div>;
 
   const travelers = options.travelers || [];
-  const nameOf = (id) => travelers.find(t => t.id === id)?.name || '';
   const chosenSeats = Object.entries(seatPick).map(([k, s]) => { const [flight, traveler] = k.split('|'); return { flight, traveler, seat: s }; });
   const chosenExtras = Object.values(extraPick).filter(v => v !== '' && v != null).map(v => options.extras[Number(v)]).filter(Boolean);
   const total = chosenSeats.reduce((a, c) => a + (c.seat.price || 0), 0) + chosenExtras.reduce((a, x) => a + (x.price || 0), 0);
   const currency = chosenSeats[0]?.seat.currency || chosenExtras[0]?.currency || 'LKR';
+  const addons = view === 'seats' || view === 'extras';
+  const ndcNote = options.seats_extras_note;
 
   const sendSpecialRequests = async () => {
     const requests = Object.entries(ssr).flatMap(([traveler_id, v]) =>
@@ -208,162 +223,176 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
     .find(o => o.code === code)?.label || code;
 
   const renderResult = () => (
-      <div style={{ ...box, background: '#f8fafc' }}>
-        <h5 style={h5}>Result from the airline</h5>
-        {(result.kind === 'ssr' ? result.results : [...(result.seats || []), ...(result.extras || [])]).map((i, n) => (
-          <div key={n} style={{ fontSize: '0.8rem', padding: '0.2rem 0' }}>
-            <strong>{i.seat_number ? `Seat ${i.seat_number}` : i.name || ssrLabel(i.code)}</strong>{i.price ? ` · ${money(i.currency, i.price)}` : ''} — {STATUS_TEXT[i.status] || i.status}
-            {(i.reason || i.error) && i.status !== 'pending' ? (
-              i.status === 'failed'
-                ? <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.15rem' }}>{i.reason || i.error}</div>
-                : <span style={muted}> ({i.reason || i.error})</span>
-            ) : null}
+    <section className="mmb-card mmb-result">
+      <h4 className="mmb-section-title">Answer from the airline</h4>
+      {(result.kind === 'ssr' ? result.results : [...(result.seats || []), ...(result.extras || [])]).map((i, n) => {
+        const [label, cls] = STATUS[i.status] || [i.status, 'warn'];
+        return (
+          <div key={n} className="mmb-result-row">
+            <div>
+              <strong>{i.seat_number ? `Seat ${i.seat_number}` : i.name || ssrLabel(i.code)}</strong>
+              {i.flight_number && <span className="mmb-muted"> · {i.flight_number}</span>}
+              {i.price ? <span className="mmb-muted"> · {money(i.currency, i.price)}</span> : null}
+              {(i.reason || i.error) && i.status !== 'pending' && <div className="mmb-reason">{i.reason || i.error}</div>}
+            </div>
+            <span className={`mmb-chip ${cls}`}>{label}</span>
           </div>
-        ))}
-        {result.kind === 'ssr' && result.results?.some(r => r.status === 'sent') && !(result.special_services || []).length && (
-          <div style={{ marginTop: '0.4rem', padding: '0.55rem 0.7rem', borderRadius: '6px', background: '#fffbeb', border: '1px solid #fde68a', fontSize: '0.8rem', color: '#78350f' }}>
-            <strong>Not confirmed yet.</strong> The request is on your booking with the airline, but this airline doesn't send its
-            confirmation back online for this booking. The airline confirms it at check-in — use <strong>Check again</strong> later to
-            see if it has been updated, or contact the airline directly or call 011 222 2222 to make sure.
-          </div>
-        )}
-        {result.kind === 'addons' && [...(result.seats || []), ...(result.extras || [])].some(i => i.status === 'pending') && (
-          <div style={{ marginTop: '0.5rem', padding: '0.55rem 0.7rem', borderRadius: '6px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.8rem', color: '#1e3a8a' }}>
-            We've sent your request to the airline for confirmation. Nothing is charged now. As soon as the airline confirms
-            or declines, we'll let you know by email and SMS — if it confirms, you can pay here on Booking Status to keep it.
-          </div>
-        )}
-        {result.payment_required && (
-          <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem' }}>
-              To finish, pay <strong>{money(result.currency, result.amount)}</strong>
-              {result.deadline_utc ? <> by <strong>{formatDeadline(result.deadline_utc)}</strong></> : null}. The airline then issues the document for your seat/extra.
-              {result.deadline_utc ? ' If it isn’t paid by then it is removed from your booking and can’t be used at the airport.' : ''}
-            </span>
-            <button className="btn btn-primary btn-sm" disabled={busy === 'pay'} onClick={payAddons}>Pay {money(result.currency, result.amount)}</button>
-          </div>
-        )}
-        {result.added_to_booking_total ? (
-          <div style={{ fontSize: '0.8rem', marginTop: '0.4rem' }}>Added {money(result.currency, result.added_to_booking_total)} to your booking — new total {money(result.currency, result.new_total)}, paid when your ticket is issued.</div>
-        ) : null}
-      </div>
+        );
+      })}
+      {result.kind === 'ssr' && result.results?.some(r => r.status === 'sent') && !(result.special_services || []).length && (
+        <div className="mmb-alert warn" style={{ marginTop: '0.6rem' }}>
+          <strong>Not confirmed yet.</strong> The request is on your booking with the airline, but this airline doesn't send its
+          confirmation back online for this booking. The airline confirms it at check-in — use <strong>Check again</strong> later to
+          see if it has been updated, or contact the airline directly or call 011 222 2222 to make sure.
+        </div>
+      )}
+      {result.kind === 'addons' && [...(result.seats || []), ...(result.extras || [])].some(i => i.status === 'pending') && (
+        <div className="mmb-alert info" style={{ marginTop: '0.6rem' }}>
+          We've sent your request to the airline for confirmation. Nothing is charged now. As soon as the airline confirms
+          or declines, we'll let you know by email and SMS — if it confirms, you can pay here on Booking Status to keep it.
+        </div>
+      )}
+      {result.payment_required && (
+        <div className="mmb-pay">
+          <span>
+            To finish, pay <strong>{money(result.currency, result.amount)}</strong>
+            {result.deadline_utc ? <> by <strong>{formatDeadline(result.deadline_utc)}</strong></> : null}. The airline then issues the document for your seat/extra.
+            {result.deadline_utc ? ' If it isn’t paid by then it is removed from your booking and can’t be used at the airport.' : ''}
+          </span>
+          <button className="btn btn-primary" disabled={busy === 'pay'} onClick={payAddons}>Pay {money(result.currency, result.amount)}</button>
+        </div>
+      )}
+      {result.added_to_booking_total ? (
+        <div className="mmb-muted" style={{ marginTop: '0.5rem' }}>Added {money(result.currency, result.added_to_booking_total)} to your booking — new total {money(result.currency, result.new_total)}, paid when your ticket is issued.</div>
+      ) : null}
+    </section>
   );
 
+  const flown = flightDirections(options.flights || []);
+  const maps = options.seat_maps || [];
+  const seatRows = flown.length ? flown : maps.map(m => ({ flight: m.flight_number, from: m.departure_airport, to: m.arrival_airport, dir: 'Flight' }));
+  const picked = chosenSeats.length + chosenExtras.length;
+
   return (
-    <div>
-      {error && <div className="error-banner" style={{ marginTop: '0.5rem' }}>{error}</div>}
+    <div className="mmb-manage">
+      {error && <div className="error-banner">{error}</div>}
 
-
-      <div style={box}>
-        <h5 style={h5}>Special requests</h5>
-        <div style={muted}>Free. The airline confirms them — its answer shows below.</div>
-        {travelers.map(t => (
-          <div key={t.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.5rem', fontSize: '0.8rem' }}>
-            <strong style={{ minWidth: '140px' }}>{t.name}</strong>
-            <select className="form-input" style={{ maxWidth: '300px', padding: '0.3rem 0.5rem', fontSize: '0.78rem' }}
-                    value={ssr[t.id]?.wheelchair || ''} onChange={e => setSsr(p => ({ ...p, [t.id]: { ...p[t.id], wheelchair: e.target.value } }))}>
-              <option value="">No wheelchair</option>
-              {options.special_requests.wheelchair.map(w => <option key={w.code} value={w.code}>{w.label}</option>)}
-            </select>
-            {options.special_requests.meals.length > 0 && (
-              <select className="form-input" style={{ maxWidth: '220px', padding: '0.3rem 0.5rem', fontSize: '0.78rem' }}
-                      value={ssr[t.id]?.meal || ''} onChange={e => setSsr(p => ({ ...p, [t.id]: { ...p[t.id], meal: e.target.value } }))}>
-                <option value="">No special meal</option>
-                {options.special_requests.meals.map(m => <option key={m.code} value={m.code}>{m.label}</option>)}
-              </select>
-            )}
+      {view === 'requests' && (
+        <section className="mmb-card">
+          <PanelHead icon={IconWheelchair} title="Special requests" sub="Free of charge. Your request goes straight to the airline — its answer shows below and in Booking overview." />
+          <div className="mmb-ssr">
+            {travelers.map(t => (
+              <div key={t.id} className="mmb-ssr-row">
+                <div className="mmb-pax-name">{t.name}</div>
+                <label className="mmb-field">
+                  <span>Wheelchair</span>
+                  <select className="form-select" value={ssr[t.id]?.wheelchair || ''} onChange={e => setSsr(p => ({ ...p, [t.id]: { ...p[t.id], wheelchair: e.target.value } }))}>
+                    <option value="">No wheelchair</option>
+                    {options.special_requests.wheelchair.map(w => <option key={w.code} value={w.code}>{w.label}</option>)}
+                  </select>
+                </label>
+                {options.special_requests.meals.length > 0 && (
+                  <label className="mmb-field">
+                    <span>Special meal</span>
+                    <select className="form-select" value={ssr[t.id]?.meal || ''} onChange={e => setSsr(p => ({ ...p, [t.id]: { ...p[t.id], meal: e.target.value } }))}>
+                      <option value="">No special meal</option>
+                      {options.special_requests.meals.map(m => <option key={m.code} value={m.code}>{m.label}</option>)}
+                    </select>
+                  </label>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
-        {options.special_requests.meals_note && <div style={{ ...muted, marginTop: '0.4rem' }}>{options.special_requests.meals_note}</div>}
-        <div style={{ ...muted, marginTop: '0.4rem' }}>Note: with a wheelchair request, some airlines (SriLankan, for one) don't allow paid seat selection.</div>
-        <button className="btn btn-primary btn-sm" style={{ marginTop: '0.6rem' }} disabled={busy === 'ssr' || !Object.values(ssr).some(v => v?.wheelchair || v?.meal)}
-                onClick={sendSpecialRequests}>{busy === 'ssr' ? 'Sending…' : 'Send special requests'}</button>
-      </div>
+          {options.special_requests.meals_note && <p className="mmb-muted" style={{ marginTop: '0.5rem' }}>{options.special_requests.meals_note}</p>}
+          <p className="mmb-note"><IconInfo size={14} /> With a wheelchair request, some airlines (SriLankan, for one) don't allow paid seat selection.</p>
+          <div className="mmb-actions">
+            <button className="btn btn-primary" disabled={busy === 'ssr' || !Object.values(ssr).some(v => v?.wheelchair || v?.meal)}
+                    onClick={sendSpecialRequests}>{busy === 'ssr' ? 'Sending…' : 'Send special requests'}</button>
+          </div>
+        </section>
+      )}
+      {view === 'requests' && result?.kind === 'ssr' && renderResult()}
 
-      {result?.kind === 'ssr' && renderResult()}
+      {addons && ndcNote && <div className="mmb-alert warn">{ndcNote}</div>}
+      {addons && !ndcNote && options.paid_addons_note && <div className="mmb-alert info">{options.paid_addons_note}</div>}
 
-      {options.seats_extras_note ? (
-        <div style={{ ...box, background: '#fffbeb', borderColor: '#fde68a', fontSize: '0.82rem', color: '#78350f' }}>{options.seats_extras_note}</div>
-      ) : (
-        <>
-          <div style={box}>
-            <h5 style={h5}>Choose seats</h5>
-            <div style={muted}>Pick a seat on the aircraft cabin map. Free seats cost nothing; for a paid seat you pay only once the airline confirms it.
-              A seat already on the booking can't be swapped online yet.</div>
-            {options.seat_map_error && <div style={{ ...muted, marginTop: '0.4rem' }}>Seat map not available: {options.seat_map_error}</div>}
-            {(() => {
-              const flown = flightDirections(options.flights || []);
-              const maps = options.seat_maps || [];
-              const rows = flown.length ? flown : maps.map(m => ({ flight: m.flight_number, from: m.departure_airport, to: m.arrival_airport, dir: 'Flight' }));
-              if (!rows.length) return null;
+      {view === 'seats' && !ndcNote && (
+        <section className="mmb-card">
+          <PanelHead icon={IconSeat} title="Choose your seats"
+                     sub="Pick a seat on the aircraft cabin map. Free seats cost nothing; a paid seat is charged only once the airline confirms it. A seat already on the booking can't be swapped online yet." />
+          {options.seat_map_error && <div className="mmb-alert warn">Seat map not available: {options.seat_map_error}</div>}
+          <div className="mmb-seat-flights">
+            {seatRows.map(f => {
+              const m = maps.find(x => x.flight_number === f.flight);
+              const ok = mapIsOpen(m);
+              const mine = travelers.map(t => ({ t, s: seatPick[`${f.flight}|${t.id}`] })).filter(x => x.s);
               return (
-                <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  {rows.map(f => {
-                    const m = maps.find(x => x.flight_number === f.flight);
-                    const ok = mapIsOpen(m);
-                    const picked = travelers.map(t => ({ t, s: seatPick[`${f.flight}|${t.id}`] })).filter(x => x.s);
-                    return (
-                      <div key={f.flight} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.6rem 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--gs-crimson, #c8102e)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{f.dir}</div>
-                          <div style={{ fontSize: '0.84rem', fontWeight: 700 }}>{f.flight} · {f.from} → {f.to}</div>
-                          <div style={{ fontSize: '0.75rem', marginTop: '0.1rem', color: ok ? '#166534' : '#92400e' }}>
-                            {ok ? '✓ Seat selection available' : m?.seat_condition?.closed ? `✕ Seat selection has closed (the airline closes it ${m.seat_condition.hours} hours before departure)` : '✕ Seat selection not available online for this flight'}
-                          </div>
-                          {picked.length > 0 && (
-                            <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                              {picked.map(({ t, s: seat }) => (
-                                <span key={t.id} style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e1b4b', background: '#e0e7ff', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                                  {t.name}: {seat.seat_number} · {seat.price ? money(seat.currency, seat.price) : 'Free'}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <button type="button" className={ok ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'} disabled={!ok} onClick={() => setCabinFor(f.flight)}
-                                style={ok ? {} : { background: '#f1f5f9', color: '#94a3b8', borderColor: '#e2e8f0', cursor: 'not-allowed' }}>
-                          {ok ? (picked.length ? 'Change seat' : 'Choose seat') : 'Not available'}
-                        </button>
+                <div key={f.flight} className={`mmb-seat-flight${ok ? '' : ' closed'}`}>
+                  <div style={{ minWidth: 0 }}>
+                    <span className="mmb-dir">{f.dir}</span>
+                    <div className="mmb-seat-route">{f.flight} · {f.from} → {f.to}</div>
+                    <div className={ok ? 'mmb-ok' : 'mmb-no'}>
+                      {ok ? '✓ Seat selection available' : m?.seat_condition?.closed ? `✕ Seat selection has closed (the airline closes it ${m.seat_condition.hours} hours before departure)` : '✕ Seat selection not available online for this flight'}
+                    </div>
+                    {mine.length > 0 && (
+                      <div className="mmb-chips">
+                        {mine.map(({ t, s: seat }) => (
+                          <span key={t.id} className="mmb-pick">{t.name}: {seat.seat_number} · {seat.price ? money(seat.currency, seat.price) : 'Free'}</span>
+                        ))}
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
+                  <button type="button" className={ok ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'} disabled={!ok} onClick={() => setCabinFor(f.flight)}>
+                    {ok ? (mine.length ? 'Change seat' : 'Choose seat') : 'Not available'}
+                  </button>
                 </div>
               );
-            })()}
-            {cabinFor && (
-              <CabinSeatMap maps={options.seat_maps || []} travelers={travelers} startFlight={cabinFor}
-                            labelOf={(fn) => flightDirections(options.flights || []).find(x => x.flight === fn)?.dir || 'Flight'}
-                            picks={seatPick} setPicks={setSeatPick} onClose={() => setCabinFor(null)} />
-            )}
+            })}
           </div>
+          {cabinFor && (
+            <CabinSeatMap maps={maps} travelers={travelers} startFlight={cabinFor}
+                          labelOf={(fn) => flown.find(x => x.flight === fn)?.dir || 'Flight'}
+                          picks={seatPick} setPicks={setSeatPick} onClose={() => setCabinFor(null)} />
+          )}
+        </section>
+      )}
 
-          <div style={box}>
-            <h5 style={h5}>Add extras</h5>
-            <div style={{ ...muted, marginBottom: '0.2rem' }}>Extra baggage, meals and lounges for each flight. You pay only once the airline confirms them.</div>
-            {options.extras_error && <div style={{ fontSize: '0.8rem', color: '#475569' }}>{options.extras_error}</div>}
-            {(options.extras || []).length === 0 && !options.extras_error && <div style={muted}>The airline offers no extras for this booking.</div>}
-            {(options.extras || []).length > 0 && (
-              <ExtrasByFlight extras={options.extras} flights={options.flights || []} travelers={travelers}
-                              pick={extraPick} setPick={setExtraPick} />
-            )}
-          </div>
+      {view === 'extras' && !ndcNote && (
+        <section className="mmb-card">
+          <PanelHead icon={IconBag} title="Add extras" sub="Extra baggage, meals and lounges for each flight. You pay only once the airline confirms them." />
+          {options.extras_error && <div className="mmb-alert info">{options.extras_error}</div>}
+          {(options.extras || []).length === 0 && !options.extras_error && <div className="mmb-muted">The airline offers no extras for this booking.</div>}
+          {(options.extras || []).length > 0 && (
+            <ExtrasByFlight extras={options.extras} flights={options.flights || []} travelers={travelers}
+                            pick={extraPick} setPick={setExtraPick} />
+          )}
+        </section>
+      )}
 
-          <div style={{ ...box, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem' }}>
-              {chosenSeats.length + chosenExtras.length} selected · <strong>{money(currency, total)}</strong>
-              <span style={muted}> — the airline's live price at booking is what's charged; nothing is charged if it can't confirm.</span>
-            </span>
-            <button className="btn btn-primary btn-sm" disabled={busy === 'addons' || !(chosenSeats.length + chosenExtras.length)} onClick={sendSeatsExtras}>
+      {addons && !ndcNote && (
+        <>
+          <div className="mmb-bar">
+            <div>
+              <small>{chosenSeats.length} seat{chosenSeats.length === 1 ? '' : 's'} · {chosenExtras.length} extra{chosenExtras.length === 1 ? '' : 's'} selected</small>
+              <div className="mmb-total">{money(currency, total)}</div>
+              <small>The airline's live price at booking is what's charged; nothing is charged if it can't confirm.</small>
+            </div>
+            <button className="btn mmb-bar-btn" disabled={busy === 'addons' || !picked} onClick={sendSeatsExtras}>
               {busy === 'addons' ? 'Booking with the airline…' : 'Add to my booking'}
             </button>
           </div>
+          <ol className="mmb-steps">
+            <li className="done"><b>1</b><div><strong>Choose seats &amp; extras</strong>Across both tabs</div></li>
+            <li><b>2</b><div><strong>The airline confirms</strong>Free items are added at once</div></li>
+            <li><b>3</b><div><strong>Pay for paid items</strong>Only what the airline confirmed</div></li>
+          </ol>
         </>
       )}
 
       {busy === 'addons' && (
         <BookingWaitLoader icon="seat" title="Sending your choices to the airline" subtitle="Waiting for the airline's answer — please don't close this page" />
       )}
-      {result && result.kind !== 'ssr' && renderResult()}
+      {addons && result && result.kind !== 'ssr' && renderResult()}
     </div>
   );
 }

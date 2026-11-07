@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { fmtDateTime } from './dateFormat.js';
 
-const tone = (status) => {
+export const tone = (status) => {
   const s = (status || '').toLowerCase();
   if (['confirmed', 'openforuse', 'ok', 'hk', 'used', 'flown'].some(k => s === k)) return { bg: '#f0fdf4', fg: '#166534', bd: '#bbf7d0' };
   if (['cancelled', 'void', 'voided', 'refunded', 'rejected', 'unable'].some(k => s.includes(k))) return { bg: '#fef2f2', fg: '#991b1b', bd: '#fecaca' };
@@ -22,7 +22,7 @@ const Chip = ({ children, status }) => {
 };
 
 // OtherAirlineControl: the airline has taken the coupon over for check-in / departure.
-const COUPON_LABELS = { OpenForUse: 'Open for use', OtherAirlineControl: 'With the airline (check-in)', Void: 'Void', Refunded: 'Refunded',
+export const COUPON_LABELS = { OpenForUse: 'Open for use', OtherAirlineControl: 'With the airline (check-in)', Void: 'Void', Refunded: 'Refunded',
                         Used: 'Used', Flown: 'Flown', Exchanged: 'Exchanged' };
 
 const section = { fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0.9rem 0 0.35rem' };

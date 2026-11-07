@@ -3,8 +3,23 @@ import AddonInvoice from './AddonInvoice.jsx';
 import BookingLineList from './BookingLineList.jsx';
 import BookingDetailView from './BookingDetailView.jsx';
 import BookingStatusPage from './BookingStatusPage.jsx';
+import LoyaltyPage from './LoyaltyPage.jsx';
 import { COUNTRIES } from './countries.js';
 import { fmtDate } from './dateFormat.js';
+
+const NavSvg = ({ children }) => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+);
+// Account menu icons (one per tab id).
+const NAV_ICONS = {
+  bookings: () => <NavSvg><path d="M3 8.5V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2.5a2.5 2.5 0 0 0 0 5V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2.5a2.5 2.5 0 0 0 0-5z" /><path d="M14 5v12" strokeDasharray="2 2.2" /></NavSvg>,
+  status: () => <NavSvg><circle cx="12" cy="12" r="9" /><path d="m8 12.5 2.8 2.8L16.5 9.5" /></NavSvg>,
+  loyalty: () => <NavSvg><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></NavSvg>,
+  visa: () => <NavSvg><rect x="4.5" y="2.5" width="15" height="19" rx="2" /><circle cx="12" cy="10" r="3.2" /><path d="M8.5 17h7" /></NavSvg>,
+  cancellations: () => <NavSvg><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6M15 9l-6 6" /></NavSvg>,
+  account: () => <NavSvg><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></NavSvg>,
+};
 
 export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation, visaEnabled }) {
   const [activeSection, setActiveSection] = useState('bookings');
@@ -407,36 +422,24 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
         </div>
       </section>
 
-      <div className="customer-portal-layout" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-        <nav className="customer-portal-nav" style={{ width: '220px', flexShrink: 0, position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-          {customerNavItems.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => { setActiveSection(item.id); setOpenLocator(null); }}
-              style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
-                padding: '0.6rem 0.8rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                fontSize: '0.85rem', fontWeight: activeSection === item.id ? 700 : 500,
-                background: activeSection === item.id ? 'var(--gs-crimson)' : 'transparent',
-                color: activeSection === item.id ? 'white' : 'var(--gs-dark)',
-              }}
-            >
-              <span>{item.label}</span>
-              {item.count > 0 && (
-                <span style={{
-                  fontSize: '0.7rem', fontWeight: 700, padding: '0.05rem 0.45rem', borderRadius: '999px',
-                  background: activeSection === item.id ? 'rgba(255,255,255,0.25)' : '#fef2f2',
-                  color: activeSection === item.id ? 'white' : '#991b1b',
-                }}>
-                  {item.count}
-                </span>
-              )}
-            </button>
-          ))}
+      {/* Account menu: one row of tabs across the top (was a left sidebar). */}
+      <div className="customer-portal-layout cp-layout">
+        <nav className="cp-tabs" aria-label="My account">
+          {customerNavItems.map(item => {
+            const Icon = NAV_ICONS[item.id];
+            const active = activeSection === item.id;
+            return (
+              <button key={item.id} type="button" className="cp-tab" aria-current={active ? 'page' : undefined}
+                      onClick={() => { setActiveSection(item.id); setOpenLocator(null); }}>
+                {Icon && <Icon />}
+                <span>{item.label}</span>
+                {item.count > 0 && <span className="cp-count">{item.count}</span>}
+              </button>
+            );
+          })}
         </nav>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="cp-content">
           {activeSection === 'bookings' && openBooking && (
             <BookingDetailView booking={openBooking} liveStatus={liveStatuses[openBooking.locator_code]}
                                onBack={closeBooking} onViewTicket={onViewTicket} onRequestCancellation={onRequestCancellation}
@@ -487,67 +490,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
             </>
           )}
 
-          {activeSection === 'loyalty' && (
-            <section className="search-section glass-panel">
-              <h3 className="results-heading" style={{ marginTop: 0 }}>Loyalty Program</h3>
-              {!loyalty ? (
-                <div className="loading-state"><div className="spinner"></div><p>Loading your loyalty status...</p></div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-                    <div style={{
-                      width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '1.4rem', flexShrink: 0,
-                      background: loyalty.tier === 'Platinum' ? 'linear-gradient(135deg,#e5e9f0,#7c8ba1)' : loyalty.tier === 'Gold' ? 'linear-gradient(135deg,#fde047,#ca8a04)' : loyalty.tier === 'Silver' ? 'linear-gradient(135deg,#e2e8f0,#94a3b8)' : 'linear-gradient(135deg,#d6a679,#92582f)',
-                    }}>
-                      {loyalty.tier === 'Platinum' ? '💎' : loyalty.tier === 'Gold' ? '🥇' : loyalty.tier === 'Silver' ? '🥈' : '🥉'}
-                    </div>
-                    <div style={{ flex: 1, minWidth: '200px' }}>
-                      <div style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--gs-dark)' }}>
-                        {loyalty.tier} Member — {loyalty.points_balance.toLocaleString()} pts
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                        {loyalty.next_tier
-                          ? `${loyalty.points_to_next_tier.toLocaleString()} points to ${loyalty.next_tier}`
-                          : 'You’ve reached the top tier'}
-                      </div>
-                    </div>
-                  </div>
-                  {(loyalty.tier_benefits?.length > 0 || loyalty.next_tier_benefits?.length > 0) && (
-                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                      {loyalty.tier_benefits?.length > 0 && (
-                        <div style={{ flex: 1, minWidth: '200px' }}>
-                          <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Your {loyalty.tier} Benefits</div>
-                          <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                            {loyalty.tier_benefits.map((b, i) => <li key={i} style={{ marginBottom: '0.2rem' }}>{b}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                      {loyalty.next_tier && loyalty.next_tier_benefits?.length > 0 && (
-                        <div style={{ flex: 1, minWidth: '200px' }}>
-                          <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Unlock at {loyalty.next_tier}</div>
-                          <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                            {loyalty.next_tier_benefits.map((b, i) => <li key={i} style={{ marginBottom: '0.2rem' }}>{b}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {loyalty.recent_transactions?.length > 0 && (
-                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
-                      <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Recent Activity</div>
-                      {loyalty.recent_transactions.slice(0, 5).map(t => (
-                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.3rem 0' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>{t.reason}</span>
-                          <span style={{ fontWeight: '700', color: t.points_change >= 0 ? '#166534' : '#991b1b' }}>{t.points_change >= 0 ? '+' : ''}{t.points_change}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-          )}
+          {activeSection === 'loyalty' && <LoyaltyPage loyalty={loyalty} />}
 
           {activeSection === 'visa' && visaEnabled && (
             <section className="search-section glass-panel">

@@ -4,12 +4,184 @@
 // flights, ticket coupons, seats, extras/EMDs, special requests. The booking
 // doesn't have to be one made here or linked to this account. The last name
 // must match a passenger on the booking, so a reference alone never reveals
-// anyone's itinerary. Manage My Booking (ManageMyBooking.jsx) opens below.
+// anyone's itinerary. Manage My Booking (ManageMyBooking.jsx) is in the
+// Seats / Extras / Special requests tabs.
+//
+// Layout (Tick and Book look, styles in index.css under ".mmb"): hero →
+// "Find your booking" card → booking summary (reference, status, route,
+// dates) → notices (payment due, removed extras, invoices) → tabs.
 import { useEffect, useState } from 'react';
-import { LiveStatusDetails } from './LiveBookingPanel.jsx';
-import ManageMyBooking, { startAddonPayment, formatDeadline } from './ManageMyBooking.jsx';
-import { fmtDateTime } from './dateFormat.js';
+import { tone, COUPON_LABELS } from './LiveBookingPanel.jsx';
+import ManageMyBooking, { startAddonPayment, formatDeadline, flightDirections } from './ManageMyBooking.jsx';
+import { fmtDate, fmtDateTime, fmtDateWeekday, fmtTime } from './dateFormat.js';
 import AddonInvoice from './AddonInvoice.jsx';
+import { IconSeat, IconBag, IconWheelchair, IconPlane, IconCalendar, IconUsers, IconUser, IconInfo } from './WizardIcons.jsx';
+
+const Svg = ({ size = 18, children }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+);
+const IconTicket = (p) => <Svg {...p}><path d="M3 8.5V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2.5a2.5 2.5 0 0 0 0 5V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2.5a2.5 2.5 0 0 0 0-5z" /><path d="M14 5v12" strokeDasharray="2 2.2" /></Svg>;
+const IconSearch = (p) => <Svg {...p}><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></Svg>;
+const IconRefresh = (p) => <Svg {...p}><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4" /></Svg>;
+const IconCheck = (p) => <Svg {...p}><path d="m5 12.5 4.5 4.5L19 7.5" /></Svg>;
+const IconAlert = (p) => <Svg {...p}><path d="M12 8v5M12 16.5v.5" /><path d="M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></Svg>;
+const IconList = (p) => <Svg {...p}><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" /></Svg>;
+
+const money = (cur, amt) => `${cur || ''} ${Number(amt || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
+const toneClass = (status) => {
+  const t = tone(status);
+  return t.fg === '#166534' ? 'ok' : t.fg === '#991b1b' ? 'bad' : 'warn';
+};
+const Chip = ({ status, children }) => <span className={`mmb-chip ${toneClass(status ?? children)}`}>{children}</span>;
+
+const BOOKING_STATE = {
+  ticketed: ['Ticketed', 'ok'], confirmed: ['Confirmed', 'ok'], cancelled: ['Cancelled', 'bad'],
+  airline_cancelled: ['Cancelled by the airline', 'bad'], airline_problem: ['Needs attention', 'warn'],
+};
+
+const TABS = [
+  { id: 'overview', label: 'Booking overview', icon: IconList },
+  { id: 'seats', label: 'Choose seats', icon: IconSeat },
+  { id: 'extras', label: 'Add extras', icon: IconBag },
+  { id: 'requests', label: 'Special requests', icon: IconWheelchair },
+];
+
+function AirlineLogo({ code }) {
+  const [failed, setFailed] = useState(false);
+  if (!code) return null;
+  return (
+    <div className="mmb-airline" title={code}>
+      {failed ? <strong>{code}</strong> : (
+        <img src={`https://www.gstatic.com/flights/airline_logos/70px/${code}.png`} alt={code} onError={() => setFailed(true)} />
+      )}
+    </div>
+  );
+}
+
+// The trip at a glance: airline, route, departure / return, passengers, cabin.
+function TripSummary({ data }) {
+  const flown = flightDirections(data.flights || []);
+  if (!flown.length) return null;
+  const first = flown[0];
+  const back = flown.find(f => f.dir === 'Return');
+  const outbound = flown.filter(f => f.dir !== 'Return');
+  const end = back ? outbound[outbound.length - 1] : flown[flown.length - 1];
+  const pax = (data.travelers || []).length;
+  const fact = (Icon, label, value, sub) => (
+    <div className="mmb-fact">
+      <Icon size={18} />
+      <div><small>{label}</small><strong>{value}</strong>{sub && <small>{sub}</small>}</div>
+    </div>
+  );
+  return (
+    <div className="mmb-trip">
+      <AirlineLogo code={(first.flight || '').slice(0, 2)} />
+      <div className="mmb-route">
+        <b>{first.from} <span aria-hidden="true">{back ? '⇄' : '→'}</span> {end?.to}</b>
+        <span>{back ? 'Round trip' : flown.length > 1 ? 'One way' : 'Direct flight'} · {flown.length} flight{flown.length > 1 ? 's' : ''}</span>
+      </div>
+      {fact(IconCalendar, 'Departs', fmtDateWeekday(first.departure), fmtTime(first.departure))}
+      {back && fact(IconCalendar, 'Returns', fmtDateWeekday(back.departure), fmtTime(back.departure))}
+      {pax > 0 && fact(IconUsers, 'Passengers', `${pax} passenger${pax > 1 ? 's' : ''}`)}
+      {first.cabin && fact(IconSeat, 'Cabin', `${first.cabin}${first.class ? ` (${first.class})` : ''}`)}
+    </div>
+  );
+}
+
+// Overview tab: the booking exactly as the airline holds it.
+function Overview({ data, onGo }) {
+  const flown = flightDirections(data.flights || []);
+  const list = (items, empty, render) => (items?.length ? items.map(render) : <div className="mmb-muted">{empty}</div>);
+  return (
+    <div className="mmb-card">
+      <div className="mmb-card-head">
+        <span className="mmb-icon"><IconList size={20} /></span>
+        <div>
+          <h3>Booking overview</h3>
+          <p className="mmb-sub">Your booking as the airline holds it right now.</p>
+        </div>
+      </div>
+
+      {flown.length > 0 && (
+        <>
+          <h4 className="mmb-section-title"><IconPlane size={16} /> Flights <span className="mmb-count">{flown.length}</span></h4>
+          <div className="mmb-flights" role="table" aria-label="Flights">
+            <div className="mmb-flight mmb-flight-head" role="row">
+              <span /><span>Flight</span><span>Departure</span><span>Cabin</span><span>Airline status</span>
+            </div>
+            {flown.map(f => (
+              <div key={`${f.flight}-${f.sequence}`} className="mmb-flight" role="row">
+                <span className="mmb-flight-icon"><IconPlane size={15} /></span>
+                <span className="mmb-flight-main"><strong>{f.flight}</strong> <span>{f.from} → {f.to}</span><small>{f.dir}</small></span>
+                <span className="mmb-flight-when">{fmtDateWeekday(f.departure)} · {fmtTime(f.departure)}{f.arrival ? ` – ${fmtTime(f.arrival)}` : ''}</span>
+                <span className="mmb-flight-cabin">{f.cabin ? `${f.cabin}${f.class ? ` (${f.class})` : ''}` : '–'}</span>
+                <span><Chip status={f.state}>{f.airline_status || 'No airline status'}{f.airline_status_code ? ` · ${f.airline_status_code}` : ''}</Chip></span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="mmb-grid">
+        <div className="mmb-mini">
+          <h4><IconTicket size={16} /> Tickets</h4>
+          {list(data.tickets, 'No ticket issued yet.', t => (
+            <div key={t.number} className="mmb-mini-item">
+              <div className="mmb-mini-row"><strong className="mmb-mono">{t.number}</strong><span className="mmb-muted">{t.issued ? `issued ${fmtDate(t.issued)}` : ''}</span></div>
+              {t.passenger && <div className="mmb-muted">{t.passenger}</div>}
+              <div className="mmb-chips">
+                {t.error ? <span className="mmb-muted">{t.error}</span> : (t.coupons || []).map((c, i) => (
+                  <Chip key={i} status={c.status}>{c.flight} {COUPON_LABELS[c.status] || c.status}</Chip>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mmb-mini">
+          <h4><IconUser size={16} /> Passengers <span className="mmb-count">{(data.travelers || []).length}</span></h4>
+          {list(data.travelers, 'No passengers returned.', t => (
+            <div key={t.id} className="mmb-mini-row"><strong>{t.name}</strong>{t.type && <span className="mmb-muted">{t.type}</span>}</div>
+          ))}
+        </div>
+
+        <div className="mmb-mini">
+          <h4><IconSeat size={16} /> Seats</h4>
+          {list(data.seats, 'No seats on the booking yet.', (s, i) => (
+            <div key={i} className="mmb-mini-row">
+              <span><strong>{s.seat}</strong> <span className="mmb-muted">{(s.flights || []).join(', ')}{s.passenger ? ` · ${s.passenger}` : ''}{s.emd ? ` · EMD ${s.emd}` : ''}</span></span>
+              <Chip status={s.status}>{s.status}</Chip>
+            </div>
+          ))}
+          {data.can_add_seats_extras && <button type="button" className="mmb-link" onClick={() => onGo('seats')}><IconSeat size={14} /> Choose seats</button>}
+        </div>
+
+        <div className="mmb-mini">
+          <h4><IconBag size={16} /> Extras</h4>
+          {list(data.extras, 'No extras on the booking yet.', (x, i) => (
+            <div key={i} className="mmb-mini-row">
+              <span><strong>{x.description}</strong> <span className="mmb-muted">{(x.flights || []).join(', ')}{x.passenger ? ` · ${x.passenger}` : ''}{x.emd ? ` · EMD ${x.emd}` : ''}</span></span>
+              <Chip status={x.status}>{x.status}</Chip>
+            </div>
+          ))}
+          {data.can_add_seats_extras && <button type="button" className="mmb-link" onClick={() => onGo('extras')}><IconBag size={14} /> Add extras</button>}
+        </div>
+
+        <div className="mmb-mini mmb-mini-wide">
+          <h4><IconWheelchair size={16} /> Special requests</h4>
+          {list(data.special_services, 'No special requests on the booking yet.', (s, i) => (
+            <div key={i} className="mmb-mini-row">
+              <span><strong>{s.description}</strong> <span className="mmb-muted">{(s.flights || []).join(', ')}{s.passenger ? ` · ${s.passenger}` : ''}</span></span>
+              <Chip status={s.status}>{s.status}</Chip>
+            </div>
+          ))}
+          {data.can_add_special_requests && <button type="button" className="mmb-link" onClick={() => onGo('requests')}><IconWheelchair size={14} /> Add a special request</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // prefill: {query, lastName, key} — set when opened from a My Bookings detail page; looks it up at once.
 export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, prefill }) {
@@ -18,7 +190,8 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [manageOpen, setManageOpen] = useState(false);
+  const [tab, setTab] = useState('overview');
+  const [manageMounted, setManageMounted] = useState(false);
   const [paying, setPaying] = useState(false);
   const [invoiceId, setInvoiceId] = useState(null);
 
@@ -43,6 +216,7 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
 
   const lookup = async (e, q = query, ln = lastName) => {
     e?.preventDefault?.();
+    const fresh = !!e || q.trim().toUpperCase() !== (data?.locator_code || '');
     setLoading(true);
     setError('');
     try {
@@ -51,12 +225,14 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
         body: JSON.stringify({ query: q.trim(), last_name: ln.trim() }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Could not reach Travelport');
+      if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Could not reach the airline');
+      if (fresh && body.locator_code !== data?.locator_code) { setTab('overview'); setManageMounted(false); }
       setData(body);
     } catch (err) {
       setError(err.message || String(err));
       setData(null);
-      setManageOpen(false);
+      setTab('overview');
+      setManageMounted(false);
     } finally {
       setLoading(false);
     }
@@ -72,92 +248,135 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
     }
   }, [prefill?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const go = (id) => {
+    setTab(id);
+    if (id !== 'overview') setManageMounted(true);
+  };
+
   const retrieved = data?.retrieved_at ? fmtDateTime(data.retrieved_at) : '';
+  const [stateLabel, stateTone] = data ? (data.ticketed ? BOOKING_STATE.ticketed : BOOKING_STATE[data.booking_status] || [String(data.booking_status || 'Unknown').replace(/_/g, ' '), 'warn']) : [];
+  const tabAllowed = (id) => id === 'overview' || (id === 'requests' ? data?.can_add_special_requests : data?.can_add_seats_extras);
+  const pdItems = data?.payment_due?.items || [];
 
   return (
-    <div>
-      <section className="search-section glass-panel" style={{ padding: '1rem 1.1rem', marginBottom: '0.9rem' }}>
-        <h3 className="results-heading" style={{ marginTop: 0 }}>Booking Status</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '-0.4rem 0 0.8rem' }}>
-          See any booking live from the airline: flights, ticket, seats, extras and special requests. Enter the booking
-          reference (PNR) or 13-digit ticket number, and the last name of a passenger on it — the last name keeps other
-          people's bookings private.
-        </p>
-        <form onSubmit={lookup} style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ flex: '1 1 200px', margin: 0 }}>
-            <label className="form-label">PNR or ticket number</label>
-            <input className="form-input" required value={query} onChange={e => setQuery(e.target.value.toUpperCase())}
-                   placeholder="e.g. HNHLRC or 6032903683733" maxLength={20} />
+    <div className="mmb">
+      <section className="mmb-hero">
+        <h2>Manage My Booking</h2>
+        <p>View your booking, choose seats, add extras and manage special requests.</p>
+      </section>
+
+      <section className="mmb-card mmb-find">
+        <div className="mmb-card-head">
+          <span className="mmb-icon"><IconTicket size={20} /></span>
+          <div>
+            <h3>Find your booking</h3>
+            <p className="mmb-sub">Enter your booking reference (PNR) or 13-digit e-ticket number and the last name of a passenger on it.
+              The last name keeps other people's bookings private.</p>
           </div>
-          <div className="form-group" style={{ flex: '1 1 180px', margin: 0 }}>
-            <label className="form-label">Passenger last name</label>
-            <input className="form-input" required value={lastName} onChange={e => setLastName(e.target.value)} placeholder="As on the ticket" maxLength={60} />
+        </div>
+        <form onSubmit={lookup} className="mmb-find-form">
+          <div className="mmb-field">
+            <label htmlFor="mmb-query">Booking reference or ticket number</label>
+            <input id="mmb-query" className="form-input" required value={query} onChange={e => setQuery(e.target.value.toUpperCase())}
+                   placeholder="e.g. HNHLRC or 6032903683733" maxLength={20} autoComplete="off" />
           </div>
-          <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Checking…' : 'See my status'}</button>
+          <div className="mmb-field">
+            <label htmlFor="mmb-last">Passenger last name</label>
+            <input id="mmb-last" className="form-input" required value={lastName} onChange={e => setLastName(e.target.value)} placeholder="As on the ticket" maxLength={60} />
+          </div>
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            <IconSearch size={17} /> {loading ? 'Checking…' : 'Find my booking'}
+          </button>
         </form>
         {error && <div className="error-banner" style={{ marginTop: '0.8rem' }}>{error}</div>}
       </section>
 
       {data && (
-        <section className="glass-panel" style={{ padding: '0.9rem 1.1rem', marginBottom: '0.9rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <div>
-              <h4 style={{ margin: 0 }}>Booking {data.locator_code}</h4>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Straight from Travelport and the airline{retrieved ? ` · checked ${retrieved}` : ''}</div>
+        <>
+          <section className="mmb-card mmb-summary">
+            <div className="mmb-summary-top">
+              <div className="mmb-summary-id">
+                <span className={`mmb-state ${stateTone}`}>{stateTone === 'ok' ? <IconCheck size={20} /> : <IconAlert size={19} />}</span>
+                <div>
+                  <div className="mmb-ref">
+                    <h3>Booking {data.locator_code}</h3>
+                    <span className={`mmb-chip ${stateTone}`}>{stateLabel}</span>
+                  </div>
+                  <div className="mmb-sub">
+                    Live from the airline{retrieved ? ` · checked ${retrieved}` : ''}
+                    {data.airline_locators?.length > 0 && <> · Airline reference {data.airline_locators.map(a => <strong key={a.locator}>{a.airline} {a.locator} </strong>)}</>}
+                  </div>
+                </div>
+              </div>
+              <button className="btn btn-secondary btn-sm mmb-again" disabled={loading} onClick={() => lookup()}>
+                <IconRefresh size={15} /> {loading ? 'Checking…' : 'Check again'}
+              </button>
             </div>
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
-              <button className="btn btn-secondary btn-sm" disabled={loading} onClick={() => lookup()}>Check again</button>
-              {(data.can_add_special_requests || data.can_add_seats_extras) && (
-                <button className="btn btn-primary btn-sm" onClick={() => setManageOpen(o => !o)}>{manageOpen ? 'Close Manage My Booking' : 'Manage my booking'}</button>
-              )}
-            </div>
-          </div>
+            <TripSummary data={data} />
+          </section>
+
+          {data.booking_status === 'cancelled' && <div className="mmb-alert bad">This booking is cancelled{data.message ? ` — ${data.message}` : ''}.</div>}
+          {data.booking_status === 'airline_cancelled' && <div className="mmb-alert bad">The airline has cancelled the flights on this booking — please contact us.</div>}
+          {data.booking_status === 'airline_problem' && <div className="mmb-alert warn">The airline has not confirmed every flight on this booking — please contact us.</div>}
+
           {data.released_extras?.length > 0 && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.7rem 0.9rem', margin: '0.7rem 0 0.2rem', fontSize: '0.82rem', color: '#991b1b' }}>
+            <div className="mmb-alert bad">
               <strong>Removed from your booking:</strong> {data.released_extras.join(', ')} — not paid by the deadline, so the airline no longer
-              has {data.released_extras.length > 1 ? 'them' : 'it'} for you. You have not been charged. You can add it again from Manage my booking.
+              has {data.released_extras.length > 1 ? 'them' : 'it'} for you. You have not been charged. You can add it again from Choose seats / Add extras.
             </div>
           )}
           {data.payment_due && (
-            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.7rem 0.9rem', margin: '0.7rem 0 0.2rem', fontSize: '0.82rem', color: '#78350f' }}>
-              <strong>Payment due:</strong> the airline has confirmed{' '}
-              {data.payment_due.items.map(i => `${i.name} (${data.payment_due.currency} ${Number(i.price).toLocaleString(undefined, { minimumFractionDigits: 2 })})`).join(', ')}.
-              Pay to keep {data.payment_due.items.length > 1 ? 'them' : 'it'} — the airline then issues the document.
-              {data.payment_due.deadline_utc && (
-                <div style={{ marginTop: '0.35rem' }}>
-                  Pay by <strong>{formatDeadline(data.payment_due.deadline_utc)}</strong>. If {data.payment_due.items.length > 1 ? 'they aren’t' : 'it isn’t'} paid
-                  by then, {data.payment_due.items.length > 1 ? 'they are' : 'it is'} removed from your booking and can’t be used at the airport.
-                </div>
-              )}
-              <div style={{ marginTop: '0.45rem' }}>
-                <button className="btn btn-primary btn-sm" disabled={paying} onClick={payDue}>
-                  {paying ? 'Opening payment…' : `Pay ${data.payment_due.currency} ${Number(data.payment_due.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                </button>
+            <div className="mmb-alert warn mmb-due">
+              <div>
+                <strong>Payment due:</strong> the airline has confirmed{' '}
+                {pdItems.map(i => `${i.name} (${money(data.payment_due.currency, i.price)})`).join(', ')}.
+                Pay to keep {pdItems.length > 1 ? 'them' : 'it'} — the airline then issues the document.
+                {data.payment_due.deadline_utc && (
+                  <div style={{ marginTop: '0.3rem' }}>
+                    Pay by <strong>{formatDeadline(data.payment_due.deadline_utc)}</strong>. If {pdItems.length > 1 ? 'they aren’t' : 'it isn’t'} paid
+                    by then, {pdItems.length > 1 ? 'they are' : 'it is'} removed from your booking and can’t be used at the airport.
+                  </div>
+                )}
               </div>
+              <button className="btn btn-primary btn-sm" disabled={paying} onClick={payDue}>
+                {paying ? 'Opening payment…' : `Pay ${money(data.payment_due.currency, data.payment_due.amount)}`}
+              </button>
             </div>
           )}
           {data.extras_invoices?.length > 0 && (
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.6rem 0.9rem', margin: '0.7rem 0 0.2rem', fontSize: '0.82rem', color: '#166534' }}>
+            <div className="mmb-alert ok">
               <strong>Paid seats and extras</strong>
               {data.extras_invoices.map(i => (
-                <div key={i.invoice_number} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
-                  <span>Invoice {i.invoice_number} · {i.currency} {Number(i.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}{i.paid_at ? ` · paid ${fmtDateTime(i.paid_at)}` : ''}</span>
+                <div key={i.invoice_number} className="mmb-invoice">
+                  <span>Invoice {i.invoice_number} · {money(i.currency, i.amount)}{i.paid_at ? ` · paid ${fmtDateTime(i.paid_at)}` : ''}</span>
                   <button className="btn btn-secondary btn-sm" onClick={() => setInvoiceId(i.invoice_number)}>View invoice</button>
                 </div>
               ))}
             </div>
           )}
-          <LiveStatusDetails data={data} />
-        </section>
-      )}
 
-      {data && manageOpen && (
-        <section className="glass-panel" style={{ padding: '0.9rem 1.1rem' }}>
-          <h4 style={{ margin: 0 }}>Manage my booking</h4>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>Add special requests, choose seats or add extras. Changes go straight to the airline.</div>
-          <ManageMyBooking manageToken={data.manage_token} apiBase={apiBase} fetchWithRetry={fetchWithRetry} authToken={authToken}
-                           onChanged={() => lookup()} />
-        </section>
+          <nav className="mmb-tabs" role="tablist" aria-label="Manage my booking">
+            {TABS.map(t => {
+              const allowed = tabAllowed(t.id);
+              const Icon = t.icon;
+              return (
+                <button key={t.id} type="button" role="tab" className="mmb-tab" aria-selected={tab === t.id} disabled={!allowed}
+                        title={allowed ? undefined : 'Not available online for this booking'} onClick={() => go(t.id)}>
+                  <Icon size={17} /> {t.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {tab === 'overview' && <Overview data={data} onGo={go} />}
+          {manageMounted && (
+            <ManageMyBooking key={data.locator_code} view={tab} manageToken={data.manage_token} apiBase={apiBase}
+                             fetchWithRetry={fetchWithRetry} authToken={authToken} onChanged={() => lookup()} />
+          )}
+          {tab === 'overview' && (
+            <p className="mmb-footnote"><IconInfo size={14} /> Everything above is read live from the airline. Changes you make in the other tabs go straight to the airline.</p>
+          )}
+        </>
       )}
       {invoiceId && (
         <AddonInvoice addonId={invoiceId} apiBase={apiBase} fetchWithRetry={fetchWithRetry} authToken={authToken} onClose={() => setInvoiceId(null)} />
