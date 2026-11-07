@@ -31,7 +31,7 @@ from config.api_endpoints import TravelportEndpoints
 from config.travelport_config import TravelportConfig
 from services import live_booking_service
 from services.cancel_service import _call, _errors, _msg, _reservation, CancelError
-from services.special_services import MEAL_SSR_TYPES, WHEELCHAIR_SSR_FLAGS, NDC_MEAL_SSR_CARRIERS
+from services.special_services import MEAL_SSR_TYPES, WHEELCHAIR_SSR_FLAGS, NDC_MEAL_SSR_CARRIERS, ssr_code_of, ssr_kind
 from services import workbench_service
 
 logger = logging.getLogger(__name__)
@@ -217,11 +217,28 @@ def get_options(locator: str, live: dict) -> dict:
             out["seat_map_error"] = str(e)
         try:
             names = {t["id"]: t["name"] for t in live.get("travelers") or []}
+            # An extra the airline already holds for this passenger on this
+            # flight (its SSR on the booking, not rejected) isn't offered
+            # again: the airline declines a second one (QR JJ2FX6 2026-11-07,
+            # "Ancillary has been declined ... due to PLATINUM LOUNGE").
+            held = {((s.get("TravelerIdentifier") or {}).get("TravelerRef"), s.get("SSRCode"), seg)
+                    for s in res.get("SpecialService") or [] if s.get("SSRCode") and _ssr_active(s)
+                    for seg in (s.get("AppliesTo") or {}).get("SegmentSequenceList") or []}
+            flight_no = {f.get("sequence"): f.get("flight") for f in live.get("flights") or []}
+            shop, already = [], {}
+            for x in workbench_service.get_ancillary_offers(wb, uuid_):
+                segs = x.get("segment_numbers") or []
+                if x.get("ssr_code") and segs and all((x.get("traveler_identifier_ref"), x["ssr_code"], n) in held for n in segs):
+                    key = (x.get("name"), names.get(x.get("traveler_identifier_ref")))
+                    already.setdefault(key, set()).update(flight_no.get(n) or f"flight {n}" for n in segs)
+                    continue
+                shop.append(x)
+            out["extras_on_booking"] = [{"name": n, "passenger": p, "flights": sorted(f)} for (n, p), f in already.items()]
             out["extras"] = [{k: x.get(k) for k in ("name", "airline_name", "description", "segment_numbers", "price",
                                                      "currency", "refundable", "service_type", "category_code",
                                                      "traveler_identifier_ref")}
                              | {"passenger": names.get(x.get("traveler_identifier_ref"))}
-                             for x in workbench_service.get_ancillary_offers(wb, uuid_)]
+                             for x in shop]
         except Exception as e:
             logger.warning(f"{locator}: extras shop refused: {e}")
             out["extras_error"] = EXTRAS_NOT_OFFERED if "NOT AVAILABLE FOR THE REQUESTED FLIGHT" in str(e).upper() else                 "The airline's extras couldn't be loaded just now. Please try again in a few minutes."
@@ -249,12 +266,54 @@ def add_special_requests(locator: str, live: dict, requests: list) -> list:
         wanted[idx]["wheelchair" if code in WHEELCHAIR_SSR_FLAGS else "meal_code"] = code
     if not any(t.get("wheelchair") or t.get("meal_code") for t in wanted):
         return rows
-    wb, _ = _open_workbench(locator)
+    is_gds = live.get("content_source") != "NDC"
+    wb, res = _open_workbench(locator)
     committed = False
     try:
+        # The airline takes one meal and one wheelchair request per passenger
+        # per flight, and counts a rejected one too (confirmed 2026-11-07 on
+        # JJ2FX6 / JJ2G2B: "SSR QUANTITY CANNOT BE MORE THAN 1 PER PASSENGER
+        # PER SEGMENT FOR SSR CODE 'MEAL'", "SPECIAL SERVICE TYPE ALREADY
+        # EXISTS. DELETE AND ADD NEW"). So: the same request still active is
+        # reported as already on the booking (nothing sent); a different one,
+        # or one the airline rejected, is removed first on this workbench and
+        # the new one added — committed together, or not at all.
+        replaced = {}
+        traveler_map = workbench_service._match_traveler_refs(res.get("Traveler") or [], wanted)
+        for idx, t in enumerate(wanted):
+            wt = traveler_map.get(idx)
+            for kind, key in (("meal", "meal_code"), ("wheelchair", "wheelchair")):
+                code = t.get(key)
+                if not code or not wt:
+                    continue
+                mine = _ssrs_of(res, wt.get("id"), kind)
+                if any(ssr_code_of(s) == code and _ssr_active(s) for s in mine):
+                    rows.append({"passenger_idx": idx, "passenger_name": t.get("name"), "kind": kind, "code": code,
+                                 "status": "already", "error": None})
+                    t[key] = None
+                    continue
+                if mine and is_gds:
+                    old = sorted({ssr_code_of(s) for s in mine if ssr_code_of(s)})
+                    err = _delete_ssrs(wb, wt.get("id"), kind)
+                    if err:
+                        rows.append({"passenger_idx": idx, "passenger_name": t.get("name"), "kind": kind, "code": code,
+                                     "status": "failed", "error": f"Your earlier request couldn't be removed to make room for this one ({err})."})
+                        t[key] = None
+                        continue
+                    replaced[(idx, kind)] = old
         carrier = (live.get("flights") or [{}])[0].get("flight", "")[:2]
-        sent = workbench_service.add_special_services(wb, wanted, is_gds=live.get("content_source") != "NDC", carrier=carrier)
+        sent = workbench_service.add_special_services(wb, wanted, is_gds=is_gds, carrier=carrier)
+        for s in sent:
+            if (s["passenger_idx"], s["kind"]) in replaced:
+                s["replaced"] = replaced[(s["passenger_idx"], s["kind"])]
         rows += sent
+        # A removed request whose replacement didn't go through: nothing is
+        # saved, so the earlier request stays as it was.
+        if replaced and any(s["status"] != "sent" and (s["passenger_idx"], s["kind"]) in replaced for s in sent):
+            for s in sent:
+                if s["status"] == "sent":
+                    s.update(status="failed", error="Not saved, because another request in the same change was refused.")
+            return rows
         if any(s["status"] == "sent" for s in sent):
             body = _call("POST", f"{TravelportConfig.base_path()}/air/book/reservation/reservations/{wb}", "")
             if _errors(body):
@@ -267,6 +326,44 @@ def add_special_requests(locator: str, live: dict, requests: list) -> list:
         if not committed:
             _discard(wb)
     return rows
+
+
+_INACTIVE_SSR = ("rejected", "cancelled", "unable", "notconfirmed")
+
+
+def _ssr_active(s: dict) -> bool:
+    return ((s.get("Status") or {}).get("value") or "").lower() not in _INACTIVE_SSR
+
+
+def _ssrs_of(res: dict, traveler_ref: str | None, kind: str) -> list:
+    """The passenger's meal or wheelchair SSRs on a workbench. Travelport
+    lists each one twice — typed (SpecialServiceMeal / ...Wheelchair...) and
+    by code — and deleting either removes both."""
+    return [s for s in res.get("SpecialService") or []
+            if (s.get("TravelerIdentifier") or {}).get("TravelerRef") == traveler_ref and ssr_kind(ssr_code_of(s)) == kind]
+
+
+def _delete_ssrs(wb: str, traveler_ref: str | None, kind: str) -> str | None:
+    """Remove the passenger's meal/wheelchair SSRs from the workbench (by the
+    entry's Identifier value — the id alone is refused with 4420). Typed
+    entries first; after each delete the workbench is read again, since one
+    delete removes both listings of the same SSR. Returns an error or None."""
+    base = f"{TravelportConfig.base_path()}/air/book/specialservices/reservationworkbench/{wb}/specialservices"
+    last = None
+    for _ in range(8):
+        left = _ssrs_of(_reservation(_call("GET", TravelportEndpoints.get_workbench(wb))), traveler_ref, kind)
+        if not left:
+            return None
+        left.sort(key=lambda s: s.get("@type") == "SpecialService")  # typed entries first
+        ident = (left[0].get("Identifier") or {}).get("value")
+        if not ident:
+            return "no identifier on the earlier request"
+        try:
+            body = _call("DELETE", f"{base}/{ident}")
+            last = _msg(_errors(body)) if isinstance(body, dict) and _errors(body) else last
+        except CancelError as e:
+            last = str(e)
+    return last or "it is still on the booking"
 
 
 def issue_emds(locator: str, items: list, expected_supplier_total: float, currency: str) -> dict:

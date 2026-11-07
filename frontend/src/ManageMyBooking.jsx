@@ -40,6 +40,7 @@ const STATUS = {
   confirmed: ['Confirmed by the airline', 'ok'],
   pending: ['Waiting for the airline (not charged)', 'info'],
   sent: ['Sent to the airline (not confirmed yet)', 'info'],
+  already: ['Already on your booking', 'ok'],
   failed: ['Not added', 'bad'],
 };
 
@@ -54,19 +55,24 @@ const EXTRA_CATS = [
   { code: 'LG', label: 'Lounge' },
 ];
 
-// Round trip (ends where it began): the return starts at the first flight
-// that leaves 12 hours or more after the previous one landed.
+// Round trip (ends where it began): the return starts after the longest time
+// on the ground — the stay at the destination. (A fixed "12 hours" rule took
+// an overnight connection for the return: QR JJ2FX6, CMB–DOH–DXB with a night
+// in Doha.)
 export function flightDirections(flights) {
   const list = [...flights].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
   const roundTrip = list.length > 1 && list[0].from && list[0].from === list[list.length - 1].to;
-  let back = false;
-  return list.map((f, i) => {
-    if (roundTrip && i > 0 && !back) {
-      const gap = (new Date((f.departure || '').replace(' ', 'T')) - new Date((list[i - 1].arrival || '').replace(' ', 'T'))) / 3.6e6;
-      if (gap >= 12) back = true;
+  const at = (s) => new Date((s || '').replace(' ', 'T')).getTime();
+  let turn = list.length;
+  if (roundTrip) {
+    let best = -Infinity;
+    for (let i = 1; i < list.length; i++) {
+      const gap = at(list[i].departure) - at(list[i - 1].arrival);
+      if (Number.isFinite(gap) && gap > best) { best = gap; turn = i; }
     }
-    return { ...f, dir: roundTrip ? (back ? 'Return' : 'Departure') : `Flight ${i + 1}` };
-  });
+    if (turn === list.length) turn = Math.ceil(list.length / 2);
+  }
+  return list.map((f, i) => ({ ...f, dir: roundTrip ? (i >= turn ? 'Return' : 'Departure') : `Flight ${i + 1}` }));
 }
 
 function ExtrasByFlight({ extras, flights, travelers, pick, setPick }) {
@@ -234,6 +240,9 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
               {i.flight_number && <span className="mmb-muted"> · {i.flight_number}</span>}
               {i.price ? <span className="mmb-muted"> · {money(i.currency, i.price)}</span> : null}
               {(i.reason || i.error) && i.status !== 'pending' && <div className="mmb-reason">{i.reason || i.error}</div>}
+              {i.replaced?.length > 0 && i.status === 'sent' && (
+                <div className="mmb-reason">Replaces your earlier request ({i.replaced.map(ssrLabel).join(', ')}).</div>
+              )}
             </div>
             <span className={`mmb-chip ${cls}`}>{label}</span>
           </div>
@@ -361,6 +370,13 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
         <section className="mmb-card">
           <PanelHead icon={IconBag} title="Add extras" sub="Extra baggage, meals and lounges for each flight. You pay only once the airline confirms them." />
           {options.extras_error && <div className="mmb-alert info">{options.extras_error}</div>}
+          {options.extras_on_booking?.length > 0 && (
+            <div className="mmb-alert info" style={{ marginBottom: '0.8rem' }}>
+              <strong>Already on your booking with the airline:</strong>{' '}
+              {options.extras_on_booking.map(x => `${x.name}${x.passenger ? ` (${x.passenger})` : ''} on ${x.flights.join(', ')}`).join('; ')}.
+              These aren't offered again — the airline allows one per passenger per flight.
+            </div>
+          )}
           {(options.extras || []).length === 0 && !options.extras_error && <div className="mmb-muted">The airline offers no extras for this booking.</div>}
           {(options.extras || []).length > 0 && (
             <ExtrasByFlight extras={options.extras} flights={options.flights || []} travelers={travelers}
