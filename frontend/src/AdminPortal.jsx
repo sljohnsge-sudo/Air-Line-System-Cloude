@@ -141,6 +141,10 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState('');
   const [notificationActionId, setNotificationActionId] = useState(null);
+  const [alertFilter, setAlertFilter] = useState('all');              // 'all' | 'TP' | 'AD' | an alert type
+  const [alertSelected, setAlertSelected] = useState([]);             // ids ticked for "Acknowledge selected"
+  const [alertBulkBusy, setAlertBulkBusy] = useState(false);
+  const [alertOpenId, setAlertOpenId] = useState(null);               // row showing its full message
 
   const [stuckBookings, setStuckBookings] = useState([]);
   const [stuckBookingsLoading, setStuckBookingsLoading] = useState(false);
@@ -841,10 +845,30 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       });
       await adminApiResponse(res, 'Failed to acknowledge notification');
       setNotifications(items => items.filter(n => n.id !== id));
+      setAlertSelected(sel => sel.filter(x => x !== id));
     } catch (err) {
       setNotificationsError(err.message);
     } finally {
       setNotificationActionId(null);
+    }
+  };
+
+  // Acknowledge every ticked supplier alert in one call.
+  const acknowledgeAlertsSelected = async () => {
+    if (!alertSelected.length) return;
+    setAlertBulkBusy(true);
+    setNotificationsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/notifications/acknowledge-bulk`, {
+        method: 'POST', headers: authHeaders, body: JSON.stringify({ ids: alertSelected }),
+      });
+      await adminApiResponse(res, 'Failed to acknowledge the selected alerts');
+      setNotifications(items => items.filter(n => !alertSelected.includes(n.id)));
+      setAlertSelected([]);
+    } catch (err) {
+      setNotificationsError(err.message);
+    } finally {
+      setAlertBulkBusy(false);
     }
   };
 
@@ -1858,41 +1882,104 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       {activeAdminSection === 'notifications' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
         <h3 className="results-heading">Supplier Alerts {notifications.length > 0 && `(${notifications.length} new)`}</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
-          Raised automatically when the unified flight search can't get fares back from Travelport (TP) or Amadeus
-          (AD) — an email also goes out to the recipients below (at most once every 15 minutes per provider).
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
+          Searches where Travelport (TP) or Amadeus (AD) sent no fares back. One email per supplier, at most every
+          15 minutes, goes to the recipients below.
         </p>
         {notificationsError && <div className="error-banner">{notificationsError}</div>}
         {notificationsLoading ? (
-          <div className="loading-state"><div className="spinner"></div><p>Loading notifications...</p></div>
+          <div className="loading-state"><div className="spinner"></div><p>Loading supplier alerts...</p></div>
         ) : notifications.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No new supplier alerts.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {notifications.map(n => (
-              <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
-                <div style={{ fontSize: '0.85rem' }}>
-                  <div>
-                    <strong style={{ color: n.provider === 'AD' ? '#4c1d95' : '#14532d' }}>
-                      {n.provider === 'AD' ? 'AD · Amadeus' : 'TP · Travelport'}
-                    </strong>
-                    {' — '}{n.route_info || 'route n/a'}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                    {n.error_message}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    {fmtDateTime(n.created_at)}
-                    {n.email_sent ? ' · Email sent' : ' · Email not sent (recent alert already went out, or no active recipients)'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  <button className="btn btn-primary btn-sm" disabled={notificationActionId === n.id} onClick={() => acknowledgeNotification(n.id)}>Acknowledge</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        ) : (() => {
+          const kindsShown = [...new Set(notifications.map(n => n.kind).filter(Boolean))];
+          const kindLabel = (k) => notifications.find(n => n.kind === k)?.kind_label || k;
+          const shown = notifications.filter(n => alertFilter === 'all' ? true
+            : (alertFilter === 'TP' || alertFilter === 'AD') ? n.provider === alertFilter : n.kind === alertFilter);
+          const bySupplier = (p) => notifications.filter(n => n.provider === p).length;
+          const allShownTicked = shown.length > 0 && shown.every(n => alertSelected.includes(n.id));
+          const chip = (id, label, count) => count > 0 && (
+            <button key={id} type="button" className="adm-chip" aria-pressed={alertFilter === id} onClick={() => setAlertFilter(id)}>
+              {label} <span>{count}</span>
+            </button>
+          );
+          return (
+          <>
+            <div className="adm-chips">
+              {chip('all', 'All', notifications.length)}
+              {chip('TP', 'Travelport', bySupplier('TP'))}
+              {chip('AD', 'Amadeus', bySupplier('AD'))}
+              {kindsShown.map(k => chip(k, kindLabel(k), notifications.filter(n => n.kind === k).length))}
+            </div>
+            <div className="adm-bulk">
+              <label>
+                <input type="checkbox" checked={allShownTicked}
+                       onChange={e => setAlertSelected(sel => e.target.checked
+                         ? [...new Set([...sel, ...shown.map(n => n.id)])]
+                         : sel.filter(id => !shown.some(n => n.id === id)))} />
+                Select all shown ({shown.length})
+              </label>
+              <button className="btn btn-primary btn-sm" disabled={!alertSelected.length || alertBulkBusy} onClick={acknowledgeAlertsSelected}>
+                {alertBulkBusy ? 'Acknowledging…' : `Acknowledge selected (${alertSelected.length})`}
+              </button>
+            </div>
+            <div className="adm-table-wrap">
+              <table className="adm-table">
+                <thead>
+                  <tr>
+                    <th aria-label="Select" />
+                    <th>Date</th><th>Supplier</th><th>Route</th><th>Travel date</th>
+                    <th>Type</th><th>Issue &amp; action needed</th><th aria-label="Acknowledge" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map(n => (
+                    <Fragment key={n.id}>
+                      <tr className={`adm-row ${n.provider === 'AD' ? 'normal' : 'tp'}${alertOpenId === n.id ? ' open' : ''}`} onClick={() => setAlertOpenId(id => id === n.id ? null : n.id)}>
+                        <td onClick={e => e.stopPropagation()}>
+                          <input type="checkbox" aria-label={`Select alert ${n.id}`} checked={alertSelected.includes(n.id)}
+                                 onChange={e => setAlertSelected(sel => e.target.checked ? [...sel, n.id] : sel.filter(x => x !== n.id))} />
+                        </td>
+                        <td className="nowrap">{fmtDate(n.created_at)}<div className="adm-sub">{fmtTime(n.created_at)}</div></td>
+                        <td className="nowrap">
+                          <span className={`adm-sup ${n.provider === 'AD' ? 'ad' : 'tp'}`}>{n.provider}</span>
+                          <div className="adm-sub">{n.supplier || (n.provider === 'AD' ? 'Amadeus' : 'Travelport')}</div>
+                        </td>
+                        <td className="nowrap"><strong className="adm-route">{n.route || n.route_info || '—'}</strong></td>
+                        <td className="nowrap">
+                          {(n.travel_dates || []).length ? n.travel_dates.map((d, i) => <div key={i} className={i ? 'adm-sub' : undefined}>{fmtDate(d)}</div>) : '—'}
+                        </td>
+                        <td><div className="adm-kind-text">{n.kind_short || 'Alert'}</div></td>
+                        <td className="adm-issue">
+                          {n.summary || n.error_message}
+                          {n.action && <div className="adm-action">→ {n.action}</div>}
+                        </td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <button className="btn btn-secondary btn-sm" disabled={notificationActionId === n.id} onClick={() => acknowledgeNotification(n.id)}>Acknowledge</button>
+                        </td>
+                      </tr>
+                      {alertOpenId === n.id && (
+                        <tr className="adm-detail">
+                          <td />
+                          <td colSpan={7}>
+                            <div><strong>Full message:</strong> {n.error_message}</div>
+                            <div className="adm-detail-meta">
+                              {n.route_info && <span>Search: {String(n.route_info).replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1')}</span>}
+                              <span>{n.email_sent ? 'Email sent to the recipients' : 'No email (one already went out in the last 15 minutes, or no active recipients)'}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+              {shown.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: '0.8rem' }}>Nothing of this type is open.</p>}
+            </div>
+            <p className="adm-hint">Click a row to see the full message and the search that raised it.</p>
+          </>
+          );
+        })()}
 
         <h4 style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>Alert recipients</h4>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '-0.4rem', marginBottom: '0.75rem' }}>

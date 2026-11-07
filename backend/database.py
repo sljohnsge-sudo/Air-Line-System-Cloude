@@ -1751,6 +1751,31 @@ def get_provider_notification_by_id(notification_id: int) -> dict | None:
     return row
 
 
+def acknowledge_provider_notifications(ids: list, admin_id: int, admin_note: str | None) -> int:
+    """Acknowledge several open supplier alerts at once ('Acknowledge selected').
+    Returns how many were still open and are now acknowledged."""
+    ids = [int(i) for i in ids or []]
+    if not ids:
+        return 0
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"""UPDATE provider_notifications SET status='acknowledged', admin_note=%s,
+                reviewed_at=CURRENT_TIMESTAMP, reviewed_by_admin_id=%s
+                WHERE status='new' AND id IN ({','.join(['%s'] * len(ids))})""",
+            (admin_note, admin_id, *ids),
+        )
+        conn.commit()
+        return cursor.rowcount
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def acknowledge_provider_notification(notification_id: int, admin_id: int, admin_note: str | None) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)

@@ -65,6 +65,7 @@ from services import addon_billing
 from services import customer_notify
 from services import addon_deadlines
 from services import ticketing_exceptions
+from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
@@ -3979,7 +3980,25 @@ class NotificationRecipientUpdate(BaseModel):
 
 @app.get("/api/admin/notifications")
 def admin_list_notifications(status_filter: Optional[str] = Query(None, alias="status"), _admin: dict = Depends(auth.get_current_admin)):
-    return {"notifications": database.get_provider_notifications(status_filter)}
+    """Supplier Alerts, each with its type, a one-line summary, the action to
+    take, and route / travel dates split out (services/supplier_alerts.py)."""
+    return {"notifications": supplier_alerts.review(database.get_provider_notifications(status_filter)),
+            "kinds": {k: v[0] for k, v in supplier_alerts.KINDS.items()}}
+
+
+class ProviderNotificationBulkAck(BaseModel):
+    ids: List[int]
+    admin_note: Optional[str] = None
+
+
+@app.post("/api/admin/notifications/acknowledge-bulk")
+def admin_acknowledge_notifications_bulk(body: ProviderNotificationBulkAck, admin: dict = Depends(auth.get_current_admin)):
+    """Acknowledge many supplier alerts at once."""
+    if not body.ids:
+        raise HTTPException(status_code=422, detail="Select at least one alert.")
+    if len(body.ids) > 1000:
+        raise HTTPException(status_code=422, detail="At most 1000 alerts at a time.")
+    return {"acknowledged": database.acknowledge_provider_notifications(body.ids, admin["admin_id"], body.admin_note)}
 
 
 @app.post("/api/admin/notifications/{notification_id}/acknowledge")
