@@ -1570,8 +1570,15 @@ export default function App() {
   const [cancelSubmitted, setCancelSubmitted] = useState(false);
   const [cancelError, setCancelError] = useState('');
   const [cancelAgreed, setCancelAgreed] = useState(false);
+  // The page the customer opened Cancel Booking from (My Account, Home…), for its Back button.
+  const [cancelReturnTab, setCancelReturnTab] = useState(null);
+  const leaveCancellationRequest = () => {
+    setActiveTab(cancelReturnTab || (customerProfile ? 'account' : 'home'));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const openCancellationRequest = (booking) => {
+    if (activeTab !== 'cancelRequest') setCancelReturnTab(activeTab);
     setCancelSubmitted(false);
     setCancelError('');
     setCancelAgreed(false);
@@ -8094,6 +8101,11 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
       {activeTab === 'cancelRequest' && (
         <div className="tab-content animate-fade" style={{ maxWidth: '640px', margin: '0 auto' }}>
           <section className="search-section glass-panel">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={leaveCancellationRequest}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.9rem' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+              {(cancelReturnTab || (customerProfile ? 'account' : 'home')) === 'account' ? 'Back to My Account' : 'Back'}
+            </button>
             <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Cancel Flight Booking</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0, marginBottom: '1.25rem' }}>
               Please provide your current travel date and details
@@ -8107,10 +8119,15 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   Our team will review your request and contact you at <strong>{cancelForm.email}</strong>. This is not
                   an automatic cancellation — no changes have been made to your booking yet.
                 </p>
-                <button className="btn btn-secondary btn-sm" style={{ marginTop: '1rem' }}
-                  onClick={() => { setCancelSubmitted(false); setCancelForm(emptyCancelForm); }}>
-                  Submit Another Request
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
+                  <button className="btn btn-primary btn-sm" onClick={leaveCancellationRequest}>
+                    {(cancelReturnTab || (customerProfile ? 'account' : 'home')) === 'account' ? 'Back to My Account' : 'Back'}
+                  </button>
+                  <button className="btn btn-secondary btn-sm"
+                    onClick={() => { setCancelSubmitted(false); setCancelForm(emptyCancelForm); }}>
+                    Submit Another Request
+                  </button>
+                </div>
               </div>
             ) : (
               <>
