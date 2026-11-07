@@ -610,6 +610,7 @@ const handleApiResponse = async (res, defaultError) => {
     const parsedError = parseApiError(data, defaultError);
     const err = new Error(parsedError);
     err.status = res.status;
+    err.detail = data?.detail;
     throw err;
   }
   return data;
@@ -626,6 +627,15 @@ const isFareChangedError = (err) => err?.status === 409 &&
 // customer is asked to choose another flight instead (main.py
 // SCHEDULE_CHANGED_DETAIL).
 const isScheduleBlockedError = (err) => /can't be booked online right now/i.test(err?.message || '');
+
+// The airline's own price for the refused fare, when it is higher than the
+// search showed (backend _price_changed_response: {message, new_price,
+// currency}) — the fare re-check offers the same fare at that price.
+const airlinePriceOf = (err) => {
+  const d = err?.detail;
+  return d && typeof d === 'object' && Number(d.new_price) > 0 && d.currency
+    ? { price: Number(d.new_price), currency: d.currency } : null;
+};
 
 // Airlines that sell paid seats only once the ticket is issued — offered
 // after ticketing in Manage Booking, never during booking.
@@ -2773,7 +2783,7 @@ export default function App() {
   // search the same route again live, find the same flights and offer the
   // current fare (same fare family if it's still sold, else the cheapest in
   // the same cabin). Only Travelport's live answer is shown — nothing guessed.
-  const recheckFare = async (reason, resumeAt = 'passenger') => {
+  const recheckFare = async (reason, resumeAt = 'passenger', airlinePrice = null) => {
     const old = selectedFlight;
     const body = lastSearchBodyRef.current;
     setFareRecheck({ state: 'checking', reason });
@@ -2796,7 +2806,27 @@ export default function App() {
       const oldKey = fareKey(old.fare_family, old.cabin_class, old.price);
       refused.set(oldKey, (refused.get(oldKey) || 0) + 1);
       const same = fresh.find(f => itineraryKey(f) === key);
-      const allOptions = (same?.fare_options?.length ? same.fare_options : (same ? [same] : []))
+      // The airline priced this exact fare higher than the search: offer the
+      // same flights and fare at the airline's price (the search's lower
+      // price is refused every time). The backend charges Travelport's own
+      // priced amount and refuses again if it is above what is accepted here.
+      // No price breakdown: the old one adds up to the old price.
+      if (airlinePrice && airlinePrice.currency === old.currency && airlinePrice.price > (old.price || 0)
+          && (refused.get(fareKey(old.fare_family, old.cabin_class, airlinePrice.price)) || 0) < MAX_SAME_FARE_TRIES) {
+        const fare = {
+          price: airlinePrice.price, currency: airlinePrice.currency, price_breakdown: null,
+          cabin_class: old.cabin_class, brand_name: old.fare_family, raw_offering: old.raw_offering,
+          baggage_allowance: old.baggage_allowance, change_policy: old.change_policy,
+          cancel_policy: old.cancel_policy, brand_attributes: old.brand_attributes,
+        };
+        reportJourneyStep('Fare re-checked', {
+          detail: `Airline's price ${fare.currency} ${Math.round(fare.price).toLocaleString()} for ${old.fare_family || old.cabin_class} (search showed ${old.currency} ${Math.round(old.price).toLocaleString()})`,
+        });
+        setFareRecheck({ state: 'changed', fresh, flight: same || old, fare, oldPrice: old.price, oldCurrency: old.currency,
+          oldFamily: old.fare_family, resumeAt, airlinePriced: true });
+        return;
+      }
+      const allOptions =(same?.fare_options?.length ? same.fare_options : (same ? [same] : []))
         .filter(o => o && o.price > 0 && o.raw_offering);
       const options = allOptions.filter(o => (refused.get(fareKey(o.brand_name, o.cabin_class, o.price)) || 0) < MAX_SAME_FARE_TRIES);
       const cheapest = (list) => list.reduce((a, b) => (b.price < a.price ? b : a), list[0]);
@@ -3149,7 +3179,7 @@ export default function App() {
       }
       if (isFareChangedError(err)) {
         setBookingStep('passenger');
-        recheckFare(err.message, 'passenger');
+        recheckFare(err.message, 'passenger', airlinePriceOf(err));
         return;
       }
       const errMsg = err.message || String(err);
@@ -3223,7 +3253,7 @@ export default function App() {
       } catch (err) {
         if (isFareChangedError(err)) {
           setBookingStep('review');
-          recheckFare(err.message, 'confirm');
+          recheckFare(err.message, 'confirm', airlinePriceOf(err));
           return;
         }
         const errMsg = err.message || String(err);
@@ -3290,7 +3320,7 @@ export default function App() {
       // PNR exists — never after one was created.
       if (isFareChangedError(err)) {
         setBookingStep('review');
-        recheckFare(err.message, 'confirm');
+        recheckFare(err.message, 'confirm', airlinePriceOf(err));
         return;
       }
       const errMsg = err.message || String(err);
@@ -11007,7 +11037,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               return (
                 <>
                   <h3>{sameCur && diff === 0 ? 'Your flight is still available' : sameCur && diff < 0 ? 'Good news — the fare has gone down' : 'The fare for your flight has changed'}</h3>
-                  <p>{sameCur && diff === 0
+                  <p>{fareRecheck.airlinePriced
+                    ? "The airline's price for these flights is higher than the search showed. The same flights and fare are available at:"
+                    : sameCur && diff === 0
                     ? 'The airline asked us to confirm your fare again. The same flights are available at:'
                     : sameCur && diff < 0
                       ? 'The airline has updated the fare. The same flights are available now at:'

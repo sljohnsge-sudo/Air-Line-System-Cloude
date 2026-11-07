@@ -1317,8 +1317,17 @@ def _price_changed_response(e: "services.workbench_service.PriceChangedError") -
     custom_price is only the quote the customer saw, and a lower one is
     refused before any booking is made. Covers one-way, round-trip and
     multi-city alike; the old check only covered one-way, and compared two
-    numbers that both came from the browser."""
+    numbers that both came from the browser.
+
+    The airline's own price (AirPrice + markup) travels with the refusal, so
+    the fare re-check can offer the same fare at that price instead of the
+    search's stale lower one, which the airline refuses every time (13
+    routes on 2026-11-07, e.g. SVO MU 603,070 in search, 2,883,839 at the
+    airline). Booking it again with that quote is checked the same way."""
     logger.warning(f"Booking refused before any workbench was created: {e}")
+    if e.expected and e.currency:
+        return HTTPException(status_code=409, detail={
+            "message": str(e), "new_price": round(float(e.expected), 2), "currency": e.currency})
     return HTTPException(status_code=409, detail=str(e))
 
 
