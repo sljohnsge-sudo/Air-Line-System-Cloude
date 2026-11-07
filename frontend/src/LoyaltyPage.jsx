@@ -4,7 +4,9 @@
 // and the points ledger. Nothing here is a sample figure. Styles: index.css
 // under ".loy" (Tick and Book palette).
 import { useMemo, useState } from 'react';
-import { fmtDate } from './dateFormat.js';
+import { fmtDate, fmtDateTime } from './dateFormat.js';
+import { routeOf, isUpcoming, CANCELLED } from './BookingLineList.jsx';
+import { cleanPassengerName } from './BookingCard.jsx';
 import { IconPlane, IconInfo } from './WizardIcons.jsx';
 
 const Svg = ({ size = 18, children }) => (
@@ -30,11 +32,20 @@ function tierList(l) {
     benefits: name === l.tier ? l.tier_benefits || [] : name === l.next_tier ? l.next_tier_benefits || [] : [] }));
 }
 
-function downloadStatement(rows, tier, balance) {
+// CSV of the bookings (with the points each earned) and any other points changes.
+function downloadStatement(bookings, adjustments, pointsBy, liveStatuses, tier, balance) {
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = [['Date', 'Description', 'Booking', 'Points'].map(esc).join(',')]
-    .concat(rows.map(t => [fmtDate(t.created_at), t.reason, t.locator_code || '', t.points_change].map(esc).join(',')));
-  lines.push('', [esc('Balance'), esc(`${tier} member`), '', esc(balance)].join(','));
+  const lines = [['Departure', 'Booking', 'Ticket', 'Airline', 'Route', 'Passenger', 'Fare', 'Status', 'Points'].map(esc).join(',')]
+    .concat(bookings.map(b => {
+      const live = liveStatuses?.[b.locator_code];
+      return [fmtDateTime(b.departure_time), b.locator_code, b.ticket_number || '', b.airline, routeOf(b), cleanPassengerName(b.passenger_name),
+              `${b.currency} ${Number(b.total_fare || 0).toFixed(2)}`, live?.checked ? live.status : b.status, pointsBy[b.locator_code] || 0].map(esc).join(',');
+    }));
+  if (adjustments.length) {
+    lines.push('', [esc('Other points changes')].join(','));
+    adjustments.forEach(t => lines.push([fmtDate(t.created_at), t.reason, '', '', '', '', '', '', t.points_change].map(esc).join(',')));
+  }
+  lines.push('', [esc('Balance'), esc(`${tier} member`), '', '', '', '', '', '', esc(balance)].join(','));
   const url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
   const a = document.createElement('a');
   a.href = url; a.download = `tick-and-book-points-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -42,7 +53,10 @@ function downloadStatement(rows, tier, balance) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export default function LoyaltyPage({ loyalty }) {
+// bookings / liveStatuses / cancellationRequests: the portal's own data (My Bookings);
+// onOpen opens a booking's details, onManage opens Booking Status for it,
+// onCancel starts a cancellation request; visa: the Visa Status section.
+export default function LoyaltyPage({ loyalty, bookings, loadingBookings, liveStatuses, cancellationRequests, onOpen, onManage, onCancel, visa }) {
   const tiers = useMemo(() => (loyalty ? tierList(loyalty) : []), [loyalty]);
   const current = loyalty?.tier || 'Bronze';
   const curIdx = Math.max(0, tiers.findIndex(t => t.name === current));
@@ -71,7 +85,9 @@ export default function LoyaltyPage({ loyalty }) {
   const shown = tiers.find(t => t.name === (picked || next?.name || current)) || tiers[curIdx];
   const shownIdx = tiers.indexOf(shown);
   const state = shownIdx === curIdx ? 'current' : shownIdx < curIdx ? 'unlocked' : 'locked';
-  const ledger = loyalty.recent_transactions || [];
+  const pointsBy = loyalty.points_by_booking || {};
+  // Points changes not tied to a booking (admin adjustments, merges).
+  const adjustments = (loyalty.recent_transactions || []).filter(t => !t.locator_code);
   // The admin's earning rates, worded per currency; a rate of 0 earns nothing, so it isn't offered.
   const earn = loyalty.earn;
   const rates = [];
@@ -119,6 +135,83 @@ export default function LoyaltyPage({ loyalty }) {
             <div className="loy-progress-head"><span>You've reached the top tier — thank you for flying with us.</span></div>
           )}
         </div>
+      </section>
+
+      {/* Points activity: every booking with the points it earned; manage or cancel a trip not yet flown */}
+      <section className="loy-card">
+        <div className="loy-head">
+          <div>
+            <h3>Points activity · My bookings{bookings ? ` (${bookings.length})` : ''}</h3>
+            <p>Every booking on your account and the points it earned. Manage or cancel a trip you haven't flown yet.</p>
+          </div>
+          {(bookings?.length > 0 || adjustments.length > 0) && (
+            <button type="button" className="loy-download" onClick={() => downloadStatement(bookings || [], adjustments, pointsBy, liveStatuses, current, balance)}>
+              <IconDownload size={16} /> Download statement
+            </button>
+          )}
+        </div>
+        {loadingBookings ? (
+          <div className="loy-empty">Loading your bookings…</div>
+        ) : !bookings?.length ? (
+          <div className="loy-empty">No bookings on your account yet. Your first flight ticket starts your balance.</div>
+        ) : (
+          <div className="loy-bk" role="table" aria-label="My bookings and points">
+            <div className="loy-bk-row loy-bk-head" role="row">
+              <span>Flight</span><span>Route</span><span>Departure</span><span>Booking / ticket</span><span>Passenger</span>
+              <span className="r">Fare</span><span className="r">Points</span><span>Status</span><span>Actions</span>
+            </div>
+            {bookings.map(b => {
+              const live = liveStatuses?.[b.locator_code];
+              const status = live?.checked ? live.status : b.status;
+              const cancelled = CANCELLED.includes(status);
+              const upcoming = isUpcoming(b);
+              const req = (cancellationRequests || []).find(r => r.booking_locator === b.locator_code && r.status !== 'rejected');
+              const earned = pointsBy[b.locator_code];
+              const tone = cancelled ? 'bad' : /ticketed|confirmed/i.test(status || '') ? 'ok' : 'warn';
+              const open = () => onOpen?.(b);
+              return (
+                <div key={b.id} role="row" tabIndex={0} className={`loy-bk-row${cancelled ? ' is-cancelled' : ''}`}
+                     aria-label={`Booking ${b.locator_code}, ${routeOf(b)}, ${status}. Open details.`}
+                     onClick={open} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } }}>
+                  <span className="loy-bk-flight"><strong>{b.airline}</strong><small>{b.flight_number}{b.cabin_class ? ` · ${b.cabin_class}` : ''}</small></span>
+                  <span className="loy-bk-route"><strong>{routeOf(b)}</strong></span>
+                  <span className="loy-bk-dep">{fmtDateTime(b.departure_time)}</span>
+                  <span className="loy-bk-pnr"><strong>{b.locator_code}</strong><small>{b.ticket_number || 'Not ticketed'}</small></span>
+                  <span className="loy-bk-pax">{cleanPassengerName(b.passenger_name)}</span>
+                  <span className="loy-bk-fare r"><strong>{b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                  <span className="loy-bk-pts r">
+                    {earned ? <b className={earned > 0 ? 'plus' : 'minus'}>{earned > 0 ? '+' : ''}{earned.toLocaleString()} pts</b>
+                      : <small>{b.ticket_number ? '0 pts' : 'After ticketing'}</small>}
+                  </span>
+                  <span className="loy-bk-status">
+                    <span className={`mmb-chip ${tone}`}>{status}</span>
+                    {live?.checked && <small>✓ Live {fmtDateTime(live.retrieved_at)}</small>}
+                  </span>
+                  <span className="loy-bk-actions" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+                    {upcoming && !cancelled ? (
+                      <>
+                        <button type="button" className="loy-act" onClick={() => onManage?.(b)}>Manage booking</button>
+                        {req ? <span className="loy-req">Cancellation {req.status}</span>
+                          : <button type="button" className="loy-act ghost" onClick={() => onCancel?.(b)}>Cancel request</button>}
+                      </>
+                    ) : <small>{cancelled ? 'Cancelled' : 'Travelled'}</small>}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {adjustments.length > 0 && (
+          <div className="loy-adj">
+            <h4>Other points changes</h4>
+            {adjustments.map(t => (
+              <div key={t.id} className="loy-adj-row">
+                <span>{fmtDate(t.created_at)} · {t.reason}</span>
+                <b className={t.points_change >= 0 ? 'plus' : 'minus'}>{t.points_change >= 0 ? '+' : ''}{Number(t.points_change).toLocaleString()} pts</b>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Tier benefits */}
@@ -188,36 +281,7 @@ export default function LoyaltyPage({ loyalty }) {
         </div>
       </section>
 
-      {/* Ledger */}
-      <section className="loy-card">
-        <div className="loy-head">
-          <div><h3>Points activity</h3><p>Every point you've earned or that was adjusted on your account.</p></div>
-          {ledger.length > 0 && (
-            <button type="button" className="loy-download" onClick={() => downloadStatement(ledger, current, balance)}>
-              <IconDownload size={16} /> Download statement
-            </button>
-          )}
-        </div>
-        {ledger.length === 0 ? (
-          <div className="loy-empty">No points activity yet. Your first flight ticket starts your balance.</div>
-        ) : (
-          <div className="loy-table-wrap">
-            <table className="loy-table">
-              <thead><tr><th>Date</th><th>Description</th><th>Type</th><th className="r">Points</th></tr></thead>
-              <tbody>
-                {ledger.map(t => (
-                  <tr key={t.id}>
-                    <td className="nowrap">{fmtDate(t.created_at)}</td>
-                    <td>{t.reason}</td>
-                    <td><span className={`loy-type ${t.locator_code ? 'flight' : 'adj'}`}>{t.locator_code ? 'Flight' : 'Adjustment'}</span></td>
-                    <td className={`r nowrap ${t.points_change >= 0 ? 'plus' : 'minus'}`}>{t.points_change >= 0 ? '+' : ''}{Number(t.points_change).toLocaleString()} pts</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {visa}
     </div>
   );
 }

@@ -22,7 +22,8 @@ const NAV_ICONS = {
 };
 
 export default function CustomerPortal({ customerToken, customerProfile, onCustomerLogin, onCustomerLogout, API_BASE, fetchWithRetry, handleApiResponse, onViewTicket, onOpenInvoice, onRequestCancellation, visaEnabled }) {
-  const [activeSection, setActiveSection] = useState('bookings');
+  // The Loyalty Program page is the portal's home page after sign-in.
+  const [activeSection, setActiveSection] = useState('loyalty');
 
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
@@ -48,10 +49,6 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [loyalty, setLoyalty] = useState(null);
 
   const [emailRequest, setEmailRequest] = useState(null);
-  const [newEmail, setNewEmail] = useState('');
-  const [emailFormError, setEmailFormError] = useState('');
-  const [emailFormMsg, setEmailFormMsg] = useState('');
-  const [emailSubmitting, setEmailSubmitting] = useState(false);
 
   const [cancellationRequests, setCancellationRequests] = useState([]);
 
@@ -250,28 +247,6 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     }
   };
 
-  const submitEmailChange = async (e) => {
-    e.preventDefault();
-    setEmailFormError('');
-    setEmailFormMsg('');
-    setEmailSubmitting(true);
-    try {
-      const res = await fetchWithRetry(`${API_BASE}/customers/me/email-change-request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
-        body: JSON.stringify({ new_email: newEmail }),
-      });
-      const data = await handleApiResponse(res, 'Failed to submit email change request');
-      setEmailRequest(data);
-      setEmailFormMsg('Request submitted — an admin will review it shortly.');
-      setNewEmail('');
-    } catch (err) {
-      setEmailFormError(err.message);
-    } finally {
-      setEmailSubmitting(false);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -393,13 +368,69 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     );
   }
 
+  // Visa Status, shown on the Loyalty page (no tab of its own).
+  const visaSection = visaEnabled ? (
+    <section className="loy-card loy-visa">
+      <div className="loy-head"><div><h3>Visa status</h3><p>Check the visa rules for your nationality and destination, and see your visa consultations.</p></div></div>
+      <form onSubmit={checkVisaStatus} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '180px' }}>
+          <label className="form-label">Your Nationality</label>
+          <select className="form-input" required value={visaNationality} onChange={e => setVisaNationality(e.target.value)}>
+            <option value="">-- Select nationality --</option>
+            {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '180px' }}>
+          <label className="form-label">Destination</label>
+          <select className="form-input" required value={visaDestination} onChange={e => setVisaDestination(e.target.value)}>
+            <option value="">-- Select destination --</option>
+            {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+          </select>
+        </div>
+        <button type="submit" className="btn btn-primary" disabled={visaChecking}>
+          {visaChecking ? 'Checking…' : 'Check Status'}
+        </button>
+      </form>
+      {visaError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{visaError}</div>}
+      {visaResult && (
+        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+          {visaResult.found ? (
+            <>
+              <div style={{ fontWeight: '800', color: 'var(--gs-dark)' }}>
+                {visaResult.nationality} → {visaResult.destination}: <span style={{ color: visaResult.visa_required === 'not_required' || visaResult.visa_required === 'visa_free' ? '#166534' : '#b45309' }}>{visaResult.visa_required}</span>
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.4rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '0.4rem' }}>
+                {visaResult.visa_type && <div><strong>Type:</strong> {visaResult.visa_type}</div>}
+                {visaResult.processing_time && <div><strong>Processing:</strong> {visaResult.processing_time}</div>}
+                {visaResult.validity && <div><strong>Validity:</strong> {visaResult.validity}</div>}
+              </div>
+              {visaResult.notes && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>{visaResult.notes}</p>}
+              {visaResult.cancellation_policy && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}><strong>Cancellation Policy:</strong> {visaResult.cancellation_policy}</p>}
+            </>
+          ) : (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{visaResult.message}</p>
+          )}
+        </div>
+      )}
+      {visaHistory.length > 0 && (
+        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Your Visa Consultation History</div>
+          {visaHistory.map(v => (
+            <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.3rem 0', borderBottom: '1px solid var(--border-color)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>{v.nationality} → {v.destination} · {fmtDate(v.slot_date)} {v.slot_time}</span>
+              <span style={{ fontWeight: '700', textTransform: 'capitalize' }}>{v.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  ) : null;
+
   const customerNavItems = [
+    { id: 'loyalty', label: 'Loyalty Program' },
     { id: 'bookings', label: 'My Bookings', count: bookings.length },
     { id: 'status', label: 'Booking Status' },
-    { id: 'loyalty', label: 'Loyalty Program' },
-    ...(visaEnabled ? [{ id: 'visa', label: 'Visa Status' }] : []),
     { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
-    { id: 'account', label: 'Account Settings' },
   ];
 
   return (
@@ -490,63 +521,11 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
             </>
           )}
 
-          {activeSection === 'loyalty' && <LoyaltyPage loyalty={loyalty} />}
-
-          {activeSection === 'visa' && visaEnabled && (
-            <section className="search-section glass-panel">
-              <h3 className="results-heading" style={{ marginTop: 0 }}>Visa Status Check</h3>
-              <form onSubmit={checkVisaStatus} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '180px' }}>
-                  <label className="form-label">Your Nationality</label>
-                  <select className="form-input" required value={visaNationality} onChange={e => setVisaNationality(e.target.value)}>
-                    <option value="">-- Select nationality --</option>
-                    {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '180px' }}>
-                  <label className="form-label">Destination</label>
-                  <select className="form-input" required value={visaDestination} onChange={e => setVisaDestination(e.target.value)}>
-                    <option value="">-- Select destination --</option>
-                    {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                  </select>
-                </div>
-                <button type="submit" className="btn btn-primary" disabled={visaChecking}>
-                  {visaChecking ? 'Checking…' : 'Check Status'}
-                </button>
-              </form>
-              {visaError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{visaError}</div>}
-              {visaResult && (
-                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
-                  {visaResult.found ? (
-                    <>
-                      <div style={{ fontWeight: '800', color: 'var(--gs-dark)' }}>
-                        {visaResult.nationality} → {visaResult.destination}: <span style={{ color: visaResult.visa_required === 'not_required' || visaResult.visa_required === 'visa_free' ? '#166534' : '#b45309' }}>{visaResult.visa_required}</span>
-                      </div>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.4rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '0.4rem' }}>
-                        {visaResult.visa_type && <div><strong>Type:</strong> {visaResult.visa_type}</div>}
-                        {visaResult.processing_time && <div><strong>Processing:</strong> {visaResult.processing_time}</div>}
-                        {visaResult.validity && <div><strong>Validity:</strong> {visaResult.validity}</div>}
-                      </div>
-                      {visaResult.notes && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>{visaResult.notes}</p>}
-                      {visaResult.cancellation_policy && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}><strong>Cancellation Policy:</strong> {visaResult.cancellation_policy}</p>}
-                    </>
-                  ) : (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{visaResult.message}</p>
-                  )}
-                </div>
-              )}
-              {visaHistory.length > 0 && (
-                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Your Visa Consultation History</div>
-                  {visaHistory.map(v => (
-                    <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.3rem 0', borderBottom: '1px solid var(--border-color)' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{v.nationality} → {v.destination} · {fmtDate(v.slot_date)} {v.slot_time}</span>
-                      <span style={{ fontWeight: '700', textTransform: 'capitalize' }}>{v.status}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+          {activeSection === 'loyalty' && (
+            <LoyaltyPage loyalty={loyalty} bookings={bookings} loadingBookings={loadingBookings} liveStatuses={liveStatuses}
+                         cancellationRequests={cancellationRequests} visa={visaSection}
+                         onOpen={(b) => { setActiveSection('bookings'); openBookingDetail(b); }}
+                         onManage={openBookingStatus} onCancel={onRequestCancellation} />
           )}
 
           {activeSection === 'cancellations' && (
@@ -576,32 +555,6 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
             </section>
           )}
 
-          {activeSection === 'account' && (
-            <section className="search-section glass-panel">
-              <h3 className="results-heading" style={{ marginTop: 0 }}>Account Settings</h3>
-              <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--gs-dark)' }}>Change Email Address</h4>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>
-                Email changes go through an admin review before taking effect, and are limited to 2 per 12-month period.
-              </p>
-              {emailRequest ? (
-                <p style={{ fontSize: '0.82rem', color: '#b45309', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  ⏳ Email change to <strong>{emailRequest.new_email}</strong> pending admin approval.
-                </p>
-              ) : (
-                <form onSubmit={submitEmailChange} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '220px' }}>
-                    <label className="form-label">New Email Address</label>
-                    <input type="email" className="form-input" required value={newEmail} onChange={e => setNewEmail(e.target.value)} />
-                  </div>
-                  <button type="submit" className="btn btn-primary" disabled={emailSubmitting}>
-                    {emailSubmitting ? 'Submitting…' : 'Submit Request'}
-                  </button>
-                  {emailFormError && <div className="error-banner" style={{ width: '100%' }}>{emailFormError}</div>}
-                </form>
-              )}
-              {emailFormMsg && <p style={{ fontSize: '0.8rem', color: '#166534', marginTop: '0.75rem' }}>{emailFormMsg}</p>}
-            </section>
-          )}
         </div>
       </div>
     </div>

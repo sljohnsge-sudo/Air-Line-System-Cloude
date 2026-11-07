@@ -1423,6 +1423,21 @@ def get_loyalty_transactions(email: str, limit: int = 25) -> list[dict]:
     return rows
 
 
+def get_loyalty_points_by_locator(email: str) -> dict:
+    """Points earned per booking (PNR) for one account: {locator: points}."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT locator_code, SUM(points_change) FROM loyalty_transactions "
+        "WHERE email=%s AND locator_code IS NOT NULL AND locator_code <> '' GROUP BY locator_code",
+        (email,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return {loc: int(total or 0) for loc, total in rows}
+
+
 def rekey_loyalty_account(old_email: str, new_email: str) -> None:
     """Move a loyalty balance from old_email to new_email — used when an
     email-change request is approved. Merges into an existing new_email

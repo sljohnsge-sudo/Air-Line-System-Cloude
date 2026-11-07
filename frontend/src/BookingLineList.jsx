@@ -5,7 +5,7 @@
 import { cleanPassengerName } from './BookingCard.jsx';
 import { fmtDateTime } from './dateFormat.js';
 
-const CANCELLED = ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'];
+export const CANCELLED = ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'];
 
 // A round trip is saved as CMB → CMB; its legs give the real destination.
 export const routeOf = (b) => {
@@ -20,7 +20,7 @@ export const routeOf = (b) => {
 };
 
 // Same rule as the backend refresh: the trip's last flight is today or later.
-const isUpcoming = (b) => {
+export const isUpcoming = (b) => {
   const legs = Array.isArray(b.legs) ? b.legs : [];
   const last = String((legs.length ? legs[legs.length - 1].departure_time : null) || b.departure_time || '');
   return last.slice(0, 10) >= new Date().toISOString().slice(0, 10);

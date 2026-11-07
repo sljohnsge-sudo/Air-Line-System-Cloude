@@ -4842,3 +4842,53 @@ button, input, select, textarea { font-family: inherit; }
 .loy-type.flight { background: var(--tb-ice); color: var(--tb-navy); }
 .loy-type.adj { background: #f1f5f9; color: #475569; }
 .loy-empty { padding: 1.4rem; text-align: center; color: var(--tb-muted); font-size: 0.9rem; border: 1px dashed var(--tb-border); border-radius: 12px; }
+
+/* Loyalty page: My bookings with points, Manage / Cancel request (LoyaltyPage.jsx) */
+.loy-bk { border: 1px solid var(--tb-border); border-radius: 12px; overflow: hidden; }
+.loy-bk-row {
+  display: grid; align-items: center; gap: 0.75rem; padding: 0.8rem 1rem; border-top: 1px solid var(--tb-border);
+  grid-template-columns: minmax(110px, 1.1fr) minmax(90px, 0.8fr) minmax(110px, 0.9fr) minmax(120px, 1fr) minmax(110px, 1fr) minmax(110px, 0.9fr) minmax(70px, 0.6fr) minmax(110px, 0.9fr) minmax(150px, 1fr);
+  font-size: 0.86rem; cursor: pointer; transition: background 0.15s; background: #fff;
+}
+.loy-bk-row:first-child { border-top: 0; }
+.loy-bk-row:hover:not(.loy-bk-head) { background: #f8fbff; }
+.loy-bk-row:focus-visible { outline: none; box-shadow: inset var(--tb-focus-ring); }
+.loy-bk-head { background: var(--tb-ice); cursor: default; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tb-muted); padding-block: 0.55rem; }
+.loy-bk-row .r { text-align: right; }
+.loy-bk-row > span { min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.loy-bk-row > span.r { align-items: flex-end; }
+.loy-bk-row strong { color: var(--tb-navy-deep); font-weight: 800; }
+.loy-bk-row small { font-size: 0.74rem; color: var(--tb-muted); }
+.loy-bk-pnr strong { color: #b5523f; letter-spacing: 0.03em; }
+.loy-bk-pnr small { font-variant-numeric: tabular-nums; }
+.loy-bk-pax { text-transform: uppercase; font-size: 0.8rem; color: var(--tb-text); }
+.loy-bk-fare strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.loy-bk-pts b.plus, .loy-adj b.plus { color: #15803d; }
+.loy-bk-pts b.minus, .loy-adj b.minus { color: #b42318; }
+.loy-bk-status { align-items: flex-start; }
+.loy-bk-actions { flex-direction: row !important; flex-wrap: wrap; gap: 0.35rem !important; align-items: center; }
+.loy-act {
+  border: 1px solid var(--tb-navy); background: var(--tb-navy); color: #fff; border-radius: 8px; padding: 0.38rem 0.7rem;
+  font: inherit; font-size: 0.76rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.loy-act:hover { background: var(--tb-navy-hover); }
+.loy-act.ghost { background: #fff; color: #b42318; border-color: #f3c4bf; }
+.loy-act.ghost:hover { background: #fef2f2; border-color: #b42318; }
+.loy-act:focus-visible { outline: none; box-shadow: var(--tb-focus-ring); }
+.loy-req { font-size: 0.72rem; font-weight: 700; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 999px; padding: 0.12rem 0.55rem; text-transform: capitalize; white-space: nowrap; }
+.loy-bk-row.is-cancelled { background: #fbfcfe; }
+.loy-bk-row.is-cancelled strong, .loy-bk-row.is-cancelled .loy-bk-pax { color: var(--tb-muted); }
+@media (max-width: 1100px) {
+  .loy-bk-head { display: none; }
+  .loy-bk-row { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 0.55rem; }
+  .loy-bk-row > span.r { align-items: flex-start; text-align: left; }
+  .loy-bk-route { align-items: flex-end; text-align: right; }
+  .loy-bk-actions { grid-column: 1 / -1; padding-top: 0.45rem; border-top: 1px dashed var(--tb-border); }
+}
+.loy-adj { margin-top: 1rem; }
+.loy-adj h4 { margin: 0 0 0.4rem; font-size: 0.86rem; font-weight: 800; color: var(--tb-navy-deep); }
+.loy-adj-row { display: flex; justify-content: space-between; gap: 0.6rem; font-size: 0.84rem; padding: 0.45rem 0; border-top: 1px dashed var(--tb-border); }
+.loy-visa .form-input { height: 44px; border-radius: 10px; border-color: var(--tb-border); }
+.loy-visa .form-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tb-text); }
+.loy-visa .btn-primary { background: var(--tb-navy); border-color: var(--tb-navy); height: 44px; border-radius: 10px; }
+.loy-visa .btn-primary:hover:not(:disabled) { background: var(--tb-navy-hover); border-color: var(--tb-navy-hover); }

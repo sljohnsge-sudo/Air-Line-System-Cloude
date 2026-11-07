@@ -5153,6 +5153,7 @@ def manage_booking_invoice(addon_id: str, current: dict = Depends(auth.get_curre
 def customer_my_loyalty(current: dict = Depends(auth.get_current_customer)):
     summary = services.get_loyalty_summary(current["sub"])
     summary["recent_transactions"] = database.get_loyalty_transactions(current["sub"], limit=50)
+    summary["points_by_booking"] = database.get_loyalty_points_by_locator(current["sub"])
     return summary
 
 
