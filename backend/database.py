@@ -1804,6 +1804,51 @@ def get_stuck_booking_notifications(status: str | None = None) -> list[dict]:
     return rows
 
 
+def acknowledge_stuck_booking_notifications(ids: list, admin_id: int, admin_note: str | None) -> int:
+    """Acknowledge several open items at once (staff 'Acknowledge selected').
+    Returns how many were still open and are now acknowledged."""
+    ids = [int(i) for i in ids or []]
+    if not ids:
+        return 0
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"""UPDATE stuck_booking_notifications SET status='acknowledged', admin_note=%s,
+                reviewed_at=CURRENT_TIMESTAMP, reviewed_by_admin_id=%s
+                WHERE status='new' AND id IN ({','.join(['%s'] * len(ids))})""",
+            (admin_note, admin_id, *ids),
+        )
+        conn.commit()
+        return cursor.rowcount
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def resolve_stuck_booking_notification(notification_id: int, note: str) -> None:
+    """Close an open item automatically once our records show it was fixed
+    (status 'resolved', no reviewing admin)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """UPDATE stuck_booking_notifications SET status='resolved', admin_note=%s, reviewed_at=CURRENT_TIMESTAMP
+               WHERE id=%s AND status='new'""",
+            (note[:500], notification_id),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def acknowledge_stuck_booking_notification(notification_id: int, admin_id: int, admin_note: str | None) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)

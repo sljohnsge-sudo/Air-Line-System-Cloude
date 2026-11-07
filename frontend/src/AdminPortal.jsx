@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
 import CancelBookingDialog from './CancelBookingDialog.jsx';
-import { fmtDate, fmtDateTime } from './dateFormat.js';
+import { fmtDate, fmtDateTime, fmtTime } from './dateFormat.js';
 import AdminInsights, { InsightAlerts } from './AdminInsights.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
@@ -145,6 +145,11 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [stuckBookings, setStuckBookings] = useState([]);
   const [stuckBookingsLoading, setStuckBookingsLoading] = useState(false);
   const [stuckBookingsError, setStuckBookingsError] = useState('');
+  const [stuckAutoResolved, setStuckAutoResolved] = useState(0);   // items closed because our records show them fixed
+  const [stuckFilter, setStuckFilter] = useState('all');             // 'all' | 'urgent' | an item type
+  const [stuckSelected, setStuckSelected] = useState([]);            // ids ticked for "Acknowledge selected"
+  const [stuckBulkBusy, setStuckBulkBusy] = useState(false);
+  const [stuckOpenId, setStuckOpenId] = useState(null);           // row showing its full message
   const [stuckBookingActionId, setStuckBookingActionId] = useState(null);
 
   const [notificationRecipients, setNotificationRecipients] = useState([]);
@@ -471,8 +476,10 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     setStuckBookingsError('');
     try {
       const res = await fetchWithRetry(`${API_BASE}/admin/stuck-bookings?status=new`, { headers: authHeaders });
-      const data = await adminApiResponse(res, 'Failed to load stuck-booking alerts');
+      const data = await adminApiResponse(res, 'Failed to load ticketing exceptions');
       setStuckBookings(data.notifications || []);
+      setStuckAutoResolved(data.auto_resolved || 0);
+      setStuckSelected(sel => sel.filter(id => (data.notifications || []).some(n => n.id === id)));
     } catch (err) {
       setStuckBookingsError(err.message);
     } finally {
@@ -841,6 +848,25 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
+  // Acknowledge every ticked item in one call (e.g. sandbox test leftovers).
+  const acknowledgeStuckSelected = async () => {
+    if (!stuckSelected.length) return;
+    setStuckBulkBusy(true);
+    setStuckBookingsError('');
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/stuck-bookings/acknowledge-bulk`, {
+        method: 'POST', headers: authHeaders, body: JSON.stringify({ ids: stuckSelected }),
+      });
+      await adminApiResponse(res, 'Failed to acknowledge the selected items');
+      setStuckBookings(items => items.filter(n => !stuckSelected.includes(n.id)));
+      setStuckSelected([]);
+    } catch (err) {
+      setStuckBookingsError(err.message);
+    } finally {
+      setStuckBulkBusy(false);
+    }
+  };
+
   const acknowledgeStuckBooking = async (id) => {
     setStuckBookingActionId(id);
     try {
@@ -851,6 +877,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       });
       await adminApiResponse(res, 'Failed to acknowledge stuck-booking alert');
       setStuckBookings(items => items.filter(n => n.id !== id));
+      setStuckSelected(sel => sel.filter(x => x !== id));
     } catch (err) {
       setStuckBookingsError(err.message);
     } finally {
@@ -1903,44 +1930,110 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       </section>
       )}
 
-      {activeAdminSection === 'stuck-bookings' && (
+      {activeAdminSection === 'stuck-bookings' && (() => {
+        const kindsShown = [...new Set(stuckBookings.map(n => n.kind))];
+        const kindLabel = (k) => stuckBookings.find(n => n.kind === k)?.kind_label || k;
+        const shown = stuckBookings.filter(n => stuckFilter === 'all' ? true : stuckFilter === 'urgent' ? n.priority === 'urgent' : n.kind === stuckFilter);
+        const urgent = stuckBookings.filter(n => n.priority === 'urgent').length;
+        const allShownTicked = shown.length > 0 && shown.every(n => stuckSelected.includes(n.id));
+        const chip = (id, label, count) => (
+          <button key={id} type="button" className="adm-chip" aria-pressed={stuckFilter === id} onClick={() => setStuckFilter(id)}>
+            {label} <span>{count}</span>
+          </button>
+        );
+        return (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Ticketing Exceptions {stuckBookings.length > 0 && `(${stuckBookings.length} new)`}</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
-          Raised when a paid booking couldn't be ticketed at Travelport, or when a staff void / refund / cancel didn't go
-          through there. Each one needs checking by hand — an email also goes to the Supplier Alerts recipients.
+        <h3 className="results-heading">Ticketing Exceptions {stuckBookings.length > 0 && `(${stuckBookings.length} open)`}</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
+          Bookings that need a person — paid but not ticketed, paid seat/extra with no EMD, a failed void / refund / cancel,
+          an unpaid extra that couldn't be removed, or a flight the airline didn't confirm. Urgent first; fixed items close by themselves.
         </p>
+        {stuckAutoResolved > 0 && (
+          <div className="adm-note ok">Closed {stuckAutoResolved} item{stuckAutoResolved > 1 ? 's' : ''} automatically — our records show {stuckAutoResolved > 1 ? 'they were' : 'it was'} fixed.</div>
+        )}
         {stuckBookingsError && <div className="error-banner">{stuckBookingsError}</div>}
         {stuckBookingsLoading ? (
-          <div className="loading-state"><div className="spinner"></div><p>Loading stuck bookings...</p></div>
+          <div className="loading-state"><div className="spinner"></div><p>Loading ticketing exceptions...</p></div>
         ) : stuckBookings.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No open ticketing exceptions.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {stuckBookings.map(n => (
-              <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.6rem', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
-                <div style={{ fontSize: '0.85rem', flex: 1, minWidth: 0 }}>
-                  <div>
-                    <strong style={{ fontFamily: 'var(--font-body)', letterSpacing: '0.05em' }}>{n.locator_code}</strong>
-                    {n.payment_txn_ref && <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{' · Payment ref '}{n.payment_txn_ref}</span>}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>
-                    {n.error_message}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    {fmtDateTime(n.created_at)}
-                    {n.email_sent ? ' · Email sent' : ' · Email not sent'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  <button className="btn btn-primary btn-sm" disabled={stuckBookingActionId === n.id} onClick={() => acknowledgeStuckBooking(n.id)}>Acknowledge</button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="adm-chips">
+              {chip('all', 'All', stuckBookings.length)}
+              {urgent > 0 && chip('urgent', 'Urgent', urgent)}
+              {kindsShown.map(k => chip(k, kindLabel(k), stuckBookings.filter(n => n.kind === k).length))}
+            </div>
+            <div className="adm-bulk">
+              <label>
+                <input type="checkbox" checked={allShownTicked}
+                       onChange={e => setStuckSelected(sel => e.target.checked
+                         ? [...new Set([...sel, ...shown.map(n => n.id)])]
+                         : sel.filter(id => !shown.some(n => n.id === id)))} />
+                Select all shown ({shown.length})
+              </label>
+              <button className="btn btn-primary btn-sm" disabled={!stuckSelected.length || stuckBulkBusy} onClick={acknowledgeStuckSelected}>
+                {stuckBulkBusy ? 'Acknowledging…' : `Acknowledge selected (${stuckSelected.length})`}
+              </button>
+            </div>
+            <div className="adm-table-wrap">
+              <table className="adm-table">
+                <thead>
+                  <tr>
+                    <th aria-label="Select" />
+                    <th>Date</th><th>PNR</th><th>Ticket no.</th><th>Passenger / Route</th>
+                    <th>Type</th><th>Issue &amp; action needed</th><th aria-label="Acknowledge" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map(n => (
+                    <Fragment key={n.id}>
+                      <tr className={`adm-row ${n.priority}${stuckOpenId === n.id ? ' open' : ''}`} onClick={() => setStuckOpenId(id => id === n.id ? null : n.id)}>
+                        <td onClick={e => e.stopPropagation()}>
+                          <input type="checkbox" aria-label={`Select ${n.locator_code}`} checked={stuckSelected.includes(n.id)}
+                                 onChange={e => setStuckSelected(sel => e.target.checked ? [...sel, n.id] : sel.filter(x => x !== n.id))} />
+                        </td>
+                        <td className="nowrap">{fmtDate(n.created_at)}<div className="adm-sub">{fmtTime(n.created_at)}</div></td>
+                        <td><strong className="adm-pnr">{String(n.locator_code || '').split('-').map((part, i) => <Fragment key={i}>{i > 0 && <>-<wbr /></>}{part}</Fragment>)}</strong></td>
+                        <td className="nowrap mono">{n.ticket_number || '—'}</td>
+                        <td className="adm-pax">{n.passenger_name || '—'}<div className="adm-sub">{n.route || ''}</div></td>
+                        <td className="adm-type">
+                          <span className={`adm-pri ${n.priority}`}>{n.priority === 'urgent' ? 'Urgent' : 'Normal'}</span>
+                          <div className="adm-kind-text">{n.kind_short || n.kind_label}</div>
+                        </td>
+                        <td className="adm-issue">
+                          {n.summary || n.error_message}
+                          {n.action && <div className="adm-action">→ {n.action}</div>}
+                        </td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <button className="btn btn-secondary btn-sm" disabled={stuckBookingActionId === n.id} onClick={() => acknowledgeStuckBooking(n.id)}>Acknowledge</button>
+                        </td>
+                      </tr>
+                      {stuckOpenId === n.id && (
+                        <tr className="adm-detail">
+                          <td />
+                          <td colSpan={7}>
+                            <div><strong>Full message:</strong> {n.error_message}</div>
+                            <div className="adm-detail-meta">
+                              {n.payment_txn_ref && <span>Payment ref {n.payment_txn_ref}</span>}
+                              {n.airline && <span>{n.airline} {n.flight_number || ''}</span>}
+                              {n.departure_time && <span>Departs {fmtDateTime(n.departure_time)}</span>}
+                              <span>{n.email_sent ? 'Email sent to staff' : 'No email sent'}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+              {shown.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: '0.8rem' }}>Nothing of this type is open.</p>}
+            </div>
+            <p className="adm-hint">Click a row to see the full message, payment reference and flight.</p>
+          </>
         )}
       </section>
-      )}
+        );
+      })()}
 
       {activeAdminSection === 'providers' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
