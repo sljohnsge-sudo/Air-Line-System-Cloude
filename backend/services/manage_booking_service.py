@@ -23,6 +23,7 @@ seats and extras are refused for NDC; wheelchair SSRs are accepted.
 """
 import logging
 import re
+import time
 import uuid
 
 import database
@@ -230,6 +231,55 @@ def issue_emds(locator: str, items: list, expected_supplier_total: float, curren
     Same steps as ticket_service.issue_ticket, minus the air offer.
     items: the add-on's saved items — matched on Travelport's offer
     Identifier (offer_key) when saved, since offer ids get renumbered."""
+    wb, res, supplier_total = _emd_workbench(locator, items, expected_supplier_total, currency)
+    # EMDs already on the PNR (earlier paid seats/extras), so a retry can tell
+    # whether this issue went through despite an error answer.
+    if "Receipt" in res:
+        before = {e["number"] for e in _emds_in(res)}
+    else:
+        try:
+            before = {e["number"] for e in _emds_in(_reservation(_call("GET", TravelportEndpoints.retrieve_reservation(locator))))}
+        except CancelError:
+            before = None
+    body = _call("POST", _issue_url(wb), "")
+    emds = _emds_in(_reservation(body))
+    # 2599 "COMMUNICATION ERROR. RETRY" (seen 2026-11-07 on Air India and
+    # SriLankan, after the customer had paid): Travelport asks for a retry.
+    # Only when the PNR shows no new EMD — an EMD issued despite the error is
+    # never issued twice. The error also ends Travelport's work session (the
+    # same session answered 8506 "WORKBENCH ID IS NOT VALID", JJ2FJQ), so each
+    # retry builds a fresh one.
+    for _ in range(2):
+        if emds or before is None or "RETRY" not in (_msg(_errors(body)) or "").upper():
+            break
+        time.sleep(3)
+        try:
+            now = _emds_in(_reservation(_call("GET", TravelportEndpoints.retrieve_reservation(locator))))
+        except CancelError:
+            now = []
+        emds = [e for e in now if e["number"] not in before]
+        if emds:
+            break
+        logger.warning(f"{locator}: EMD issue answered '{_msg(_errors(body))}' — retrying")
+        try:
+            wb, _, _ = _emd_workbench(locator, items, expected_supplier_total, currency)
+        except (Refused, CancelError) as e:
+            logger.warning(f"{locator}: EMD retry could not start: {e}")
+            break
+        body = _call("POST", _issue_url(wb), "")
+        emds = _emds_in(_reservation(body))
+    if not emds:
+        raise Refused(f"Travelport did not issue the EMDs: {_msg(_errors(body)) or 'no EMD returned'}")
+    return {"emds": emds, "supplier_total": supplier_total}
+
+
+def _issue_url(wb: str) -> str:
+    return f"{TravelportConfig.base_path()}/air/book/reservation/reservations/{wb}?Issuance=Ticket&DocumentValue=Retain"
+
+
+def _emd_workbench(locator: str, items: list, expected_supplier_total: float, currency: str) -> tuple:
+    """A post-commit workbench with a Cash FOP and a Payment on just these
+    offers, ready for the Issuance commit. (wb, workbench reservation, supplier total)"""
     wb, res = _open_workbench(locator)
     keys = {i["offer_key"] for i in items if i.get("offer_key")}
     ids = {i["offer_id"] for i in items if not i.get("offer_key") and i.get("offer_id")}
@@ -259,10 +309,10 @@ def issue_emds(locator: str, items: list, expected_supplier_total: float, curren
     if _errors(pay):
         _discard(wb)
         raise Refused(f"Travelport refused the EMD payment: {_msg(_errors(pay))}")
-    body = _call("POST", f"{TravelportConfig.base_path()}/air/book/reservation/reservations/{wb}?Issuance=Ticket&DocumentValue=Retain", "")
-    emds = [{"number": d["Number"], "description": (d.get("EMDDescription") or {}).get("value")}
-            for r in _reservation(body).get("Receipt") or [] for d in r.get("Document") or []
+    return wb, res, supplier_total
+
+
+def _emds_in(res: dict) -> list:
+    return [{"number": d["Number"], "description": (d.get("EMDDescription") or {}).get("value")}
+            for r in res.get("Receipt") or [] for d in r.get("Document") or []
             if d.get("@type") == "DocumentEMD" and d.get("Number")]
-    if not emds:
-        raise Refused(f"Travelport did not issue the EMDs: {_msg(_errors(body)) or 'no EMD returned'}")
-    return {"emds": emds, "supplier_total": supplier_total}

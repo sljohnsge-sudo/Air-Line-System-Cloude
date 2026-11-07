@@ -4916,6 +4916,9 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
         elif "DIDN'T ACCEPT THIS SEAT ONLINE" in reason:
             i["reason"] = ("The airline could not confirm this seat for your selected fare category. You have not been "
                            "charged for the seat. You can select your seat directly with the airline during check-in.")
+        elif "COMMENTS MUST BE PROVIDED" in reason:
+            i["reason"] = ("The airline needs details of this item (for example, what the equipment is) before it can add "
+                           "it, and these can't be sent online. You have not been charged — please contact the airline to add it.")
     paid = [i for i in items if i["status"] == "confirmed" and (i.get("price") or 0) > 0]
     # "Requested" (pending) items are kept so they're billed if the airline
     # confirms them later (services/addon_billing.py) — never charged before.

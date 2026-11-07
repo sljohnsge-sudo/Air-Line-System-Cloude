@@ -740,31 +740,27 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict, force_referenc
     is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
     has_segments = all(leg.get("segments") for leg in leg_offerings)
 
-    if has_segments and not force_reference_payload:
+    if has_segments and is_gds and not force_reference_payload:
         # Per Travelport support's explicit request: include classOfService /
         # AvailabilitySourceCode / boundFlightsInd, which only exist in the
-        # full-payload SpecificFlightCriteria block. Travelport's own Add
-        # Offer docs say full payload is "not supported for NDC" — attempted
-        # here anyway per instruction, but with a safety net: if it's
-        # rejected for non-GDS content, fall back to the reference payload
-        # immediately rather than letting the booking fail outright.
+        # full-payload SpecificFlightCriteria block. GDS content only:
+        # Travelport's own Add Offer docs say full payload is "not supported
+        # for NDC", and confirmed live 2026-11-07 that Travelport can ACCEPT
+        # it for an NDC fare and book a GDS fare instead, at a different
+        # price — 21 of 87 NDC test bookings (Air India, Qatar, Singapore)
+        # were ticketed as GDS fares that didn't match what the customer
+        # paid (JJ2D6X: NDC priced LKR 105,778, GDS ticket LKR 228,110).
+        # NDC content therefore always uses the reference payload below.
         payload = _build_full_payload_offer(leg_offerings)
         url = TravelportEndpoints.add_offer_to_workbench_full_payload(workbench_id)
-        try:
-            result = _api_post(url, payload, session_id=workbench_id)
-            _raise_if_error(result, "Add Offer (full payload)")
-            logger.info("Offer added to workbench (full payload).")
-            return result
-        except (ValueError, httpx.HTTPStatusError) as e:
-            if is_gds:
-                raise  # GDS full payload is the proven path — a real failure here must surface
-            logger.warning(
-                f"Full-payload Add Offer failed for non-GDS content ({e}); "
-                "falling back to reference payload (Travelport docs: full payload not supported for NDC)."
-            )
+        # GDS full payload is the proven path — a real failure here must surface.
+        result = _api_post(url, payload, session_id=workbench_id)
+        _raise_if_error(result, "Add Offer (full payload)")
+        logger.info("Offer added to workbench (full payload).")
+        return result
 
-    # Reference payload: either segments were unavailable, or (for non-GDS
-    # content) the full-payload attempt above failed and this is the fallback.
+    # Reference payload: NDC/LCC content, GDS content without segments, or a
+    # forced reference attempt.
     payload = _build_reference_payload_offer(leg_offerings)
     url = TravelportEndpoints.add_offer_to_workbench(workbench_id)
     result = _api_post(url, payload, session_id=workbench_id)
@@ -1259,6 +1255,39 @@ def get_workbench_details(workbench_id: str) -> dict:
     return _api_get(url, session_id=workbench_id)
 
 
+def check_workbench_fare(workbench_id: str, is_gds: bool, priced: dict) -> None:
+    """Before commit: the fare Travelport put on the workbench must be the
+    one that was priced — and is about to be charged. Confirmed live
+    2026-11-07: an NDC fare added with the full payload was booked as a GDS
+    fare at a different price, and the ticket was issued at that price while
+    the customer paid the AirPrice one (21 of 87 NDC test bookings).
+    Raises ValueError when an NDC fare became a GDS one, PriceChangedError
+    (with the airline's price, plus markup) when the total differs; no
+    verdict when the workbench doesn't show a price (some NDC answers)."""
+    try:
+        body = get_workbench_details(workbench_id)
+    except Exception as e:
+        logger.warning(f"Workbench {workbench_id}: fare check skipped, read failed: {e}")
+        return
+    res = (body.get("ReservationResponse") or {}).get("Reservation") or body.get("Reservation") or {}
+    offers = [o for o in res.get("Offer") or [] if (o.get("id") or "").lower().startswith("offer")]
+    if not offers:
+        return
+    sources = {o.get("ContentSource") for o in offers if o.get("ContentSource")}
+    if not is_gds and sources == {"GDS"}:
+        raise ValueError("Travelport booked this NDC fare as a GDS fare — not the fare that was priced")
+    totals = [(o.get("Price") or {}).get("TotalPrice") for o in offers]
+    if not priced.get("total") or any(t in (None, "") for t in totals):
+        return
+    booked = round(sum(float(t) for t in totals), 2)
+    if abs(booked - float(priced["total"])) > _PRICE_TOLERANCE:
+        expected, _ = apply_markup(booked, get_pricing_settings(), "ticket")
+        currency = priced.get("currency")
+        raise PriceChangedError(
+            f"The airline's price for this booking is {currency} {expected:,.2f}, not the price that was "
+            f"checked. Please review the new price and book again.", expected, currency)
+
+
 # ── STEP 7: Commit Workbench → Generate PNR ───────────────────────────────────
 
 def commit_workbench(workbench_id: str, received_from: str | None = None) -> dict:
@@ -1426,21 +1455,15 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
     a live NDC booking and/or hearing back from Travelport support on the
     PCC-lock behavior above.
 
-    NOTE on full-payload Add Offer for non-GDS content: per Travelport
-    support's explicit request to include classOfService/
-    AvailabilitySourceCode/boundFlightsInd (full-payload-only fields),
-    add_offer_to_workbench() attempts the full payload for NDC/LCC content
-    too, despite Travelport's docs saying it's "not supported for NDC." Its
-    own internal fallback only catches a failure AT the Add Offer call
-    itself. Confirmed live: a full-payload NDC Add Offer can pass cleanly
-    (HTTP 200, no error) and then fail at Commit with a real fare-validation
-    error ("FARE IS NOT AVAILABLE FOR INPUT CRITERIA", Qatar Airways
-    QR659 CMB-DXB, 2026-09-09) — a clean failure (no PCC lock, unlike the
-    AirPrice incident), but still a booking that reference payload would
-    have completed successfully. So: on any non-stale-workbench ValueError
-    for non-GDS content, if this attempt used the full payload, this flow
-    retries ONCE more with a fresh workbench and force_reference_payload=True
-    rather than surfacing that failure to the caller.
+    NOTE on Add Offer for non-GDS content: NDC/LCC content uses the
+    reference payload only (add_offer_to_workbench). The full payload used
+    to be tried first, despite Travelport's docs saying it's "not supported
+    for NDC"; confirmed live it could fail at Commit ("FARE IS NOT AVAILABLE
+    FOR INPUT CRITERIA", QR659, 2026-09-09) or — worse — be accepted and
+    booked as a GDS fare at another price (2026-11-07). STEP 5b
+    (check_workbench_fare) catches any such switch before commit. On any
+    other non-stale-workbench ValueError for non-GDS content, this flow
+    still retries ONCE with a fresh workbench and force_reference_payload=True.
 
     Args:
         raw_offering (dict): The raw flight offer from the catalog search.
@@ -1506,6 +1529,9 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
 
                 # STEP 5
                 add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=force_reference_payload)
+                # STEP 5b — the fare on the workbench is the one priced and
+                # charged (no PNR exists yet, so a mismatch costs nothing).
+                check_workbench_fare(workbench_id, is_gds, priced)
 
                 # STEP 6 — Travelers must appear in this exact passenger-type
                 # sequence: Adult, Infant, Child (both the GDS and NDC
@@ -1554,6 +1580,15 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
                 committed["ssr_requests"] = ssr_requests
                 return committed
 
+            except PriceChangedError:
+                # STEP 5b: the airline's price isn't the one checked — no
+                # retry would change that; the customer is offered it instead.
+                if workbench_id:
+                    try:
+                        discard_workbench(workbench_id)
+                    except Exception as discard_ex:
+                        logger.warning(f"Failed to discard workbench: {discard_ex}")
+                raise
             except StaleWorkbenchError as e:
                 logger.warning(
                     f"[Flow attempt {attempt}/{max_retries}] Stale workbench error caught: {e}. "
@@ -1943,11 +1978,19 @@ def parse_ancillary_response(result: dict) -> list[dict]:
     # pass to the airline yet, so they were charged and then rejected.
     # Filtering here also keeps them out of add_seats_and_extras_to_pnr's
     # fresh shop, so they can't be booked even if a request names one.
-    return [i for i in items if (i.get("category_code") or "").upper() in ALLOWED_ANCILLARY_CATEGORIES]
+    # Items whose SSR needs a free-text description of the item are left out
+    # too: the site doesn't collect one, and Ancillary Book refuses them.
+    return [i for i in items if (i.get("category_code") or "").upper() in ALLOWED_ANCILLARY_CATEGORIES
+            and (i.get("ssr_code") or "").upper() not in NEEDS_DETAILS_SSR]
 
 
 # Travelport Ancillary Description.code: BG = baggage, ML = meals, LG = lounge.
 ALLOWED_ANCILLARY_CATEGORIES = {"BG", "ML", "LG"}
+
+# SSRs the airline only accepts with comments describing the item. Confirmed
+# live 2026-11-07: Air India "SPORT EQUIPMENT" (SPEQ) -> Ancillary Book 8302
+# "COMMENTS MUST BE PROVIDED FOR SELECTED ANCILLARY. SSR CODE [SPEQ]".
+NEEDS_DETAILS_SSR = {"SPEQ"}
 
 
 _ORDINALS = {"FIRST": "1st", "SECOND": "2nd", "THIRD": "3rd", "FOURTH": "4th", "FIFTH": "5th", "SIXTH": "6th"}
