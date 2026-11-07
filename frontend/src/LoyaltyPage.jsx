@@ -137,6 +137,73 @@ export default function LoyaltyPage({ loyalty, bookings, loadingBookings, liveSt
         </div>
       </section>
 
+      {/* Tier benefits */}
+      <section className="loy-card">
+        <div className="loy-head">
+          <div>
+            <h3>Tier benefits</h3>
+            <p>Your perks today, and what the next tiers unlock.</p>
+          </div>
+          <div className="loy-seg" role="tablist" aria-label="Tiers">
+            {tiers.map(t => (
+              <button key={t.name} type="button" role="tab" aria-selected={t.name === shown?.name} onClick={() => setPicked(t.name)}>{t.name}</button>
+            ))}
+          </div>
+        </div>
+        <div className="loy-benefits">
+          <div className="loy-mine">
+            <div className="loy-mine-head">
+              <span className={`loy-mini-medal tier-${current.toLowerCase()}`}><IconShield size={20} /></span>
+              <div><h4>Your {current} benefits</h4><small>Active membership level</small></div>
+              <span className="loy-tag">Current</span>
+            </div>
+            {(tiers[curIdx]?.benefits || []).length ? (
+              <ul className="loy-list">{tiers[curIdx].benefits.map((b, i) => <li key={i}><IconCheck size={15} />{b}</li>)}</ul>
+            ) : <p className="loy-muted">No benefits are listed for this tier yet.</p>}
+          </div>
+          <div className={`loy-other ${state}`}>
+            <div className="loy-mine-head">
+              <span className="loy-mini-medal dark"><IconSpark size={20} /></span>
+              <div>
+                <h4>{shown?.name} tier{state === 'current' ? ' (current)' : ''}</h4>
+                <small>{state === 'current' ? 'Your level today' : state === 'unlocked' ? 'Already reached' : shown?.threshold != null ? `Unlocks at ${pts(shown.threshold)}` : 'Higher tier'}</small>
+              </div>
+              <span className={`loy-tag ${state}`}>{state === 'locked' ? <><IconLock size={13} /> Locked</> : state === 'current' ? 'Current' : 'Unlocked'}</span>
+            </div>
+            {(shown?.benefits || []).length ? (
+              <ul className="loy-list">{shown.benefits.map((b, i) => <li key={i}><IconCheck size={15} />{b}</li>)}</ul>
+            ) : <p className="loy-muted">No benefits are listed for this tier yet.</p>}
+            {state === 'locked' && shown?.threshold != null && (
+              <div className="loy-gap">{pts(Math.max(0, shown.threshold - balance))} to go</div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* How you earn */}
+      <section className="loy-card">
+        <div className="loy-head"><div><h3>How you earn points</h3><p>Points come from the flights you book with Tick and Book.</p></div></div>
+        <div className="loy-earn">
+          <div className="loy-earn-card">
+            <span className="loy-earn-icon c1"><IconPlane size={20} /></span>
+            <h4>Book flights</h4>
+            <p>{!earn ? 'Earn points on the flights you book.'
+              : rates.length ? <>Earn {rates.map((r, i) => <span key={i}>{i > 0 && ' and '}<b>{r}</b></span>)} you pay for a flight.</>
+              : 'Flight points are not being awarded at the moment.'}</p>
+          </div>
+          <div className="loy-earn-card">
+            <span className="loy-earn-icon c2"><IconTicket size={20} /></span>
+            <h4>Added when you're ticketed</h4>
+            <p>Your points land in your balance as soon as the airline issues your e-ticket.</p>
+          </div>
+          <div className="loy-earn-card">
+            <span className="loy-earn-icon c3"><IconTrophy size={20} /></span>
+            <h4>Move up the tiers</h4>
+            <p>{ladder.length ? ladder.map(t => `${t.name} at ${pts(t.threshold)}`).join(', ') + '.' : 'Higher tiers unlock as your balance grows.'} Your tier follows your points balance.</p>
+          </div>
+        </div>
+      </section>
+
       {/* Points activity: every booking with the points it earned; manage or cancel a trip not yet flown */}
       <section className="loy-card">
         <div className="loy-head">
@@ -212,73 +279,6 @@ export default function LoyaltyPage({ loyalty, bookings, loadingBookings, liveSt
             ))}
           </div>
         )}
-      </section>
-
-      {/* Tier benefits */}
-      <section className="loy-card">
-        <div className="loy-head">
-          <div>
-            <h3>Tier benefits</h3>
-            <p>Your perks today, and what the next tiers unlock.</p>
-          </div>
-          <div className="loy-seg" role="tablist" aria-label="Tiers">
-            {tiers.map(t => (
-              <button key={t.name} type="button" role="tab" aria-selected={t.name === shown?.name} onClick={() => setPicked(t.name)}>{t.name}</button>
-            ))}
-          </div>
-        </div>
-        <div className="loy-benefits">
-          <div className="loy-mine">
-            <div className="loy-mine-head">
-              <span className={`loy-mini-medal tier-${current.toLowerCase()}`}><IconShield size={20} /></span>
-              <div><h4>Your {current} benefits</h4><small>Active membership level</small></div>
-              <span className="loy-tag">Current</span>
-            </div>
-            {(tiers[curIdx]?.benefits || []).length ? (
-              <ul className="loy-list">{tiers[curIdx].benefits.map((b, i) => <li key={i}><IconCheck size={15} />{b}</li>)}</ul>
-            ) : <p className="loy-muted">No benefits are listed for this tier yet.</p>}
-          </div>
-          <div className={`loy-other ${state}`}>
-            <div className="loy-mine-head">
-              <span className="loy-mini-medal dark"><IconSpark size={20} /></span>
-              <div>
-                <h4>{shown?.name} tier{state === 'current' ? ' (current)' : ''}</h4>
-                <small>{state === 'current' ? 'Your level today' : state === 'unlocked' ? 'Already reached' : shown?.threshold != null ? `Unlocks at ${pts(shown.threshold)}` : 'Higher tier'}</small>
-              </div>
-              <span className={`loy-tag ${state}`}>{state === 'locked' ? <><IconLock size={13} /> Locked</> : state === 'current' ? 'Current' : 'Unlocked'}</span>
-            </div>
-            {(shown?.benefits || []).length ? (
-              <ul className="loy-list">{shown.benefits.map((b, i) => <li key={i}><IconCheck size={15} />{b}</li>)}</ul>
-            ) : <p className="loy-muted">No benefits are listed for this tier yet.</p>}
-            {state === 'locked' && shown?.threshold != null && (
-              <div className="loy-gap">{pts(Math.max(0, shown.threshold - balance))} to go</div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* How you earn */}
-      <section className="loy-card">
-        <div className="loy-head"><div><h3>How you earn points</h3><p>Points come from the flights you book with Tick and Book.</p></div></div>
-        <div className="loy-earn">
-          <div className="loy-earn-card">
-            <span className="loy-earn-icon c1"><IconPlane size={20} /></span>
-            <h4>Book flights</h4>
-            <p>{!earn ? 'Earn points on the flights you book.'
-              : rates.length ? <>Earn {rates.map((r, i) => <span key={i}>{i > 0 && ' and '}<b>{r}</b></span>)} you pay for a flight.</>
-              : 'Flight points are not being awarded at the moment.'}</p>
-          </div>
-          <div className="loy-earn-card">
-            <span className="loy-earn-icon c2"><IconTicket size={20} /></span>
-            <h4>Added when you're ticketed</h4>
-            <p>Your points land in your balance as soon as the airline issues your e-ticket.</p>
-          </div>
-          <div className="loy-earn-card">
-            <span className="loy-earn-icon c3"><IconTrophy size={20} /></span>
-            <h4>Move up the tiers</h4>
-            <p>{ladder.length ? ladder.map(t => `${t.name} at ${pts(t.threshold)}`).join(', ') + '.' : 'Higher tiers unlock as your balance grows.'} Your tier follows your points balance.</p>
-          </div>
-        </div>
       </section>
 
       {visa}
