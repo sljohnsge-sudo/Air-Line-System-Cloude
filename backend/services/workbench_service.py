@@ -2174,7 +2174,8 @@ def _segment_problem(status: tuple | None) -> str | None:
             + " Seats and extras can only be added once the flight is confirmed.")
 
 
-def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_seats: list, selected_ancillaries: list) -> dict:
+def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_seats: list, selected_ancillaries: list,
+                                free_only: str | None = None) -> dict:
     """
     Book the customer's chosen seats and extras on an EXISTING GDS PNR, per
     Travelport's Seats Guide and Ancillary and EMD Guide: GDS paid seats and
@@ -2193,6 +2194,8 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
         flight_number (optional), direction (optional).
     selected_ancillaries: dicts with passenger_idx, name, airline_name,
         segment_numbers (and optionally catalog_offering_id).
+    free_only: when set (an airline whose EMDs are paused), a seat or extra
+        with a price is not booked and gets this text as its reason.
     """
     seats_out = [{**s, "status": "failed", "reason": None} for s in selected_seats]
     extras_out = [{**a, "status": "failed", "reason": None} for a in selected_ancillaries]
@@ -2277,6 +2280,9 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
                 item["currency"] = offering.get("Price", {}).get("CurrencyCode", {}).get("value") or item.get("currency")
                 item["supplier_price"] = supplier_price
                 item["price"] = apply_markup(supplier_price, pricing_settings, "seat")[0] if supplier_price else 0.0
+                if free_only and supplier_price > 0:
+                    item["reason"] = free_only
+                    continue
                 by_flight.setdefault(want, []).append((item, {
                     "@type": "BuildAncillaryOffersFromCatalogOfferingsAirSeat",
                     # Confirmed live: the seat-map RESPONSE Identifier goes here;
@@ -2338,6 +2344,9 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
                               and list(s.get("segment_numbers") or []) == list(item.get("segment_numbers") or [])), None)
                 if not match:
                     item["reason"] = "This extra is no longer offered by the airline"
+                    continue
+                if free_only and float(match.get("supplier_price") or match.get("price") or 0) > 0:
+                    item["reason"] = free_only
                     continue
                 try:
                     resp = book_ancillary_offer(workbench_id, match)

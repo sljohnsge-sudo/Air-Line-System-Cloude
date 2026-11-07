@@ -46,6 +46,49 @@ NDC_ADDONS_REFUSED = ("Seats and extras are not available for your selected flig
 EXTRAS_NOT_OFFERED = ("Extra baggage and other extras are not available for your selected flight and cannot be added to "
                       "this booking. Please contact the airline directly or call 011 222 2222 for further assistance.")
 
+# Temporary (2026-11-07): after the customer paid, Travelport refused the EMD
+# for every paid seat on these airlines in the customer-portal test (349
+# bookings): Etihad 2999 DOCUMENT NUMBER NOT FOUND IN AIRLINE DATABASE, Air
+# India 2599 COMMUNICATION ERROR. RETRY (every attempt, retries included),
+# Emirates GDS 2999 INVALID FORM CODE. Until Travelport fixes it, their
+# bookings are offered free seats only — nothing that needs an EMD. (NDC
+# bookings get no seats/extras online at all.) Remove an airline here to sell
+# its paid seats and extras again.
+EMD_PAUSED_CARRIERS = {"EY": "Etihad Airways", "AI": "Air India", "EK": "Emirates"}
+
+
+def emd_paused_note(live: dict) -> str | None:
+    """The customer note when paid seats/extras are paused for an airline on
+    this (GDS) booking, else None."""
+    if live.get("content_source") == "NDC":
+        return None
+    codes = {(f.get("flight") or "")[:2].upper() for f in live.get("flights") or []}
+    names = sorted(EMD_PAUSED_CARRIERS[c] for c in codes if c in EMD_PAUSED_CARRIERS)
+    if not names:
+        return None
+    return (f"Paid seats and extra baggage for {' and '.join(names)} can't be bought online at the moment. Free seats can "
+            "still be chosen here. For a paid seat or extra baggage, please contact the airline directly or call "
+            "011 222 2222 for further assistance.")
+
+
+def _free_only(out: dict, note: str) -> None:
+    """Options for a paused airline: paid seats can't be picked, paid extras
+    aren't listed, and the customer is told why."""
+    for m in out["seat_maps"]:
+        seats = [s for r in m.get("rows") or [] for s in r.get("seats") or [] if s]
+        for s in seats:
+            if s.get("status") == "available" and (s.get("price") or 0) > 0:
+                s["status"] = "blocked"
+        if not any(s.get("status") == "available" for s in seats):
+            m["seat_selection_available"] = False
+        cond = m.get("seat_condition") or {}
+        m["seat_condition"] = {**cond, "text": note + (f" {cond['text']}" if cond.get("text") else "")}
+    out["extras"] = [x for x in out["extras"] if not (x.get("price") or 0) > 0]
+    if not out["extras"] and not out.get("extras_error"):
+        out["extras_error"] = note
+    out["paid_addons_note"] = note
+
+
 WHEELCHAIR_LABELS = {"WCHR": "Wheelchair — can walk short distances and climb stairs",
                      "WCHS": "Wheelchair — can't climb stairs",
                      "WCHC": "Wheelchair — needs carrying to the cabin seat"}
@@ -184,6 +227,9 @@ def get_options(locator: str, live: dict) -> dict:
             out["extras_error"] = EXTRAS_NOT_OFFERED if "NOT AVAILABLE FOR THE REQUESTED FLIGHT" in str(e).upper() else                 "The airline's extras couldn't be loaded just now. Please try again in a few minutes."
     finally:
         _discard(wb)
+    paused = emd_paused_note(live)
+    if paused:
+        _free_only(out, paused)
     return out
 
 

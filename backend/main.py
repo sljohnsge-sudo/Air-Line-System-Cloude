@@ -4810,7 +4810,9 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
                 live.update({k: fresh.get(k) for k in ("seats", "extras", "special_services", "retrieved_at")})
                 live["released_extras"] = [h["description"] or h["kind"] for h in check["released"]]
             due = addon_billing.payable_after_ticketing(live["locator_code"])
-            if due["items"]:
+            # No "Pay" for an airline whose EMDs are paused: the items are
+            # released at their deadline instead, never charged.
+            if due["items"] and not manage_booking_service.emd_paused_note(live):
                 live["payment_due"] = _payment_due_view(due)
         else:
             addon_billing.reconcile_held_booking(live["locator_code"])
@@ -4904,7 +4906,10 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
         raise HTTPException(status_code=422, detail="Nothing to add.")
 
     with services.flow_trace_id() as trace_id:
-        result = services.add_seats_and_extras_to_pnr(locator, travelers, seats, extras)
+        # Paid seats/extras paused for an airline whose EMDs Travelport refuses
+        # (manage_booking_service.EMD_PAUSED_CARRIERS): only free items are booked.
+        result = services.add_seats_and_extras_to_pnr(locator, travelers, seats, extras,
+                                                      free_only=manage_booking_service.emd_paused_note(live))
     items = result["seats"] + result["extras"]
     for i in items:  # the Manage My Booking wording for workbench_service.customer_seat_reason()
         reason = (i.get("reason") or "").upper()
@@ -4992,6 +4997,9 @@ def manage_booking_pay_due(request: ManageTokenRequest, current: dict = Depends(
     locator, live = _manage_context(request.manage_token, current)
     if not live["ticketed"]:
         raise HTTPException(status_code=409, detail="This booking isn't ticketed yet — confirmed seats and extras are paid with the ticket.")
+    paused = manage_booking_service.emd_paused_note(live)
+    if paused:  # no payment taken for an EMD Travelport would refuse
+        raise HTTPException(status_code=409, detail=paused)
     with services.flow_trace_id() as trace_id:
         addon_deadlines.check_booking(locator)  # overdue items are released, not offered
         with addon_deadlines.locator_lock(locator):
