@@ -1894,12 +1894,13 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         ) : (() => {
           const kindsShown = [...new Set(notifications.map(n => n.kind).filter(Boolean))];
           const kindLabel = (k) => notifications.find(n => n.kind === k)?.kind_label || k;
+          const kindShort = (k) => notifications.find(n => n.kind === k)?.kind_short || kindLabel(k);
           const shown = notifications.filter(n => alertFilter === 'all' ? true
             : (alertFilter === 'TP' || alertFilter === 'AD') ? n.provider === alertFilter : n.kind === alertFilter);
           const bySupplier = (p) => notifications.filter(n => n.provider === p).length;
           const allShownTicked = shown.length > 0 && shown.every(n => alertSelected.includes(n.id));
-          const chip = (id, label, count) => count > 0 && (
-            <button key={id} type="button" className="adm-chip" aria-pressed={alertFilter === id} onClick={() => setAlertFilter(id)}>
+          const chip = (id, label, count, title) => count > 0 && (
+            <button key={id} type="button" className="adm-chip" title={title} aria-pressed={alertFilter === id} onClick={() => setAlertFilter(id)}>
               {label} <span>{count}</span>
             </button>
           );
@@ -1909,7 +1910,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
               {chip('all', 'All', notifications.length)}
               {chip('TP', 'Travelport', bySupplier('TP'))}
               {chip('AD', 'Amadeus', bySupplier('AD'))}
-              {kindsShown.map(k => chip(k, kindLabel(k), notifications.filter(n => n.kind === k).length))}
+              {kindsShown.map(k => chip(k, kindShort(k), notifications.filter(n => n.kind === k).length, kindLabel(k)))}
             </div>
             <div className="adm-bulk">
               <label>
@@ -2020,11 +2021,13 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       {activeAdminSection === 'stuck-bookings' && (() => {
         const kindsShown = [...new Set(stuckBookings.map(n => n.kind))];
         const kindLabel = (k) => stuckBookings.find(n => n.kind === k)?.kind_label || k;
+        const kindShort = (k) => stuckBookings.find(n => n.kind === k)?.kind_short || kindLabel(k);
         const shown = stuckBookings.filter(n => stuckFilter === 'all' ? true : stuckFilter === 'urgent' ? n.priority === 'urgent' : n.kind === stuckFilter);
         const urgent = stuckBookings.filter(n => n.priority === 'urgent').length;
         const allShownTicked = shown.length > 0 && shown.every(n => stuckSelected.includes(n.id));
-        const chip = (id, label, count) => (
-          <button key={id} type="button" className="adm-chip" aria-pressed={stuckFilter === id} onClick={() => setStuckFilter(id)}>
+        // Short label on the chip (one line of chips); the full type name on hover.
+        const chip = (id, label, count, title) => (
+          <button key={id} type="button" className="adm-chip" title={title} aria-pressed={stuckFilter === id} onClick={() => setStuckFilter(id)}>
             {label} <span>{count}</span>
           </button>
         );
@@ -2048,7 +2051,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             <div className="adm-chips">
               {chip('all', 'All', stuckBookings.length)}
               {urgent > 0 && chip('urgent', 'Urgent', urgent)}
-              {kindsShown.map(k => chip(k, kindLabel(k), stuckBookings.filter(n => n.kind === k).length))}
+              {kindsShown.map(k => chip(k, kindShort(k), stuckBookings.filter(n => n.kind === k).length, kindLabel(k)))}
             </div>
             <div className="adm-bulk">
               <label>

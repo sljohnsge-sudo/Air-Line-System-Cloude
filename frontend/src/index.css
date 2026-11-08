@@ -4958,10 +4958,11 @@ button, input, select, textarea { font-family: inherit; }
 /* Admin › Ticketing Exceptions: type filters, bulk acknowledge, priority */
 .adm-note { border-radius: 10px; padding: 0.6rem 0.85rem; font-size: 0.82rem; margin-bottom: 0.8rem; border: 1px solid; }
 .adm-note.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-.adm-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.7rem; }
-.adm-chip { display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--tb-border); background: #fff; color: var(--tb-text);
-  border-radius: 999px; padding: 0.32rem 0.75rem; font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
-.adm-chip span { font-size: 0.7rem; font-weight: 800; background: var(--tb-ice); color: var(--tb-navy); border-radius: 999px; padding: 0 0.4rem; }
+/* one line of chips; on a narrow screen the row scrolls sideways instead of wrapping */
+.adm-chips { display: flex; flex-wrap: nowrap; gap: 0.3rem; margin-bottom: 0.7rem; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.adm-chip { display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid var(--tb-border); background: #fff; color: var(--tb-text);
+  border-radius: 999px; padding: 0.28rem 0.55rem; font: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+.adm-chip span { font-size: 0.68rem; font-weight: 800; background: var(--tb-ice); color: var(--tb-navy); border-radius: 999px; padding: 0 0.35rem; }
 .adm-chip:hover { border-color: var(--tb-navy); }
 .adm-chip[aria-pressed="true"] { background: var(--tb-navy); border-color: var(--tb-navy); color: #fff; }
 .adm-chip[aria-pressed="true"] span { background: rgba(255, 255, 255, 0.22); color: #fff; }
