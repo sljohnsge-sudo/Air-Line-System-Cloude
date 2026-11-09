@@ -30,7 +30,7 @@ from typing import Optional
 from config.travelport_config import TravelportConfig
 from config.api_endpoints import TravelportEndpoints
 from services.auth_service import get_auth_headers, invalidate_token
-from services.pricing_service import get_settings as get_pricing_settings, apply_markup
+from services.pricing_service import get_settings as get_pricing_settings, apply_markup, ticket_count
 from utils import tp_logger
 
 logger = logging.getLogger(__name__)
@@ -933,7 +933,8 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
 
                     currency_code = best_price.get("CurrencyCode", {}).get("value", "LKR")
                     total_price = float(best_price.get("TotalPrice", 0))
-                    total_price, markup_scale = apply_markup(total_price, pricing_settings, "ticket")
+                    total_price, markup_scale = apply_markup(total_price, pricing_settings, "ticket",
+                                                             ticket_count(best_price))
 
                     brand_id = None
                     brand_name = None

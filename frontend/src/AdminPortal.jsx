@@ -1284,7 +1284,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             onChange={e => setSettings(s => ({ ...s, [percentKey]: parseFloat(e.target.value) || 0 }))} />
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Fixed Amount</label>
+          <label className="form-label">{/ticket/.test(category) ? 'Fixed Amount (per ticket / passenger)' : 'Fixed Amount'}</label>
           <input type="number" min="0" step="0.01" className="form-input" value={settings[fixedKey]}
             onChange={e => setSettings(s => ({ ...s, [fixedKey]: parseFloat(e.target.value) || 0 }))} />
         </div>

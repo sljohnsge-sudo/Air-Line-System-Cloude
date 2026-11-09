@@ -19,7 +19,7 @@ from config.api_endpoints import TravelportEndpoints
 from services import seat_rules
 from services.segment_status import segment_statuses, is_confirmed, norm_flight_no as _norm_flight_no
 from services.auth_service import get_auth_headers, invalidate_token, flow_trace_id
-from services.pricing_service import get_settings as get_pricing_settings, apply_markup
+from services.pricing_service import get_settings as get_pricing_settings, apply_markup, ticket_count
 from services.special_services import MEAL_SSR_TYPES, WHEELCHAIR_SSR_FLAGS, NDC_MEAL_SSR_CARRIERS
 from utils import tp_logger
 
@@ -551,7 +551,7 @@ _PRICE_TOLERANCE = 1.0
 
 
 def charge_for_priced_fare(priced: dict, quoted_price: float | None = None,
-                           quoted_currency: str | None = None) -> tuple[float, str]:
+                           quoted_currency: str | None = None, travelers: int | None = None) -> tuple[float, str]:
     """The amount to charge for an itinerary, from Travelport's own AirPrice
     total (never from the browser) with the admin ticket markup applied —
     the same markup search used to quote it. Refuses with PriceChangedError
@@ -561,7 +561,11 @@ def charge_for_priced_fare(priced: dict, quoted_price: float | None = None,
     total, currency = priced.get("total"), priced.get("currency")
     if not total or not currency:
         raise PriceChangedError("Travelport didn't confirm a price for this fare. Please search again.")
-    expected, _ = apply_markup(float(total), get_pricing_settings(), "ticket")
+    # A fixed markup is per ticket: AirPrice's own passenger count, else the
+    # number of travellers being booked.
+    tickets = priced.get("tickets") or travelers or 1
+    priced["tickets"] = tickets
+    expected, _ = apply_markup(float(total), get_pricing_settings(), "ticket", tickets)
     if quoted_currency and quoted_currency.upper() != currency.upper():
         raise PriceChangedError(
             f"This fare is now priced in {currency}, not {quoted_currency}. Please search again.",
@@ -687,7 +691,8 @@ def confirm_price_details(raw_offering: dict) -> dict:
     total = price.get("TotalPrice")
     currency = (price.get("CurrencyCode") or {}).get("value")
     logger.info(f"AirPrice confirmed: {currency} {total}. transactionId for Add Offer: {priced_transaction_id}")
-    return {"identifier": priced_transaction_id, "total": float(total) if total else None, "currency": currency}
+    return {"identifier": priced_transaction_id, "total": float(total) if total else None, "currency": currency,
+            "tickets": ticket_count(price)}
 
 
 def _build_reference_payload_offer(leg_offerings: list) -> dict:
@@ -1281,7 +1286,7 @@ def check_workbench_fare(workbench_id: str, is_gds: bool, priced: dict) -> None:
         return
     booked = round(sum(float(t) for t in totals), 2)
     if abs(booked - float(priced["total"])) > _PRICE_TOLERANCE:
-        expected, _ = apply_markup(booked, get_pricing_settings(), "ticket")
+        expected, _ = apply_markup(booked, get_pricing_settings(), "ticket", priced.get("tickets") or 1)
         currency = priced.get("currency")
         raise PriceChangedError(
             f"The airline's price for this booking is {currency} {expected:,.2f}, not the price that was "
@@ -1508,7 +1513,8 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
         priced_transaction_id = priced["identifier"]
         # The fare to charge comes from AirPrice, not the browser — and an
         # under-quote is refused here, before any workbench or PNR exists.
-        charge_amount, charge_currency = charge_for_priced_fare(priced, quoted_price, quoted_currency)
+        charge_amount, charge_currency = charge_for_priced_fare(priced, quoted_price, quoted_currency,
+                                                                len(travelers or []))
         if is_gds:
             for leg in leg_offerings:
                 leg["CatalogProductOfferingsIdentifier"] = priced_transaction_id

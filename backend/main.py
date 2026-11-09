@@ -2547,7 +2547,8 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
         try:
             priced = services.workbench_service.confirm_price_details(request.raw_offering)
             amount, currency = services.workbench_service.charge_for_priced_fare(
-                priced, request.quoted_price, _quoted_currency(request.raw_offering))
+                priced, request.quoted_price, _quoted_currency(request.raw_offering),
+                len(request.travelers or []))
         except services.workbench_service.PriceChangedError as e:
             raise _price_changed_response(e)
         except ValueError as e:
