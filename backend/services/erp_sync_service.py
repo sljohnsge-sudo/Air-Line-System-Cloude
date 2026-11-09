@@ -144,14 +144,77 @@ def _ticket_lines(booking: dict, description: str) -> list:
         parts.append(f"taxes {taxes:,.2f}")
     if _money(fb.get("total_fees")):
         parts.append(f"fees {_money(fb.get('total_fees')):,.2f}")
-    lines = [{"item_code": ERP_ITEM_CODE, "qty": 1, "rate": airline,
-              "description": f"{description} — airline fare ({', '.join(parts)})"}]
+    pnr = booking.get("locator_code") or booking.get("pnr") or ""
+    tickets = _tickets_of(raw)
+    if len(tickets) <= 1:
+        lines = [{"item_code": ERP_ITEM_CODE, "qty": 1, "rate": airline,
+                  "description": f"{description} — airline fare ({', '.join(parts)})"}]
+        ticket_markups = [(None, markup)]
+    else:
+        # One PNR, several tickets: one airline-fare line and one markup line
+        # per ticket, each with its passenger and e-ticket number.
+        fares = _split(airline, [_money((fb.get("per_type") or {}).get(t["passenger_type"])) for t in tickets])
+        lines = [{"item_code": ERP_ITEM_CODE, "qty": 1, "rate": f,
+                  "description": f"{description} — {t['name'] or 'Passenger ' + str(i + 1)}"
+                                 f"{' (' + t['passenger_type'] + ')' if t['passenger_type'] else ''}, "
+                                 f"e-ticket {t['number']} — airline fare"}
+                 for i, (t, f) in enumerate(zip(tickets, fares))]
+        lines[0]["description"] += f" (PNR total for {len(tickets)} tickets: {', '.join(parts)})"
+        ticket_markups = list(zip(tickets, _split(max(markup, 0.0), [0.0] * len(tickets))))
     for e in extras:
         lines.append({"item_code": ERP_ADDON_ITEM_CODE, "qty": 1, "rate": e["supplier"],
                       "description": f"{e['label']} — airline price (booked with the ticket)"})
-    lines.append({"item_code": ERP_MARKUP_ITEM_CODE, "qty": 1, "rate": max(markup, 0.0),
-                  "description": f"Tick and Book markup on PNR {booking.get('locator_code') or booking.get('pnr') or ''}"})
+    for t, m in ticket_markups:
+        lines.append({"item_code": ERP_MARKUP_ITEM_CODE, "qty": 1, "rate": max(m, 0.0),
+                      "description": f"Tick and Book markup on PNR {pnr}"
+                                     + (f", e-ticket {t['number']} ({t['name']})" if t else "")})
     return lines
+
+
+def _tickets_of(booking: dict) -> list:
+    """Every e-ticket on the booking, in passenger order:
+    [{number, name, passenger_type}]. Falls back to the single ticket_number."""
+    out, seen = [], set()
+    entries = booking.get("ticket_numbers") or []
+    if isinstance(entries, str):
+        try:
+            import json as _json
+            entries = _json.loads(entries)
+        except ValueError:
+            entries = [n.strip() for n in entries.split(",")]
+    for e in entries if isinstance(entries, list) else []:
+        if isinstance(e, str):
+            e = {"number": e}
+        num = str((e or {}).get("number") or "").strip()
+        if num and num not in seen:
+            seen.add(num)
+            out.append({"number": num, "name": (e.get("traveler_name") or "").strip(),
+                        "passenger_type": e.get("passenger_type") or "",
+                        "_order": e.get("traveler_index", 99)})
+    out.sort(key=lambda t: t["_order"])
+    if not out and booking.get("ticket_number"):
+        out = [{"number": str(booking["ticket_number"]), "name": booking.get("passenger_name") or "",
+                "passenger_type": "", "_order": 0}]
+    return out
+
+
+def _split(total: float, weights: list) -> list:
+    """total split into len(weights) amounts that add up exactly: by the given
+    per-ticket prices when they add up to total, otherwise evenly."""
+    n = len(weights)
+    if n and all(w > 0 for w in weights) and abs(sum(weights) - total) <= 1:
+        parts = [round(w, 2) for w in weights]
+    else:
+        parts = [round(total / n, 2)] * n if n else []
+    if parts:
+        parts[-1] = round(total - sum(parts[:-1]), 2)
+    return parts
+
+
+def _ticket_field(booking: dict) -> str:
+    """Every e-ticket number on the booking, for the invoice's Ticket Number column."""
+    nums = [t["number"] for t in _tickets_of(booking)]
+    return ", ".join(nums)[:140] or (booking.get("ticket_number") or "")
 
 
 def push_booking_to_erp(booking: dict) -> str:
@@ -196,14 +259,17 @@ def push_booking_to_erp(booking: dict) -> str:
                 "due_date": posting_date,
                 "remarks": (
                     f"Online Booking System — PNR {booking.get('pnr') or locator} | "
-                    f"Ticket {booking.get('ticket_number') or 'Pending'} | "
-                    f"Locator {locator}"
+                    + (f"{len(_tickets_of(booking))} tickets: "
+                       + "; ".join(f"{t['number']} {t['name']}".strip() for t in _tickets_of(booking)) + " | "
+                       if len(_tickets_of(booking)) > 1 else
+                       f"Ticket {booking.get('ticket_number') or 'Pending'} | ")
+                    + f"Locator {locator}"
                 ),
                 # Custom fields (Sales Invoice-custom_pnr / -custom_ticket_number,
                 # added 2026-10-20) so these show as their own list-view columns
                 # instead of only being readable inside the Remarks text.
                 "custom_pnr": booking.get("pnr") or locator,
-                "custom_ticket_number": booking.get("ticket_number") or "",
+                "custom_ticket_number": _ticket_field(booking),
                 "items": _ticket_lines(booking, description),
             }
 

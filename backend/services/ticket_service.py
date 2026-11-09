@@ -665,6 +665,15 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                     "other_taxes": other_taxes,
                     "total_fees": float(price.get("TotalFees", 0) or 0),
                     "total": float(price.get("TotalPrice", 0) or 0),
+                    # One passenger's airline price per passenger type, so the
+                    # ERP invoice can put each ticket on its own line.
+                    "per_type": {
+                        pb.get("requestedPassengerType") or pb.get("passengerTypeCode"):
+                            float(((pb.get("Amount") or {}).get("Total")) or 0)
+                        for pb in price.get("PriceBreakdown", []) or []
+                        if (pb.get("requestedPassengerType") or pb.get("passengerTypeCode"))
+                        and ((pb.get("Amount") or {}).get("Total"))
+                    },
                 }
 
             # Baggage allowance from TermsAndConditionsFull
