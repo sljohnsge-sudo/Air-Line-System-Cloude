@@ -543,10 +543,19 @@ def rates_logs(days: int = 7, problems_only: bool = False, supplier: str | None 
                      FROM search_log WHERE searched_at >= %s AND search_kind='search' ORDER BY id DESC LIMIT 3000""",
                   (since,))
     alerts = _q("SELECT * FROM provider_notifications WHERE created_at >= %s ORDER BY id DESC", (since - timedelta(minutes=5),))
-    used, rows = set(), []
+    # Each alert goes to the one search it came from: the matching search
+    # logged soonest after it (identical searches in the same minute each
+    # keep their own alert).
+    by_search, used = {}, set()
+    for a in alerts:
+        cands = [s for s in searches if _alert_matches(a, s)]
+        if cands:
+            best = min(cands, key=lambda s: abs((s["searched_at"] - a["created_at"]).total_seconds()) + (s["id"] in by_search) * 1e6)
+            by_search.setdefault(best["id"], []).append(a)
+            used.add(a["id"])
+    rows = []
     for s in searches:
-        mine = [a for a in alerts if a["id"] not in used and _alert_matches(a, s)]
-        used.update(a["id"] for a in mine)
+        mine = by_search.get(s["id"], [])
         try:
             best = json.loads(s.pop("provider_best_json") or "{}") or {}
         except ValueError:
