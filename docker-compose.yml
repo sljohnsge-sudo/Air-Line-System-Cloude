@@ -1,0 +1,68 @@
+# ==========================================
+# Airline Booking System (Tick and Book)
+# Multi-Project Docker Compose Orchestration
+# Host Server: 172.16.7.41
+# ==========================================
+
+services:
+  # 1. Main FastAPI Airline Backend (Travelport + Core API)
+  airline_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-backend:latest
+    container_name: airline_backend
+    restart: unless-stopped
+    ports:
+      - "8005:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MYSQL_HOST=host.docker.internal
+      - AMADEUS_BACKEND_URL=http://airline_amadeus:8002
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - airline_network
+
+  # 2. Amadeus SOAP Backend Gateway
+  airline_amadeus:
+    build:
+      context: ./amadeus-backend
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-amadeus:latest
+    container_name: airline_amadeus
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./amadeus-backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MYSQL_HOST=host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - airline_network
+
+  # 3. React Vite Frontend + Nginx Production Reverse Proxy
+  airline_frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-frontend:latest
+    container_name: airline_frontend
+    restart: unless-stopped
+    ports:
+      - "5176:80"
+    depends_on:
+      - airline_backend
+      - airline_amadeus
+    networks:
+      - airline_network
+
+networks:
+  airline_network:
+    driver: bridge
+
