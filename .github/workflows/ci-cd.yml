@@ -52,16 +52,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/airline-backend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/airline-backend:${{ github.sha }}
 
-      - name: 📦 Build and Push Amadeus Backend Image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./amadeus-backend
-          file: ./amadeus-backend/Dockerfile
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/airline-amadeus:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/airline-amadeus:${{ github.sha }}
-
       - name: 📦 Build and Push Frontend Image
         uses: docker/build-push-action@v6
         with:
@@ -77,7 +67,6 @@ jobs:
           echo "=================================================="
           echo "🎉 Airline Docker Hub Images Pushed Successfully!"
           echo "Backend:  ${{ secrets.DOCKERHUB_USERNAME }}/airline-backend:latest"
-          echo "Amadeus:  ${{ secrets.DOCKERHUB_USERNAME }}/airline-amadeus:latest"
           echo "Frontend: ${{ secrets.DOCKERHUB_USERNAME }}/airline-frontend:latest"
           echo "=================================================="
 
@@ -99,15 +88,10 @@ jobs:
       - name: ⚙️ Inject Backend Environment from GitHub Secrets (if provided)
         env:
           AIRLINE_BACKEND_ENV: ${{ secrets.AIRLINE_BACKEND_ENV }}
-          AIRLINE_AMADEUS_ENV: ${{ secrets.AIRLINE_AMADEUS_ENV }}
         run: |
           if [ -n "$AIRLINE_BACKEND_ENV" ]; then
             echo "$AIRLINE_BACKEND_ENV" > backend/.env
             echo "✅ Successfully generated backend/.env from GitHub Secrets!"
-          fi
-          if [ -n "$AIRLINE_AMADEUS_ENV" ]; then
-            echo "$AIRLINE_AMADEUS_ENV" > amadeus-backend/.env
-            echo "✅ Successfully generated amadeus-backend/.env from GitHub Secrets!"
           fi
 
       - name: 🔐 Authenticate with Docker Hub
@@ -141,10 +125,7 @@ jobs:
         run: |
           echo "Executing init_db() inside airline_backend..."
           docker compose exec -T airline_backend python -c "import database; database.init_db(); print('Airline DB Initialized!')"
-          echo "Executing init_db() inside airline_amadeus..."
-          docker compose exec -T airline_amadeus python -c "import database; database.init_db(); print('Amadeus DB Initialized!')"
           echo "=================================================="
           echo "  Airline System Deployed Successfully on Port 5176! "
           echo "  URL: http://172.16.7.41:5176/                      "
           echo "=================================================="
-

@@ -5,7 +5,7 @@
 # ==========================================
 
 services:
-  # 1. Main FastAPI Airline Backend (Travelport + Core API)
+  # 1. Main FastAPI Airline Backend
   airline_backend:
     build:
       context: ./backend
@@ -21,34 +21,12 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - MYSQL_HOST=host.docker.internal
-      - AMADEUS_BACKEND_URL=http://airline_amadeus:8002
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - airline_network
 
-  # 2. Amadeus SOAP Backend Gateway
-  airline_amadeus:
-    build:
-      context: ./amadeus-backend
-      dockerfile: Dockerfile
-    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-amadeus:latest
-    container_name: airline_amadeus
-    restart: unless-stopped
-    ports:
-      - "8002:8002"
-    env_file:
-      - path: ./amadeus-backend/.env
-        required: false
-    environment:
-      - PYTHONUNBUFFERED=1
-      - MYSQL_HOST=host.docker.internal
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - airline_network
-
-  # 3. React Vite Frontend + Nginx Production Reverse Proxy
+  # 2. React Vite Frontend + Nginx Production Reverse Proxy
   airline_frontend:
     build:
       context: ./frontend
@@ -60,7 +38,6 @@ services:
       - "5176:80"
     depends_on:
       - airline_backend
-      - airline_amadeus
     networks:
       - airline_network
 
