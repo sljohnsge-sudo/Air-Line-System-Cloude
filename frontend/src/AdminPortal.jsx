@@ -1418,9 +1418,9 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       {activeAdminSection.startsWith('insight-') && (
         <AdminInsights section={activeAdminSection} API_BASE={API_BASE} adminToken={adminToken}
           openJourneyId={insightJourneyId} onJourneyOpened={() => setInsightJourneyId(null)}
-          onNavigate={setActiveAdminSection} />
+          onNavigate={setActiveAdminSection} onSessionExpired={onAdminLogout} />
       )}
-      <InsightAlerts API_BASE={API_BASE} adminToken={adminToken}
+      <InsightAlerts API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout}
         onOpenJourney={(id) => { setInsightJourneyId(id); setActiveAdminSection('insight-journeys'); }}
         onOpenIps={() => setActiveAdminSection('insight-ips')} />
 

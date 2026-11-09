@@ -3,7 +3,7 @@
 // watch, customer 360 and birthday / passport reminders. Everything shown is
 // what customers entered and what Travelport (later Amadeus) returned — the
 // backend (backend/insights.py) never generates or estimates any of it.
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { fmtDate, fmtDateTime } from './dateFormat.js';
 
 const fmtDT = (v) => fmtDateTime(v, '—');
@@ -11,12 +11,22 @@ const fmtD = (v) => fmtDate(v, '—');
 const money = (amt, cur) => (amt || amt === 0 ? `${cur || ''} ${Math.round(Number(amt)).toLocaleString()}`.trim() : '—');
 const STATUS_LABEL = { ticketed: 'Ticketed', failed: 'Failed', booking: 'In progress', searching: 'Searching' };
 
-function useAdminApi(API_BASE, adminToken) {
+// A 401 means the admin sign-in expired (24 h): back to the login form, the
+// same as every other admin page, instead of a raw "Invalid or expired token".
+function useAdminApi(API_BASE, adminToken, onSessionExpired) {
+  // kept in a ref: a new callback each render must not re-create api (the
+  // sections reload whenever api changes)
+  const expiredRef = useRef(onSessionExpired);
+  expiredRef.current = onSessionExpired;
   return useCallback(async (path, opts = {}) => {
     const res = await fetch(`${API_BASE}/admin/insights${path}`, {
       ...opts,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}`, ...(opts.headers || {}) },
     });
+    if (res.status === 401) {
+      expiredRef.current?.();
+      throw new Error('Your session expired — please log in again.');
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${res.status})`);
     return data;
@@ -536,8 +546,8 @@ function Reminders({ api }) {
 }
 
 // ── Pop-up for new failures / flagged IPs ────────────────────────────────────
-export function InsightAlerts({ API_BASE, adminToken, onOpenJourney, onOpenIps }) {
-  const api = useAdminApi(API_BASE, adminToken);
+export function InsightAlerts({ API_BASE, adminToken, onOpenJourney, onOpenIps, onSessionExpired }) {
+  const api = useAdminApi(API_BASE, adminToken, onSessionExpired);
   const [alerts, setAlerts] = useState(null);
   const [hiddenIps, setHiddenIps] = useState('');
   useEffect(() => {
@@ -573,8 +583,8 @@ export function InsightAlerts({ API_BASE, adminToken, onOpenJourney, onOpenIps }
   );
 }
 
-export default function AdminInsights({ section, API_BASE, adminToken, openJourneyId, onJourneyOpened, onNavigate }) {
-  const api = useAdminApi(API_BASE, adminToken);
+export default function AdminInsights({ section, API_BASE, adminToken, openJourneyId, onJourneyOpened, onNavigate, onSessionExpired }) {
+  const api = useAdminApi(API_BASE, adminToken, onSessionExpired);
   const [ipFilter, setIpFilter] = useState(undefined);
   if (section === 'insight-journeys') return <Journeys api={api} openJourneyId={openJourneyId} onOpened={onJourneyOpened} />;
   if (section === 'insight-searches') return <Searches api={api} presetIp={ipFilter} onPresetUsed={() => {}} />;
