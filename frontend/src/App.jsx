@@ -10478,8 +10478,20 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   {issuedTicket.airline_pnr_source && <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.1rem' }}>Carrier: {issuedTicket.airline_pnr_source}</div>}
                 </div>
                 <div style={{ borderLeft: '1px dashed #cbd5e1', paddingLeft: '1rem' }}>
-                  <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em' }}>E-Ticket Number</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f766e', fontFamily: 'var(--font-body)' }}>{issuedTicket.ticket_number || 'PENDING'}</div>
+                  {(() => {
+                    // One e-ticket per passenger: list them all (a 3-passenger booking has 3).
+                    const nums = [...new Set([...(issuedTicket.ticket_numbers || []).map(t => t && t.number), issuedTicket.ticket_number].filter(Boolean))];
+                    return (
+                      <>
+                        <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.04em' }}>
+                          {nums.length > 1 ? `E-Ticket Numbers (${nums.length})` : 'E-Ticket Number'}
+                        </div>
+                        {nums.length > 1
+                          ? nums.map(n => <div key={n} style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0f766e', fontFamily: 'var(--font-body)', lineHeight: 1.35 }}>{n}</div>)
+                          : <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f766e', fontFamily: 'var(--font-body)' }}>{issuedTicket.ticket_number || 'PENDING'}</div>}
+                      </>
+                    );
+                  })()}
                   <div style={{ fontSize: '0.65rem', color: issuedTicket.ticket_issuance_diagnostic ? '#b45309' : '#64748b', marginTop: '0.1rem' }}>
                     {issuedTicket.ticket_number
                       ? '✓ Valid for Travel'
@@ -10601,9 +10613,11 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                       const paxTypeLabel = t.passenger_type === 'CNN' ? 'Child' : t.passenger_type === 'INF' ? 'Infant' : t.passenger_type === 'STU' ? 'Student' : 'Adult';
                       const paxIcon = t.passenger_type === 'CNN' ? '🧒' : t.passenger_type === 'INF' ? '👶' : t.passenger_type === 'STU' ? '🎓' : '🧑';
                       // For pax 1, prefer the confirmed name from Travelport if available
+                      // Live Travelport travelers carry given_name/surname/full_name
+                      // instead of first_name/last_name — fall back so a name never shows "UNDEFINED".
                       const displayName = pIdx === 0 && issuedTicket.passenger_name
                         ? cleanPassengerName(issuedTicket.passenger_name)
-                        : `${t.first_name} ${t.last_name}`.trim().toUpperCase();
+                        : (`${t.first_name || t.given_name || ''} ${t.last_name || t.surname || ''}`.trim() || t.full_name || '').toUpperCase();
                       return (
                         <div key={pIdx} style={{ border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden', fontSize: '0.78rem' }}>
                           {/* Passenger card header */}
@@ -10622,6 +10636,16 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                 <td style={{ padding: '0.35rem 0.75rem', color: '#64748b', width: '38%', fontWeight: '500' }}>Full Name:</td>
                                 <td style={{ padding: '0.35rem 0.75rem', fontWeight: '700', color: '#1e293b' }}>{displayName || '—'}</td>
                               </tr>
+                              {(() => {
+                                // This passenger's own e-ticket (Travelport says which traveler each ticket is for).
+                                const own = (issuedTicket.ticket_numbers || []).find(x => x && x.traveler_index === pIdx);
+                                return own ? (
+                                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '0.35rem 0.75rem', color: '#64748b', fontWeight: '500' }}>E-Ticket Number:</td>
+                                    <td style={{ padding: '0.35rem 0.75rem', fontWeight: '800', color: '#0f766e' }}>{own.number}</td>
+                                  </tr>
+                                ) : null;
+                              })()}
                               <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={{ padding: '0.35rem 0.75rem', color: '#64748b', fontWeight: '500' }}>Passport Number:</td>
                                 <td style={{ padding: '0.35rem 0.75rem', fontWeight: '600', color: '#1e293b' }}>{t.passport_number || (pIdx === 0 ? issuedTicket.passport_number : null) || '—'}</td>
@@ -10824,30 +10848,49 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                       Fare & Payment Details
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
-                      {issuedTicket.fare_breakdown ? (
+                      {issuedTicket.fare_breakdown ? (() => {
+                        // The lines must add up to what was paid: taxes for ALL passengers
+                        // (older records summed one passenger's taxes), and the booking
+                        // service fee (our markup) = paid − airline's total − seats/extras.
+                        const fb = issuedTicket.fare_breakdown;
+                        const money = (n) => `${issuedTicket.currency} ${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                        const airline = Number(fb.total) || 0;
+                        const base = Number(fb.base_fare) || 0, fees = Number(fb.total_fees) || 0;
+                        let fuel = Number(fb.fuel_surcharge) || 0, other = Number(fb.other_taxes) || 0;
+                        const taxesTarget = airline - base - fees;
+                        if (airline > 0 && fuel + other > 0 && Math.abs(fuel + other - taxesTarget) > 1) {
+                          const k = taxesTarget / (fuel + other); fuel *= k; other *= k;
+                        }
+                        const serviceFee = airline > 0 ? (Number(issuedTicket.total_fare) || 0) - airline - (Number(issuedTicket.seat_charge) || 0) : 0;
+                        return (
                         <>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                             <span>Base Airline Fare:</span>
-                            <span>{issuedTicket.currency} {issuedTicket.fare_breakdown.base_fare.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            <span>{money(base)}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                             <span>Fuel Surcharge:</span>
-                            <span>{issuedTicket.fare_breakdown.taxes_itemised === false
-                              ? 'Included in taxes'
-                              : `${issuedTicket.currency} ${issuedTicket.fare_breakdown.fuel_surcharge.toLocaleString(undefined, {minimumFractionDigits: 2})}`}</span>
+                            <span>{fb.taxes_itemised === false ? 'Included in taxes' : money(fuel)}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                             <span>Airline & Government Taxes:</span>
-                            <span>{issuedTicket.currency} {issuedTicket.fare_breakdown.other_taxes.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            <span>{money(other)}</span>
                           </div>
-                          {issuedTicket.fare_breakdown.total_fees > 0 && (
+                          {fees > 0 && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                               <span>Other Airline Fees:</span>
-                              <span>{issuedTicket.currency} {issuedTicket.fare_breakdown.total_fees.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                              <span>{money(fees)}</span>
+                            </div>
+                          )}
+                          {serviceFee > 0.5 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                              <span>Booking Service Fee:</span>
+                              <span>{money(serviceFee)}</span>
                             </div>
                           )}
                         </>
-                      ) : (
+                        );
+                      })() : (
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                           <span>Flight Fare (from Travelport GDS):</span>
                           <span>{issuedTicket.currency} {((issuedTicket.total_fare || 0) - (issuedTicket.seat_charge || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>

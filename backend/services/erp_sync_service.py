@@ -137,7 +137,9 @@ def _ticket_lines(booking: dict, description: str) -> list:
                        f"(total {total}, airline {airline}, extras {sum(e['supplier'] for e in extras)})")
         return [{"item_code": ERP_ITEM_CODE, "qty": 1, "rate": total, "description": description}]
     parts = [f"base {_money(fb.get('base_fare')):,.2f}"]
-    taxes = _money(fb.get("fuel_surcharge")) + _money(fb.get("other_taxes"))
+    # Taxes for all passengers = airline total − base − fees (older records
+    # summed one passenger's itemised taxes).
+    taxes = round(airline - _money(fb.get("base_fare")) - _money(fb.get("total_fees")), 2)
     if taxes:
         parts.append(f"taxes {taxes:,.2f}")
     if _money(fb.get("total_fees")):

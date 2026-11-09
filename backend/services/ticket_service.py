@@ -553,6 +553,27 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
             ticket["passenger_name"] = parsed_travelers[0]["full_name"]
             ticket["email"] = parsed_travelers[0]["email"]
 
+        # Every passenger's e-ticket: Receipt[].Document[] DocumentTicket, each
+        # pointing at its traveler (confirmed live, JJ2N21 3 adults: one
+        # DocumentTicket per travelerRefId). Shown per passenger on the receipt.
+        pos = {t.get("id"): i for i, t in enumerate(raw_travelers) if t.get("id")}
+        found, seen = [], set()
+        for rcpt in reservation.get("Receipt", []) or []:
+            for doc in rcpt.get("Document", []) or []:
+                num = doc.get("Number")
+                if doc.get("@type") != "DocumentTicket" or not num or num in seen:
+                    continue
+                seen.add(num)
+                tid = (doc.get("TravelerIdentifierRef") or {}).get("id")
+                entry = {"passenger_type": (doc.get("TravelerIdentifierRef") or {}).get("passengerTypeCode")
+                         or (raw_travelers[pos[tid]].get("passengerTypeCode") if tid in pos else "ADT"),
+                         "number": num}
+                if tid in pos:
+                    entry.update(traveler_index=pos[tid], traveler_name=parsed_travelers[pos[tid]]["full_name"])
+                found.append(entry)
+        if found:
+            ticket["ticket_numbers"] = sorted(found, key=lambda e: e.get("traveler_index", 99))
+
         # ── Offers → Flight details, Cabin, Price ─────────────────────────────
         offers = reservation.get("Offer", [])
         if offers:
@@ -608,16 +629,24 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                 for pb in price.get("PriceBreakdown", []) or []:
                     taxes = (pb.get("Amount", {}) or {}).get("Taxes", {}) or {}
                     itemised = itemised or bool(taxes.get("Tax"))
+                    # One PriceBreakdown per passenger TYPE: its taxes are for ONE
+                    # passenger, and "quantity" says how many (3 adults -> x3).
+                    # Summing them once under-counted multi-passenger bookings
+                    # (JJ2N21: taxes for 1 of 3 adults on the receipt).
+                    qty = int(pb.get("quantity") or 1)
                     for tax in taxes.get("Tax", []) or []:
                         code = tax.get("taxCode", "")
-                        value = float(tax.get("value", 0) or 0)
-                        # Each PriceBreakdown entry is per-passenger -- sum all
-                        # of them (matches TotalTaxes = sum across passengers),
-                        # not just the first one.
+                        value = float(tax.get("value", 0) or 0) * qty
                         if code in ("YQ", "YR"):
                             fuel_surcharge += value
                         else:
                             other_taxes += value
+                # The itemised taxes must add up to Travelport's own tax total.
+                total_taxes = float(price.get("TotalTaxes", 0) or 0)
+                listed = fuel_surcharge + other_taxes
+                if total_taxes and listed and abs(listed - total_taxes) > 1:
+                    factor = total_taxes / listed
+                    fuel_surcharge, other_taxes = round(fuel_surcharge * factor, 2), round(other_taxes * factor, 2)
                 # Some content sources (confirmed live: Qatar Airways NDC
                 # offers) return only Taxes.TotalTaxes with no itemized
                 # Tax[] array at all — fuel_surcharge and other_taxes both
@@ -988,7 +1017,9 @@ def issue_ticket(locator_code: str) -> dict:
                 ptc = t.get("passengerTypeCode")
                 tid = t.get("id")
                 if ptc and tid:
-                    traveler_refs.append({"passengerTypeCode": ptc, "id": tid})
+                    pn = t.get("PersonName") or {}
+                    name = " ".join(x for x in (pn.get("Given"), pn.get("Surname")) if x).strip()
+                    traveler_refs.append({"passengerTypeCode": ptc, "id": tid, "name": name})
         except Exception:
             pass
         logger.info(f"Step 1: Traveler refs for payment = {traveler_refs}")
@@ -1170,6 +1201,7 @@ def issue_ticket(locator_code: str) -> dict:
         )
         issued_tickets = res4.get("Ticket", []) if res4 else commit_result.get("Ticket", [])
         found_tickets: list[tuple[str, str]] = []  # [(passengerTypeCode, number), ...]
+        ticket_traveler: dict = {}  # ticket number -> Travelport traveler id (who the ticket is for)
 
         # EMDs for paid seats/extras come back as DocumentEMD next to the
         # DocumentTicket, each with its own amount and description.
@@ -1191,10 +1223,19 @@ def issue_ticket(locator_code: str) -> dict:
         if found_emds:
             logger.info(f"Step 4: EMD(s) issued — {[e['number'] for e in found_emds]}")
         if issued_tickets:
-            issued_ticket_number = issued_tickets[0].get("number")
-            if issued_ticket_number:
-                found_tickets.append(("ADT", issued_ticket_number))
-            logger.info(f"Step 4 OK: Ticket issued — number: {issued_ticket_number}")
+            # One Ticket per passenger: keep every one (only the first used to be kept,
+            # so a 3-passenger booking showed one ticket number).
+            for t in issued_tickets:
+                number = t.get("number") or t.get("Number")
+                if not number or any(n == number for _, n in found_tickets):
+                    continue
+                tref = t.get("TravelerIdentifierRef") or {}
+                ptc = tref.get("passengerTypeCode") or ref_ptc_map.get(tref.get("id")) or "ADT"
+                found_tickets.append((ptc, number))
+                if tref.get("id"):
+                    ticket_traveler[number] = tref["id"]
+            issued_ticket_number = found_tickets[0][1] if found_tickets else None
+            logger.info(f"Step 4 OK: Ticket issued — number(s): {[n for _, n in found_tickets]}")
         else:
             seen_numbers = set()
             for receipt in (res4.get("Receipt", []) if res4 else []):
@@ -1211,6 +1252,8 @@ def issue_ticket(locator_code: str) -> dict:
                     ref_ptc = {t["id"]: t["passengerTypeCode"] for t in traveler_refs}
                     ptc = tref.get("passengerTypeCode") or ref_ptc.get(tref.get("id")) or "ADT"
                     found_tickets.append((ptc, number))
+                    if tref.get("id"):
+                        ticket_traveler[number] = tref["id"]
                     if not issued_ticket_number:
                         issued_ticket_number = number
 
@@ -1306,7 +1349,15 @@ def issue_ticket(locator_code: str) -> dict:
     if issued_ticket_number:
         ticket["ticket_number"] = issued_ticket_number
         ticket["status"] = "Ticketed"
-        ticket["ticket_numbers"] = [{"passenger_type": ptc, "number": num} for ptc, num in found_tickets]
+        # Which passenger each ticket is for: Travelport's traveler id -> the
+        # traveler's position and name in the booking (shown on the receipt).
+        ref_pos = {r["id"]: i for i, r in enumerate(traveler_refs)}
+        ref_name = {r["id"]: r.get("name") for r in traveler_refs}
+        ticket["ticket_numbers"] = [
+            {"passenger_type": ptc, "number": num,
+             **({"traveler_index": ref_pos[ticket_traveler[num]], "traveler_name": ref_name.get(ticket_traveler[num])}
+                if ticket_traveler.get(num) in ref_pos else {})}
+            for ptc, num in found_tickets]
     ticket["emd_numbers"] = found_emds
     # Seat/extra offers that were paid for here but came back without an
     # EMD — never shown as complete; the caller flags these for the admin.
