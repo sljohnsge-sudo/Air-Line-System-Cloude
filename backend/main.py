@@ -1021,6 +1021,13 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
         return f"{len([o for o in offers if o.get('source') == tag])} offers"
     providers = {"TP": _provider_result(tp_task, tp_result, "TP"), "AD": _provider_result(ad_task, ad_result, "AD")}
     elapsed_ms = int((time.monotonic() - started) * 1000)
+    # A supplier that answered without an error but with no fares is also
+    # "rates not coming" for a customer search: staff get the same Supplier
+    # Alert (and email, at most every 15 minutes) as for an error.
+    if kind == "search":
+        for tag, name in (("TP", "Travelport"), ("AD", "Amadeus")):
+            if providers[tag] == "0 offers":
+                _notify_provider_failure(tag, f"{name} returned no fares for this search (0 offers, no error)", route_info)
 
     if not offers and tp_task is not None and isinstance(tp_result, Exception):
         # Both providers failed (or AD wasn't queried/enabled) with nothing to
@@ -5788,7 +5795,9 @@ def journey_event(request: JourneyEventRequest):
 @app.get("/api/admin/insights/searches")
 def admin_searches(days: int = Query(7, ge=1, le=365), ip: Optional[str] = None, route: Optional[str] = None,
                    customer_id: Optional[int] = None, _admin: dict = Depends(auth.get_current_admin)):
-    return {"searches": insights.list_searches(days=days, ip=ip, route=route, customer_id=customer_id)}
+    return {"searches": insights.list_searches(days=days, ip=ip, route=route, customer_id=customer_id),
+            "summary": insights.supplier_summary(days=days, ip=ip, route=route, customer_id=customer_id),
+            "search_mode": database.get_provider_settings().get("search_mode", "travelport_only")}
 
 
 @app.get("/api/admin/insights/searches/{search_id}")

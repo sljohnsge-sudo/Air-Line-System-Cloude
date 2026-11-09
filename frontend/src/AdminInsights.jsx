@@ -121,11 +121,63 @@ function JourneyDetail({ j, onClose }) {
 }
 
 // ── Search records ───────────────────────────────────────────────────────────
+const SUPPLIER_NAME = { TP: 'Travelport', AD: 'Amadeus' };
+const PROV_LABEL = { ok: 'Fares', empty: 'No fares', error: 'Error', off: 'Off' };
+const parseJson = (s, dflt) => { try { return JSON.parse(s || '') || dflt; } catch { return dflt; } };
+
+// One supplier's answer to one search: status, how many fares, its cheapest fare.
+function ProvCell({ p }) {
+  if (!p) return <span className="ins-sub">—</span>;
+  return (
+    <div className="ins-prov">
+      <span className={`ins-pill prov-${p.status}`} title={p.error || undefined}>
+        {p.status === 'ok' ? `✓ ${p.count} fare${p.count === 1 ? '' : 's'}` : PROV_LABEL[p.status] || p.status}
+      </span>
+      {p.status === 'ok' && <div className="ins-prov-price">{money(p.price, p.currency)}</div>}
+      {p.status === 'ok' && p.airline && <div className="ins-sub">{p.airline}</div>}
+      {p.status === 'error' && p.error && <div className="ins-sub ins-prov-err">{p.error.length > 70 ? `${p.error.slice(0, 70)}…` : p.error}</div>}
+    </div>
+  );
+}
+
+// Period totals per supplier (customer searches only), above the list.
+function SupplierSummary({ summary, searchMode }) {
+  if (!summary) return null;
+  const on = { TP: searchMode !== 'amadeus_only', AD: searchMode === 'both' || searchMode === 'amadeus_only' };
+  return (
+    <div className="ins-supsum">
+      {['TP', 'AD'].map(tag => {
+        const s = summary[tag] || {};
+        const asked = (s.ok || 0) + (s.empty || 0) + (s.error || 0);
+        const bad = (s.empty || 0) + (s.error || 0);
+        const state = !on[tag] && !asked ? 'off' : bad ? 'warn' : asked ? 'good' : 'off';
+        return (
+          <div key={tag} className={`ins-supcard ${state}`}>
+            <div className="ins-supname">{SUPPLIER_NAME[tag]}</div>
+            {!on[tag] && !asked ? (
+              <div className="ins-supline">Switched off — not part of the customer search
+                <div className="ins-sub">Providers &amp; Modules is set to “{searchMode === 'amadeus_only' ? 'Amadeus only' : 'Travelport only'}”</div></div>
+            ) : (
+              <div className="ins-supline">
+                <strong>{(s.ok || 0).toLocaleString()}</strong> of {asked.toLocaleString()} searches brought fares
+                <div className="ins-sub">{s.error || 0} error{s.error === 1 ? '' : 's'} · {s.empty || 0} with no fares{s.off ? ` · ${s.off} not asked (trip type not supported)` : ''}
+                  {bad ? ' — staff were alerted (Supplier Alerts)' : ''}</div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Searches({ api, presetIp, onPresetUsed }) {
   const [days, setDays] = useState(7);
   const [route, setRoute] = useState('');
   const [ip, setIp] = useState(presetIp || '');
   const [rows, setRows] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [searchMode, setSearchMode] = useState('');
   const [error, setError] = useState('');
   const [open, setOpen] = useState(null);
 
@@ -135,14 +187,15 @@ function Searches({ api, presetIp, onPresetUsed }) {
     const q = new URLSearchParams({ days: String(days) });
     if (route.trim()) q.set('route', route.trim());
     if (ip.trim()) q.set('ip', ip.trim());
-    api(`/searches?${q}`).then(d => setRows(d.searches)).catch(e => setError(e.message));
+    api(`/searches?${q}`).then(d => { setRows(d.searches); setSummary(d.summary || null); setSearchMode(d.search_mode || ''); })
+      .catch(e => setError(e.message));
   }, [api, days, route, ip]);
   useEffect(() => { load(); }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (presetIp !== undefined) load(); }, [ip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Section title="Search Log"
-      intro="Every customer flight search with what each provider returned and the results in the order shown (cheapest first) — proof of which fares were displayed."
+      intro="Every customer flight search: whether Travelport and Amadeus each sent fares, the cheapest fare from each, and the results in the order shown (cheapest first). An error or a search with no fares alerts staff in Supplier Alerts."
       right={<div className="ins-filters">
         <input className="form-input" placeholder="Route e.g. CMB-DXB" value={route} onChange={e => setRoute(e.target.value)} />
         <input className="form-input" placeholder="IP address" value={ip} onChange={e => setIp(e.target.value)} />
@@ -153,20 +206,22 @@ function Searches({ api, presetIp, onPresetUsed }) {
       </div>}>
       {error && <div className="error-banner">{error}</div>}
       {open && <SearchDetail api={api} id={open} onClose={() => setOpen(null)} />}
+      {rows && <SupplierSummary summary={summary} searchMode={searchMode} />}
       {!rows ? <Loading text="Loading searches…" /> : rows.length === 0 ? <p className="ins-empty">No searches match.</p> : (
         <div className="ins-table-wrap"><table className="ins-table">
-          <thead><tr><th>When</th><th>Route</th><th>Dates</th><th>Pax</th><th>Providers</th><th>Results</th><th>Cheapest shown</th><th>IP</th></tr></thead>
+          <thead><tr><th>When</th><th>Route</th><th>Dates</th><th>Pax</th><th>Travelport</th><th>Amadeus</th><th>Cheapest shown</th><th>IP</th></tr></thead>
           <tbody>{rows.map(r => {
-            const prov = (() => { try { return JSON.parse(r.providers_json || '{}'); } catch { return {}; } })();
+            const best = parseJson(r.provider_best_json, {});
             return (
               <tr key={r.id} className="ins-click" onClick={() => setOpen(r.id)}>
                 <td>{fmtDT(r.searched_at)}{r.search_kind !== 'search' && <div className="ins-sub">{{ nearby: '±days check', recheck: 'fare re-check (booking)', admin_recheck: 'admin re-check' }[r.search_kind] || r.search_kind}</div>}</td>
                 <td>{r.origin} → {r.destination}<div className="ins-sub">{r.trip_type}{r.cabin && r.cabin !== 'All' ? ` · ${r.cabin}` : ''}</div></td>
                 <td>{fmtD(r.departure_date)}{r.return_date ? <div className="ins-sub">to {fmtD(r.return_date)}</div> : null}</td>
                 <td>{r.adults}A{r.children ? ` ${r.children}C` : ''}{r.infants ? ` ${r.infants}I` : ''}{r.students ? ` ${r.students}S` : ''}</td>
-                <td className="ins-small">{Object.entries(prov).map(([k, v]) => <div key={k}>{k}: {v}</div>)}</td>
-                <td>{r.error_message ? <span className="ins-pill failed">Error</span> : r.result_count}</td>
-                <td>{money(r.cheapest_price, r.cheapest_currency)}<div className="ins-sub">{r.cheapest_airline || ''}</div></td>
+                <td><ProvCell p={best.TP} /></td>
+                <td><ProvCell p={best.AD} /></td>
+                <td>{money(r.cheapest_price, r.cheapest_currency)}<div className="ins-sub">{r.cheapest_airline || ''}</div>
+                  <div className="ins-sub">{r.result_count} fare{r.result_count === 1 ? '' : 's'} shown</div></td>
                 <td className="ins-mono">{r.ip}</td>
               </tr>
             );
@@ -209,7 +264,13 @@ function SearchDetail({ api, id, onClose }) {
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button>
       </div>
       <div className="ins-provs">
-        {Object.entries(s.providers || {}).map(([k, v]) => <span key={k} className="ins-chip"><strong>{k === 'TP' ? 'Travelport' : k === 'AD' ? 'Amadeus' : k}</strong>: {v}</span>)}
+        {Object.entries(s.provider_best || {}).map(([k, p]) => (
+          <span key={k} className={`ins-chip prov-${p.status}`}>
+            <strong>{SUPPLIER_NAME[k] || k}</strong>: {p.status === 'ok'
+              ? `${p.count} fare${p.count === 1 ? '' : 's'} · cheapest ${money(p.price, p.currency)}${p.airline ? ` (${p.airline})` : ''}`
+              : p.status === 'error' ? `error — ${p.error || ''}` : p.status === 'empty' ? 'no fares (no error)' : 'not asked (switched off)'}
+          </span>
+        ))}
       </div>
       {s.error_message && <div className="error-banner">Provider error: {s.error_message}</div>}
       <h4 className="ins-h4">Airlines returned (best position in the list)</h4>

@@ -27,6 +27,7 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import datetime, timedelta
 
 import database
@@ -137,9 +138,14 @@ def ensure_tables() -> None:
             UNIQUE KEY uq_customer_message (email, kind, ref_key, channel)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
+    # Per supplier: status, fare count and cheapest fare of each search (Search Log columns).
+    cur.execute("SHOW COLUMNS FROM search_log LIKE 'provider_best_json'")
+    if not cur.fetchall():
+        cur.execute("ALTER TABLE search_log ADD COLUMN provider_best_json VARCHAR(1000) NULL AFTER providers_json")
     conn.commit()
     cur.close()
     conn.close()
+    threading.Thread(target=_backfill_provider_best, name="search-log-backfill", daemon=True).start()
 
 
 def _q(sql: str, params: tuple = (), *, one: bool = False, write: bool = False):
@@ -309,6 +315,55 @@ def _offer_summary(o: dict, rank: int) -> dict:
     }
 
 
+SUPPLIERS = ("TP", "AD")
+
+
+def provider_best(providers: dict, offers: list) -> dict:
+    """Per supplier, from what it actually returned: status ('ok' fares came
+    back, 'empty' no fares and no error, 'error', 'off' not asked because it
+    is switched off / not wired for this trip), fare count and its cheapest
+    fare. Works on the live offers and on the stored offer summaries."""
+    out = {}
+    for tag in SUPPLIERS:
+        state = str((providers or {}).get(tag) or "not queried")
+        mine = [o for o in offers if o.get("source") == tag]
+        priced = [o for o in mine if isinstance(o.get("price"), (int, float))]
+        best = min(priced, key=lambda o: o["price"]) if priced else None
+        status = ("off" if state == "not queried" else "error" if state.startswith("error")
+                  else "ok" if mine else "empty")
+        out[tag] = {"status": status, "count": len(mine),
+                    "price": best["price"] if best else None,
+                    "currency": best.get("currency") if best else None,
+                    "airline": (best.get("airline") or "")[:60] if best else None}
+        if status == "error":
+            out[tag]["error"] = state[len("error: "):][:200]
+    return out
+
+
+def _backfill_provider_best() -> None:
+    """Fills provider_best_json for searches logged before the column existed
+    (from their stored providers and ranked results). Runs once in the
+    background; new searches get it when they are logged."""
+    done = 0
+    try:
+        while True:
+            rows = _q("SELECT id, providers_json, offers_json FROM search_log "
+                      "WHERE provider_best_json IS NULL ORDER BY id DESC LIMIT 200")
+            if not rows:
+                break
+            for r in rows:
+                try:
+                    best = provider_best(json.loads(r["providers_json"] or "{}"), json.loads(r["offers_json"] or "[]"))
+                except Exception:
+                    best = provider_best({}, [])
+                _q("UPDATE search_log SET provider_best_json=%s WHERE id=%s", (json.dumps(best), r["id"]), write=True)
+            done += len(rows)
+        if done:
+            logger.info(f"Search Log: supplier status / cheapest fare filled in for {done} earlier searches")
+    except Exception as e:
+        logger.warning(f"Search Log backfill stopped after {done} rows: {e}")
+
+
 def log_search(req, offers: list, providers: dict, duration_ms: int, error: str | None,
                customer_id: int | None, user_agent: str | None, kind: str = "search") -> None:
     """One row per search with the ranked results exactly as returned."""
@@ -322,13 +377,13 @@ def log_search(req, offers: list, providers: dict, duration_ms: int, error: str 
         cheapest = offers[0] if offers else None
         _q("""INSERT INTO search_log (journey_id, search_kind, ip, user_agent, customer_id, trip_type, origin,
                 destination, departure_date, return_date, legs_json, adults, children, infants, students, cabin,
-                providers_json, result_count, cheapest_price, cheapest_currency, cheapest_airline, duration_ms,
-                error_message, offers_json)
-              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                providers_json, provider_best_json, result_count, cheapest_price, cheapest_currency, cheapest_airline,
+                duration_ms, error_message, offers_json)
+              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
            (current_journey() if kind in ("search", "recheck") else None, kind, current_ip(), (user_agent or "")[:255],
             customer_id, trip, origin, dest, dep, ret, json.dumps(legs) if legs else None,
             req.adult_count, req.child_count, req.infant_count, getattr(req, "student_count", 0),
-            req.cabin_preference or "All", json.dumps(providers), len(offers),
+            req.cabin_preference or "All", json.dumps(providers), json.dumps(provider_best(providers, offers)), len(offers),
             cheapest.get("price") if cheapest else None, cheapest.get("currency") if cheapest else None,
             cheapest.get("airline") if cheapest else None, duration_ms, (error or "")[:500] or None,
             json.dumps([_offer_summary(o, i + 1) for i, o in enumerate(offers)])),
@@ -342,8 +397,7 @@ def log_search(req, offers: list, providers: dict, duration_ms: int, error: str 
 
 # ── Admin queries ─────────────────────────────────────────────────────────────
 
-def list_searches(days: int = 7, ip: str | None = None, route: str | None = None,
-                  customer_id: int | None = None, limit: int = 200) -> list[dict]:
+def _search_filters(days: int, ip: str | None, route: str | None, customer_id: int | None):
     where, params = ["searched_at >= %s"], [datetime.now() - timedelta(days=days)]
     if ip:
         where.append("ip=%s"); params.append(ip)
@@ -355,11 +409,39 @@ def list_searches(days: int = 7, ip: str | None = None, route: str | None = None
             where.append("origin=%s"); params.append(parts[0])
         if len(parts) > 1:
             where.append("destination=%s"); params.append(parts[1])
+    return where, params
+
+
+def list_searches(days: int = 7, ip: str | None = None, route: str | None = None,
+                  customer_id: int | None = None, limit: int = 200) -> list[dict]:
+    where, params = _search_filters(days, ip, route, customer_id)
     return _q(f"""SELECT id, searched_at, journey_id, search_kind, ip, customer_id, trip_type, origin, destination,
                          departure_date, return_date, adults, children, infants, students, cabin, providers_json,
-                         result_count, cheapest_price, cheapest_currency, cheapest_airline, duration_ms, error_message
+                         provider_best_json, result_count, cheapest_price, cheapest_currency, cheapest_airline,
+                         duration_ms, error_message
                   FROM search_log WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT %s""",
               (*params, min(limit, 1000)))
+
+
+def supplier_summary(days: int = 7, ip: str | None = None, route: str | None = None,
+                     customer_id: int | None = None) -> dict:
+    """Customer searches (not ±day checks or re-checks) in the period, per
+    supplier: how many brought fares, came back empty, failed or didn't ask
+    that supplier — the same filters as the list."""
+    where, params = _search_filters(days, ip, route, customer_id)
+    rows = _q(f"SELECT provider_best_json FROM search_log WHERE {' AND '.join(where)} AND search_kind='search'",
+              tuple(params))
+    out = {tag: {"ok": 0, "empty": 0, "error": 0, "off": 0} for tag in SUPPLIERS}
+    for r in rows:
+        try:
+            best = json.loads(r["provider_best_json"] or "{}")
+        except ValueError:
+            continue
+        for tag in SUPPLIERS:
+            status = (best.get(tag) or {}).get("status")
+            if status in out[tag]:
+                out[tag][status] += 1
+    return {"searches": len(rows), **out}
 
 
 def get_search(search_id: int) -> dict | None:
@@ -367,6 +449,7 @@ def get_search(search_id: int) -> dict | None:
     if row:
         row["offers"] = json.loads(row.pop("offers_json") or "[]")
         row["providers"] = json.loads(row.pop("providers_json") or "{}")
+        row["provider_best"] = provider_best(row["providers"], row["offers"])
         row["legs"] = json.loads(row.pop("legs_json") or "null")
     return row
 
