@@ -1004,11 +1004,16 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
                             # "Fuel Surcharge: 0 / Taxes: 0" on the receipt despite
                             # a real tax charge. Fall back to the known total so
                             # the breakdown still sums to it.
+                            itemised = bool(amount_dict.get("Taxes", {}).get("Tax"))
                             if not fuel_surcharge_val and not other_taxes_val and tax_val:
                                 other_taxes_val = tax_val
                             price_breakdown[ptc] = {
                                 "base_price": round(base_val, 2),
                                 "taxes": round(tax_val, 2),
+                                # False: the airline sent only a tax total (QR NDC,
+                                # 09/11/2026), so any fuel surcharge is inside
+                                # "taxes" and the page says so instead of 0.00.
+                                "taxes_itemised": itemised,
                                 "fuel_surcharge": round(fuel_surcharge_val, 2),
                                 "other_taxes": round(other_taxes_val, 2),
                                 "fees": round(fees_val, 2),

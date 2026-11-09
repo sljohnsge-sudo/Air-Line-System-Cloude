@@ -604,8 +604,10 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                 fuel_surcharge = 0.0
                 other_taxes = 0.0
                 seen_tax_ids = set()
+                itemised = False
                 for pb in price.get("PriceBreakdown", []) or []:
                     taxes = (pb.get("Amount", {}) or {}).get("Taxes", {}) or {}
+                    itemised = itemised or bool(taxes.get("Tax"))
                     for tax in taxes.get("Tax", []) or []:
                         code = tax.get("taxCode", "")
                         value = float(tax.get("value", 0) or 0)
@@ -627,6 +629,9 @@ def _parse_reservation(raw: dict, locator_code: str) -> dict:
                     other_taxes = float(price.get("TotalTaxes", 0) or 0)
                 ticket["fare_breakdown"] = {
                     "base_fare": base_fare,
+                    # False: only a tax total came back, so the fuel surcharge
+                    # is inside other_taxes (the receipt says "Included in taxes").
+                    "taxes_itemised": itemised,
                     "fuel_surcharge": fuel_surcharge,
                     "other_taxes": other_taxes,
                     "total_fees": float(price.get("TotalFees", 0) or 0),

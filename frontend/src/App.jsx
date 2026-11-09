@@ -10235,7 +10235,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                               <span>Fuel Surcharge:</span>
-                              <strong>{selectedFlight.currency} {sumPbFieldReview('fuel_surcharge').toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                              {/* The airline sent only a tax total (e.g. Qatar NDC): any fuel charge is in the taxes below. */}
+                              {bdkReview.some(k => selectedFlight.price_breakdown[k].taxes_itemised === false)
+                                ? <strong>Included in taxes</strong>
+                                : <strong>{selectedFlight.currency} {sumPbFieldReview('fuel_surcharge').toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>}
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                               <span>Airline &amp; Government Taxes:</span>
@@ -10828,7 +10831,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                             <span>Fuel Surcharge:</span>
-                            <span>{issuedTicket.currency} {issuedTicket.fare_breakdown.fuel_surcharge.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            <span>{issuedTicket.fare_breakdown.taxes_itemised === false
+                              ? 'Included in taxes'
+                              : `${issuedTicket.currency} ${issuedTicket.fare_breakdown.fuel_surcharge.toLocaleString(undefined, {minimumFractionDigits: 2})}`}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                             <span>Airline & Government Taxes:</span>
