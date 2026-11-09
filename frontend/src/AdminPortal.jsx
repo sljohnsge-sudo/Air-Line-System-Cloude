@@ -248,11 +248,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [consultantFormOpen, setConsultantFormOpen] = useState(false);
   const [consultantSaving, setConsultantSaving] = useState(false);
 
-  const [assignLocator, setAssignLocator] = useState('');
-  const [assignEmail, setAssignEmail] = useState('');
-  const [assigning, setAssigning] = useState(false);
-  const [assignMsg, setAssignMsg] = useState('');
-  const [assignError, setAssignError] = useState('');
 
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` };
 
@@ -1195,29 +1190,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
-  const handleAssignBooking = async (e) => {
-    e.preventDefault();
-    setAssigning(true);
-    setAssignMsg('');
-    setAssignError('');
-    try {
-      const res = await fetchWithRetry(`${API_BASE}/admin/bookings/${assignLocator.trim()}/assign-customer`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ customer_email: assignEmail.trim() }),
-      });
-      const data = await adminApiResponse(res, 'Failed to assign booking');
-      setAssignMsg(`Booking ${data.booking.locator_code} is now linked to ${assignEmail.trim()}.`);
-      setAssignLocator('');
-      setAssignEmail('');
-    } catch (err) {
-      setAssignError(err.message);
-    } finally {
-      setAssigning(false);
-    }
-  };
-
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -1329,7 +1301,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       { id: 'stuck-bookings', label: 'Ticketing Exceptions Logs', icon: 'alert', count: stuckBookings.length },
       { id: 'notifications', label: 'Airline Rates Logs', icon: 'bell', count: notifications.length },
       { id: 'force-issue', label: 'Booking Lookup', icon: 'search' },
-      { id: 'assign-booking', label: 'Link Booking to Customer', icon: 'link' },
     ] },
     { group: 'Customer Requests', items: [
       { id: 'cancellations', label: 'Cancellations', icon: 'cancel', count: cancellationRequests.length },
@@ -2784,30 +2755,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             </div>
           );
         })()}
-      </section>
-      )}
-
-      {activeAdminSection === 'assign-booking' && (
-      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Link Booking to Customer</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
-          For bookings made under a different email than the customer's account — link it directly after verifying ownership.
-        </p>
-        <form onSubmit={handleAssignBooking} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '160px' }}>
-            <label className="form-label">PNR / Locator Code</label>
-            <input className="form-input" required value={assignLocator} onChange={e => setAssignLocator(e.target.value.toUpperCase())} />
-          </div>
-          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '220px' }}>
-            <label className="form-label">Customer Account Email</label>
-            <input type="email" className="form-input" required value={assignEmail} onChange={e => setAssignEmail(e.target.value)} />
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={assigning}>
-            {assigning ? 'Assigning…' : 'Assign'}
-          </button>
-        </form>
-        {assignMsg && <p style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.75rem' }}>{assignMsg}</p>}
-        {assignError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{assignError}</div>}
       </section>
       )}
 

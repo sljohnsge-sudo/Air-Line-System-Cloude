@@ -1221,26 +1221,6 @@ def link_guest_bookings_by_email(customer_id: int, email: str) -> int:
         conn.close()
 
 
-def assign_booking_to_customer(locator_code: str, customer_id: int) -> dict | None:
-    """Admin-only manual override: link a specific booking to a specific
-    customer account regardless of email match — for cases where the
-    booking was made under a different email than the account (typo,
-    alternate address, etc.) and auto-linking can't catch it. Overwrites
-    any existing customer_id on the booking. Returns the updated booking,
-    or None if the locator code doesn't exist."""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("UPDATE bookings SET customer_id=%s WHERE locator_code=%s", (customer_id, locator_code))
-        conn.commit()
-        cursor.execute("SELECT * FROM bookings WHERE locator_code=%s", (locator_code,))
-        row = cursor.fetchone()
-        return _hydrate_bookings([row])[0] if row else None
-    finally:
-        cursor.close()
-        conn.close()
-
-
 # ── Loyalty Program ──────────────────────────────────────────────────────────
 
 def get_loyalty_settings() -> dict:

@@ -3970,27 +3970,6 @@ def move_loyalty_tier_benefit_admin(
     return {"benefits": rows}
 
 
-# ── Manual Booking Assignment (Admin) ─────────────────────────────────────────
-# Covers cases auto-link-by-email can't: a booking made under a different
-# email than the customer's account (typo, alternate address, shared family
-# booking, etc.). Admin verifies ownership through support/other means and
-# links it directly.
-
-class AssignBookingRequest(BaseModel):
-    customer_email: EmailStr
-
-
-@app.post("/api/admin/bookings/{locator_code}/assign-customer")
-def admin_assign_booking(locator_code: str, request: AssignBookingRequest, _admin: dict = Depends(auth.get_current_admin)):
-    customer = database.get_customer_by_email(str(request.customer_email))
-    if not customer:
-        raise HTTPException(status_code=404, detail=f"No customer account found for {request.customer_email}.")
-    updated = database.assign_booking_to_customer(locator_code.upper().strip(), customer["id"])
-    if not updated:
-        raise HTTPException(status_code=404, detail=f"No booking found for locator '{locator_code}'.")
-    return {"success": True, "booking": updated}
-
-
 # ── Email Change Requests (Admin) ─────────────────────────────────────────────
 
 class EmailChangeReviewRequest(BaseModel):
