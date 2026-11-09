@@ -8131,30 +8131,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               </div>
             ) : (
               <>
-                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '1rem 1.1rem', marginBottom: '1.25rem', fontSize: '0.85rem', color: '#1e3a5f', display: 'flex', gap: '0.6rem' }}>
-                  <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>💡</span>
-                  <span>Please submit this request <strong>48 hours</strong> prior to the flight departure. Before proceeding, please read the following important information.</span>
-                </div>
-
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <p style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--gs-dark)', margin: '0 0 0.4rem' }}>As per the Airline Fare Rules</p>
-                  <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                    <li>The Airline Fare rules will determine the penalties applicable on your ticket</li>
-                    <li>Ticket may be non-refundable or may attract a cancellation penalty</li>
-                  </ul>
-                </div>
-
-                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '1rem 1.1rem', marginBottom: '1rem', fontSize: '0.82rem', color: '#78350f', lineHeight: 1.6 }}>
-                  <strong>Canceled Events:</strong> If the event is canceled entirely, a full refund of the ticket face value will be automatically issued to the original method of payment. Please note that service fees, booking fees, and processing charges may be non-refundable.
-                </div>
-
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={cancelAgreed} onChange={e => setCancelAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                  <span>I have read and agree to the cancellation terms above.</span>
-                </label>
-
-                {cancelError && <div className="error-banner">{cancelError}</div>}
-
                 <form onSubmit={submitCancellationRequest}>
                   <div className="form-group">
                     <label className="form-label">What is your current Travel Date? *</label>
@@ -8201,6 +8177,31 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                       </label>
                     </div>
                   </div>
+
+                  {/* Terms come after the questions, right above the agree box and Submit. */}
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '1rem 1.1rem', margin: '1.25rem 0', fontSize: '0.85rem', color: '#1e3a5f', display: 'flex', gap: '0.6rem' }}>
+                    <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>💡</span>
+                    <span>Please submit this request <strong>48 hours</strong> prior to the flight departure. Before proceeding, please read the following important information.</span>
+                  </div>
+
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <p style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--gs-dark)', margin: '0 0 0.4rem' }}>As per the Airline Fare Rules</p>
+                    <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                      <li>The Airline Fare rules will determine the penalties applicable on your ticket</li>
+                      <li>Ticket may be non-refundable or may attract a cancellation penalty</li>
+                    </ul>
+                  </div>
+
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '1rem 1.1rem', marginBottom: '1rem', fontSize: '0.82rem', color: '#78350f', lineHeight: 1.6 }}>
+                    <strong>Canceled Events:</strong> If the event is canceled entirely, a full refund of the ticket face value will be automatically issued to the original method of payment. Please note that service fees, booking fees, and processing charges may be non-refundable.
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={cancelAgreed} onChange={e => setCancelAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
+                    <span>I have read and agree to the cancellation terms above.</span>
+                  </label>
+
+                  {cancelError && <div className="error-banner">{cancelError}</div>}
 
                   <button type="submit" className="btn btn-primary" disabled={cancelSubmitting || !cancelAgreed} style={{ width: '100%', marginTop: '0.75rem' }}>
                     {cancelSubmitting ? 'Submitting…' : 'Submit Cancellation Request'}
