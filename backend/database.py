@@ -1,4 +1,4 @@
-﻿"""
+"""
 database.py
 ===========
 MySQL Cache for Issued Tickets -- XAMPP MySQL Backend
@@ -27,6 +27,21 @@ MYSQL_PORT     = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER     = os.getenv("MYSQL_USER",     "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "final_travels_system")
+
+# Ensure database exists before creating the pool
+try:
+    _admin_cnx = mysql.connector.connect(
+        host=MYSQL_HOST,
+        port=MYSQL_PORT,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+    )
+    _admin_cursor = _admin_cnx.cursor()
+    _admin_cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{MYSQL_DATABASE}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+    _admin_cursor.close()
+    _admin_cnx.close()
+except Exception as _e:
+    print(f"[WARN] Could not auto-create database '{MYSQL_DATABASE}': {_e}")
 
 # Connection pool (avoids creating a new connection per request). The Admin
 # Portal alone fires 15+ concurrent GET requests on mount (one per dashboard
