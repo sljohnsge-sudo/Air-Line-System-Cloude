@@ -937,6 +937,18 @@ def init_db():
         cursor.execute("ALTER TABLE addon_payments ADD COLUMN payment_reqid VARCHAR(64) NULL AFTER status")
         cursor.execute("ALTER TABLE addon_payments ADD COLUMN payment_started_at DATETIME NULL AFTER payment_reqid")
 
+    # addon_payments.erp_* — the ERPNext Sales Invoice made for a paid
+    # seat/extra payment (services/erp_sync_service.push_addon_to_erp), same
+    # pattern as bookings.erp_invoice_name / erp_synced_at / erp_sync_error.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='addon_payments' AND COLUMN_NAME='erp_invoice_name'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE addon_payments ADD COLUMN erp_invoice_name VARCHAR(140) NULL")
+        cursor.execute("ALTER TABLE addon_payments ADD COLUMN erp_synced_at DATETIME NULL")
+        cursor.execute("ALTER TABLE addon_payments ADD COLUMN erp_sync_error VARCHAR(500) NULL")
+
     # ── Confirmed-but-unpaid seats/extras on ticketed bookings ───────────────
     # One row per seat/extra offer (keyed by Travelport's offer Identifier):
     # when we first saw the airline confirm it, the payment deadline, and
@@ -2921,6 +2933,29 @@ def set_addon_payment_started(addon_id: str, reqid: str | None) -> None:
     try:
         cursor.execute("UPDATE addon_payments SET payment_reqid=%s, payment_started_at=%s WHERE addon_id=%s",
                        (reqid, datetime.utcnow(), addon_id))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def mark_addon_erp_synced(addon_id: str, invoice_name: str) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE addon_payments SET erp_invoice_name=%s, erp_synced_at=NOW(), erp_sync_error=NULL "
+                       "WHERE addon_id=%s", (invoice_name, addon_id))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def mark_addon_erp_sync_failed(addon_id: str, error: str) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE addon_payments SET erp_sync_error=%s WHERE addon_id=%s", ((error or "")[:500], addon_id))
         conn.commit()
     finally:
         cursor.close()

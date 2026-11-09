@@ -172,3 +172,71 @@ def push_booking_to_erp(booking: dict) -> str:
         raise
     except httpx.HTTPError as e:
         raise ErpSyncError(f"ERP sync network error for {locator}: {e}") from e
+
+
+# Seats/extras paid after booking (Manage My Booking -> card payment -> EMD).
+# Their own ERP item, so finance can tell extras from tickets.
+ERP_ADDON_ITEM_CODE = os.getenv("ERP_ADDON_ITEM_CODE", "Airline Extras (EMD)")
+
+
+def push_addon_to_erp(invoice: dict, booking: dict) -> str:
+    """Creates a Sales Invoice in the ERP for one paid seat/extra payment.
+
+    `invoice` is main._addon_invoice()'s dict (what the customer's own invoice
+    shows: lines with description, passenger, flights, EMD and amount);
+    `booking` the saved booking (for the passenger / ERP customer). One line
+    per seat/extra. Returns the Sales Invoice name; raises ErpSyncError."""
+    locator = invoice.get("locator") or ""
+    try:
+        with httpx.Client(timeout=30, headers=_headers()) as client:
+            customer = _find_or_create_customer(
+                client,
+                booking.get("passenger_name", ""),
+                booking.get("passenger_email") or booking.get("email", ""),
+            )
+            items, emds = [], []
+            for line in invoice.get("lines") or []:
+                route = ", ".join(" ".join(x for x in (
+                    f.get("flight"),
+                    f"{f['from']}→{f['to']}" if f.get("from") and f.get("to") else None,
+                    f.get("date")) if x) for f in line.get("flights") or [])
+                if line.get("emd"):
+                    emds.append(line["emd"])
+                description = " · ".join(x for x in (line.get("description"), line.get("passenger"), route,
+                                                      f"EMD {line['emd']}" if line.get("emd") else None) if x)
+                items.append({"item_code": ERP_ADDON_ITEM_CODE, "qty": 1,
+                              "rate": float(line.get("amount") or 0), "description": description[:1000]})
+            if not items:
+                raise ErpSyncError(f"Add-on {invoice.get('invoice_number')} for {locator} has no lines to invoice")
+            posting_date = (invoice.get("issued_at") or "")[:10] or None
+            payload = {
+                "company": ERP_COMPANY,
+                "customer": customer,
+                "currency": invoice.get("currency") or "LKR",
+                "set_posting_time": 1,
+                "posting_date": posting_date,
+                "due_date": posting_date,
+                "remarks": (
+                    f"Online Booking System — seats/extras paid after booking | PNR {locator} | "
+                    f"Payment {invoice.get('invoice_number')} | Card ref {(invoice.get('payment') or {}).get('reference') or '-'} | "
+                    f"EMD {', '.join(emds) or 'pending'} | Ticket {', '.join(invoice.get('tickets') or []) or '-'}"
+                ),
+                # Same PNR and e-ticket number as the flight's own invoice, so
+                # finance finds the extras under that ticket; this is a new,
+                # separate invoice, and each line carries its EMD number.
+                "custom_pnr": locator,
+                "custom_ticket_number": (", ".join(invoice.get("tickets") or []) or booking.get("ticket_number") or "")[:140],
+                "items": items,
+            }
+            resp = client.post(f"{ERP_BASE_URL}/api/resource/Sales Invoice", json=payload)
+            if resp.status_code >= 400:
+                raise ErpSyncError(
+                    f"ERP Sales Invoice (extras) create failed ({resp.status_code}) for {locator}: {resp.text[:400]}"
+                )
+            invoice_name = resp.json()["data"]["name"]
+        logger.info(f"ERP sync: extras {invoice.get('invoice_number')} ({locator}) -> Sales Invoice {invoice_name}")
+        return invoice_name
+    except ErpSyncError:
+        raise
+    except httpx.HTTPError as e:
+        raise ErpSyncError(f"ERP sync network error for extras {invoice.get('invoice_number')} ({locator}): {e}") from e

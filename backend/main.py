@@ -38,6 +38,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -5193,7 +5194,52 @@ def manage_booking_complete_payment(request: AddonPaymentCompleteRequest, curren
             addon_deadlines.mark_paid(locator, addon["items"], issued["emds"])
     database.finish_addon_payment(addon["addon_id"], "completed", {**issued, "trace_id": trace_id,
                                                                     "payment_reference": payment.get("txn_reference")})
+    # Finance: a Sales Invoice in ERPNext for these seats/extras, in the
+    # background so the customer's page isn't kept waiting (best-effort,
+    # the result is kept on the add-on payment).
+    threading.Thread(target=_push_addon_to_erp, args=(addon["addon_id"],), name="erp-addon", daemon=True).start()
     return {"status": "completed", "emds": issued["emds"], "addon_id": addon["addon_id"], "trace_id": trace_id, **shown}
+
+
+def _push_addon_to_erp(addon_id: str) -> None:
+    """Paid seats/extras -> ERPNext Sales Invoice (same lines and EMDs as the
+    customer's own invoice). Never raises."""
+    if not services.erp_configured():
+        return
+    try:
+        addon = database.get_addon_payment(addon_id)
+        if not addon or addon["status"] != "completed" or addon.get("erp_invoice_name"):
+            return
+        booking = database.get_booking_by_locator(addon["locator_code"]) or {}
+        customer = database.get_customer_by_id(addon["customer_id"]) if addon.get("customer_id") else None
+        inv = _addon_invoice(addon, customer)
+        # Seats carry their flight as flight_number (extras use segment
+        # numbers), and an item the EMD wording didn't match gets the
+        # payment's EMD of the same kind (seat / bag / meal / lounge).
+        spare = list((json.loads(addon.get("result_json") or "{}") or {}).get("emds") or [])
+        taken = {l.get("emd") for l in inv["lines"] if l.get("emd")}
+        spare = [x for x in spare if x.get("number") not in taken]
+        kinds = (("SEAT", ("SEAT",)), ("BAG", ("BAG", "KG", "LB")), ("MEAL", ("MEAL",)), ("LOUNGE", ("LOUNGE",)))
+        for line, item in zip(inv["lines"], addon["items"]):
+            if not line.get("flights") and item.get("flight_number"):
+                line["flights"] = [{"flight": item["flight_number"]}]
+            if not line.get("emd"):
+                text = f"{line.get('description') or ''} {line.get('airline_description') or ''}".upper()
+                for _, words in kinds:
+                    if any(w in text for w in words):
+                        hit = next((x for x in spare if any(w in (x.get("description") or "").upper() for w in words)), None)
+                        if hit:
+                            line["emd"] = hit["number"]
+                            spare.remove(hit)
+                        break
+        invoice_name = services.push_addon_to_erp(inv, booking)
+        database.mark_addon_erp_synced(addon_id, invoice_name)
+    except Exception as e:
+        logger.warning(f"ERP sync failed for extras {addon_id} (non-fatal): {e}")
+        try:
+            database.mark_addon_erp_sync_failed(addon_id, str(e))
+        except Exception as db_err:
+            logger.error(f"Could not record ERP sync failure for extras {addon_id}: {db_err}")
 
 
 def _lead_last_name(locator: str) -> str:
