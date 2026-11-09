@@ -16,7 +16,8 @@ services:
     ports:
       - "8005:8000"
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     environment:
       - PYTHONUNBUFFERED=1
       - MYSQL_HOST=host.docker.internal
@@ -37,7 +38,8 @@ services:
     ports:
       - "8002:8002"
     env_file:
-      - ./amadeus-backend/.env
+      - path: ./amadeus-backend/.env
+        required: false
     environment:
       - PYTHONUNBUFFERED=1
       - MYSQL_HOST=host.docker.internal
@@ -65,4 +67,3 @@ services:
 networks:
   airline_network:
     driver: bridge
-
