@@ -204,9 +204,16 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not complete the payment');
+        // Below the message: the booking itself, looked up again, so the new
+        // seats/extras and their EMDs show (not an empty search form).
+        if (data.locator_code) {
+          setStatusPrefill({ query: data.locator_code, lastName: data.last_name || '', key: Date.now() });
+        }
         if (data.status === 'completed') {
           setAddonPaymentResult({ ok: true, invoice: data.addon_id || addon,
             message: `Payment confirmed — thank you. The airline has issued ${(data.emds || []).map(e => `EMD ${e.number}`).join(', ') || 'the document'} for your seats/extras.` });
+          // The paid invoice opens at once (charges, items, EMDs); "View invoice" reopens it.
+          setAddonInvoiceOpen(data.addon_id || addon);
         } else if (data.status === 'emd_failed') {
           setAddonPaymentResult({ ok: false, message: 'Your payment was received but the airline didn\u2019t issue the document yet. Our team has been alerted and will complete it or refund you.' });
         } else {

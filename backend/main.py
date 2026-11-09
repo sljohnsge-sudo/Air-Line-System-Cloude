@@ -5075,12 +5075,18 @@ def manage_booking_complete_payment(request: AddonPaymentCompleteRequest, curren
     if not addon or addon.get("customer_id") != current["customer_id"]:
         raise HTTPException(status_code=404, detail="Payment not found.")
     locator = addon["locator_code"]
+    # So the portal can open the paid invoice and show the booking (with the
+    # new extras and EMDs) straight after payment: the customer's own
+    # booking reference and lead passenger last name (Booking Status lookup).
+    shown = {"locator_code": locator, "last_name": _lead_last_name(locator)}
     # Under the PNR's lock: the deadline sweep can't release these items
     # between the check below and the EMDs being issued.
     with addon_deadlines.locator_lock(locator):
         addon = database.get_addon_payment(request.addon_id)
         if addon["status"] != "awaiting_payment":
-            return {"status": addon["status"], "result": json.loads(addon.get("result_json") or "{}")}
+            result = json.loads(addon.get("result_json") or "{}")
+            return {"status": addon["status"], "result": result, "emds": result.get("emds") or [],
+                    "addon_id": addon["addon_id"], **shown}
         # Checked BEFORE the PayCorp payment is completed (no money is taken
         # until then): an item released or no longer confirmed isn't charged.
         try:
@@ -5106,7 +5112,18 @@ def manage_booking_complete_payment(request: AddonPaymentCompleteRequest, curren
             addon_deadlines.mark_paid(locator, addon["items"], issued["emds"])
     database.finish_addon_payment(addon["addon_id"], "completed", {**issued, "trace_id": trace_id,
                                                                     "payment_reference": payment.get("txn_reference")})
-    return {"status": "completed", "emds": issued["emds"], "addon_id": addon["addon_id"], "trace_id": trace_id}
+    return {"status": "completed", "emds": issued["emds"], "addon_id": addon["addon_id"], "trace_id": trace_id, **shown}
+
+
+def _lead_last_name(locator: str) -> str:
+    """Lead passenger's last name from our booking record ('' if unknown)."""
+    try:
+        b = database.get_booking_by_locator(locator) or {}
+        raw = json.loads(b.get("raw_ticket_json") or "{}") or {}
+        t = ((b.get("travelers") or raw.get("travelers") or [{}])[0]) or {}
+        return (t.get("last_name") or t.get("surname") or (b.get("passenger_name") or "").strip().split(" ")[-1] or "").strip()
+    except Exception:
+        return ""
 
 
 # ── Invoice for seats/extras paid after booking ───────────────────────────────
