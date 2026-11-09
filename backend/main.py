@@ -687,6 +687,31 @@ def _live_airline_problem(locator_code: str) -> Optional[dict]:
 SCHEDULE_CHANGED_DETAIL = ("The airline has changed the timing of this flight, so it can't be booked online right now. "
                            "You have not been charged — please choose another flight.")
 
+
+def _schedule_changed_detail(segs: list) -> str:
+    """SCHEDULE_CHANGED_DETAIL naming the re-timed flight(s), e.g. "flight
+    GF144 (BAH → CMB, 10/11/2026)" — on a return trip the customer otherwise
+    changes the other direction and hits the same block again (Gulf Air
+    GF144, 2026-11-09). Keeps the "can't be booked online right now" wording
+    the booking pages look for."""
+    names = []
+    for sg in segs:
+        flight = segment_status.norm_flight_no(sg.get("flight_number") or f"{sg.get('carrier') or ''}{sg.get('number') or ''}")
+        if not flight:
+            continue
+        route = " → ".join(x for x in (sg.get("departure_airport") or sg.get("origin"),
+                                       sg.get("arrival_airport") or sg.get("destination")) if x)
+        when = fmt_date(str(sg.get("departure_time") or "")[:10])
+        extra = ", ".join(x for x in (route, when) if x)
+        name = f"{flight} ({extra})" if extra else flight
+        if name not in names:
+            names.append(name)
+    if not names:
+        return SCHEDULE_CHANGED_DETAIL
+    what = f"flight {names[0]}" if len(names) == 1 else "flights " + " and ".join(names)
+    return (f"The airline has changed the schedule of {what}, so it can't be booked online right now. "
+            "You have not been charged — please choose another flight.")
+
 # Flights re-timed by the airline after booking stay blocked for this long, so
 # customers aren't booked and released again on every try (each try made and
 # cancelled a PNR). In memory: one backend process (see start_backend_production.bat).
@@ -716,11 +741,14 @@ def _refuse_if_schedule_blocked(raw_offering: dict) -> None:
     for k, until in list(_schedule_blocked.items()):
         if until <= now:
             _schedule_blocked.pop(k, None)
+    blocked = []
     for sg in _segments_of_offering(raw_offering):
         flight = sg.get("flight_number") or f"{sg.get('carrier') or ''}{sg.get('number') or ''}"
         if _schedule_block_key(flight, sg.get("departure_time")) in _schedule_blocked \
                 or _schedule_block_key(flight, "") in _schedule_blocked:
-            raise HTTPException(status_code=409, detail=SCHEDULE_CHANGED_DETAIL)
+            blocked.append(sg)
+    if blocked:
+        raise HTTPException(status_code=409, detail=_schedule_changed_detail(blocked))
 
 
 def _release_unpaid_booking(locator_code: str, reason: str) -> None:
@@ -762,7 +790,18 @@ def _release_if_schedule_changed(locator_code: str, codes: dict) -> None:
                   "booking released before payment, customer asked to choose another flight",
                   raw_error=json.dumps(codes))
     _release_unpaid_booking(locator_code, f"Airline changed the schedule of {changed}")
-    raise HTTPException(status_code=409, detail=SCHEDULE_CHANGED_DETAIL)
+    detail = SCHEDULE_CHANGED_DETAIL
+    try:
+        cached = database.get_booking_by_locator(locator_code) or {}
+        raw = json.loads(cached.get("raw_ticket_json") or "{}") or dict(cached)
+        segs = [sg for leg in (raw.get("legs") or [raw]) for sg in (leg.get("segments") or [leg])]
+        tk = {segment_status.norm_flight_no(f) for f, c in codes.items() if c == "TK"}
+        detail = _schedule_changed_detail(
+            [sg for sg in segs if segment_status.norm_flight_no(sg.get("flight_number")) in tk]
+            or [{"flight_number": f} for f in sorted(tk)])
+    except Exception as e:
+        logger.warning(f"Could not name the re-timed flight(s) of {locator_code}: {e}")
+    raise HTTPException(status_code=409, detail=detail)
 
 
 FARE_CHANGED_DETAIL = ("This fare has changed at the airline since you booked, so it must be checked again. "

@@ -1,0 +1,48 @@
+# ==========================================
+# Airline Booking System (Tick and Book)
+# Multi-Project Docker Compose Orchestration
+# Host Server: 172.16.7.41
+# ==========================================
+
+services:
+  # 1. Main FastAPI Airline Backend
+  airline_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-backend:latest
+    container_name: airline_backend
+    restart: unless-stopped
+    ports:
+      - "8005:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MYSQL_HOST=host.docker.internal
+      - TP_PASSWORD=o$$TC@[M$$zi0*AY{y
+      - TP_UAPI_PASSWORD=o$$TC@[M$$zi0*AY{y
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - airline_network
+
+  # 2. React Vite Frontend + Nginx Production Reverse Proxy
+  airline_frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-frontend:latest
+    container_name: airline_frontend
+    restart: unless-stopped
+    ports:
+      - "5176:80"
+    depends_on:
+      - airline_backend
+    networks:
+      - airline_network
+
+networks:
+  airline_network:
+    driver: bridge

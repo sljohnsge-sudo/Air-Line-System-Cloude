@@ -11078,11 +11078,22 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             })()}
             {fareRecheck.state === 'schedule' && (
               <>
-                <h3>This flight can't be booked online right now</h3>
-                <p>The airline has changed the timing of this flight, and its new schedule isn't available for online booking yet.
-                  You have not been charged. Please choose another flight.</p>
+                <h3>The airline has changed this flight's schedule</h3>
+                {(() => {
+                  // The backend names the re-timed flight(s), e.g. "flight GF144 (BAH → CMB, 10/11/2026)".
+                  const named = (fareRecheck.message || '').match(/schedule of (flights? .+?), so it can't/i);
+                  return (
+                    <p>
+                      {named
+                        ? <>The airline has changed the schedule of <strong>{named[1]}</strong>.</>
+                        : 'The airline has changed the schedule of this flight.'}
+                      {' '}We are waiting for the airline's final confirmation of the new timing, so it can't be booked online yet.
+                      You have not been charged. You can wait and try this flight again later, or book another flight now.
+                    </p>
+                  );
+                })()}
                 <div className="fare-recheck-actions">
-                  <button className="btn btn-primary" onClick={chooseAnotherFlight}>Choose another flight</button>
+                  <button className="btn btn-primary" onClick={chooseAnotherFlight}>Book another flight</button>
                 </div>
               </>
             )}
