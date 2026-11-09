@@ -152,7 +152,10 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
   const [seatPick, setSeatPick] = useState({}); // `${flight}|${traveler}` -> seat
   const [extraPick, setExtraPick] = useState({}); // `${traveler}|${group}|${category}` -> index in options.extras
   const [cabinFor, setCabinFor] = useState(null); // flight number whose cabin map is open
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(null);       // airline's answer on seats/extras
+  const [ssrResult, setSsrResult] = useState(null); // airline's answer on special requests
+  const [cartOpen, setCartOpen] = useState(false);
+  const [budget, setBudget] = useState('');         // customer's own spending limit (optional, this page only)
 
   const post = async (path, body) => {
     const res = await fetchWithRetry(`${apiBase}${path}`, {
@@ -187,29 +190,31 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
   const addons = view === 'seats' || view === 'extras';
   const ndcNote = options.seats_extras_note;
 
-  const sendSpecialRequests = async () => {
-    const requests = Object.entries(ssr).flatMap(([traveler_id, v]) =>
-      [v.wheelchair && { traveler_id, code: v.wheelchair }, v.meal && { traveler_id, code: v.meal }].filter(Boolean));
-    if (!requests.length) return;
-    setBusy('ssr'); setError(''); setResult(null);
-    try {
-      const r = await post('/manage-booking/special-requests', { requests });
-      setResult({ kind: 'ssr', ...r });
-      setSsr({});
-      onChanged?.();
-    } catch (e) { setError(e.message); }
-    setBusy('');
-  };
+  const chosenRequests = Object.entries(ssr).flatMap(([traveler_id, v]) =>
+    [v?.wheelchair && { traveler_id, code: v.wheelchair, field: 'wheelchair' }, v?.meal && { traveler_id, code: v.meal, field: 'meal' }].filter(Boolean));
 
-  const sendSeatsExtras = async () => {
-    setBusy('addons'); setError(''); setResult(null);
+  // The cart is confirmed in one go: seats and extras first, then special
+  // requests (some airlines, SriLankan for one, refuse a paid seat once a
+  // wheelchair request is on the booking). Nothing is charged here — paid
+  // items are paid only after the airline confirms them (payment_due email +
+  // SMS, Pay on Booking Status).
+  const confirmCart = async () => {
+    setBusy('addons'); setError(''); setResult(null); setSsrResult(null);
     try {
-      const r = await post('/manage-booking/seats-extras', {
-        seats: chosenSeats.map(c => ({ traveler_id: c.traveler, flight_number: c.flight, seat_number: c.seat.seat_number })),
-        extras: chosenExtras.map(x => ({ traveler_id: x.traveler_identifier_ref, airline_name: x.airline_name, segment_numbers: x.segment_numbers, name: x.name })),
-      });
-      setResult({ kind: 'addons', ...r });
-      setSeatPick({}); setExtraPick({});
+      if (chosenSeats.length || chosenExtras.length) {
+        const r = await post('/manage-booking/seats-extras', {
+          seats: chosenSeats.map(c => ({ traveler_id: c.traveler, flight_number: c.flight, seat_number: c.seat.seat_number })),
+          extras: chosenExtras.map(x => ({ traveler_id: x.traveler_identifier_ref, airline_name: x.airline_name, segment_numbers: x.segment_numbers, name: x.name })),
+        });
+        setResult({ kind: 'addons', ...r });
+        setSeatPick({}); setExtraPick({});
+      }
+      if (chosenRequests.length) {
+        const r = await post('/manage-booking/special-requests', { requests: chosenRequests.map(({ traveler_id, code }) => ({ traveler_id, code })) });
+        setSsrResult({ kind: 'ssr', ...r });
+        setSsr({});
+      }
+      setCartOpen(false);
       onChanged?.();
     } catch (e) { setError(e.message); }
     setBusy('');
@@ -228,7 +233,7 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
   const ssrLabel = (code) => [...(options.special_requests?.wheelchair || []), ...(options.special_requests?.meals || [])]
     .find(o => o.code === code)?.label || code;
 
-  const renderResult = () => (
+  const renderResult = (result) => (
     <section className="mmb-card mmb-result">
       <h4 className="mmb-section-title">Answer from the airline</h4>
       {(result.kind === 'ssr' ? result.results : [...(result.seats || []), ...(result.extras || [])]).map((i, n) => {
@@ -280,7 +285,28 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
   const flown = flightDirections(options.flights || []);
   const maps = options.seat_maps || [];
   const seatRows = flown.length ? flown : maps.map(m => ({ flight: m.flight_number, from: m.departure_airport, to: m.arrival_airport, dir: 'Flight' }));
-  const picked = chosenSeats.length + chosenExtras.length;
+  // Everything in the cart, across the Seats, Extras and Special requests tabs.
+  const nameOf = (id) => travelers.find(t => t.id === id)?.name || '';
+  const flightsOf = (nums) => [...new Set(nums || [])].map(n => flown[n - 1]?.flight).filter(Boolean).join(', ');
+  const cartItems = [
+    ...chosenSeats.map(c => ({
+      key: `seat|${c.flight}|${c.traveler}`, kind: 'Seat', name: `Seat ${c.seat.seat_number}`, who: nameOf(c.traveler), flight: c.flight,
+      price: c.seat.price || 0, currency: c.seat.currency,
+      remove: () => setSeatPick(p => { const n = { ...p }; delete n[`${c.flight}|${c.traveler}`]; return n; }),
+    })),
+    ...Object.entries(extraPick).filter(([, v]) => v !== '' && v != null && options.extras[Number(v)]).map(([k, v]) => {
+      const x = options.extras[Number(v)];
+      return { key: `extra|${k}`, kind: 'Extra', name: x.name, who: nameOf(x.traveler_identifier_ref), flight: flightsOf(x.segment_numbers),
+               price: x.price || 0, currency: x.currency, remove: () => setExtraPick(p => ({ ...p, [k]: '' })) };
+    }),
+    ...chosenRequests.map(r => ({
+      key: `ssr|${r.traveler_id}|${r.field}`, kind: 'Special request', name: ssrLabel(r.code), who: nameOf(r.traveler_id), flight: 'All flights',
+      price: 0, remove: () => setSsr(p => ({ ...p, [r.traveler_id]: { ...p[r.traveler_id], [r.field]: '' } })),
+    })),
+  ];
+  const budgetNum = Number(String(budget).replace(/,/g, '')) || 0;
+  const overBudget = budgetNum > 0 && total > budgetNum;
+  const showCart = (addons && !ndcNote) || view === 'requests';
 
   return (
     <div className="mmb-manage">
@@ -314,13 +340,9 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
           </div>
           {options.special_requests.meals_note && <p className="mmb-muted" style={{ marginTop: '0.5rem' }}>{options.special_requests.meals_note}</p>}
           <p className="mmb-note"><IconInfo size={14} /> With a wheelchair request, some airlines (SriLankan, for one) don't allow paid seat selection.</p>
-          <div className="mmb-actions">
-            <button className="btn btn-primary" disabled={busy === 'ssr' || !Object.values(ssr).some(v => v?.wheelchair || v?.meal)}
-                    onClick={sendSpecialRequests}>{busy === 'ssr' ? 'Sending…' : 'Send special requests'}</button>
-          </div>
+          <p className="mmb-muted" style={{ marginTop: '0.5rem' }}>Your choices go into your cart below, with any seats and extras — confirm the cart to send them to the airline.</p>
         </section>
       )}
-      {view === 'requests' && result?.kind === 'ssr' && renderResult()}
 
       {addons && ndcNote && <div className="mmb-alert warn">{ndcNote}</div>}
       {addons && !ndcNote && options.paid_addons_note && <div className="mmb-alert info">{options.paid_addons_note}</div>}
@@ -385,30 +407,81 @@ export default function ManageMyBooking({ manageToken, apiBase, fetchWithRetry, 
         </section>
       )}
 
-      {addons && !ndcNote && (
+      {showCart && cartOpen && (
+        <section className="mmb-card mmb-cart" id="mmb-cart">
+          <PanelHead icon={IconBag} title="Your cart"
+                     sub="Check everything before it goes to the airline. Remove anything you don't want or that's over your budget — nothing is charged now." />
+          {cartItems.length === 0 ? (
+            <div className="mmb-muted">Your cart is empty. Choose seats, extras or special requests on the tabs above.</div>
+          ) : (
+            <div className="mmb-cart-list">
+              {cartItems.map(i => (
+                <div key={i.key} className="mmb-cart-row">
+                  <span className="mmb-cart-kind">{i.kind}</span>
+                  <div className="mmb-cart-main"><strong>{i.name}</strong><small>{i.who}{i.flight ? ` · ${i.flight}` : ''}</small></div>
+                  <span className="mmb-cart-price">{i.price ? money(i.currency, i.price) : 'Free'}</span>
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={!!busy} onClick={i.remove}>Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mmb-cart-foot">
+            <label className="mmb-field mmb-budget">
+              <span>My budget (optional)</span>
+              <input className="form-input" inputMode="decimal" placeholder={`e.g. ${currency} 20,000`} value={budget}
+                     onChange={e => setBudget(e.target.value.replace(/[^\d.,]/g, ''))} />
+            </label>
+            <div className="mmb-cart-total">
+              <small>Total for paid items</small>
+              <strong>{money(currency, total)}</strong>
+              {budgetNum > 0 && (
+                <small className={overBudget ? 'mmb-over' : 'mmb-under'}>
+                  {overBudget ? `${money(currency, total - budgetNum)} over your budget — remove something to fit`
+                              : `${money(currency, budgetNum - total)} left in your budget`}
+                </small>
+              )}
+            </div>
+          </div>
+          <p className="mmb-note"><IconInfo size={14} /> When you confirm, this list goes to the airline. Once the airline confirms, the items
+            show here on Booking Status and we email and text you to pay. Nothing is charged before the airline confirms, and
+            anything it can't confirm costs nothing.</p>
+          <div className="mmb-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setCartOpen(false)}>Add more services</button>
+            <button type="button" className="btn btn-primary" disabled={!cartItems.length || overBudget || !!busy} onClick={confirmCart}>
+              {busy === 'addons' ? 'Sending to the airline…' : 'Confirm and send to the airline'}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {showCart && (
         <>
           <div className="mmb-bar">
             <div>
-              <small>{chosenSeats.length} seat{chosenSeats.length === 1 ? '' : 's'} · {chosenExtras.length} extra{chosenExtras.length === 1 ? '' : 's'} selected</small>
+              <small>Your cart · {cartItems.length} item{cartItems.length === 1 ? '' : 's'}
+                {cartItems.length ? ` (${chosenSeats.length} seat${chosenSeats.length === 1 ? '' : 's'}, ${chosenExtras.length} extra${chosenExtras.length === 1 ? '' : 's'}, ${chosenRequests.length} request${chosenRequests.length === 1 ? '' : 's'})` : ''}</small>
               <div className="mmb-total">{money(currency, total)}</div>
-              <small>The airline's live price at booking is what's charged; nothing is charged if it can't confirm.</small>
+              <small>Nothing is charged now — you pay only for what the airline confirms.</small>
             </div>
-            <button className="btn mmb-bar-btn" disabled={busy === 'addons' || !picked} onClick={sendSeatsExtras}>
-              {busy === 'addons' ? 'Booking with the airline…' : 'Add to my booking'}
+            <button type="button" className="btn mmb-bar-btn" disabled={!!busy || !cartItems.length}
+                    onClick={() => { setCartOpen(true); setTimeout(() => document.getElementById('mmb-cart')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}>
+              {cartOpen ? 'Cart open above' : 'Review cart'}
             </button>
           </div>
-          <ol className="mmb-steps">
-            <li className="done"><b>1</b><div><strong>Choose seats &amp; extras</strong>Across both tabs</div></li>
-            <li><b>2</b><div><strong>The airline confirms</strong>Free items are added at once</div></li>
-            <li><b>3</b><div><strong>Pay for paid items</strong>Only what the airline confirmed</div></li>
+          <ol className="mmb-steps mmb-steps-4">
+            <li className="done"><b>1</b><div><strong>Add to cart</strong>Seats, extras, requests</div></li>
+            <li className={cartOpen ? 'done' : ''}><b>2</b><div><strong>Review &amp; confirm</strong>Remove what you don't want</div></li>
+            <li><b>3</b><div><strong>The airline confirms</strong>Shown here + email &amp; SMS</div></li>
+            <li><b>4</b><div><strong>Pay</strong>Only what the airline confirmed</div></li>
           </ol>
         </>
       )}
 
       {busy === 'addons' && (
-        <BookingWaitLoader icon="seat" title="Sending your choices to the airline" subtitle="Waiting for the airline's answer — please don't close this page" />
+        <BookingWaitLoader icon="seat" title="Sending your cart to the airline" subtitle="Waiting for the airline's answer — please don't close this page" />
       )}
-      {addons && result && result.kind !== 'ssr' && renderResult()}
+      {showCart && ssrResult && renderResult(ssrResult)}
+      {showCart && result && renderResult(result)}
     </div>
   );
 }
