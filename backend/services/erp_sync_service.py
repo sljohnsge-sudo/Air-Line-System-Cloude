@@ -98,6 +98,60 @@ def _find_or_create_customer(client: httpx.Client, passenger_name: str, passenge
     return resp.json()["data"]["name"]
 
 
+# Our markup (customer price − airline price) on its own invoice line, so
+# finance sees the airline cost and the margin separately.
+ERP_MARKUP_ITEM_CODE = os.getenv("ERP_MARKUP_ITEM_CODE", "Booking Markup (Service Fee)")
+
+
+def _money(v) -> float:
+    try:
+        return round(float(v or 0), 2)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _ticket_lines(booking: dict, description: str) -> list:
+    """Invoice lines for a ticket: the airline's price (Travelport's ticketed
+    total), seats/extras paid with the ticket at the airline's price, and our
+    markup as the rest. The lines always add up to what the customer paid; if
+    the airline price isn't known (or the numbers don't fit), one line as before."""
+    import json as _json
+    total = _money(booking.get("total_fare"))
+    raw = booking
+    if not booking.get("fare_breakdown") and booking.get("raw_ticket_json"):
+        try:
+            raw = {**_json.loads(booking["raw_ticket_json"] or "{}"), **booking}
+        except ValueError:
+            raw = booking
+    fb = raw.get("fare_breakdown") or {}
+    airline = _money(fb.get("total"))
+    extras = []
+    for x in ((raw.get("addon_results") or {}).get("seats") or []) + ((raw.get("addon_results") or {}).get("extras") or []):
+        if x.get("status") == "confirmed" and _money(x.get("price")) > 0:
+            label = f"Seat {x['seat_number']}" if x.get("seat_number") else (x.get("name") or x.get("airline_name") or "Extra")
+            extras.append({"label": f"{label}{' · ' + x['flight_number'] if x.get('flight_number') else ''}",
+                           "supplier": _money(x.get("supplier_price") or x.get("price"))})
+    markup = round(total - airline - sum(e["supplier"] for e in extras), 2)
+    if airline <= 0 or markup < -0.5:
+        logger.warning(f"ERP sync {booking.get('locator_code')}: airline price not split "
+                       f"(total {total}, airline {airline}, extras {sum(e['supplier'] for e in extras)})")
+        return [{"item_code": ERP_ITEM_CODE, "qty": 1, "rate": total, "description": description}]
+    parts = [f"base {_money(fb.get('base_fare')):,.2f}"]
+    taxes = _money(fb.get("fuel_surcharge")) + _money(fb.get("other_taxes"))
+    if taxes:
+        parts.append(f"taxes {taxes:,.2f}")
+    if _money(fb.get("total_fees")):
+        parts.append(f"fees {_money(fb.get('total_fees')):,.2f}")
+    lines = [{"item_code": ERP_ITEM_CODE, "qty": 1, "rate": airline,
+              "description": f"{description} — airline fare ({', '.join(parts)})"}]
+    for e in extras:
+        lines.append({"item_code": ERP_ADDON_ITEM_CODE, "qty": 1, "rate": e["supplier"],
+                      "description": f"{e['label']} — airline price (booked with the ticket)"})
+    lines.append({"item_code": ERP_MARKUP_ITEM_CODE, "qty": 1, "rate": max(markup, 0.0),
+                  "description": f"Tick and Book markup on PNR {booking.get('locator_code') or booking.get('pnr') or ''}"})
+    return lines
+
+
 def push_booking_to_erp(booking: dict) -> str:
     """Creates a Sales Invoice in the ERP for one ticketed booking.
 
@@ -148,14 +202,7 @@ def push_booking_to_erp(booking: dict) -> str:
                 # instead of only being readable inside the Remarks text.
                 "custom_pnr": booking.get("pnr") or locator,
                 "custom_ticket_number": booking.get("ticket_number") or "",
-                "items": [
-                    {
-                        "item_code": ERP_ITEM_CODE,
-                        "qty": 1,
-                        "rate": float(booking.get("total_fare") or 0),
-                        "description": description,
-                    }
-                ],
+                "items": _ticket_lines(booking, description),
             }
 
             resp = client.post(f"{ERP_BASE_URL}/api/resource/Sales Invoice", json=payload)
@@ -204,10 +251,19 @@ def push_addon_to_erp(invoice: dict, booking: dict) -> str:
                     emds.append(line["emd"])
                 description = " · ".join(x for x in (line.get("description"), line.get("passenger"), route,
                                                       f"EMD {line['emd']}" if line.get("emd") else None) if x)
+                # The airline's price on the line; our markup goes on its own line below.
+                supplier = _money(line.get("supplier_amount")) if line.get("supplier_amount") is not None else _money(line.get("amount"))
                 items.append({"item_code": ERP_ADDON_ITEM_CODE, "qty": 1,
-                              "rate": float(line.get("amount") or 0), "description": description[:1000]})
+                              "rate": supplier, "description": f"{description} — airline price"[:1000]})
             if not items:
                 raise ErpSyncError(f"Add-on {invoice.get('invoice_number')} for {locator} has no lines to invoice")
+            markup = round(_money(invoice.get("total")) - sum(i["rate"] for i in items), 2)
+            if markup < -0.5:  # numbers don't fit: charge lines at what the customer paid instead
+                for i, line in zip(items, invoice.get("lines") or []):
+                    i["rate"] = _money(line.get("amount"))
+            else:
+                items.append({"item_code": ERP_MARKUP_ITEM_CODE, "qty": 1, "rate": max(markup, 0.0),
+                              "description": f"Tick and Book markup on seats/extras, PNR {locator}"})
             posting_date = (invoice.get("issued_at") or "")[:10] or None
             payload = {
                 "company": ERP_COMPANY,

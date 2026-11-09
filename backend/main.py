@@ -5221,6 +5221,7 @@ def _push_addon_to_erp(addon_id: str) -> None:
         spare = [x for x in spare if x.get("number") not in taken]
         kinds = (("SEAT", ("SEAT",)), ("BAG", ("BAG", "KG", "LB")), ("MEAL", ("MEAL",)), ("LOUNGE", ("LOUNGE",)))
         for line, item in zip(inv["lines"], addon["items"]):
+            line["supplier_amount"] = item.get("supplier_price")  # airline's price; markup is shown separately
             if not line.get("flights") and item.get("flight_number"):
                 line["flights"] = [{"flight": item["flight_number"]}]
             if not line.get("emd"):
