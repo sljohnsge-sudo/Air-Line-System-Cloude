@@ -302,6 +302,27 @@ _STALE_OFFER_MARKERS = (
 # any payment). The real error is logged and kept on the booking journey.
 BOOKING_NOT_CONFIRMED_DETAIL = ("The airline couldn't confirm your booking just now. You have not been charged — "
                                 "please try again in a moment, or choose another flight.")
+# The same failure, worded for its real cause (a schedule change has its own
+# message, _schedule_changed_detail). Last 7 days to 09/11/2026: 33 of 61 were
+# "REQUESTED CABIN HAS NO AVAILABLE FARES", 21 a 504 timeout.
+FARE_GONE_DETAIL = ("This fare is no longer available from the airline. You have not been charged — "
+                    "please choose another flight or fare.")
+AIRLINE_TIMEOUT_DETAIL = ("The airline didn't answer in time, so your booking wasn't confirmed. You have not been "
+                          "charged — please try again in a moment.")
+_FARE_GONE_MARKERS = ("NO AVAILABLE FARES", "NO FARES AVAILABLE", "NO VALID FARE", "UNABLE TO SELL",
+                      "CLASS NOT AVAILABLE", "NO SEATS AVAILABLE", "SOLD OUT")
+_TIMEOUT_MARKERS = ("504", "GATEWAY TIME", "TIMED OUT", "TIMEOUT", "DIDN'T RESPOND IN TIME")
+
+
+def _not_confirmed_detail(error) -> str:
+    """Customer message for a booking the airline/Travelport didn't confirm,
+    picked from the real error (which stays in the log and the journey)."""
+    text = str(error or "").upper()
+    if any(m in text for m in _FARE_GONE_MARKERS):
+        return FARE_GONE_DETAIL
+    if isinstance(error, httpx.TimeoutException) or any(m in text for m in _TIMEOUT_MARKERS):
+        return AIRLINE_TIMEOUT_DETAIL
+    return BOOKING_NOT_CONFIRMED_DETAIL
 
 
 def friendly_travelport_error(raw_message: str) -> str:
@@ -1544,11 +1565,11 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
             detail = f"Travelport booking API error: {error_msg[:400]}"
         logger.error(f"Booking failed with HTTPStatusError: {error_msg}. Details: {response_text[:300]}")
         insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking", raw_error=detail)
-        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
+        raise HTTPException(status_code=502, detail=_not_confirmed_detail(f"HTTP {status_code}: {response_text}"))
     except Exception as e:
         logger.error(f"Booking failed: {e}")
         insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking", raw_error=str(e))
-        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
+        raise HTTPException(status_code=502, detail=_not_confirmed_detail(e))
 
 
 # ── STEPS 4 & 10: Initiate Booking (Workbench & Seatmap) ──────────────────────
@@ -1925,7 +1946,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # customer's to read — clear message, real error on the journey.
         logger.error(f"Confirmation failed: {e}")
         insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking", raw_error=str(e))
-        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
+        raise HTTPException(status_code=502, detail=_not_confirmed_detail(e))
     except httpx.HTTPStatusError as e:
         error_msg = str(e)
         status_code = e.response.status_code
@@ -1933,11 +1954,11 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         logger.error(f"Confirmation failed with HTTPStatusError: {error_msg}. Details: {response_text[:300]}")
         insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking",
                       raw_error=f"HTTP {status_code}: {response_text[:600]}")
-        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
+        raise HTTPException(status_code=502, detail=_not_confirmed_detail(f"HTTP {status_code}: {response_text}"))
     except Exception as e:
         logger.error(f"Confirmation failed: {e}")
         insights.mark("Travelport booking", "fail", "Airline/Travelport did not confirm the booking", raw_error=str(e))
-        raise HTTPException(status_code=502, detail=BOOKING_NOT_CONFIRMED_DETAIL)
+        raise HTTPException(status_code=502, detail=_not_confirmed_detail(e))
     finally:
         services.end_flow_trace_id(trace_token)
         if booked_locator is None:

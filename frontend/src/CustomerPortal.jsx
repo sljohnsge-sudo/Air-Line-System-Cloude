@@ -454,7 +454,6 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
             )}
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-secondary btn-sm" onClick={onOpenInvoice}>🔍 Look Up a Booking (PNR/Ticket)</button>
             <button className="btn btn-secondary btn-sm" onClick={onCustomerLogout}>Log Out</button>
           </div>
         </div>
@@ -491,7 +490,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '-0.5rem 0 1rem' }}>
                 Bookings made while signed in, plus any past bookings made under this account's email address.
-                Booked under a different email? Use "Look Up a Booking" above with the PNR or ticket number instead.
+                Booked under a different email? Open the Booking Status tab and enter the PNR or ticket number with the passenger's last name.
               </p>
               {bookingsError && <div className="error-banner">{bookingsError}</div>}
               {loadingBookings ? (
