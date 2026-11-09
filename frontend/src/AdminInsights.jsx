@@ -3,7 +3,7 @@
 // watch, customer 360 and birthday / passport reminders. Everything shown is
 // what customers entered and what Travelport (later Amadeus) returned — the
 // backend (backend/insights.py) never generates or estimates any of it.
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { Fragment, useEffect, useState, useCallback, useRef } from 'react';
 import { fmtDate, fmtDateTime } from './dateFormat.js';
 
 const fmtDT = (v) => fmtDateTime(v, '—');
@@ -63,9 +63,11 @@ function Journeys({ api, openJourneyId, onOpened }) {
     api(`/journeys?days=${days}${status ? `&status=${status}` : ''}`).then(d => setRows(d.journeys)).catch(e => setError(e.message));
   }, [api, days, status]);
   useEffect(() => { load(); }, [load]);
+  // Clicking a row opens its steps right under that row; clicking it again closes them.
   const openOne = useCallback((id) => {
     api(`/journeys/${encodeURIComponent(id)}`).then(setOpen).catch(e => setError(e.message));
   }, [api]);
+  const toggle = (id) => (open && open.journey_id === id ? setOpen(null) : openOne(id));
   useEffect(() => { if (openJourneyId) { openOne(openJourneyId); onOpened?.(); } }, [openJourneyId, openOne, onOpened]);
 
   return (
@@ -80,21 +82,31 @@ function Journeys({ api, openJourneyId, onOpened }) {
         </select>
       </div>}>
       {error && <div className="error-banner">{error}</div>}
-      {open && <JourneyDetail j={open} onClose={() => setOpen(null)} />}
+      {/* A journey opened from an alert that isn't in this list (other period/filter) shows on top. */}
+      {open && rows && !rows.some(r => r.journey_id === open.journey_id) && <JourneyDetail j={open} onClose={() => setOpen(null)} />}
       {!rows ? <Loading text="Loading journeys…" /> : rows.length === 0 ? <p className="ins-empty">No booking attempts in this period.</p> : (
         <div className="ins-table-wrap"><table className="ins-table">
           <thead><tr><th>Last update</th><th>Customer</th><th>Trip</th><th>Fare</th><th>Status</th><th>Stopped at</th><th>IP</th></tr></thead>
-          <tbody>{rows.map(r => (
-            <tr key={r.journey_id} className="ins-click" onClick={() => openOne(r.journey_id)}>
-              <td>{fmtDT(r.updated_at)}</td>
-              <td>{r.customer_name || '—'}<div className="ins-sub">{r.customer_email || ''}</div></td>
-              <td>{r.route || '—'}<div className="ins-sub">{r.airline || ''} {r.flight || ''}</div></td>
-              <td>{money(r.amount, r.currency)}</td>
-              <td><span className={`ins-pill ${r.status}`}>{STATUS_LABEL[r.status] || r.status}</span></td>
-              <td>{r.status === 'failed' ? r.failed_step : r.status === 'ticketed' ? (r.locator_code || '') : r.last_step}</td>
-              <td className="ins-mono">{r.ip}</td>
-            </tr>
-          ))}</tbody>
+          <tbody>{rows.map(r => {
+            const isOpen = open && open.journey_id === r.journey_id;
+            return (
+              <Fragment key={r.journey_id}>
+                <tr className={`ins-click${isOpen ? ' ins-open' : ''}`} onClick={() => toggle(r.journey_id)} title={isOpen ? 'Click to close' : 'Click to see every step'}>
+                  <td><span className="ins-caret">{isOpen ? '▾' : '▸'}</span> {fmtDT(r.updated_at)}</td>
+                  <td>{r.customer_name || '—'}<div className="ins-sub">{r.customer_email || ''}</div></td>
+                  <td>{r.route || '—'}<div className="ins-sub">{r.airline || ''} {r.flight || ''}</div></td>
+                  <td>{money(r.amount, r.currency)}</td>
+                  <td><span className={`ins-pill ${r.status}`}>{STATUS_LABEL[r.status] || r.status}</span></td>
+                  <td>{r.status === 'failed' ? r.failed_step : r.status === 'ticketed' ? (r.locator_code || '') : r.last_step}
+                    {r.status === 'failed' && r.why_failed && <div className="ins-why-short">{r.why_failed}</div>}</td>
+                  <td className="ins-mono">{r.ip}</td>
+                </tr>
+                {isOpen && (
+                  <tr className="ins-detail-row"><td colSpan={7}><JourneyDetail j={open} onClose={() => setOpen(null)} /></td></tr>
+                )}
+              </Fragment>
+            );
+          })}</tbody>
         </table></div>
       )}
     </Section>
@@ -111,6 +123,17 @@ function JourneyDetail({ j, onClose }) {
         </div>
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button>
       </div>
+      {j.why_failed && (
+        <div className="ins-why">
+          <div className="ins-why-title">Why it failed: {j.why_failed.title}</div>
+          <div className="ins-why-grid">
+            <span>Stopped at</span><strong>{j.failed_step || '—'}</strong>
+            <span>Customer charged</span><strong className={j.why_failed.charged === 'No' ? 'ins-good' : 'ins-bad'}>{j.why_failed.charged}</strong>
+            <span>What to do</span><span>{j.why_failed.action}</span>
+            {j.why_failed.error && <><span>Real error</span><span className="ins-mono ins-why-err">{j.why_failed.error}</span></>}
+          </div>
+        </div>
+      )}
       <ol className="ins-steps">
         {j.steps.map((s, i) => (
           <li key={i} className={`ins-step ${s.status}`}>

@@ -460,7 +460,73 @@ def list_journeys(days: int = 7, status: str | None = None, limit: int = 200) ->
         where.append("status=%s"); params.append(status)
     rows = _q(f"""SELECT * FROM booking_journeys WHERE {' AND '.join(where)}
                   AND status <> 'searching' ORDER BY updated_at DESC LIMIT %s""", (*params, min(limit, 1000)))
+    # Failed ones get their short reason for the list (one query for all).
+    failed = [r["journey_id"] for r in rows if r.get("status") == "failed"]
+    if failed:
+        marks = ",".join(["%s"] * len(failed))
+        steps = _q(f"SELECT journey_id, step, status, detail, raw_error FROM booking_journey_steps "
+                   f"WHERE journey_id IN ({marks}) AND status='fail' ORDER BY id", tuple(failed))
+        by = {}
+        for s in steps:
+            by.setdefault(s["journey_id"], []).append(s)
+        for r in rows:
+            if r["journey_id"] in by:
+                r["why_failed"] = explain_failure(by[r["journey_id"]])["title"]
     return rows
+
+
+# Why a booking journey failed, in plain words for staff: what happened,
+# whether the customer was charged, and what to do. Read from the failed
+# steps' customer message and real error (the last failed step often only
+# carries the customer message; the real error sits on an earlier one).
+_FAILURE_RULES = [
+    (("CONSUMER CANCELLED", "PAYMENT CANCELLED", "CODE=CANCEL", "CODE CANCEL"),
+     "Customer cancelled on the payment page", "No",
+     "Nothing to fix. The unpaid booking is released automatically; you may call the customer to help them finish."),
+    (("DECLINE", "AUTHORIZATION DECLINED", "CODE=REVIEW", "NOT AUTHORI"),
+     "The customer's bank declined the card", "No",
+     "Nothing to fix on our side. The customer can try another card."),
+    (("DID NOT CONFIRM YOUR TICKET", "PAID BUT NOT TICKETED", "NOT TICKETED", "AUTOMATIC FULL REFUND"),
+     "Paid, but the airline didn't issue the ticket", "Yes — refund request created automatically",
+     "Check Ticketing Exceptions and Cancellations: issue the ticket manually or complete the refund."),
+    (("CHANGED THE TIMING", "CHANGED THE SCHEDULE", "SCHEDULE CHANGE"),
+     "The airline changed the flight's schedule", "No",
+     "Nothing to fix. The customer was asked to choose another flight; it can be booked again once the airline confirms the new timing."),
+    (("FARE HAS CHANGED TO", "FARE HAS CHANGED AT THE AIRLINE"),
+     "The price went up at the airline before payment", "No",
+     "Nothing to fix. The customer was shown the new price; you may call them if they didn't continue."),
+    (("NO AVAILABLE FARES", "NO LONGER AVAILABLE", "FARE OR AVAILABILITY HAS CHANGED", "UNABLE TO SELL", "SOLD OUT"),
+     "The fare was no longer available at the airline", "No",
+     "Nothing to fix. The seats at that price were gone; the customer needs another fare or flight."),
+    (("JUST SUBMITTED", "ALREADY BEING", "ALREADY PRESENT"),
+     "The same booking was submitted twice (double click or retry)", "No",
+     "Check the customer's other attempt in this list — usually the first one went through."),
+    (("504", "GATEWAY TIME", "TIMED OUT", "TIMEOUT", "FORCIBLY CLOSED", "WINERROR", "DIDN'T ANSWER IN TIME"),
+     "The airline / Travelport didn't answer in time", "No",
+     "Usually temporary — the customer can try again. If it keeps happening for one airline, tell Travelport."),
+    (("MINIMUM CONNECTING TIME", "DATE SEQUENCE", "FLIGHT DOES NOT EXIST", "DOES NOT OPERATE"),
+     "The airline rejected this flight combination (connection time, dates or a flight not operating)", "No",
+     "Nothing to fix for this customer — they need another itinerary. If search keeps offering it, tell Travelport."),
+    (("SYSTEM ERROR", "INTERNAL SERVER ERROR"),
+     "Travelport had a system error", "No",
+     "Usually temporary — the customer can try again. If it repeats, send the real error to Travelport."),
+    (("PASSPORT", "DATE OF BIRTH", "NAME IS REQUIRED", "INVALID NAME", "NAME TOO"),
+     "The airline rejected the passenger details", "No",
+     "Check the passenger's name, date of birth and passport details with the customer."),
+]
+
+
+def explain_failure(fail_steps: list) -> dict:
+    """{title, charged, action, error} for a failed journey's fail steps."""
+    text = " ".join(f"{s.get('detail') or ''} {s.get('raw_error') or ''}" for s in fail_steps).upper()
+    real = next((s.get("raw_error") for s in reversed(fail_steps) if s.get("raw_error")), None) \
+        or next((s.get("detail") for s in reversed(fail_steps) if s.get("detail")), "")
+    for markers, title, charged, action in _FAILURE_RULES:
+        if any(m in text for m in markers):
+            return {"title": title, "charged": charged, "action": action, "error": (real or "")[:600]}
+    return {"title": "The airline / Travelport refused the booking", "charged": "No",
+            "action": "Read the real error below; if it isn't clear, send it to Travelport with the journey time.",
+            "error": (real or "")[:600]}
 
 
 def get_journey(jid: str) -> dict | None:
@@ -470,6 +536,9 @@ def get_journey(jid: str) -> dict | None:
                         "WHERE journey_id=%s ORDER BY id", (jid,))
         j["searches"] = _q("SELECT id, searched_at, origin, destination, departure_date, return_date, result_count, "
                            "cheapest_price, cheapest_currency FROM search_log WHERE journey_id=%s ORDER BY id", (jid,))
+        fails = [s for s in j["steps"] if s.get("status") == "fail"]
+        if j.get("status") == "failed" and fails:
+            j["why_failed"] = explain_failure(fails)
     return j
 
 
