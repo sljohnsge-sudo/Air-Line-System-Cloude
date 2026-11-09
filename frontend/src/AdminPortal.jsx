@@ -1336,7 +1336,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     ] },
     { group: 'Customers & Insights', items: [
       { id: 'insight-customers', label: 'Customer 360', icon: 'user' },
-      { id: 'insight-journeys', label: 'Booking Journeys', icon: 'route' },
+      { id: 'insight-journeys', label: 'Booking Journey Logs', icon: 'route' },
       { id: 'insight-searches', label: 'Search Log', icon: 'list' },
       { id: 'insight-ips', label: 'IP Monitor', icon: 'shield' },
       { id: 'insight-reminders', label: 'Birthdays & Passports', icon: 'gift' },

@@ -71,7 +71,7 @@ function Journeys({ api, openJourneyId, onOpened }) {
   useEffect(() => { if (openJourneyId) { openOne(openJourneyId); onOpened?.(); } }, [openJourneyId, openOne, onOpened]);
 
   return (
-    <Section title="Booking Journeys"
+    <Section title="Booking Journey Logs"
       intro="Every booking attempt, step by step — what passed, where it stopped, the message the customer saw and the real error behind it."
       right={<div className="ins-filters">
         <select className="form-input" value={status} onChange={e => setStatus(e.target.value)}>
