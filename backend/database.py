@@ -1,4 +1,4 @@
-﻿"""
+"""
 database.py
 ===========
 MySQL Cache for Issued Tickets -- XAMPP MySQL Backend
