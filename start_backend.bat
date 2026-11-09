@@ -5,7 +5,7 @@ color 0A
 echo.
 echo  ============================================
 echo    Final Travels - Backend Server (API)
-echo    Running on http://localhost:8000
+echo    Running on http://localhost:8005
 echo  ============================================
 echo.
 
@@ -19,11 +19,11 @@ if not exist "venv\Scripts\python.exe" (
 )
 
 echo [INFO] Starting FastAPI backend with uvicorn...
-echo [INFO] API Docs available at: http://localhost:8000/docs
+echo [INFO] API Docs available at: http://localhost:8005/docs
 echo [INFO] Press CTRL+C to stop the server.
 echo.
 
-venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8005 --reload
 
 echo.
 echo [INFO] Backend server stopped.
