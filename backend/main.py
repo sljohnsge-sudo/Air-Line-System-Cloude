@@ -2287,23 +2287,36 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
     # this point, so an ERP/network hiccup here must never surface as a
     # booking failure to the customer; failures are recorded for the
     # /api/admin/erp-sync backfill/retry endpoints instead of being retried
-    # inline.
-    if services.erp_configured():
-        try:
-            invoice_name = services.push_booking_to_erp(saved)
-            database.mark_erp_synced(locator_code, invoice_name)
-        except Exception as e:
-            logger.warning(f"ERP sync failed for {locator_code} (non-fatal): {e}")
-            try:
-                database.mark_erp_sync_failed(locator_code, str(e))
-            except Exception as db_err:
-                logger.error(f"Could not record ERP sync failure for {locator_code}: {db_err}")
+    # inline. Sent in the background: the customer gets the e-ticket at once,
+    # and a slow ERP can never delay it.
+    _push_booking_to_erp_background(locator_code, saved)
 
     return {
         "success": True,
         "ticket": ticket,
         "cached_id": saved.get("id")
     }
+
+
+def _push_booking_to_erp_background(locator: str, saved: dict) -> None:
+    """Ticket -> ERPNext Sales Invoice on a background thread, seconds after
+    ticketing, never holding up the customer's response. Result recorded on
+    the booking (erp_invoice_name / erp_sync_error); never raises."""
+    if not services.erp_configured():
+        return
+
+    def run():
+        try:
+            invoice_name = services.push_booking_to_erp(saved)
+            database.mark_erp_synced(locator, invoice_name)
+        except Exception as e:
+            logger.warning(f"ERP sync failed for {locator} (non-fatal): {e}")
+            try:
+                database.mark_erp_sync_failed(locator, str(e))
+            except Exception as db_err:
+                logger.error(f"Could not record ERP sync failure for {locator}: {db_err}")
+
+    threading.Thread(target=run, name=f"erp-{locator}", daemon=True).start()
 
 
 # ── ERP Sync (George Steuart ERP, erp-dev.gsoptimize.lk) ───────────────────────
@@ -2484,17 +2497,9 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
     # NDC Instant Pay books, pays, and tickets in one Travelport commit, so
     # unlike the GDS/regular-NDC flow it never passes through
     # _issue_and_save_ticket — this is the only other place a booking
-    # actually becomes "Ticketed", so it needs the same best-effort ERP push.
-    if services.erp_configured():
-        try:
-            invoice_name = services.push_booking_to_erp(saved)
-            database.mark_erp_synced(locator, invoice_name)
-        except Exception as e:
-            logger.warning(f"ERP sync failed for {locator} (non-fatal): {e}")
-            try:
-                database.mark_erp_sync_failed(locator, str(e))
-            except Exception as db_err:
-                logger.error(f"Could not record ERP sync failure for {locator}: {db_err}")
+    # actually becomes "Ticketed", so it needs the same best-effort ERP push
+    # (in the background, like the GDS flow).
+    _push_booking_to_erp_background(locator, saved)
 
     insights.mark("Ticket issued", "pass", f"PNR {locator} — ticket(s) {', '.join(n for _, n in ip['ticket_numbers'])}")
     insights.journey_info(locator_code=locator)
