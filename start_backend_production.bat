@@ -5,7 +5,7 @@ color 0A
 echo.
 echo  ============================================
 echo    Tick and Book - Backend Server (production)
-echo    Running on http://localhost:8000
+echo    Running on http://localhost:8005
 echo  ============================================
 echo.
 
@@ -27,7 +27,7 @@ echo [INFO] Starting FastAPI backend (production mode)...
 echo [INFO] Press CTRL+C to stop the server.
 echo.
 
-venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --no-access-log --timeout-keep-alive 30
+venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8005 --no-access-log --timeout-keep-alive 30
 
 echo.
 echo [INFO] Backend server stopped.

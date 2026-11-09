@@ -34,7 +34,7 @@ class AuthConfig:
     # Google/Microsoft send the browser back to after consent. Must exactly
     # match a Redirect URI registered in each provider's app console (see
     # setup docs) or the provider will refuse the exchange.
-    OAUTH_REDIRECT_BASE: str = os.getenv("OAUTH_REDIRECT_BASE", "http://localhost:8000")
+    OAUTH_REDIRECT_BASE: str = os.getenv("OAUTH_REDIRECT_BASE", "http://localhost:8005")
     # Where the browser lands (with the finished login token) once the
     # backend's own OAuth callback completes.
-    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:5176")

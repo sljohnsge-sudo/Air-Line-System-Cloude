@@ -1,7 +1,7 @@
 @echo off
 title Tick and Book - start everything
-REM Starts the whole local system in order: MySQL (XAMPP) -> backend (8000)
-REM -> website (5173). Windows runs this at sign-in (a small call to it sits
+REM Starts the whole local system in order: MySQL (XAMPP) -> backend (8005)
+REM -> website (5176). Windows runs this at sign-in (a small call to it sits
 REM in the user's Startup folder); it can also be double-clicked any time. A
 REM part that is already running is left alone, so running it twice is safe.
 
@@ -19,8 +19,8 @@ if errorlevel 1 (
     echo [INFO] MySQL already running.
 )
 
-REM 2. Backend on 8000
-powershell -NoProfile -Command "exit [int](-not (Get-NetTCPConnection -State Listen -LocalPort 8000 -ErrorAction SilentlyContinue))"
+REM 2. Backend on 8005
+powershell -NoProfile -Command "exit [int](-not (Get-NetTCPConnection -State Listen -LocalPort 8005 -ErrorAction SilentlyContinue))"
 if errorlevel 1 (
     echo [INFO] Starting backend...
     start "Tick and Book - Backend" /min cmd /c "%~dp0start_backend.bat"
@@ -28,8 +28,8 @@ if errorlevel 1 (
     echo [INFO] Backend already running.
 )
 
-REM 3. Website on 5173
-powershell -NoProfile -Command "exit [int](-not (Get-NetTCPConnection -State Listen -LocalPort 5173 -ErrorAction SilentlyContinue))"
+REM 3. Website on 5176
+powershell -NoProfile -Command "exit [int](-not (Get-NetTCPConnection -State Listen -LocalPort 5176 -ErrorAction SilentlyContinue))"
 if errorlevel 1 (
     echo [INFO] Starting website...
     start "Tick and Book - Website" /min cmd /c "%~dp0start_frontend.bat"
@@ -37,5 +37,5 @@ if errorlevel 1 (
     echo [INFO] Website already running.
 )
 
-echo [INFO] Done. Website: http://localhost:5173
+echo [INFO] Done. Website: http://localhost:5176
 timeout /t 5 >nul

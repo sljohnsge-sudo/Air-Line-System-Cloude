@@ -5,7 +5,7 @@ color 0B
 echo.
 echo  ============================================
 echo    Final Travels - Frontend Dev Server
-echo    Running on http://localhost:5173
+echo    Running on http://localhost:5176
 echo  ============================================
 echo.
 
@@ -22,7 +22,7 @@ if not exist "node_modules" (
 )
 
 echo [INFO] Starting Vite dev server...
-echo [INFO] App available at: http://localhost:5173
+echo [INFO] App available at: http://localhost:5176
 echo [INFO] Press CTRL+C to stop the server.
 echo.
 
