@@ -1325,7 +1325,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   // Lookup, and Visa Consultation Bookings joined the other visa pages.)
   const adminNavGroups = [
     { group: 'Operations', items: [
-      { id: 'stuck-bookings', label: 'Ticketing Exceptions', icon: 'alert', count: stuckBookings.length },
+      { id: 'stuck-bookings', label: 'Ticketing Exceptions Logs', icon: 'alert', count: stuckBookings.length },
       { id: 'notifications', label: 'Supplier Alerts', icon: 'bell', count: notifications.length },
       { id: 'force-issue', label: 'Booking Lookup', icon: 'search' },
       { id: 'assign-booking', label: 'Link Booking to Customer', icon: 'link' },
@@ -2033,7 +2033,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         );
         return (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Ticketing Exceptions {stuckBookings.length > 0 && `(${stuckBookings.length} open)`}</h3>
+        <h3 className="results-heading">Ticketing Exceptions Logs {stuckBookings.length > 0 && `(${stuckBookings.length} open)`}</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
           Bookings that need a person — paid but not ticketed, paid seat/extra with no EMD, a failed void / refund / cancel,
           an unpaid extra that couldn't be removed, or a flight the airline didn't confirm. Urgent first; fixed items close by themselves.
@@ -2043,7 +2043,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         )}
         {stuckBookingsError && <div className="error-banner">{stuckBookingsError}</div>}
         {stuckBookingsLoading ? (
-          <div className="loading-state"><div className="spinner"></div><p>Loading ticketing exceptions...</p></div>
+          <div className="loading-state"><div className="spinner"></div><p>Loading ticketing exceptions logs...</p></div>
         ) : stuckBookings.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No open ticketing exceptions.</p>
         ) : (
@@ -2250,7 +2250,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           When the airline confirms a paid seat or extra on a ticketed booking, the customer must pay for it by a deadline:
           the first of the two times below. If it isn't paid by then, it is removed from the PNR (checked every 15 minutes and
           whenever the customer opens Booking Status). Anything Travelport won't remove — paid seats on a ticketed booking, today —
-          shows in Ticketing Exceptions for staff to remove in Smartpoint.
+          shows in Ticketing Exceptions Logs for staff to remove in Smartpoint.
         </p>
         {!providerSettingsLoading && providerSettings && (
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', maxWidth: '520px' }}>
