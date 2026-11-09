@@ -111,7 +111,7 @@ export default function AirportSearchSelect({ value, onChange, label, placeholde
             >
               <div className="autocomplete-details">
                 <span className="autocomplete-name">{airport.city} ({airport.iata})</span>
-                <span className="autocomplete-location">{airport.name}, {airport.country}</span>
+                <span className="autocomplete-location">{airport.name}, {airport.country_name || airport.country}</span>
               </div>
               <span className="autocomplete-code">{airport.iata}</span>
             </div>

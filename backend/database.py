@@ -2988,9 +2988,80 @@ def search_airports(query: str, limit: int = 15, country: str = "") -> list[dict
             LIMIT %s
         """, (pattern, pattern, pattern, upper, prefix, prefix, limit))
     rows = cursor.fetchall()
+    # A country name ("india", "sri lanka", "uae") lists that country's
+    # airports too, international ones first: a full name or alias goes
+    # straight after an exact IATA match, a partial one (4+ letters) after
+    # the city matches — so "colo" still shows Colombo before Colombia.
+    if not country:
+        exact, partial = _countries_for_query(query)
+        if exact or partial:
+            def of(codes):
+                if not codes:
+                    return []
+                marks = ",".join(["%s"] * len(codes))
+                hubs = ",".join(["%s"] * len(_MAJOR_HUBS))
+                cursor.execute(f"""
+                    SELECT * FROM airports WHERE country IN ({marks})
+                    ORDER BY CASE WHEN iata IN ({hubs}) THEN 0
+                                  WHEN name LIKE '%%International%%' THEN 1 ELSE 2 END, city ASC
+                    LIMIT 25
+                """, tuple(codes) + _MAJOR_HUBS)
+                return cursor.fetchall()
+            head = [r for r in rows if r["iata"] == upper]
+            cities = [r for r in rows if r["iata"] != upper]
+            merged, seen = [], set()
+            for r in head + of(exact) + cities + of(partial):
+                if r["iata"] not in seen:
+                    seen.add(r["iata"])
+                    merged.append(r)
+            rows = merged[:30]
     cursor.close()
     conn.close()
+    from utils.country_names import country_name
+    for r in rows:
+        r["country_name"] = country_name(r.get("country") or "")
     return rows
+
+
+# Main airports listed first when a whole country is shown (the airports
+# table has no traffic figures; big countries have 100+ "International" ones).
+_MAJOR_HUBS = ("JFK", "EWR", "LAX", "ORD", "SFO", "IAD", "ATL", "DFW", "MIA", "SEA", "BOS", "IAH",
+               "LHR", "LGW", "MAN", "EDI", "DEL", "BOM", "MAA", "BLR", "HYD", "CCU", "COK", "TRV",
+               "DXB", "AUH", "SHJ", "DOH", "BAH", "MCT", "KWI", "RUH", "JED", "DMM", "SIN", "KUL",
+               "BKK", "HKT", "CGK", "DPS", "MNL", "HKG", "PEK", "PVG", "CAN", "NRT", "HND", "KIX",
+               "ICN", "SYD", "MEL", "BNE", "PER", "AKL", "YYZ", "YVR", "CDG", "FRA", "MUC", "AMS",
+               "ZRH", "FCO", "MXP", "MAD", "BCN", "IST", "CAI", "JNB", "NBO", "ADD", "MLE", "KTM",
+               "DAC", "KHI", "LHE", "ISB", "CMB", "HRI", "SGN", "HAN", "TPE", "MRU")
+
+# Everyday names that aren't the ISO name in utils/country_names.py.
+_COUNTRY_ALIASES = {"UAE": "AE", "EMIRATES": "AE", "UK": "GB", "BRITAIN": "GB", "GREAT BRITAIN": "GB",
+                    "ENGLAND": "GB", "SCOTLAND": "GB", "USA": "US", "AMERICA": "US", "KSA": "SA",
+                    "SAUDI": "SA", "HOLLAND": "NL", "KOREA": "KR", "SOUTH KOREA": "KR", "RUSSIA": "RU",
+                    "VIETNAM": "VN", "TURKEY": "TR", "TURKIYE": "TR", "CZECHIA": "CZ"}
+
+
+def _countries_for_query(query: str) -> tuple[list, list]:
+    """(exact, partial) country codes a search term names. Exact: the whole
+    name, one whole word of it ("lanka") or an alias ("uae"). Partial: the
+    start of a name or word, 4+ letters. Two-letter terms never match (they
+    are airport/city codes)."""
+    from utils.country_names import COUNTRY_NAMES
+    q = " ".join((query or "").upper().split())
+    if q in _COUNTRY_ALIASES:  # also 2-letter ones such as "UK"
+        return [_COUNTRY_ALIASES[q]], []
+    if len(q) < 3:
+        return [], []
+    exact, partial = [], []
+    for code, name in COUNTRY_NAMES.items():
+        n = name.upper()
+        words = n.replace(",", " ").replace("(", " ").replace(")", " ").split()
+        if code in exact:
+            continue
+        if q == n or (len(q) >= 4 and q in words):
+            exact.append(code)
+        elif len(q) >= 4 and (n.startswith(q) or any(w.startswith(q) for w in words)):
+            partial.append(code)
+    return exact, [c for c in partial if c not in exact][:3]
 
 
 def get_airport_countries() -> list[dict]:
