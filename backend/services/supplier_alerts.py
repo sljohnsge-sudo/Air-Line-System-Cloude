@@ -18,6 +18,7 @@ KINDS = {
     "account": ("Account set-up (1586)", "Account set-up"),
     "ad_down": ("Amadeus service not reachable", "Amadeus offline"),
     "empty": ("No fares returned (no error)", "Empty result"),
+    "channel_missing": ("GDS or NDC fares missing", "Channel missing"),
     "other": ("Other", "Other"),
 }
 
@@ -28,6 +29,7 @@ ACTIONS = {
     "account": "Ask Travelport to check the TripServices access and PCC",
     "ad_down": "Amadeus is Phase 2 (not live yet) — nothing to do; acknowledge",
     "empty": "Check the route has flights that day; if it should, retry the search and tell the supplier",
+    "channel_missing": "That channel had fares on this route in the last 7 days — retry; if it repeats, tell the supplier its GDS/NDC content is missing",
     "other": "Retry the search; send the full message to Travelport if it repeats",
 }
 
@@ -36,6 +38,8 @@ _LEG = re.compile(r"([A-Z]{3})\s*(?:→|->)\s*([A-Z]{3})\s+on\s+(\d{4}-\d{2}-\d{
 
 def classify(row: dict) -> str:
     m = (row.get("error_message") or "").upper()
+    if "RETURNED NO GDS FARES" in m or "RETURNED NO NDC FARES" in m:
+        return "channel_missing"
     if "RETURNED NO FARES" in m:
         return "empty"
     if row.get("provider") == "AD":
@@ -66,6 +70,9 @@ def summary(kind: str, row: dict) -> str:
         return f"Travelport sent no fares for this search (NO OFFERS FOUND FOR THE CHANNEL){_tries(m)}"
     if kind == "comm_error":
         return f"Travelport communication error (COMMUNICATION ERROR. RETRY){_tries(m)}"
+    if kind == "channel_missing":
+        ch = "NDC" if "NO NDC FARES" in m.upper() else "GDS"
+        return f"{SUPPLIERS.get(row.get('provider'), 'The supplier')} sent fares, but none from {ch} — {ch} had fares on this route in the last 7 days"
     if kind == "empty":
         return f"{SUPPLIERS.get(row.get('provider'), 'The supplier')} answered with no fares for this search — no error given"
     if kind == "account":

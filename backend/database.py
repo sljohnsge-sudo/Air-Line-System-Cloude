@@ -1725,6 +1725,20 @@ def create_provider_notification(provider: str, error_message: str, route_info: 
         conn.close()
 
 
+def set_provider_notification_trace(notification_id: int, journey_id: str | None, delivery: dict) -> None:
+    """The booking journey (search) that raised the alert, and the email
+    delivery result per recipient — shown on Airline Rates Logs."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE provider_notifications SET journey_id=%s, delivery_json=%s WHERE id=%s",
+                       (journey_id, json.dumps(delivery, default=str), notification_id))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def get_recent_provider_notification(provider: str, minutes: int) -> dict | None:
     """Most recent notification for this provider within the last N minutes
     that actually sent an email -- used to debounce (one email per provider

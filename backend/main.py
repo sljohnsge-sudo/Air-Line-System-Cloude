@@ -633,6 +633,19 @@ def get_airport_countries():
 _NOTIFICATION_DEBOUNCE_MINUTES = 15
 
 
+def _travelport_result_messages(raw: dict) -> list[str]:
+    """Travelport's own warnings/errors in a search response (Result.Warning /
+    Result.Error), kept with the search for Airline Rates Logs."""
+    res = ((raw or {}).get("CatalogProductOfferingsResponse") or {}).get("Result") or {}
+    out = []
+    for kind in ("Error", "Warning"):
+        for m in res.get(kind) or []:
+            text = (m.get("Message") or "").strip() if isinstance(m, dict) else str(m)
+            if text and text not in out:
+                out.append(f"{kind}: {text}"[:300])
+    return out
+
+
 def _notify_provider_failure(provider: str, error_message: str, route_info: str | None) -> None:
     """Logs a provider_notifications row and, unless the same provider already
     emailed within the debounce window (an outage shouldn't flood the inbox
@@ -643,14 +656,24 @@ def _notify_provider_failure(provider: str, error_message: str, route_info: str 
     should_email = bool(recipients) and recent is None
 
     email_sent = False
+    # Who it went to and what happened (Airline Rates Logs › notification delivery).
+    if not recipients:
+        delivery = {"result": "no_recipients", "recipients": []}
+    elif recent is not None:
+        delivery = {"result": "skipped_recent", "recipients": recipients,
+                    "note": f"An email for this supplier already went out at {recent.get('created_at')}"}
+    else:
+        delivery = {"result": "sent", "recipients": recipients}
     if should_email:
         sent, err = services.send_provider_failure_email(", ".join(recipients), provider, error_message, route_info)
         email_sent = sent
         if not sent:
+            delivery = {"result": "failed", "recipients": recipients, "note": (err or "")[:300]}
             logger.warning(f"Provider-failure notification email not sent: {err}")
 
     try:
-        database.create_provider_notification(provider, error_message, route_info, email_sent)
+        row = database.create_provider_notification(provider, error_message, route_info, email_sent)
+        database.set_provider_notification_trace(row["id"], insights.current_journey(), delivery)
     except Exception as db_err:
         logger.error(f"Failed to log provider_notifications row: {db_err}")
 
@@ -977,6 +1000,8 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
     tp_enabled = search_mode in ("both", "travelport_only")
     ad_enabled = search_mode in ("both", "amadeus_only")
 
+    tp_messages: list[str] = []  # Travelport's own warnings/errors, kept with the search record
+
     def _search_travelport() -> list[dict]:
         # Travelport's PricingModifiersAir.currencyCode override (see
         # search_service.py) reliably reprices GDS content, but confirmed live
@@ -990,6 +1015,7 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
         # ancillary-shop 504 retries).
         last_offers: list[dict] = []
         for attempt in range(3):
+            tp_messages.clear()
             raw = services.search_flights(
                 origin=request.origin.upper() if request.origin else None,
                 destination=request.destination.upper() if request.destination else None,
@@ -1003,6 +1029,7 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
                 content_source=request.content_source,
                 max_upsells=0 if kind == "nearby" else None,
             )
+            tp_messages.extend(_travelport_result_messages(raw))
             last_offers = [o for o in services.parse_flight_offers(
                 raw, legs=legs,
                 origin=request.origin.upper() if request.origin else None,
@@ -1088,18 +1115,33 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
         for tag, name in (("TP", "Travelport"), ("AD", "Amadeus")):
             if providers[tag] == "0 offers":
                 _notify_provider_failure(tag, f"{name} returned no fares for this search (0 offers, no error)", route_info)
+            elif providers[tag].endswith(" offers"):
+                # One channel missing (e.g. no NDC fares) on a route where that
+                # channel had fares in the last 7 days: staff alert, so a
+                # supplier problem is caught before a supplier says "our fare
+                # was cheaper". Routes that never have NDC don't alert.
+                mine = [o for o in offers if o.get("source") == tag]
+                o_code = (request.origin or (legs[0]["origin"] if legs else "") or "").upper()
+                d_code = (request.destination or (legs[0]["destination"] if legs else "") or "").upper()
+                for ch in insights.CHANNELS:
+                    if not any((o.get("fare_source") or "GDS").upper() == ch for o in mine) \
+                            and insights.channel_seen_recently(o_code, d_code, tag, ch):
+                        _notify_provider_failure(tag, f"{name} returned no {ch} fares for this search "
+                                                      f"({ch} fares came back for this route in the last 7 days)",
+                                                 route_info)
+    messages = {"TP": tp_messages[:20]} if tp_messages else None
 
     if not offers and tp_task is not None and isinstance(tp_result, Exception):
         # Both providers failed (or AD wasn't queried/enabled) with nothing to
         # show — surface Travelport's error to the caller as before, rather
         # than a silent empty list.
         await asyncio.to_thread(insights.log_search, request, [], providers, elapsed_ms, str(tp_result)[:400],
-                                customer_id, user_agent, kind)
+                                customer_id, user_agent, kind, messages)
         raise HTTPException(status_code=502, detail=f"Travelport search error: {str(tp_result)[:400]}")
 
     offers.sort(key=lambda o: (o.get("price") if o.get("price") is not None else float("inf")))
     await asyncio.to_thread(insights.log_search, request, offers, providers, elapsed_ms, None,
-                            customer_id, user_agent, kind)
+                            customer_id, user_agent, kind, messages)
     if kind == "nearby":
         # The date strip / price calendar only needs the cheapest fare. Sending
         # all ~150 offers (several MB each) made the server spend seconds
@@ -5875,6 +5917,25 @@ def admin_searches(days: int = Query(7, ge=1, le=365), ip: Optional[str] = None,
     return {"searches": insights.list_searches(days=days, ip=ip, route=route, customer_id=customer_id),
             "summary": insights.supplier_summary(days=days, ip=ip, route=route, customer_id=customer_id),
             "search_mode": database.get_provider_settings().get("search_mode", "travelport_only")}
+
+
+@app.get("/api/admin/insights/rates-logs")
+def admin_rates_logs(days: int = Query(7, ge=1, le=90), problems: bool = False,
+                     supplier: Optional[str] = Query(None, pattern="^(TP|AD)$"),
+                     _admin: dict = Depends(auth.get_current_admin)):
+    """Airline Rates Logs: one row per customer search — each supplier's
+    GDS / NDC result, the lowest fare and the supplier alerts it raised."""
+    out = insights.rates_logs(days=days, problems_only=problems, supplier=supplier)
+    out["search_mode"] = database.get_provider_settings().get("search_mode", "travelport_only")
+    return out
+
+
+@app.get("/api/admin/insights/rates-logs/{search_id}")
+def admin_rates_log_detail(search_id: int, _admin: dict = Depends(auth.get_current_admin)):
+    d = insights.rates_log_detail(search_id)
+    if not d:
+        raise HTTPException(status_code=404, detail="Search not found")
+    return d
 
 
 @app.get("/api/admin/insights/searches/{search_id}")

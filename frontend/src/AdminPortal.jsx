@@ -4,6 +4,7 @@ import AirportSearchSelect from './AirportSearchSelect.jsx';
 import CancelBookingDialog from './CancelBookingDialog.jsx';
 import { fmtDate, fmtDateTime, fmtTime } from './dateFormat.js';
 import AdminInsights, { InsightAlerts } from './AdminInsights.jsx';
+import AdminRatesLogs from './AdminRatesLogs.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
 // Terminal dropdowns. Naming isn't standardized across airports (numbers,
@@ -1326,7 +1327,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const adminNavGroups = [
     { group: 'Operations', items: [
       { id: 'stuck-bookings', label: 'Ticketing Exceptions Logs', icon: 'alert', count: stuckBookings.length },
-      { id: 'notifications', label: 'Supplier Alerts', icon: 'bell', count: notifications.length },
+      { id: 'notifications', label: 'Airline Rates Logs', icon: 'bell', count: notifications.length },
       { id: 'force-issue', label: 'Booking Lookup', icon: 'search' },
       { id: 'assign-booking', label: 'Link Booking to Customer', icon: 'link' },
     ] },
@@ -1881,110 +1882,17 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
       {activeAdminSection === 'notifications' && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Supplier Alerts {notifications.length > 0 && `(${notifications.length} new)`}</h3>
+        <h3 className="results-heading">Airline Rates Logs {notifications.length > 0 && `(${notifications.length} pending alert${notifications.length > 1 ? 's' : ''})`}</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
-          Searches where Travelport (TP) or Amadeus (AD) sent no fares back. One email per supplier, at most every
-          15 minutes, goes to the recipients below.
+          Every customer search: what Travelport and Amadeus each sent (GDS and NDC), the lowest fare and what the customer was shown.
+          Use it to answer a supplier who says their fare was cheaper. When a supplier errors, sends nothing, or stops sending GDS or NDC
+          fares on a route, staff are emailed (at most once per supplier every 15 minutes) and the search is marked Pending.
         </p>
-        {notificationsError && <div className="error-banner">{notificationsError}</div>}
-        {notificationsLoading ? (
-          <div className="loading-state"><div className="spinner"></div><p>Loading supplier alerts...</p></div>
-        ) : notifications.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No new supplier alerts.</p>
-        ) : (() => {
-          const kindsShown = [...new Set(notifications.map(n => n.kind).filter(Boolean))];
-          const kindLabel = (k) => notifications.find(n => n.kind === k)?.kind_label || k;
-          const kindShort = (k) => notifications.find(n => n.kind === k)?.kind_short || kindLabel(k);
-          const shown = notifications.filter(n => alertFilter === 'all' ? true
-            : (alertFilter === 'TP' || alertFilter === 'AD') ? n.provider === alertFilter : n.kind === alertFilter);
-          const bySupplier = (p) => notifications.filter(n => n.provider === p).length;
-          const allShownTicked = shown.length > 0 && shown.every(n => alertSelected.includes(n.id));
-          const chip = (id, label, count, title) => count > 0 && (
-            <button key={id} type="button" className="adm-chip" title={title} aria-pressed={alertFilter === id} onClick={() => setAlertFilter(id)}>
-              {label} <span>{count}</span>
-            </button>
-          );
-          return (
-          <>
-            <div className="adm-chips">
-              {chip('all', 'All', notifications.length)}
-              {chip('TP', 'Travelport', bySupplier('TP'))}
-              {chip('AD', 'Amadeus', bySupplier('AD'))}
-              {kindsShown.map(k => chip(k, kindShort(k), notifications.filter(n => n.kind === k).length, kindLabel(k)))}
-            </div>
-            <div className="adm-bulk">
-              <label>
-                <input type="checkbox" checked={allShownTicked}
-                       onChange={e => setAlertSelected(sel => e.target.checked
-                         ? [...new Set([...sel, ...shown.map(n => n.id)])]
-                         : sel.filter(id => !shown.some(n => n.id === id)))} />
-                Select all shown ({shown.length})
-              </label>
-              <button className="btn btn-primary btn-sm" disabled={!alertSelected.length || alertBulkBusy} onClick={acknowledgeAlertsSelected}>
-                {alertBulkBusy ? 'Acknowledging…' : `Acknowledge selected (${alertSelected.length})`}
-              </button>
-            </div>
-            <div className="adm-table-wrap">
-              <table className="adm-table">
-                <thead>
-                  <tr>
-                    <th aria-label="Select" />
-                    <th>Date</th><th>Supplier</th><th>Route</th><th>Travel date</th>
-                    <th>Type</th><th>Issue &amp; action needed</th><th aria-label="Acknowledge" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map(n => (
-                    <Fragment key={n.id}>
-                      <tr className={`adm-row ${n.provider === 'AD' ? 'normal' : 'tp'}${alertOpenId === n.id ? ' open' : ''}`} onClick={() => setAlertOpenId(id => id === n.id ? null : n.id)}>
-                        <td onClick={e => e.stopPropagation()}>
-                          <input type="checkbox" aria-label={`Select alert ${n.id}`} checked={alertSelected.includes(n.id)}
-                                 onChange={e => setAlertSelected(sel => e.target.checked ? [...sel, n.id] : sel.filter(x => x !== n.id))} />
-                        </td>
-                        <td className="nowrap">{fmtDate(n.created_at)}<div className="adm-sub">{fmtTime(n.created_at)}</div></td>
-                        <td className="nowrap">
-                          <span className={`adm-sup ${n.provider === 'AD' ? 'ad' : 'tp'}`}>{n.provider}</span>
-                          <div className="adm-sub">{n.supplier || (n.provider === 'AD' ? 'Amadeus' : 'Travelport')}</div>
-                        </td>
-                        <td className="nowrap"><strong className="adm-route">{n.route || n.route_info || '—'}</strong></td>
-                        <td className="nowrap">
-                          {(n.travel_dates || []).length ? n.travel_dates.map((d, i) => <div key={i} className={i ? 'adm-sub' : undefined}>{fmtDate(d)}</div>) : '—'}
-                        </td>
-                        <td><div className="adm-kind-text">{n.kind_short || 'Alert'}</div></td>
-                        <td className="adm-issue">
-                          {n.summary || n.error_message}
-                          {n.action && <div className="adm-action">→ {n.action}</div>}
-                        </td>
-                        <td onClick={e => e.stopPropagation()}>
-                          <button className="btn btn-secondary btn-sm" disabled={notificationActionId === n.id} onClick={() => acknowledgeNotification(n.id)}>Acknowledge</button>
-                        </td>
-                      </tr>
-                      {alertOpenId === n.id && (
-                        <tr className="adm-detail">
-                          <td />
-                          <td colSpan={7}>
-                            <div><strong>Full message:</strong> {n.error_message}</div>
-                            <div className="adm-detail-meta">
-                              {n.route_info && <span>Search: {String(n.route_info).replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1')}</span>}
-                              <span>{n.email_sent ? 'Email sent to the recipients' : 'No email (one already went out in the last 15 minutes, or no active recipients)'}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-              {shown.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: '0.8rem' }}>Nothing of this type is open.</p>}
-            </div>
-            <p className="adm-hint">Click a row to see the full message and the search that raised it.</p>
-          </>
-          );
-        })()}
+        <AdminRatesLogs API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} onAlertsChanged={loadNotifications} />
 
         <h4 style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>Alert recipients</h4>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '-0.4rem', marginBottom: '0.75rem' }}>
-          Who gets emailed when a provider's fares fail to come back. Inactive addresses stay on the list but are skipped.
+          Who gets emailed when a supplier errors, sends no fares, or stops sending GDS or NDC fares. Inactive addresses stay on the list but are skipped.
         </p>
         {recipientsError && <div className="error-banner">{recipientsError}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.75rem' }}>

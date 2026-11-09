@@ -5067,3 +5067,29 @@ button, input, select, textarea { font-family: inherit; }
 .adm-sup.tp { background: var(--tb-ice); color: var(--tb-navy); border: 1px solid #c9d8ea; }
 .adm-sup.ad { background: #f3f1f8; color: #5b4a86; border: 1px solid #dcd6ea; }
 .adm-route { color: var(--tb-navy); letter-spacing: 0.03em; }
+
+/* Admin › Airline Rates Logs (AdminRatesLogs.jsx) */
+.rl-top { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.2rem; }
+.rl-top .adm-chips { margin-bottom: 0.5rem; }
+.rl-days { width: auto; min-width: 140px; margin-bottom: 0.5rem; }
+.rl-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.rl-chip { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; background: #f1f5f9; color: #64748b; }
+.rl-chip.ok { background: #dcfce7; color: #166534; }
+.rl-chip.warn { background: #fef3c7; color: #92400e; }
+.rl-chip.bad { background: #fee2e2; color: #991b1b; }
+.rl-chip.muted { background: #f1f5f9; color: #94a3b8; }
+.rl-detail { display: flex; flex-direction: column; gap: 1rem; padding: 0.3rem 0; }
+.rl-detail section { border-top: 1px solid var(--tb-border); padding-top: 0.7rem; }
+.rl-detail section:first-child { border-top: 0; padding-top: 0; }
+.rl-sec-title { font-weight: 800; color: var(--tb-navy); font-size: 0.86rem; margin-bottom: 0.45rem; }
+.rl-grid { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 0.3rem 0.9rem; font-size: 0.8rem; align-items: baseline; }
+.rl-grid > span:nth-child(odd) { color: var(--tb-muted); }
+.rl-table-wrap { overflow-x: auto; }
+.rl-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.rl-table th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tb-muted); padding: 0.35rem 0.45rem; border-bottom: 1px solid var(--tb-border); white-space: nowrap; }
+.rl-table td { padding: 0.4rem 0.45rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rl-table td.rl-best { color: #15803d; font-weight: 800; }
+.rl-err { color: #991b1b; overflow-wrap: anywhere; }
+.rl-alert { border: 1px solid var(--tb-border); border-radius: 8px; padding: 0.55rem 0.7rem; margin-bottom: 0.5rem; font-size: 0.8rem; background: #fff; }
+.rl-delivery { margin-top: 0.3rem; font-size: 0.76rem; color: var(--tb-text); overflow-wrap: anywhere; }
+@media (max-width: 560px) { .rl-grid { grid-template-columns: 1fr; } }

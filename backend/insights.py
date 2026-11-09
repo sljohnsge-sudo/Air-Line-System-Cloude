@@ -140,8 +140,20 @@ def ensure_tables() -> None:
     """)
     # Per supplier: status, fare count and cheapest fare of each search (Search Log columns).
     cur.execute("SHOW COLUMNS FROM search_log LIKE 'provider_best_json'")
+    col = cur.fetchall()
+    if not col:
+        cur.execute("ALTER TABLE search_log ADD COLUMN provider_best_json TEXT NULL AFTER providers_json")
+    elif "varchar" in str(col[0][1]).lower():  # per-channel detail (GDS / NDC) needs more room
+        cur.execute("ALTER TABLE search_log MODIFY provider_best_json TEXT NULL")
+    # Airline Rates Logs: what each supplier said besides its fares (Travelport warnings).
+    cur.execute("SHOW COLUMNS FROM search_log LIKE 'supplier_messages_json'")
     if not cur.fetchall():
-        cur.execute("ALTER TABLE search_log ADD COLUMN provider_best_json VARCHAR(1000) NULL AFTER providers_json")
+        cur.execute("ALTER TABLE search_log ADD COLUMN supplier_messages_json TEXT NULL AFTER provider_best_json")
+    # Supplier alerts: the search (journey) that raised it, and who the email went to.
+    for name, ddl in (("journey_id", "VARCHAR(40) NULL"), ("delivery_json", "TEXT NULL")):
+        cur.execute(f"SHOW COLUMNS FROM provider_notifications LIKE '{name}'")
+        if not cur.fetchall():
+            cur.execute(f"ALTER TABLE provider_notifications ADD COLUMN {name} {ddl}")
     conn.commit()
     cur.close()
     conn.close()
@@ -316,25 +328,32 @@ def _offer_summary(o: dict, rank: int) -> dict:
 
 
 SUPPLIERS = ("TP", "AD")
+CHANNELS = ("GDS", "NDC")
+
+
+def _cheapest(offers: list) -> dict:
+    priced = [o for o in offers if isinstance(o.get("price"), (int, float))]
+    best = min(priced, key=lambda o: o["price"]) if priced else None
+    return {"count": len(offers), "price": best["price"] if best else None,
+            "currency": best.get("currency") if best else None,
+            "airline": (best.get("airline") or "")[:60] if best else None}
 
 
 def provider_best(providers: dict, offers: list) -> dict:
     """Per supplier, from what it actually returned: status ('ok' fares came
     back, 'empty' no fares and no error, 'error', 'off' not asked because it
     is switched off / not wired for this trip), fare count and its cheapest
-    fare. Works on the live offers and on the stored offer summaries."""
+    fare — overall and per channel (GDS / NDC). Works on the live offers and
+    on the stored offer summaries."""
     out = {}
     for tag in SUPPLIERS:
         state = str((providers or {}).get(tag) or "not queried")
         mine = [o for o in offers if o.get("source") == tag]
-        priced = [o for o in mine if isinstance(o.get("price"), (int, float))]
-        best = min(priced, key=lambda o: o["price"]) if priced else None
         status = ("off" if state == "not queried" else "error" if state.startswith("error")
                   else "ok" if mine else "empty")
-        out[tag] = {"status": status, "count": len(mine),
-                    "price": best["price"] if best else None,
-                    "currency": best.get("currency") if best else None,
-                    "airline": (best.get("airline") or "")[:60] if best else None}
+        out[tag] = {"status": status, **_cheapest(mine),
+                    "channels": {ch: _cheapest([o for o in mine if (o.get("fare_source") or "GDS").upper() == ch])
+                                 for ch in CHANNELS}}
         if status == "error":
             out[tag]["error"] = state[len("error: "):][:200]
     return out
@@ -348,7 +367,8 @@ def _backfill_provider_best() -> None:
     try:
         while True:
             rows = _q("SELECT id, providers_json, offers_json FROM search_log "
-                      "WHERE provider_best_json IS NULL ORDER BY id DESC LIMIT 200")
+                      "WHERE provider_best_json IS NULL OR provider_best_json NOT LIKE '%%\"channels\"%%' "
+                      "ORDER BY id DESC LIMIT 200")
             if not rows:
                 break
             for r in rows:
@@ -365,8 +385,10 @@ def _backfill_provider_best() -> None:
 
 
 def log_search(req, offers: list, providers: dict, duration_ms: int, error: str | None,
-               customer_id: int | None, user_agent: str | None, kind: str = "search") -> None:
-    """One row per search with the ranked results exactly as returned."""
+               customer_id: int | None, user_agent: str | None, kind: str = "search",
+               messages: dict | None = None) -> None:
+    """One row per search with the ranked results exactly as returned.
+    messages: {"TP": [warning, ...]} — what a supplier said besides its fares."""
     try:
         legs = [l.model_dump() for l in req.legs] if getattr(req, "legs", None) else None
         trip = "multicity" if legs and len(legs) > 2 else "roundtrip" if legs and len(legs) == 2 else "oneway"
@@ -377,13 +399,14 @@ def log_search(req, offers: list, providers: dict, duration_ms: int, error: str 
         cheapest = offers[0] if offers else None
         _q("""INSERT INTO search_log (journey_id, search_kind, ip, user_agent, customer_id, trip_type, origin,
                 destination, departure_date, return_date, legs_json, adults, children, infants, students, cabin,
-                providers_json, provider_best_json, result_count, cheapest_price, cheapest_currency, cheapest_airline,
-                duration_ms, error_message, offers_json)
-              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                providers_json, provider_best_json, supplier_messages_json, result_count, cheapest_price,
+                cheapest_currency, cheapest_airline, duration_ms, error_message, offers_json)
+              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
            (current_journey() if kind in ("search", "recheck") else None, kind, current_ip(), (user_agent or "")[:255],
             customer_id, trip, origin, dest, dep, ret, json.dumps(legs) if legs else None,
             req.adult_count, req.child_count, req.infant_count, getattr(req, "student_count", 0),
-            req.cabin_preference or "All", json.dumps(providers), json.dumps(provider_best(providers, offers)), len(offers),
+            req.cabin_preference or "All", json.dumps(providers), json.dumps(provider_best(providers, offers)),
+            json.dumps(messages) if messages else None, len(offers),
             cheapest.get("price") if cheapest else None, cheapest.get("currency") if cheapest else None,
             cheapest.get("airline") if cheapest else None, duration_ms, (error or "")[:500] or None,
             json.dumps([_offer_summary(o, i + 1) for i, o in enumerate(offers)])),
@@ -442,6 +465,181 @@ def supplier_summary(days: int = 7, ip: str | None = None, route: str | None = N
             if status in out[tag]:
                 out[tag][status] += 1
     return {"searches": len(rows), **out}
+
+
+# ── Airline Rates Logs ────────────────────────────────────────────────────────
+# One row per customer search: what each supplier sent per channel (GDS / NDC),
+# the lowest fare, and the supplier alerts it raised — so staff can show a
+# supplier exactly what it returned, and see when a channel stops coming.
+
+def channel_seen_recently(origin: str, destination: str, supplier: str, channel: str, days: int = 7) -> bool:
+    """True when this supplier's channel had fares on this route in the last
+    `days` days (customer searches and ±day checks)."""
+    if not origin or not destination:
+        return False
+    rows = _q("""SELECT provider_best_json FROM search_log
+                 WHERE origin=%s AND destination=%s AND searched_at >= %s AND search_kind IN ('search','nearby')
+                   AND provider_best_json LIKE %s
+                 ORDER BY id DESC LIMIT 60""",
+              (origin, destination, datetime.now() - timedelta(days=days), '%"channels"%'))
+    for r in rows:
+        try:
+            if (((json.loads(r["provider_best_json"]) or {}).get(supplier) or {}).get("channels") or {}).get(channel, {}).get("count"):
+                return True
+        except (ValueError, AttributeError):
+            continue
+    return False
+
+
+def _channel_states(best: dict, alerts: list) -> dict:
+    """{"TP": {"GDS": "ok"|"none"|"missing"|"error"|"empty"|"off", "NDC": ...}, "AD": ...}"""
+    out = {}
+    for tag in SUPPLIERS:
+        b = best.get(tag) or {}
+        st = b.get("status") or "off"
+        chans = b.get("channels") or {}
+        row = {}
+        for ch in CHANNELS:
+            if st in ("off", "error", "empty"):
+                row[ch] = st
+            elif (chans.get(ch) or {}).get("count"):
+                row[ch] = "ok"
+            else:
+                missing = any(a["provider"] == tag and f"NO {ch} FARES" in (a.get("error_message") or "").upper()
+                              for a in alerts)
+                row[ch] = "missing" if missing else "none"
+        out[tag] = row
+    return out
+
+
+def _lowest(best: dict) -> dict | None:
+    found = []
+    for tag in SUPPLIERS:
+        for ch, c in ((best.get(tag) or {}).get("channels") or {}).items():
+            if isinstance(c.get("price"), (int, float)):
+                found.append({"price": c["price"], "currency": c.get("currency"), "airline": c.get("airline"),
+                              "supplier": tag, "channel": ch})
+    return min(found, key=lambda x: x["price"]) if found else None
+
+
+def _alert_matches(alert: dict, s: dict) -> bool:
+    from services import supplier_alerts
+    at, when = alert.get("created_at"), s.get("searched_at")
+    if not at or not when or not (when - timedelta(minutes=5) <= at <= when + timedelta(seconds=60)):
+        return False
+    if alert.get("journey_id") and s.get("journey_id"):
+        return alert["journey_id"] == s["journey_id"]
+    route, dates = supplier_alerts._route(alert.get("route_info"))
+    codes = (route or "").split("–")
+    return bool(codes) and codes[0] == s.get("origin") and len(codes) > 1 and codes[1] == s.get("destination") \
+        and (not dates or dates[0] == (s.get("departure_date") or "")[:10])
+
+
+def rates_logs(days: int = 7, problems_only: bool = False, supplier: str | None = None, limit: int = 300) -> dict:
+    since = datetime.now() - timedelta(days=days)
+    searches = _q("""SELECT id, searched_at, journey_id, origin, destination, departure_date, return_date, trip_type,
+                            adults, children, infants, students, cabin, provider_best_json, result_count,
+                            cheapest_price, cheapest_currency, cheapest_airline, error_message
+                     FROM search_log WHERE searched_at >= %s AND search_kind='search' ORDER BY id DESC LIMIT 3000""",
+                  (since,))
+    alerts = _q("SELECT * FROM provider_notifications WHERE created_at >= %s ORDER BY id DESC", (since - timedelta(minutes=5),))
+    used, rows = set(), []
+    for s in searches:
+        mine = [a for a in alerts if a["id"] not in used and _alert_matches(a, s)]
+        used.update(a["id"] for a in mine)
+        try:
+            best = json.loads(s.pop("provider_best_json") or "{}") or {}
+        except ValueError:
+            best = {}
+        states = _channel_states(best, mine)
+        problem = bool(mine) or any(v in ("error", "empty", "missing") for st in states.values() for v in st.values())
+        rows.append({**s, "channels": states, "lowest": _lowest(best),
+                     "alerts": [{"id": a["id"], "provider": a["provider"], "status": a["status"]} for a in mine],
+                     "problem": problem})
+    # Alerts that match no logged search (older than the search log, or a
+    # search that failed before it was logged) still get a row each.
+    from services import supplier_alerts
+    for a in supplier_alerts.review([a for a in alerts if a["id"] not in used]):
+        route, dates = a.get("route"), a.get("travel_dates") or []
+        codes = (route or "").split("–")
+        rows.append({"id": None, "alert_only": True, "searched_at": a["created_at"], "origin": codes[0] if codes else None,
+                     "destination": codes[1] if len(codes) > 1 else None, "departure_date": dates[0] if dates else None,
+                     "return_date": dates[1] if len(dates) > 1 else None,
+                     "channels": {t: ({ch: "error" for ch in CHANNELS} if t == a["provider"] else {ch: "unknown" for ch in CHANNELS})
+                                  for t in SUPPLIERS},
+                     "lowest": None, "problem": True, "summary": a.get("summary"),
+                     "alerts": [{"id": a["id"], "provider": a["provider"], "status": a["status"]}]})
+    rows.sort(key=lambda r: r["searched_at"] or datetime.min, reverse=True)
+    for r in rows:
+        st = [a["status"] for a in r["alerts"]]
+        r["action"] = "pending" if "new" in st else ("acknowledged" if st else None)
+    if problems_only:
+        rows = [r for r in rows if r["problem"]]
+    if supplier in SUPPLIERS:
+        rows = [r for r in rows if any(a["provider"] == supplier for a in r["alerts"])
+                or any(v not in ("off", "unknown") for v in r["channels"][supplier].values())]
+    counts = {"searches": len(searches), "problems": sum(1 for r in rows if r["problem"]),
+              "pending_alerts": sum(1 for a in alerts if a["status"] == "new")}
+    return {"rows": rows[:limit], "counts": counts}
+
+
+def rates_log_detail(search_id: int) -> dict | None:
+    """Everything about one customer search for a supplier dispute or a fix:
+    per-airline fares by supplier and channel, what the customer was shown and
+    picked, each supplier's status/messages, and the alerts with delivery."""
+    from services import supplier_alerts
+    s = get_search(search_id)
+    if not s:
+        return None
+    offers = s.pop("offers")
+    best = s["provider_best"]
+    # Airline-wise comparison: cheapest fare per supplier+channel for each airline.
+    table = {}
+    for o in offers:
+        key = o.get("code") or o.get("airline") or "?"
+        row = table.setdefault(key, {"airline": o.get("airline") or key, "code": o.get("code"), "fares": {}})
+        cell = f"{o.get('source') or '?'}_{(o.get('fare_source') or 'GDS').upper()}"
+        if isinstance(o.get("price"), (int, float)) and (cell not in row["fares"] or o["price"] < row["fares"][cell]["price"]):
+            row["fares"][cell] = {"price": o["price"], "currency": o.get("currency"), "rank": o.get("rank")}
+    comparison = []
+    for row in table.values():
+        cheapest = min(((k, v) for k, v in row["fares"].items()), key=lambda kv: kv[1]["price"], default=None)
+        row["lowest"] = {"cell": cheapest[0], **cheapest[1]} if cheapest else None
+        comparison.append(row)
+    comparison.sort(key=lambda r: (r["lowest"] or {}).get("price") or float("inf"))
+    # What the customer saw first, and what they picked.
+    priced = [o for o in offers if isinstance(o.get("price"), (int, float))]
+    lowest = min(priced, key=lambda o: o["price"]) if priced else None
+    first = offers[0] if offers else None
+    display = {"first_shown": first, "lowest": lowest,
+               "lowest_shown_first": bool(first and lowest and first.get("price") == lowest.get("price"))}
+    picked = None
+    if s.get("journey_id"):
+        j = _q("SELECT airline, flight, fare_source, amount, currency, status, locator_code FROM booking_journeys "
+               "WHERE journey_id=%s", (s["journey_id"],), one=True)
+        step = _q("SELECT detail, at FROM booking_journey_steps WHERE journey_id=%s AND step='Flight selected' "
+                  "AND at >= %s ORDER BY id LIMIT 1", (s["journey_id"], s["searched_at"]), one=True)
+        if j and (j.get("flight") or step):
+            picked = {**j, "selected": (step or {}).get("detail")}
+    display["customer_picked"] = picked
+    # Supplier technical details and the alerts this search raised.
+    try:
+        messages = json.loads(s.pop("supplier_messages_json", None) or "{}") or {}
+    except ValueError:
+        messages = {}
+    alerts = _q("SELECT * FROM provider_notifications WHERE created_at BETWEEN %s AND %s ORDER BY id",
+                (s["searched_at"] - timedelta(minutes=5), s["searched_at"] + timedelta(seconds=60)))
+    alerts = [a for a in alerts if _alert_matches(a, s)]
+    reviewed = supplier_alerts.review(alerts)
+    for a in reviewed:
+        try:
+            a["delivery"] = json.loads(a.pop("delivery_json") or "null")
+        except ValueError:
+            a["delivery"] = None
+    s.pop("user_agent", None)
+    return {"search": s, "channels": _channel_states(best, alerts), "comparison": comparison,
+            "display": display, "messages": messages, "alerts": reviewed,
+            "recipients_now": [r["email"] for r in database.get_notification_recipients(active_only=True)]}
 
 
 def get_search(search_id: int) -> dict | None:
