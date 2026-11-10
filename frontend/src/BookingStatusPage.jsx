@@ -34,6 +34,9 @@ const toneClass = (status) => {
   return t.fg === '#166534' ? 'ok' : t.fg === '#991b1b' ? 'bad' : 'warn';
 };
 const Chip = ({ status, children }) => <span className={`mmb-chip ${toneClass(status ?? children)}`}>{children}</span>;
+// The airline's answer to a seat on the PNR, in the customer's words.
+const SEAT_STATUS_LABELS = { confirmed: 'Confirmed', pending: 'Pending airline approval', requested: 'Pending airline approval',
+                             rejected: 'Rejected by the airline', unable: 'Rejected by the airline', cancelled: 'Cancelled' };
 
 const BOOKING_STATE = {
   ticketed: ['Ticketed', 'ok'], confirmed: ['Confirmed', 'ok'], cancelled: ['Cancelled', 'bad'],
@@ -148,13 +151,34 @@ function Overview({ data, onGo }) {
 
         <div className="mmb-mini">
           <h4><IconSeat size={16} /> Seats</h4>
-          {list(data.seats, 'No seats on the booking yet.', (s, i) => (
-            <div key={i} className="mmb-mini-row">
+          {/* Seats on the PNR with the airline's answer, then requests the
+              airline refused (they never reach the PNR) with its reason. */}
+          {(data.seats || []).map((s, i) => (
+            <div key={`p${i}`} className="mmb-mini-row">
               <span><strong>{s.seat}</strong> <span className="mmb-muted">{(s.flights || []).join(', ')}{s.passenger ? ` · ${s.passenger}` : ''}{s.emd ? ` · EMD ${s.emd}` : ''}</span></span>
-              <Chip status={s.status}>{s.status}</Chip>
+              <Chip status={s.status}>{SEAT_STATUS_LABELS[(s.status || '').toLowerCase()] || s.status}</Chip>
             </div>
           ))}
-          {data.can_add_seats_extras && <button type="button" className="mmb-link" onClick={() => onGo('seats')}><IconSeat size={14} /> Choose seats</button>}
+          {(data.seat_requests || []).map((r, i) => (
+            <div key={`r${i}`} className="mmb-mini-item">
+              <div className="mmb-mini-row">
+                <span><strong>{r.seat}</strong> <span className="mmb-muted">{r.flight || ''}{r.passenger ? ` · ${r.passenger}` : ''}</span></span>
+                <Chip status={r.state === 'rejected' ? 'rejected' : 'pending'}>{r.label}</Chip>
+              </div>
+              {r.reason && <div className="mmb-muted mmb-seat-reason">{r.reason}</div>}
+            </div>
+          ))}
+          {!(data.seats || []).length && !(data.seat_requests || []).length && <div className="mmb-muted">No seats on the booking yet.</div>}
+          {(data.seat_rules || []).map(c => (
+            <div key={c.flight} className={`mmb-seat-rule${c.closed ? ' closed' : ''}`}>
+              <IconInfo size={14} />
+              <span>{c.closed
+                ? `${c.flight}: online seat selection has closed — the airline stops it ${c.hours} hours before departure. Choose your seat with the airline at check-in.`
+                : `${c.flight}: the airline accepts seat requests until ${c.hours} hours before departure.`}</span>
+            </div>
+          ))}
+          {data.can_add_seats_extras && !(data.seat_rules || []).every(c => c.closed) &&
+            <button type="button" className="mmb-link" onClick={() => onGo('seats')}><IconSeat size={14} /> Choose seats</button>}
         </div>
 
         <div className="mmb-mini">

@@ -57,7 +57,7 @@ import auth
 import hotel_database
 import insights
 from utils.dates import fmt_date, fmt_datetime
-from services import seat_rules, fare_rule_service
+from services import seat_rules, fare_rule_service, seat_request_log
 from services.special_services import MEAL_SSR_TYPES, merge_ssr_status
 from services import segment_status
 from services import live_booking_service
@@ -1924,6 +1924,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         confirmed_seats = [s for s in addon_results["seats"] if s["status"] == "confirmed"]
         confirmed_extras = [a for a in addon_results["extras"] if a["status"] == "confirmed"]
         ticket["addon_results"] = addon_results
+        seat_request_log.record(locator_code, travelers, addon_results.get("seats"), "booking")
 
         seat_numbers = _format_seat_numbers([SelectedSeat(**{k: v for k, v in s.items() if k in SelectedSeat.model_fields}) for s in confirmed_seats])
         seat_charges = sum(s["price"] for s in confirmed_seats)
@@ -5003,6 +5004,11 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
             raise HTTPException(status_code=503, detail=LOOKUP_UNAVAILABLE)
     live["trace_id"] = trace_id
     live["manage_token"] = auth.create_manage_booking_token(live["locator_code"], current["customer_id"])
+    # Seats card: requests the airline refused (never on the PNR) with the
+    # reason, and each flight's seat-selection time limit when the airline has one.
+    live["seat_requests"] = seat_request_log.view(live["locator_code"], live)
+    live["seat_rules"] = [c for c in (seat_rules.condition_for(f.get("flight"), f.get("from"), f.get("departure"))
+                                      for f in live.get("flights") or []) if c]
     # Confirmed seats/extras without payment: deadlines started, overdue ones
     # released from the PNR, the rest shown as payment due.
     try:
@@ -5129,6 +5135,7 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
         elif "COMMENTS MUST BE PROVIDED" in reason:
             i["reason"] = ("The airline needs details of this item (for example, what the equipment is) before it can add "
                            "it, and these can't be sent online. You have not been charged — please contact the airline to add it.")
+    seat_request_log.record(locator, travelers, result["seats"], "manage")
     paid = [i for i in items if i["status"] == "confirmed" and (i.get("price") or 0) > 0]
     # "Requested" (pending) items are kept so they're billed if the airline
     # confirms them later (services/addon_billing.py) — never charged before.
