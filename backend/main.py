@@ -4947,7 +4947,8 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
                 fresh = live_booking_service.get_live_booking(live["locator_code"], with_coupons=False)
                 live.update({k: fresh.get(k) for k in ("seats", "extras", "special_services", "retrieved_at")})
                 live["released_extras"] = [h["description"] or h["kind"] for h in check["released"]]
-            due = addon_billing.payable_after_ticketing(live["locator_code"])
+            due = manage_booking_service.without_paused_extras(
+                addon_billing.payable_after_ticketing(live["locator_code"]), live)
             # No "Pay" for an airline whose EMDs are paused: the items are
             # released at their deadline instead, never charged.
             if due["items"] and not manage_booking_service.emd_paused_note(live):
@@ -5047,7 +5048,8 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
         # Paid seats/extras paused for an airline whose EMDs Travelport refuses
         # (manage_booking_service.EMD_PAUSED_CARRIERS): only free items are booked.
         result = services.add_seats_and_extras_to_pnr(locator, travelers, seats, extras,
-                                                      free_only=manage_booking_service.emd_paused_note(live))
+                                                      free_only=manage_booking_service.emd_paused_note(live),
+                                                      free_extras_only=manage_booking_service.extras_paused_note(live))
     items = result["seats"] + result["extras"]
     for i in items:  # the Manage My Booking wording for workbench_service.customer_seat_reason()
         reason = (i.get("reason") or "").upper()
@@ -5085,6 +5087,8 @@ def manage_booking_seats_extras(request: ManageSeatsExtrasRequest, current: dict
             for i in paid + pending:
                 if i["offer_id"] in states:
                     i["offer_key"] = states[i["offer_id"]]["key"]
+                    # What the item is, for airlines that renumber Identifiers on every retrieve.
+                    i["offer_sig"] = states[i["offer_id"]]["sig"]
         except services.CancelError as e:
             logger.warning(f"{locator}: could not read offer identifiers after adding seats/extras: {e}")
 
@@ -5141,7 +5145,7 @@ def manage_booking_pay_due(request: ManageTokenRequest, current: dict = Depends(
     with services.flow_trace_id() as trace_id:
         addon_deadlines.check_booking(locator)  # overdue items are released, not offered
         with addon_deadlines.locator_lock(locator):
-            due = addon_billing.payable_after_ticketing(locator)
+            due = manage_booking_service.without_paused_extras(addon_billing.payable_after_ticketing(locator), live)
             if not due["items"]:
                 raise HTTPException(status_code=409, detail="Nothing is waiting for payment on this booking.")
             # An earlier add-on payment for the same items that the customer

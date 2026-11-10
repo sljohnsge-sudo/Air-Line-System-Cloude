@@ -82,9 +82,22 @@ def offer_states(res: dict) -> dict:
                 "traveler_refs": [(b.get("TravelerIdentifierRef") or {}).get("id") for b in price.get("PriceBreakdown") or []
                                   if (b.get("TravelerIdentifierRef") or {}).get("id")],
             }
+    for o in res.get("Offer") or []:
+        if o.get("id") in states:
+            anc = next((p.get("Ancillary") or {} for p in o.get("Product") or [] if p.get("@type") == "ProductAncillary"), {})
+            states[o["id"]]["sub_code"] = next((d.get("subCode") for d in anc.get("Description") or []
+                                                if d.get("subCode") and d.get("subCode") != "SSR"), None)
     for tp in res.get("TravelerProduct") or []:
+        if tp.get("OfferRef") in states and tp.get("TravelerRef") and not states[tp["OfferRef"]]["traveler_refs"]:
+            states[tp["OfferRef"]]["traveler_refs"] = [tp["TravelerRef"]]
         if tp.get("OfferRef") in states and tp.get("ConfirmationStatusEnum"):
             states[tp["OfferRef"]]["status"] = tp["ConfirmationStatusEnum"]
+    # What the item IS (kind, airline service code, seat, flights, passenger):
+    # stays the same when Travelport hands out a new Identifier on every
+    # retrieve (QR GDS extras, JJ2V4X 2026-11-10 — 12 different values in 10 min).
+    for s in states.values():
+        s["sig"] = "|".join([s["kind"], s.get("sub_code") or (s["description"] or "").upper(), str(s["seat"] or ""),
+                             ",".join(sorted(s["flight_refs"])), ",".join(sorted(t for t in s["traveler_refs"] if t))])
     for r in res.get("Receipt") or []:
         for st in (((r.get("Confirmation") or {}).get("OfferStatus") or {}).get("StatusAncillary") or []):
             for ref in r.get("OfferRef") or []:
@@ -172,7 +185,10 @@ def resolve(states: dict, item: dict) -> tuple[str | None, dict | None]:
         for oid, state in states.items():
             if state["key"] == key:
                 return oid, state
-        return None, None
+        # Identifier changed (some airlines get a new one on every retrieve):
+        # the same item by what it is, when exactly one matches.
+        found = matches(states, item)
+        return found[0] if len(found) == 1 else (None, None)
     oid = item.get("offer_id")
     state = states.get(oid)
     if not state:
@@ -187,6 +203,28 @@ def resolve(states: dict, item: dict) -> tuple[str | None, dict | None]:
                                       and item["airline_name"].upper() != state["description"].upper()):
         return None, None
     return oid, state
+
+
+def matches(states: dict, item: dict) -> list:
+    """[(offer id, state)] on the PNR that are this saved item by content:
+    its saved signature when it has one (offer_sig), else the same kind, seat
+    or airline name, and flight(s)."""
+    if item.get("offer_sig"):
+        return [(oid, s) for oid, s in states.items() if s.get("sig") == item["offer_sig"]]
+    segs = {int(n) for n in item.get("segment_numbers") or [] if str(n).isdigit()}
+    name = (item.get("airline_name") or "").upper()
+    out = []
+    for oid, s in states.items():
+        if item.get("seat_number"):
+            if s["kind"] != "seat" or (s["seat"] or "").lstrip("0") != str(item["seat_number"]).lstrip("0"):
+                continue
+        elif s["kind"] != "extra" or not name or (s["description"] or "").upper() != name:
+            continue
+        flights = {int(f.rsplit("_", 1)[-1]) for f in s["flight_refs"] if f.rsplit("_", 1)[-1].isdigit()}
+        if segs and flights and not flights & segs:
+            continue
+        out.append((oid, s))
+    return out
 
 
 def payable_after_ticketing(locator: str, res: dict | None = None) -> dict:

@@ -2181,7 +2181,7 @@ def _segment_problem(status: tuple | None) -> str | None:
 
 
 def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_seats: list, selected_ancillaries: list,
-                                free_only: str | None = None) -> dict:
+                                free_only: str | None = None, free_extras_only: str | None = None) -> dict:
     """
     Book the customer's chosen seats and extras on an EXISTING GDS PNR, per
     Travelport's Seats Guide and Ancillary and EMD Guide: GDS paid seats and
@@ -2351,8 +2351,8 @@ def add_seats_and_extras_to_pnr(locator_code: str, travelers: list, selected_sea
                 if not match:
                     item["reason"] = "This extra is no longer offered by the airline"
                     continue
-                if free_only and float(match.get("supplier_price") or match.get("price") or 0) > 0:
-                    item["reason"] = free_only
+                if (free_only or free_extras_only) and float(match.get("supplier_price") or match.get("price") or 0) > 0:
+                    item["reason"] = free_only or free_extras_only
                     continue
                 try:
                     resp = book_ancillary_offer(workbench_id, match)

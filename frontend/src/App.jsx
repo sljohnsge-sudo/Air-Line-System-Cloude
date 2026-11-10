@@ -2155,6 +2155,10 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     return !!((params.get('locator') || params.get('ndc_pending')) && params.get('reqid'));
   });
+  // This page load came back from PayCorp: never re-run the old flight search
+  // from the results link (its "Searching Live Inventory" covered the payment
+  // screen), even after the payment query is cleared from the URL.
+  const paycorpReturnRef = useRef(verifyingPayment);
 
   // Traveler forms (multiple passengers)
   const [travelers, setTravelers] = useState([]);
@@ -2581,7 +2585,11 @@ export default function App() {
         }
         return null;
       });
-      if (payload?.origin && flights.length === 0 && !loadingFlights) {
+      // Not on a PayCorp return (?reqid=): the page is confirming a payment,
+      // and a flight search started from the old results link would cover
+      // that screen with "Searching Live Inventory".
+      const payingBack = paycorpReturnRef.current || !!new URLSearchParams(window.location.search).get('reqid');
+      if (payload?.origin && flights.length === 0 && !loadingFlights && !payingBack) {
         const origin = payload.origin;
         const destination = payload.destination || '';
         const date = payload.date || '';
@@ -3990,15 +3998,16 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
           before the ticket receipt; active from the very first render. */}
       {verifyingPayment && (
         <div style={{
-          position: 'fixed', inset: 0, zIndex: 10000,
-          background: 'var(--gs-dark, #1e293b)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+          position: 'fixed', inset: 0, zIndex: 100000,
+          background: 'rgba(255, 255, 255, 0.97)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem'
         }}>
-          <div className="spinner" style={{ marginBottom: '1.5rem' }}></div>
-          <h3 style={{ color: 'white', fontWeight: '700' }}>Confirming Your Payment...</h3>
-          <p style={{ color: 'rgba(255,255,255,0.7)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-            Verifying your payment with the bank and issuing your e-ticket.
-          </p>
+          <BookingWaitLoader
+            icon="ticket"
+            title="Confirming your payment"
+            subtitle="We're checking your payment with the bank and issuing your e-ticket with the airline. This can take up to a minute — please don't close or refresh this page."
+            steps={['Checking your payment', 'Issuing your e-ticket', 'Preparing your receipt']}
+          />
         </div>
       )}
 
@@ -11169,7 +11178,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
       )}
 
       {/* Global Flight Search Loading Modal (Step 10 / Custom request) */}
-      {loadingFlights && (
+      {loadingFlights && !verifyingPayment && (
         <div className="modal-overlay animate-fade-only" style={{ zIndex: 99999, background: 'rgba(255, 255, 255, 0.95)' }}>
           <div style={{ textAlign: 'center', maxWidth: '780px', padding: '2.5rem 2rem' }}>
             <FlightSearchAnimation />

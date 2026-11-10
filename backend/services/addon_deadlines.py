@@ -360,8 +360,16 @@ def _refused_requests(locator: str, booking: dict, states: dict, holds: dict) ->
         key = i.get("offer_key") or i.get("offer_id")
         if not key:
             continue
-        refused = (st and (st["status"] or "").lower() in REFUSED_STATUSES) or \
-                  (not st and i.get("offer_key") and i["offer_key"] not in holds)
+        if st:
+            refused = (st["status"] or "").lower() in REFUSED_STATUSES
+        else:
+            # Not found by Identifier. Several items that look like it (QR
+            # answered a lounge request with a second, airline-coded one):
+            # refused only if every one of them is refused. None at all:
+            # gone from the PNR without being confirmed.
+            alike = addon_billing.matches(states, i)
+            refused = (all((s["status"] or "").lower() in REFUSED_STATUSES for _, s in alike) if alike
+                       else bool(i.get("offer_key")) and i["offer_key"] not in holds)
         if refused:
             out.append({"key": key, "name": i.get("name") or (f"Seat {i['seat_number']}" if i.get("seat_number") else "Extra")})
     return out

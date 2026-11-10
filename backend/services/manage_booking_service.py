@@ -71,6 +71,39 @@ def emd_paused_note(live: dict) -> str | None:
             "011 222 2222 for further assistance.")
 
 
+# Paid EXTRAS only (paid seats still sold) — GDS bookings. QR, 2026-11-10
+# (JJ2V4X): a Platinum Lounge request (PLT, LKR 36,962) was answered with an
+# unpriced "PTL" service; Travelport refused its EMD ("NO FARES") even when
+# paid at the quoted price, and gave the extras new Identifiers on every
+# retrieve. Remove an airline here to sell its paid extras again.
+EXTRAS_PAUSED_CARRIERS = {"QR": "Qatar Airways"}
+
+
+def extras_paused_note(live: dict) -> str | None:
+    """The customer note when paid extras (not seats) are paused for an
+    airline on this (GDS) booking, else None."""
+    if live.get("content_source") == "NDC":
+        return None
+    codes = {(f.get("flight") or "")[:2].upper() for f in live.get("flights") or []}
+    names = sorted(EXTRAS_PAUSED_CARRIERS[c] for c in codes if c in EXTRAS_PAUSED_CARRIERS)
+    if not names:
+        return None
+    return (f"Paid extras such as extra baggage and lounge access for {' and '.join(names)} can't be bought online at "
+            "the moment. Seats can still be chosen here. For a paid extra, please contact the airline directly or call "
+            "011 222 2222 for further assistance.")
+
+
+def without_paused_extras(due: dict, live: dict) -> dict:
+    """payable_after_ticketing() without the extras of an airline whose paid
+    extras are paused (they are released at their deadline, never charged)."""
+    if not due.get("items") or not extras_paused_note(live):
+        return due
+    items = [i for i in due["items"] if i.get("kind") == "seat"]
+    return {"items": items, "amount": round(sum(i["price"] for i in items), 2),
+            "supplier_total": round(sum(i["supplier_price"] for i in items), 2),
+            "currency": items[0]["currency"] if items else None}
+
+
 def _free_only(out: dict, note: str) -> None:
     """Options for a paused airline: paid seats can't be picked, paid extras
     aren't listed, and the customer is told why."""
@@ -247,6 +280,13 @@ def get_options(locator: str, live: dict) -> dict:
     paused = emd_paused_note(live)
     if paused:
         _free_only(out, paused)
+    else:
+        extras_note = extras_paused_note(live)
+        if extras_note:  # paid seats stay; paid extras aren't listed
+            out["extras"] = [x for x in out["extras"] if not (x.get("price") or 0) > 0]
+            if not out["extras"] and not out.get("extras_error"):
+                out["extras_error"] = extras_note
+            out["paid_addons_note"] = extras_note
     return out
 
 
