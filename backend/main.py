@@ -1531,7 +1531,7 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
         # STEP 8 only — ticket issuance (STEP 9) now happens separately via
         # POST /api/bookings/{locator_code}/issue-ticket, gated on a
         # successful PayCorp payment confirmation. Do NOT issue here.
-        ticket = services.retrieve_reservation(locator_code)
+        ticket = _read_new_booking(locator_code, commit_result)
 
         # Cache the Offer local id/UUID from the commit response — issue_ticket()
         # falls back to this when a later buildfromlocator doesn't return Offer[]
@@ -1813,7 +1813,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # STEP 8 only — ticket issuance (STEP 9) now happens separately via
         # POST /api/bookings/{locator_code}/issue-ticket, gated on a
         # successful PayCorp payment confirmation. Do NOT issue here.
-        ticket = services.retrieve_reservation(locator_code)
+        ticket = _read_new_booking(locator_code, commit_result)
 
         # Cache the Offer local id/UUID from the commit response — issue_ticket()
         # falls back to this when a later buildfromlocator doesn't return Offer[]
@@ -1828,9 +1828,12 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # Galileo GDS segment compiler takes a second to generate the airline PNR.
         # If it is null, sleep 1.5 seconds and retrieve reservation again to populate it.
         if not ticket.get("airline_pnr"):
-            import time
             time.sleep(1.5)
-            updated_ticket = services.retrieve_reservation(locator_code)
+            try:
+                updated_ticket = services.retrieve_reservation(locator_code)
+            except Exception as read_err:
+                logger.warning(f"{locator_code}: airline reference re-read failed: {read_err}")
+                updated_ticket = {}
             if updated_ticket.get("airline_pnr"):
                 ticket["airline_pnr"] = updated_ticket["airline_pnr"]
                 ticket["airline_pnr_source"] = updated_ticket["airline_pnr_source"]
@@ -2138,6 +2141,24 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
                                  payment_result.get("txn_reference") or request.reqid)
         raise HTTPException(status_code=409, detail=_paid_not_ticketed_message(locator_code))
     return _issue_and_save_ticket(locator_code, payment_result)
+
+
+def _read_new_booking(locator_code: str, commit_result: dict) -> dict:
+    """The booking just made, read back from Travelport. The PNR exists from
+    the commit on, so a failing read must never turn it into a "not
+    confirmed" booking: SQ NDC JJ2V6X (2026-11-10) — the read straight after
+    the commit answered "Request cannot be unmarshalled (2999)", the customer
+    was told the booking failed, retried, and a duplicate PNR was made while
+    JJ2V6X stayed held at the airline. Retries the read, then falls back to
+    the commit response itself, which carries the whole reservation."""
+    for attempt in range(3):
+        try:
+            return services.retrieve_reservation(locator_code)
+        except Exception as read_err:
+            logger.warning(f"{locator_code}: read after booking failed (attempt {attempt + 1}/3): {read_err}")
+            time.sleep(2 * (attempt + 1))
+    logger.warning(f"{locator_code}: using the commit response — the booking exists at the airline")
+    return services.parse_commit_response(commit_result["raw_response"], locator_code)
 
 
 def _ticket_on_pnr(locator_code: str, tries: int = 3, wait: int = 5) -> dict | None:

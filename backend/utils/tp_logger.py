@@ -36,6 +36,7 @@ import httpx
 
 _lock = threading.Lock()
 _counter = 0
+_counter_started = False
 _pending: dict[int, tuple[int, str]] = {}
 
 _REDACT_HEADER_VALUES = {"cookie": "{{session_cookie}}"}
@@ -195,8 +196,19 @@ def _on_request(request: httpx.Request) -> None:
     log_dir = _log_dir()
     if not log_dir:
         return
-    global _counter
+    global _counter, _counter_started
     with _lock:
+        if not _counter_started:
+            # Continue after the highest number already in the folder: the
+            # count restarted at 1 on every backend restart and overwrote the
+            # earlier files with the same numbers (JJ2V6X's 2026-11-10 09:06
+            # read was lost that way).
+            _counter_started = True
+            try:
+                nums = [int(f.split(".", 1)[0]) for f in os.listdir(log_dir) if f.split(".", 1)[0].isdigit()]
+                _counter = max([_counter] + nums)
+            except OSError:
+                pass
         _counter += 1
         n = _counter
     name = _step_name(request.method, str(request.url))
