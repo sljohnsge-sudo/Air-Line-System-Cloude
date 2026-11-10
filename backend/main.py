@@ -2140,6 +2140,23 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     return _issue_and_save_ticket(locator_code, payment_result)
 
 
+def _ticket_on_pnr(locator_code: str, tries: int = 3, wait: int = 5) -> dict | None:
+    """The PNR read live, when it holds a ticket number (else None). A few
+    reads a few seconds apart: the airline can write the ticket just after
+    Travelport has answered the ticketing request with an error."""
+    for attempt in range(tries):
+        if attempt:
+            time.sleep(wait)
+        try:
+            res = services.retrieve_reservation(locator_code)
+        except Exception as e:
+            logger.warning(f"{locator_code}: ticket re-check read failed: {e}")
+            continue
+        if res.get("ticket_number"):
+            return res
+    return None
+
+
 def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = None) -> dict:
     """Runs after the PayCorp payment has been verified by the caller."""
     # One TraceId for every Travelport call issue_ticket() makes internally
@@ -2149,14 +2166,30 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
         # Held under the PNR's lock so the unpaid-EMD check can't see these
         # EMDs before they are recorded as ours.
         with addon_deadlines.locator_lock(locator_code):
-            ticket = services.issue_ticket(locator_code)
+            ticket, issue_error = None, None
+            try:
+                ticket = services.issue_ticket(locator_code)
+            except Exception as e:
+                issue_error = e
             # issue_ticket() returns the held booking when Travelport gives no
             # ticket number without an error (e.g. "NO FARES") — that is NOT
             # a ticket: handled below as paid-but-not-ticketed, never saved
-            # as a success.
-            if not ticket.get("ticket_number"):
-                raise ValueError(ticket.get("ticket_issuance_diagnostic")
-                                 or "Travelport returned no ticket number")
+            # as a success. But an error answer doesn't always mean no ticket:
+            # JJ2MC1 (QR NDC, 2026-11-09) got "INTERNAL SERVER ERROR (1)" and
+            # the airline issued ticket 1572141403007 anyway — the customer was
+            # told it wasn't booked and a refund was filed. So the PNR is read
+            # again before anything is declared failed.
+            if not (ticket or {}).get("ticket_number"):
+                late = _ticket_on_pnr(locator_code)
+                if late:
+                    logger.warning(f"{locator_code}: ticketing answered '{issue_error or 'no ticket number'}' "
+                                   f"but the PNR holds ticket {late['ticket_number']} — treated as issued")
+                    ticket = late
+                elif issue_error:
+                    raise issue_error
+                else:
+                    raise ValueError(ticket.get("ticket_issuance_diagnostic")
+                                     or "Travelport returned no ticket number")
             database.record_emds(locator_code, [e.get("number") for e in ticket.get("emd_numbers") or []
                                                 if isinstance(e, dict)], "ours_ticketing")
     except Exception as e:
