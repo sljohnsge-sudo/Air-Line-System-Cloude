@@ -141,6 +141,38 @@ class Refused(Exception):
     pass
 
 
+class Unavailable(Exception):
+    """Travelport couldn't read the booking just now (its own fault, e.g.
+    "INTERNAL SERVER ERROR") — not the same as "no such booking"."""
+
+
+# Travelport answers that mean the PNR really isn't there.
+_NOT_THERE = ("DOES NOT EXIST", "NOT FOUND", "NO RECORD", "INVALID RECORD LOCATOR", "INVALID LOCATOR",
+              "NO BOOKING", "PURGED", "UNABLE TO RETRIEVE")
+
+
+def _read_for_lookup(locator: str) -> dict:
+    """The live booking for a customer lookup. A temporary Travelport fault
+    (JJ2VJ8, 2026-11-10 10:15: "INTERNAL SERVER ERROR" twice, fine again two
+    minutes later) used to show "We couldn't find a booking with that
+    reference" for a real, ticketed booking. Retried twice; a fault that
+    persists is Unavailable, and only a real "not there" answer is NotFound."""
+    last = None
+    for attempt in range(3):
+        if attempt:
+            time.sleep(2 * attempt)
+        try:
+            return live_booking_service.get_live_booking(locator)
+        except live_booking_service.LiveBookingError as e:
+            if any(s in str(e).upper() for s in _NOT_THERE):
+                raise NotFound()
+            last = e
+        except CancelError as e:
+            last = e
+        logger.warning(f"{locator}: booking lookup read failed (attempt {attempt + 1}/3): {last}")
+    raise Unavailable(str(last))
+
+
 def _norm_name(text: str) -> str:
     return re.sub(r"[^A-Z]", "", (text or "").upper())
 
@@ -172,10 +204,7 @@ def lookup(query: str, last_name: str) -> dict:
         raise NotFound("Enter a 6-character booking reference (PNR) or a 13-digit ticket number.")
     if not locator:
         raise NotFound()
-    try:
-        live = live_booking_service.get_live_booking(locator)
-    except live_booking_service.LiveBookingError:
-        raise NotFound()
+    live = _read_for_lookup(locator)
     want = _norm_name(last_name)
     if not want or not any(_norm_name(t.get("surname")) == want for t in live.get("travelers") or []):
         raise NotFound()

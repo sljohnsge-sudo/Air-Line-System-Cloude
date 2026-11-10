@@ -4979,6 +4979,8 @@ class AddonPaymentCompleteRequest(BaseModel):
 
 LOOKUP_NOT_FOUND = ("We couldn't find a booking with that reference and last name. Check the PNR or ticket number "
                     "and the passenger's last name as on the ticket.")
+LOOKUP_UNAVAILABLE = ("The airline's booking system didn't answer just now, so we couldn't open your booking. "
+                      "Your booking is not affected — please try again in a minute.")
 
 
 @app.post("/api/booking-status/lookup")
@@ -4988,8 +4990,9 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
             live = manage_booking_service.lookup(request.query, request.last_name)
         except manage_booking_service.NotFound as e:
             raise HTTPException(status_code=404, detail=str(e) or LOOKUP_NOT_FOUND)
-        except services.CancelError as e:
-            raise HTTPException(status_code=502, detail=f"Travelport didn't answer: {e} (TraceId {trace_id})")
+        except (manage_booking_service.Unavailable, services.CancelError) as e:
+            logger.warning(f"Booking lookup {request.query}: airline system unavailable — {e} (TraceId {trace_id})")
+            raise HTTPException(status_code=503, detail=LOOKUP_UNAVAILABLE)
     live["trace_id"] = trace_id
     live["manage_token"] = auth.create_manage_booking_token(live["locator_code"], current["customer_id"])
     # Confirmed seats/extras without payment: deadlines started, overdue ones
