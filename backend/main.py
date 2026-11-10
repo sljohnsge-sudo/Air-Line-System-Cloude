@@ -2424,7 +2424,10 @@ PAID_SEATS_AFTER_TICKET_CARRIERS = {"EK"}
 # payment, so no customer is charged for a ticket that can't be issued.
 # TK: every ticket refused with 4165 "MANDATORY SSR DETAILS DOES NOT EXIST
 # IN THE RESERVATION" (10 sandbox PNRs, 2026-11-02) — Travelport case open.
-PAUSED_CARRIERS = {"TK"}
+# FZ: Add Offer answers "504 Gateway Time-out" after 30 s on every flydubai
+# itinerary since 2026-11-06 (27 tries; e.g. TraceID_5324BC4420E7,
+# 2026-11-10) — Travelport case to raise. Remove the code to sell again.
+PAUSED_CARRIERS = {"TK", "FZ"}
 PAUSED_CARRIER_DETAIL = ("This airline isn't available for online booking right now. "
                          "You have not been charged — please choose another flight.")
 
