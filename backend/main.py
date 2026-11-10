@@ -167,12 +167,14 @@ async def _enforce_module_flags(request: Request, call_next):
     path = request.url.path
     if path.startswith(INDIGO_ROUTE_PREFIXES) and not INDIGO_ENABLED:
         return _module_unavailable()
+    # MySQL reads in a worker thread: this middleware runs on every request,
+    # so any wait here would hold up the whole server.
     if path.startswith(AMADEUS_ROUTE_PREFIXES):
-        if database.get_provider_settings().get("search_mode", "travelport_only") not in ("both", "amadeus_only"):
+        if (await asyncio.to_thread(database.get_provider_settings)).get("search_mode", "travelport_only") not in ("both", "amadeus_only"):
             return _module_unavailable()
     for flag_name, prefixes in FEATURE_GATED_PREFIXES.items():
         if any(path.startswith(p) for p in prefixes):
-            settings = database.get_provider_settings()
+            settings = await asyncio.to_thread(database.get_provider_settings)
             if not settings.get(flag_name, True):
                 return _module_unavailable()
             break
@@ -997,7 +999,7 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
     # Admin on/off switch (Admin Portal -> Provider Control) -- lets staff
     # take a GDS out of the unified search entirely (contract issue, outage,
     # or just wanting to sell one source only) without touching code.
-    search_mode = database.get_provider_settings().get("search_mode", "travelport_only")
+    search_mode = (await asyncio.to_thread(database.get_provider_settings)).get("search_mode", "travelport_only")
     tp_enabled = search_mode in ("both", "travelport_only")
     ad_enabled = search_mode in ("both", "amadeus_only")
 
@@ -3214,12 +3216,18 @@ async def ticket_status(query: str = Query(..., min_length=3, max_length=20),
                         principal: Optional[dict] = Depends(auth.get_optional_principal)):
     q = query.strip().upper()
 
-    # Is this one of ours on Travelport? (locator OR issued ticket number)
-    tp_cached = database.get_booking_by_locator(q) or database.get_booking_by_ticket_number(q)
+    # Everything that waits on MySQL or Travelport runs in a worker thread:
+    # this handler is async, and a live read done directly here held the whole
+    # server — every other page, login and search — until Travelport answered
+    # (up to 120 s a try; the 2026-11-10 10:00 Travelport outage left the site
+    # frozen). Measured on the test copy: an airport search took 7.4 s instead
+    # of 2.1 s while one ticket-status lookup ran.
+    tp_cached = await asyncio.to_thread(
+        lambda: database.get_booking_by_locator(q) or database.get_booking_by_ticket_number(q))
     if tp_cached:
         locator = tp_cached["locator_code"]
         try:
-            ticket = services.retrieve_reservation(locator)
+            ticket = await asyncio.to_thread(services.retrieve_reservation, locator)
         except Exception as e:
             status = _cancelled_status(tp_cached, e)
             if not status:
@@ -3233,7 +3241,7 @@ async def ticket_status(query: str = Query(..., min_length=3, max_length=20),
 
     # Phase 1: when Amadeus is switched off in Provider Control, don't call
     # the Amadeus backend at all — it isn't a booking source.
-    if database.get_provider_settings().get("search_mode", "travelport_only") not in ("both", "amadeus_only"):
+    if (await asyncio.to_thread(database.get_provider_settings)).get("search_mode", "travelport_only") not in ("both", "amadeus_only"):
         raise HTTPException(status_code=404, detail="No booking found for that PNR or ticket number.")
 
     # Not ours on Travelport -- ask the Amadeus backend if it's one of theirs.
@@ -3789,7 +3797,7 @@ def cybersource_redirect(reqid: str):
 async def cybersource_receipt(request: Request):
     form = {k: v for k, v in (await request.form()).items()}
     try:
-        return RedirectResponse(cybersource_service.handle_receipt(form), status_code=303)
+        return RedirectResponse(await asyncio.to_thread(cybersource_service.handle_receipt, form), status_code=303)
     except services.PayCorpError as e:
         logger.error(f"NDB/CyberSource receipt refused: {e}")
         raise HTTPException(status_code=400, detail=str(e))
