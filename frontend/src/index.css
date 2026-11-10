@@ -5099,3 +5099,31 @@ button, input, select, textarea { font-family: inherit; }
 .rl-alert { border: 1px solid var(--tb-border); border-radius: 8px; padding: 0.55rem 0.7rem; margin-bottom: 0.5rem; font-size: 0.8rem; background: #fff; }
 .rl-delivery { margin-top: 0.3rem; font-size: 0.76rem; color: var(--tb-text); overflow-wrap: anywhere; }
 @media (max-width: 560px) { .rl-grid { grid-template-columns: 1fr; } }
+
+/* Admin › Card Payment Reconciliation */
+.recon { display: flex; flex-direction: column; gap: 0.8rem; }
+.recon-upload { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; flex-wrap: wrap; padding: 0.8rem 0.9rem;
+  border: 1px dashed var(--tb-border); border-radius: 12px; background: #fff; }
+.recon-help { white-space: normal; max-width: 60ch; }
+.recon-upload-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; min-width: 0; }
+.recon-upload-row input[type="file"] { max-width: 100%; font-size: 0.8rem; }
+.recon-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 0.6rem; flex-wrap: wrap; }
+.recon-title { font-weight: 800; color: var(--tb-navy); }
+.recon-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; }
+.recon-tile { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.65rem 0.75rem; border: 1px solid var(--tb-border); border-radius: 12px; background: #fff; min-width: 0; }
+.recon-tile span { font-size: 0.64rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tb-muted); }
+.recon-tile b { font-size: 1.15rem; color: var(--tb-navy); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.recon-tile small { font-size: 0.7rem; color: var(--tb-muted); }
+.recon-tile.ok { border-color: #bbf7d0; background: #f0fdf4; }
+.recon-tile.ok b { color: #166534; }
+.recon-tile.bad { border-color: #fecaca; background: #fef2f2; }
+.recon-tile.bad b { color: #991b1b; }
+.recon-tile.muted b { color: #64748b; }
+.recon-chips { flex-wrap: wrap; margin-bottom: 0; }
+.recon-search { max-width: 420px; }
+.recon-table td { font-size: 0.76rem; }
+.recon-issue { color: #991b1b; font-weight: 600; font-size: 0.74rem; }
+.recon-issue + .recon-issue { margin-top: 0.15rem; }
+.recon-ref { white-space: nowrap; color: var(--tb-navy); }
+.recon-more { align-self: flex-start; }
+.recon-runs-title { margin-top: 0.8rem; font-size: 0.9rem; }

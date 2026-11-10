@@ -5,6 +5,7 @@ import CancelBookingDialog from './CancelBookingDialog.jsx';
 import { fmtDate, fmtDateTime, fmtTime } from './dateFormat.js';
 import AdminInsights, { InsightAlerts } from './AdminInsights.jsx';
 import AdminRatesLogs from './AdminRatesLogs.jsx';
+import AdminPaymentRecon from './AdminPaymentRecon.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
 // Terminal dropdowns. Naming isn't standardized across airports (numbers,
@@ -1315,6 +1316,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     ] },
     { group: 'Commercial', items: [
       { id: 'reports', label: 'Sales Reports', icon: 'chart' },
+      { id: 'payment-recon', label: 'Card Payment Reconciliation', icon: 'check' },
       { id: 'pricing', label: 'Pricing & Markup', icon: 'tag' },
       { id: 'loyalty', label: 'Loyalty Program', icon: 'star' },
     ] },
@@ -2868,6 +2870,18 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             ))}
           </div>
         )}
+      </section>
+      )}
+
+      {activeAdminSection === 'payment-recon' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Card Payment Reconciliation</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
+          Upload the CyberSource transactions export. Every card sale is matched to its booking or seats/extras payment and its ERPNext
+          invoice: same amount, ticket issued, invoiced and settled to the bank. Anything that doesn't match is listed to check, with its
+          refund request or ticketing exception. Nothing is changed in bookings or ERPNext.
+        </p>
+        <AdminPaymentRecon API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
       </section>
       )}
 

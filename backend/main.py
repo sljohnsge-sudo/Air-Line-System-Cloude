@@ -36,6 +36,7 @@ import asyncio
 import gzip
 import hashlib
 import json
+import zipfile
 import logging
 import os
 import threading
@@ -66,6 +67,7 @@ from services import addon_billing
 from services import customer_notify
 from services import addon_deadlines
 from services import ticketing_exceptions
+from services import payment_reconciliation
 from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
@@ -6020,6 +6022,45 @@ def journey_event(request: JourneyEventRequest):
                           amount=request.amount, currency=request.currency)
     insights.mark(request.step, request.status, request.detail)
     return {"ok": True}
+
+
+# ── Card payment reconciliation (CyberSource export upload) ─────────────────
+# Finance uploads the CyberSource Transactions export (JSON / CSV / .xlsx);
+# every card sale is matched to our payment record, the booking or seats/extras
+# payment it paid for, and its ERPNext invoice (services/payment_reconciliation).
+# Read-only against bookings and ERP; each run is kept for history.
+
+@app.post("/api/admin/payment-recon/upload")
+def payment_recon_upload(file: UploadFile = File(...), admin: dict = Depends(auth.get_current_admin)):
+    data = file.file.read(payment_reconciliation.MAX_FILE_BYTES + 1)
+    try:
+        return payment_reconciliation.run_upload(file.filename or "export", data,
+                                                 admin.get("username") or admin.get("sub"))
+    except (ValueError, UnicodeDecodeError, zipfile.BadZipFile) as e:
+        raise HTTPException(status_code=400, detail=str(e) if isinstance(e, ValueError) else
+                            "This file couldn't be read. Upload the CyberSource Transactions export as JSON, CSV or .xlsx.")
+
+
+@app.get("/api/admin/payment-recon/runs")
+def payment_recon_runs(admin: dict = Depends(auth.get_current_admin)):
+    return {"runs": payment_reconciliation.list_runs()}
+
+
+@app.get("/api/admin/payment-recon/runs/{run_id}")
+def payment_recon_run(run_id: int, admin: dict = Depends(auth.get_current_admin)):
+    run = payment_reconciliation.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Reconciliation run not found.")
+    return run
+
+
+@app.get("/api/admin/payment-recon/runs/{run_id}/csv")
+def payment_recon_run_csv(run_id: int, admin: dict = Depends(auth.get_current_admin)):
+    run = payment_reconciliation.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Reconciliation run not found.")
+    return Response(content="﻿" + payment_reconciliation.run_csv(run), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="card-reconciliation-{run_id}.csv"'})
 
 
 @app.get("/api/admin/insights/searches")
