@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import CustomerProfile from './CustomerProfile.jsx';
 import AddonInvoice from './AddonInvoice.jsx';
 import BookingLineList from './BookingLineList.jsx';
 import BookingDetailView from './BookingDetailView.jsx';
@@ -18,6 +19,7 @@ const NAV_ICONS = {
   loyalty: () => <NavSvg><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></NavSvg>,
   visa: () => <NavSvg><rect x="4.5" y="2.5" width="15" height="19" rx="2" /><circle cx="12" cy="10" r="3.2" /><path d="M8.5 17h7" /></NavSvg>,
   cancellations: () => <NavSvg><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6M15 9l-6 6" /></NavSvg>,
+  profile: () => <NavSvg><circle cx="12" cy="8" r="3.6" /><path d="M4.5 20.5c1.2-3.8 4.2-5.6 7.5-5.6s6.3 1.8 7.5 5.6" /></NavSvg>,
   account: () => <NavSvg><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></NavSvg>,
 };
 
@@ -461,6 +463,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     { id: 'bookings', label: 'My Bookings', count: bookings.length },
     { id: 'status', label: 'Booking Status' },
     { id: 'cancellations', label: 'Cancellation Requests', count: cancellationRequests.length },
+    { id: 'profile', label: 'My Profile' },
   ];
 
   return (
@@ -584,6 +587,11 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
                               onClose={() => setAddonInvoiceOpen(null)} />
               )}
             </>
+          )}
+
+          {activeSection === 'profile' && (
+            <CustomerProfile API_BASE={API_BASE} customerToken={customerToken} fetchWithRetry={fetchWithRetry}
+                             handleApiResponse={handleApiResponse} onSessionExpired={handleSessionExpired} />
           )}
 
           {activeSection === 'loyalty' && (

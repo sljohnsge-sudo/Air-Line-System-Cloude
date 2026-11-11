@@ -74,6 +74,7 @@ from services import offline_payments
 from services import contact_verification
 from services import analytics_sync, analytics_service
 from services import share_fare_service
+from services import customer_profile
 from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
@@ -1603,6 +1604,7 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
             ticket["payment_method"] = "Credit Card"
 
         ticket["customer_id"] = customer_id
+        customer_profile.save_from_booking(customer_id, travelers)
 
         # Save to local cache
         saved = database.save_booking(ticket)
@@ -2006,6 +2008,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
             ticket["payment_method"] = "Credit Card"
 
         ticket["customer_id"] = customer_id
+        customer_profile.save_from_booking(customer_id, travelers)
 
         # Save to local MySQL cache
         saved = database.save_booking(ticket)
@@ -2582,6 +2585,7 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
 
     _attach_traveler_details(ticket, travelers)
     ticket["customer_id"] = customer_id
+    customer_profile.save_from_booking(customer_id, travelers)
     saved = database.save_booking(ticket)
 
     # NDC Instant Pay books, pays, and tickets in one Travelport commit, so
@@ -5750,6 +5754,68 @@ def customer_my_loyalty(current: dict = Depends(auth.get_current_customer)):
     summary["recent_transactions"] = database.get_loyalty_transactions(current["sub"], limit=50)
     summary["points_by_booking"] = database.get_loyalty_points_by_locator(current["sub"])
     return summary
+
+
+# ── Customer profile: saved travellers + other details (services/customer_profile) ──
+
+class ProfileTravellerBody(BaseModel):
+    first_name: str = Field(..., max_length=50)
+    last_name: str = Field(..., max_length=50)
+    date_of_birth: Optional[str] = Field(default=None, max_length=10)
+    gender: Optional[str] = Field(default=None, max_length=10)
+    nationality: Optional[str] = Field(default=None, max_length=3)
+    passport_number: Optional[str] = Field(default=None, max_length=20)
+    passport_expiry: Optional[str] = Field(default=None, max_length=10)
+    passport_issue_country: Optional[str] = Field(default=None, max_length=3)
+    phone: Optional[str] = Field(default=None, max_length=20)
+    email: Optional[str] = Field(default=None, max_length=190)
+    passenger_type: Optional[str] = Field(default=None, max_length=3)
+
+
+class ProfileDetailsBody(BaseModel):
+    nic_number: Optional[str] = Field(default=None, max_length=20)
+    address: Optional[str] = Field(default=None, max_length=255)
+    city: Optional[str] = Field(default=None, max_length=80)
+    country: Optional[str] = Field(default=None, max_length=60)
+    emergency_name: Optional[str] = Field(default=None, max_length=120)
+    emergency_phone: Optional[str] = Field(default=None, max_length=20)
+    meal_preference: Optional[str] = Field(default=None, max_length=40)
+    seat_preference: Optional[str] = Field(default=None, max_length=20)
+    notes: Optional[str] = Field(default=None, max_length=500)
+    frequent_flyer: List[dict] = []
+    visas: List[dict] = []
+
+
+def _profile_call(fn, *args):
+    try:
+        return fn(*args)
+    except customer_profile.ProfileError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@app.get("/api/customers/me/profile")
+def customer_profile_get(current: dict = Depends(auth.get_current_customer)):
+    return _profile_call(customer_profile.get, int(current["customer_id"]))
+
+
+@app.post("/api/customers/me/profile/travellers")
+def customer_profile_add_traveller(body: ProfileTravellerBody, current: dict = Depends(auth.get_current_customer)):
+    return _profile_call(customer_profile.add_traveller, int(current["customer_id"]), body.model_dump())
+
+
+@app.put("/api/customers/me/profile/travellers/{traveller_id}")
+def customer_profile_update_traveller(traveller_id: int, body: ProfileTravellerBody, current: dict = Depends(auth.get_current_customer)):
+    return _profile_call(customer_profile.update_traveller, int(current["customer_id"]), traveller_id, body.model_dump())
+
+
+@app.delete("/api/customers/me/profile/travellers/{traveller_id}")
+def customer_profile_delete_traveller(traveller_id: int, current: dict = Depends(auth.get_current_customer)):
+    return _profile_call(customer_profile.delete_traveller, int(current["customer_id"]), traveller_id)
+
+
+@app.put("/api/customers/me/profile/details")
+def customer_profile_update_details(body: ProfileDetailsBody, current: dict = Depends(auth.get_current_customer)):
+    return _profile_call(customer_profile.update_details, int(current["customer_id"]), body.model_dump())
 
 
 # ── Contact change with a one-time code (services/contact_verification) ──────
