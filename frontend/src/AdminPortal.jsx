@@ -8,6 +8,7 @@ import AdminRatesLogs from './AdminRatesLogs.jsx';
 import AdminPaymentRecon from './AdminPaymentRecon.jsx';
 import AdminGoLiveControls from './AdminGoLiveControls.jsx';
 import AdminOfflinePayments from './AdminOfflinePayments.jsx';
+import AdminAnalyticsUsers from './AdminAnalyticsUsers.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
 // Terminal dropdowns. Naming isn't standardized across airports (numbers,
@@ -1333,6 +1334,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       { id: 'insight-searches', label: 'Search Log', icon: 'list' },
       { id: 'insight-ips', label: 'IP Monitor', icon: 'shield' },
       { id: 'insight-reminders', label: 'Birthdays & Passports', icon: 'gift' },
+      { id: 'analytics-users', label: 'Analytics Logins', icon: 'users' },
     ] },
     { group: 'Commercial', items: [
       { id: 'reports', label: 'Sales Reports', icon: 'chart' },
@@ -2888,6 +2890,17 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           If the airline has released the booking meanwhile, no ticket is issued and a refund request is filed.
         </p>
         <AdminOfflinePayments API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
+      </section>
+      )}
+
+      {activeAdminSection === 'analytics-users' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Analytics Logins</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
+          Separate accounts for the business dashboard at /analytics (customers 360, airlines, countries and airports, extras,
+          hotels, visa and tour packages). These accounts cannot open the Admin Console.
+        </p>
+        <AdminAnalyticsUsers API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
       </section>
       )}
 

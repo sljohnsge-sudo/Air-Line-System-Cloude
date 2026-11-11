@@ -71,6 +71,7 @@ from services import payment_reconciliation
 from services import go_live_switches
 from services import offline_payments
 from services import contact_verification
+from services import analytics_sync, analytics_service
 from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
@@ -115,6 +116,17 @@ def _start_extras_deadline_sweep():
     (services/addon_deadlines.py). EXTRAS_SWEEP_MINUTES=0 turns it off —
     run one process with it on if the API is scaled to several workers."""
     addon_deadlines.start_sweeper(int(os.getenv("EXTRAS_SWEEP_MINUTES", "15")))
+
+
+@app.on_event("startup")
+def _start_analytics_sync():
+    """Business dashboard (/analytics): rebuilds its own analytics database
+    from the main one every ANALYTICS_SYNC_MINUTES (default 30, 0 = off).
+    Read-only against the main database (services/analytics_sync.py)."""
+    try:
+        analytics_sync.start_scheduler(int(os.getenv("ANALYTICS_SYNC_MINUTES", "30")))
+    except Exception as e:
+        logger.error(f"Analytics sync could not start: {e}")
 
 
 @app.on_event("startup")
@@ -6538,6 +6550,125 @@ def admin_customers_360(q: Optional[str] = None, _admin: dict = Depends(auth.get
 @app.get("/api/admin/insights/customer")
 def admin_customer_detail(email: str, _admin: dict = Depends(auth.get_current_admin)):
     return insights.customer_detail(email)
+
+
+# ── Business dashboard (/analytics) — own accounts, own analytics database ────
+# services/analytics_sync.py (rebuild) + services/analytics_service.py (accounts,
+# queries). Analytics tokens carry role "analytics" and so never pass
+# auth.get_current_admin; admin tokens never pass the analytics dependency.
+
+class AnalyticsLoginRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., min_length=1, max_length=200)
+
+
+class AnalyticsUserCreateRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    full_name: Optional[str] = Field(default=None, max_length=150)
+    password: str = Field(..., min_length=10, max_length=200)
+
+
+class AnalyticsUserUpdateRequest(BaseModel):
+    full_name: Optional[str] = Field(default=None, max_length=150)
+    password: Optional[str] = Field(default=None, max_length=200)
+    active: Optional[bool] = None
+
+
+@app.post("/api/analytics/login")
+def analytics_login(request: AnalyticsLoginRequest):
+    return analytics_service.login(request.username, request.password)
+
+
+@app.get("/api/analytics/me")
+def analytics_me(user: dict = Depends(analytics_service.get_current_analytics_user)):
+    return {"username": user.get("sub")}
+
+
+@app.get("/api/analytics/overview")
+def analytics_overview(days: int = Query(30, ge=1, le=365),
+                       _user: dict = Depends(analytics_service.get_current_analytics_user)):
+    if analytics_sync.last_run() is None:      # very first view: build it now
+        analytics_sync.run_sync("first view")
+    return analytics_service.overview(days)
+
+
+@app.get("/api/analytics/customers")
+def analytics_customers(q: Optional[str] = Query(None, max_length=100),
+                        sort: Literal["spend", "bookings", "recent", "name"] = "spend",
+                        _user: dict = Depends(analytics_service.get_current_analytics_user)):
+    return analytics_service.customers(q, sort)
+
+
+@app.get("/api/analytics/customer")
+def analytics_customer(email: str = Query(..., max_length=200),
+                       _user: dict = Depends(analytics_service.get_current_analytics_user)):
+    return analytics_service.customer_detail(email)
+
+
+@app.get("/api/analytics/airlines")
+def analytics_airlines(_user: dict = Depends(analytics_service.get_current_analytics_user)):
+    return analytics_service.airlines()
+
+
+@app.get("/api/analytics/geography")
+def analytics_geography(_user: dict = Depends(analytics_service.get_current_analytics_user)):
+    return analytics_service.geography()
+
+
+@app.get("/api/analytics/extras")
+def analytics_extras(_user: dict = Depends(analytics_service.get_current_analytics_user)):
+    return analytics_service.extras()
+
+
+@app.get("/api/analytics/verticals")
+def analytics_verticals(_user: dict = Depends(analytics_service.get_current_analytics_user)):
+    return analytics_service.verticals()
+
+
+def _analytics_refresh(by: str) -> dict:
+    result = analytics_sync.run_sync(by)
+    if result.get("busy"):
+        raise HTTPException(status_code=409, detail=result["error"])
+    if not result.get("ok"):
+        raise HTTPException(status_code=500, detail=result.get("error") or "Refresh failed")
+    return {**result, "last_sync": analytics_sync.last_run()}
+
+
+@app.post("/api/analytics/refresh")
+def analytics_refresh(user: dict = Depends(analytics_service.get_current_analytics_user)):
+    return _analytics_refresh(f"analytics:{user.get('sub')}")
+
+
+@app.post("/api/admin/analytics/refresh")
+def admin_analytics_refresh(admin: dict = Depends(auth.get_current_admin)):
+    return _analytics_refresh(f"admin:{admin.get('sub')}")
+
+
+@app.get("/api/admin/analytics-users")
+def admin_analytics_users(admin: dict = Depends(auth.get_current_admin)):
+    return {"users": analytics_service.list_users(),
+            "can_edit": analytics_service.is_super_admin(admin.get("admin_id")),
+            "storage": analytics_sync.storage_info(), "last_sync": analytics_sync.last_run()}
+
+
+def _require_super_admin(admin: dict) -> None:
+    if not analytics_service.is_super_admin(admin.get("admin_id")):
+        raise HTTPException(status_code=403, detail="Only a super admin can manage analytics logins.")
+
+
+@app.post("/api/admin/analytics-users")
+def admin_create_analytics_user(request: AnalyticsUserCreateRequest, admin: dict = Depends(auth.get_current_admin)):
+    _require_super_admin(admin)
+    return analytics_service.create_user(request.username, request.full_name or "", request.password,
+                                         admin.get("sub"))
+
+
+@app.put("/api/admin/analytics-users/{user_id}")
+def admin_update_analytics_user(user_id: int, request: AnalyticsUserUpdateRequest,
+                                admin: dict = Depends(auth.get_current_admin)):
+    _require_super_admin(admin)
+    return analytics_service.update_user(user_id, admin.get("sub"), full_name=request.full_name,
+                                         password=request.password or None, active=request.active)
 
 
 # Automatic daily reminders — OFF unless AUTO_REMINDERS=true. Birthday wishes
