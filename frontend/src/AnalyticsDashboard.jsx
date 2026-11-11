@@ -5,6 +5,7 @@
 // Phone numbers arrive masked (last 3 digits); passport data is never sent.
 // Charts are plain CSS bars / inline SVG — no chart package.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import TickBookLogo from './TickBookLogo.jsx';
 import { fmtDate, fmtDateTime } from './dateFormat.js';
 import './analytics.css';
 
@@ -134,10 +135,46 @@ const Tile = ({ label, value, sub, tone }) => (
   <div className={`recon-tile${tone ? ` ${tone}` : ''}`}><span>{label}</span><b>{value}</b>{sub && <small>{sub}</small>}</div>
 );
 
+// Short money for the KPI cards (LKR 89.85M); the full amount is in the caption.
+const shortMoney = (list) => {
+  if (!list || !list.length) return '—';
+  return list.map(r => {
+    const a = Number(r.amount || 0);
+    const v = a >= 1e6 ? `${(a / 1e6).toFixed(a >= 1e8 ? 0 : 2)}M` : a >= 1e3 ? `${(a / 1e3).toFixed(1)}K` : a.toLocaleString();
+    return `${r.currency} ${v}`;
+  }).join(' · ');
+};
+
+const KPI_ICONS = {
+  bookings: <path d="M3 8.5V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2.5a2.5 2.5 0 0 0 0 5V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2.5a2.5 2.5 0 0 0 0-5zM14 5v12" />,
+  tickets: <path d="M5 12.5l4.2 4.2L19 7" />,
+  revenue: <path d="M12 3v18M16.5 7.5c0-1.9-2-3-4.5-3s-4.5 1.2-4.5 3.2c0 4.6 9 2.4 9 7 0 2-2 3.3-4.5 3.3S7.5 16 7.5 14" />,
+  customers: <path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20c.9-3.4 3.4-5.3 6.5-5.3s5.6 1.9 6.5 5.3M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.9c1.8.7 3 2.5 3.5 5.1" />,
+  extras: <path d="M7 7h10l1 13H6L7 7zM9.5 7V5.5a2.5 2.5 0 0 1 5 0V7" />,
+  searches: <path d="M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM20 20l-4.8-4.8" />,
+  conversion: <path d="M4 18l5-6 4 3.5L20 6M15 6h5v5" />,
+};
+
+const Kpi = ({ icon, label, value, sub, accent = 'blue', title }) => (
+  <div className={`an-kpi an-kpi-${accent}`} title={title}>
+    <div className="an-kpi-top">
+      <span className="an-kpi-label">{label}</span>
+      <span className="an-kpi-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{KPI_ICONS[icon]}</svg>
+      </span>
+    </div>
+    <div className="an-kpi-value">{(() => {
+      const m = /^([A-Z]{3}) (.+)$/.exec(String(value));
+      return m ? <><span className="an-kpi-cur">{m[1]}</span>{m[2]}</> : value;
+    })()}</div>
+    {sub && <div className="an-kpi-sub">{sub}</div>}
+  </div>
+);
+
 const Card = ({ title, children, wide }) => (
   <section className={`an-card${wide ? ' wide' : ''}`}>
-    {title && <h4>{title}</h4>}
-    {children}
+    {title && <div className="an-card-head"><h4>{title}</h4></div>}
+    <div className="an-card-body">{children}</div>
   </section>
 );
 
@@ -147,14 +184,14 @@ function Overview({ d }) {
   const v = d.verticals || {};
   return (
     <>
-      <div className="recon-tiles">
-        <Tile label="Bookings" value={num(d.bookings)} sub={`${num(d.passengers)} passengers`} />
-        <Tile label="Tickets" value={num(d.ticketed)} sub={`${num(d.cancelled)} cancelled / voided`} tone="ok" />
-        <Tile label="Ticket revenue" value={moneyList(d.revenue)} sub="fares of tickets in force" />
-        <Tile label="Customers" value={num(d.customers)} sub={`${num(d.customer_accounts)} with an account · ${num(d.repeat_customers)} repeat`} />
-        <Tile label="Extras revenue" value={moneyList(d.extras_revenue)} sub={`${num(d.extras_items)} seats / extras paid`} />
-        <Tile label="Searches" value={num(d.searches)} sub={`${num(d.searches_no_results)} with no results`} />
-        <Tile label="Search → booking" value={pct(d.conversion_pct)} sub={`last ${d.period_days} days: ${pct(d.period_conversion_pct)}`} />
+      <div className="an-kpis">
+        <Kpi icon="revenue" accent="navy" label="Ticket revenue" value={shortMoney(d.revenue)} sub={moneyList(d.revenue)} title="Fares of tickets in force" />
+        <Kpi icon="tickets" accent="green" label="Tickets issued" value={num(d.ticketed)} sub={`${num(d.cancelled)} cancelled / voided`} />
+        <Kpi icon="bookings" accent="blue" label="Bookings" value={num(d.bookings)} sub={`${num(d.passengers)} passengers`} />
+        <Kpi icon="extras" accent="coral" label="Seats & extras" value={shortMoney(d.extras_revenue)} sub={`${num(d.extras_items)} paid · ${moneyList(d.extras_revenue)}`} />
+        <Kpi icon="customers" accent="violet" label="Customers" value={num(d.customers)} sub={`${num(d.customer_accounts)} with an account · ${num(d.repeat_customers)} repeat`} />
+        <Kpi icon="searches" accent="sky" label="Searches" value={num(d.searches)} sub={`${num(d.searches_no_results)} with no results`} />
+        <Kpi icon="conversion" accent="amber" label="Search → booking" value={pct(d.conversion_pct)} sub={`last ${d.period_days} days: ${pct(d.period_conversion_pct)}`} />
       </div>
       <div className="an-grid">
         <Card title={`Searches per day (last ${d.period_days} days)`}>
@@ -596,10 +633,24 @@ function Login({ API_BASE, onSignedIn, notice }) {
   };
   return (
     <div className="an-login">
+      <div className="an-login-brand">
+        <TickBookLogo light size={46} />
+        <div className="an-login-pitch">
+          <span className="an-login-kicker">Business Analytics</span>
+          <h1>Your travel business, at a glance.</h1>
+          <ul>
+            <li>Bookings, tickets and revenue</li>
+            <li>Customers 360 and repeat travellers</li>
+            <li>Airlines, routes, countries and airports</li>
+            <li>Seats, extras, hotels, visa and tour packages</li>
+          </ul>
+        </div>
+        <small>Own analytics database · refreshed every 30 minutes</small>
+      </div>
       <form className="an-login-card" onSubmit={submit}>
         <div className="adm-eyebrow">Tick and Book</div>
-        <h2>Business Analytics</h2>
-        <p className="adm-sub an-wrap">Sign in with your analytics account. Accounts are created by a Tick and Book super admin.</p>
+        <h2>Sign in</h2>
+        <p className="adm-sub an-wrap">Use your analytics account. Accounts are created by the Tick and Book main admin.</p>
         {notice && <div className="an-notice">{notice}</div>}
         {err && <div className="error-banner">{err}</div>}
         <label className="form-label" htmlFor="an-user">Username</label>
@@ -685,26 +736,36 @@ export default function AnalyticsDashboard({ API_BASE = '/api' }) {
 
   const data = path ? cache[path] : null;
   return (
-    <div className="tab-content animate-fade adm an-page">
-      <section className="adm-top an-top">
-        <div>
-          <div className="adm-eyebrow">Tick and Book · Business Analytics</div>
-          <h2>{TABS.find(x => x.id === tab)?.label}</h2>
-          <div className="adm-crumb an-wrap">
-            {lastSync?.refreshed_at ? `Last refreshed ${fmtDateTime(lastSync.refreshed_at)}` : 'Not refreshed yet'}
-            {' · updates every 30 minutes'}{user ? ` · signed in as ${user}` : ''}
+    <div className="tab-content animate-fade adm an-page an-app">
+      <header className="an-appbar">
+        <div className="an-appbar-row">
+          <div className="an-brand">
+            <TickBookLogo light size={34} />
+            <span className="an-brand-divider" aria-hidden="true" />
+            <span className="an-brand-title">Business Analytics</span>
+          </div>
+          <div className="an-appbar-right">
+            <span className="an-sync" title="The analytics database is rebuilt from the booking system every 30 minutes">
+              <i className={`an-dot${lastSync?.refreshed_at ? ' on' : ''}`} />
+              {lastSync?.refreshed_at ? `Updated ${fmtDateTime(lastSync.refreshed_at)}` : 'Not refreshed yet'}
+            </span>
+            <button className="an-btn" onClick={refresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : '↻ Refresh'}</button>
+            {user && <span className="an-user" title={`Signed in as ${user}`}><b>{user.slice(0, 1).toUpperCase()}</b>{user}</span>}
+            <button className="an-btn an-btn-ghost" onClick={() => signOut('')}>Sign out</button>
           </div>
         </div>
-        <div className="an-actions">
-          <button className="btn btn-secondary btn-sm adm-logout" onClick={refresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh now'}</button>
-          <button className="btn btn-secondary btn-sm adm-logout" onClick={() => signOut('')}>Sign out</button>
-        </div>
-      </section>
+        <nav className="an-nav" role="tablist" aria-label="Dashboard sections">
+          {TABS.map(x => (
+            <button key={x.id} role="tab" className="an-nav-item" aria-selected={tab === x.id} onClick={() => setTab(x.id)}>{x.label}</button>
+          ))}
+        </nav>
+      </header>
 
-      <div className="adm-chips an-tabs" role="tablist">
-        {TABS.map(x => (
-          <button key={x.id} role="tab" className="adm-chip" aria-pressed={tab === x.id} aria-selected={tab === x.id} onClick={() => setTab(x.id)}>{x.label}</button>
-        ))}
+      <div className="an-pagehead">
+        <div>
+          <h2>{TABS.find(x => x.id === tab)?.label}</h2>
+          <p>Tick and Book · live figures from the booking system{lastSync?.refreshed_at ? ` · as of ${fmtDateTime(lastSync.refreshed_at)}` : ''}</p>
+        </div>
       </div>
 
       {err && <div className="error-banner">{err}</div>}

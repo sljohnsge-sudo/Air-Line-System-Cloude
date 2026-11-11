@@ -4100,7 +4100,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
       )}
 
       {/* Header */}
-      <header ref={headerRef} className={`header header-sky glass-panel${showHomePage ? ' header-home' : ''}`}>
+      <header ref={headerRef} className={`header header-sky glass-panel${showHomePage ? ' header-home' : ''}${activeTab === 'analytics' ? ' header-hidden' : ''}`}>
         <div className="logo-container" onClick={() => setActiveTab('home')} role="link" aria-label="Tick and Book home" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <TickBookLogo light size={44} />
         </div>
