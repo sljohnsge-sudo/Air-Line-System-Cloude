@@ -2118,6 +2118,13 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           </div>
         )}
 
+        <h3 className="results-heading" style={{ marginTop: '2rem' }}>Payment Methods (super admin)</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+          Which payment options customers see at the review step: Card, Bank transfer / deposit (Travelport GDS fares) and
+          Cash (only for staff signed in to this portal). Bank and cash payments are confirmed in Operations → Bank &amp; Cash Payments.
+        </p>
+        <AdminOfflinePayments API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} settingsOnly />
+
         <h3 className="results-heading" style={{ marginTop: '2rem' }}>Go-live Controls (super admin)</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
           Switch flight search, new bookings, ticketing and staff void/refund on or off while testing for go-live.

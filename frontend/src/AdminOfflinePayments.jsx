@@ -14,7 +14,7 @@ const METHODS = [
   { key: 'cash_enabled', label: 'Cash (staff bookings)', desc: 'Offered only to signed-in staff booking for a walk-in customer; staff confirm the cash here.' },
 ];
 
-export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionExpired }) {
+export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionExpired, settingsOnly = false }) {
   const api = useCallback(async (path, opts = {}) => {
     const res = await fetch(`${API_BASE}/admin${path}`, {
       ...opts, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}`, ...(opts.headers || {}) },
@@ -42,7 +42,7 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
   const loadPayments = useCallback(() => api(`/offline-payments${filter === 'all' ? '' : `?status=${filter}`}`)
     .then(d => setPayments(d.payments || [])).catch(e => setError(e.message)), [api, filter]);
   useEffect(() => { loadSettings(); }, [loadSettings]);
-  useEffect(() => { loadPayments(); }, [loadPayments]);
+  useEffect(() => { if (!settingsOnly) loadPayments(); }, [loadPayments, settingsOnly]);
 
   const saveSettings = async (values) => {
     setBusy('settings'); setError(''); setMsg('');
@@ -73,7 +73,7 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
       {error && <div className="error-banner">{error}</div>}
       {msg && <div className="ofp-msg">{msg}</div>}
 
-      <h4 className="ofp-h">Payment methods</h4>
+      {!settingsOnly && <h4 className="ofp-h">Payment methods</h4>}
       {!settings ? <div className="loading-state"><div className="spinner"></div></div> : (
         <div className="glc">
           {!settings.can_change && <div className="glc-note">Only the main admin account (<strong>admin</strong>) can change payment methods{settings.signed_in_as ? <> — you are signed in as <strong>{settings.signed_in_as}</strong></> : null}.</div>}
@@ -113,6 +113,7 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
         </div>
       )}
 
+      {!settingsOnly && (<>
       <h4 className="ofp-h">Payments waiting for confirmation</h4>
       <div className="adm-chips">
         {[['awaiting', 'Awaiting'], ['ticketed', 'Ticketed'], ['failed', 'Not ticketed'], ['cancelled', 'Cancelled'], ['all', 'All']].map(([k, l]) => (
@@ -174,6 +175,7 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
           </table>
         </div>
       )}
+      </>)}
     </div>
   );
 }
