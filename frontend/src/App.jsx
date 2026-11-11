@@ -1465,9 +1465,22 @@ export default function App() {
     if (next === 'ticketStatus') {
       setTicketStatusResult(null); setTicketStatusError('');
       setActiveTab('ticketStatus');
+    } else if (next && next.startsWith('/results/')) {
+      navigate(next);
+      showNotification('You are signed in. Tick “Share this fare” on the fares you want to share.', 'info');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerToken]);
+  // Sharing fares (ShareFares.jsx) is for signed-in customers: the results
+  // link is kept and the customer comes back to it after signing in.
+  const askSignInToShare = (mode) => {
+    try {
+      if (window.location.pathname.startsWith('/results/')) sessionStorage.setItem(AFTER_SIGN_IN_KEY, window.location.pathname);
+      sessionStorage.setItem('tb_account_mode', mode === 'register' ? 'register' : 'login');
+    } catch { /* storage off */ }
+    setActiveTab('account');
+    window.scrollTo(0, 0);
+  };
 
   // Google/Microsoft sign-in: the backend does the whole OAuth exchange
   // server-side (see /api/customers/oauth/{provider}/callback) and redirects
@@ -5917,6 +5930,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                       infants: infantCount, students: studentCount, cabin: cabinPref,
                     }}
                     onClear={() => setShareFares({})}
+                    customerToken={customerToken} apiBase={API_BASE} onSignIn={askSignInToShare}
                   />
                 )}
                 {!loadingFlights && !searchError && sharedSet && flights.length > 0 && (
@@ -6229,6 +6243,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             </button>
                             <ShareToggle
                               checked={!!shareFares[fId]}
+                              signedIn={!!customerToken} onSignIn={askSignInToShare}
                               onChange={on => setShareFares(prev => {
                                 const next = { ...prev };
                                 if (on) next[fId] = buildShareItem({ flight, cabin: activeCabin, fareOption: selectedFareOption, price: displayPrice, currency: displayCurrency, grandTotal,
