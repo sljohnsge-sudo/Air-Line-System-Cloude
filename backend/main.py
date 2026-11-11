@@ -75,6 +75,7 @@ from services import contact_verification
 from services import analytics_sync, analytics_service
 from services import share_fare_service
 from services import customer_profile
+from services import customer_interests
 from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
@@ -5847,6 +5848,49 @@ def customer_profile_delete_traveller(traveller_id: int, current: dict = Depends
 @app.put("/api/customers/me/profile/details")
 def customer_profile_update_details(body: ProfileDetailsBody, current: dict = Depends(auth.get_current_customer)):
     return _profile_call(customer_profile.update_details, int(current["customer_id"]), body.model_dump())
+
+
+# ── Offers & notifications: favourites + special offers (services/customer_interests) ──
+
+class InterestsBody(BaseModel):
+    opt_in: bool = False
+    channels: List[str] = []
+    topics: List[str] = []
+    destinations: List[str] = []
+    airlines: List[str] = []
+    hotels: List[str] = []
+    other: Optional[str] = Field(default=None, max_length=300)
+
+
+class OfferSendBody(BaseModel):
+    subject: str = Field(..., min_length=3, max_length=200)
+    message: str = Field(..., min_length=5, max_length=4000)
+    customer_ids: List[int]
+    filters: dict = {}
+
+
+@app.get("/api/customers/me/interests")
+def customer_interests_get(current: dict = Depends(auth.get_current_customer)):
+    return customer_interests.get(int(current["customer_id"]))
+
+
+@app.put("/api/customers/me/interests")
+def customer_interests_put(body: InterestsBody, current: dict = Depends(auth.get_current_customer)):
+    return customer_interests.update(int(current["customer_id"]), body.model_dump())
+
+
+@app.get("/api/admin/customer-interests")
+def admin_customer_interests(q: str = "", topic: Optional[str] = None, channel: Optional[str] = None,
+                             admin: dict = Depends(auth.get_current_admin)):
+    return {**customer_interests.search(q, topic, channel), "history": customer_interests.history()}
+
+
+@app.post("/api/admin/customer-interests/send")
+def admin_customer_interests_send(body: OfferSendBody, admin: dict = Depends(auth.get_current_admin)):
+    try:
+        return customer_interests.send(body.subject, body.message, body.customer_ids, admin.get("sub"), body.filters)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ── Contact change with a one-time code (services/contact_verification) ──────

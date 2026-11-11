@@ -5255,3 +5255,38 @@ button, input, select, textarea { font-family: inherit; }
 
 .pay-method.off { opacity: 0.55; cursor: not-allowed; background: #f8fafc; }
 .pay-method.off small { color: #92400e; }
+
+/* My Profile › Offers & notifications; Admin › Offers & Interests */
+.ci .ci-switch { display: flex; align-items: center; gap: 0.7rem; padding: 0.7rem 0.85rem; border: 1px solid var(--border-color); border-radius: 12px; background: #f8fafc; cursor: pointer; }
+.ci .ci-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.ci-switch-track { width: 42px; height: 24px; border-radius: 12px; background: #cbd5e1; position: relative; flex-shrink: 0; transition: background 0.15s; }
+.ci-switch-track span { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.ci-switch.on .ci-switch-track { background: #16a34a; }
+.ci-switch.on .ci-switch-track span { left: 21px; }
+.ci-switch strong { display: block; font-size: 0.88rem; }
+.ci-switch small { font-size: 0.74rem; color: var(--text-muted); }
+.ci-body { display: flex; flex-direction: column; gap: 0.8rem; }
+.ci-dim { opacity: 0.5; }
+.ci-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.8rem; }
+.ci-field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.ci-label { font-size: 0.78rem; font-weight: 800; color: #334155; }
+.ci-help { font-size: 0.72rem; color: var(--text-muted); margin-top: -0.2rem; }
+.ci-checks { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.ci-check { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem; border: 1px solid var(--border-color); border-radius: 999px; font-size: 0.8rem; background: #fff; cursor: pointer; }
+.ci-check.on { border-color: #16a34a; background: #f0fdf4; color: #166534; font-weight: 700; }
+.ci-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; padding: 0.35rem 0.45rem; border: 1px solid var(--border-color); border-radius: 10px; background: #fff; min-height: 2.4rem; }
+.ci-tag { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: #e8f1fb; color: #1e3a5f; font-size: 0.78rem; font-weight: 700; }
+.ci-tag button { border: 0; background: none; color: #64748b; cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0; }
+.ci-tag-sm { font-size: 0.7rem; padding: 0.1rem 0.45rem; margin: 0 0.25rem 0.25rem 0; }
+.ci-tag-input { flex: 1 1 140px; min-width: 120px; border: 0; outline: none; font-size: 0.84rem; padding: 0.25rem; background: transparent; }
+.ci-suggest { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ci-suggest button { border: 1px dashed #cbd5e1; background: #fff; border-radius: 999px; padding: 0.15rem 0.55rem; font-size: 0.72rem; color: #475569; cursor: pointer; }
+.ci-suggest button:hover { border-color: #2f6fb5; color: #2f6fb5; }
+.aci { display: flex; flex-direction: column; gap: 0.8rem; }
+.aci-top { white-space: normal; }
+.aci-filter { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.aci-filter .recon-search { flex: 1 1 280px; padding: 0.5rem 0.7rem; border: 1px solid var(--border-color); border-radius: 10px; }
+.aci-sel { width: auto; margin: 0; padding: 0.45rem 0.6rem; }
+.aci-send { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.85rem; border: 1px solid var(--border-color); border-radius: 12px; background: #fff; }
+.aci-send h4 { margin: 0; font-size: 0.9rem; }
+.aci-send .form-input { margin: 0; }

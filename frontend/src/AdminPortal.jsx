@@ -9,6 +9,7 @@ import AdminPaymentRecon from './AdminPaymentRecon.jsx';
 import AdminGoLiveControls from './AdminGoLiveControls.jsx';
 import AdminOfflinePayments from './AdminOfflinePayments.jsx';
 import AdminAnalyticsUsers from './AdminAnalyticsUsers.jsx';
+import AdminCustomerInterests from './AdminCustomerInterests.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
 // Terminal dropdowns. Naming isn't standardized across airports (numbers,
@@ -1330,6 +1331,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     ] },
     { group: 'Customers & Insights', items: [
       { id: 'insight-customers', label: 'Customer 360', icon: 'user' },
+      { id: 'customer-interests', label: 'Offers & Interests', icon: 'star' },
       { id: 'insight-journeys', label: 'Booking Journey Logs', icon: 'route' },
       { id: 'insight-searches', label: 'Search Log', icon: 'list' },
       { id: 'insight-ips', label: 'IP Monitor', icon: 'shield' },
@@ -2897,6 +2899,17 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           If the airline has released the booking meanwhile, no ticket is issued and a refund request is filed.
         </p>
         <AdminOfflinePayments API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
+      </section>
+      )}
+
+      {activeAdminSection === 'customer-interests' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Offers &amp; Interests</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
+          Customers who switched special notifications ON in My Profile, with their favourite destinations, airlines and hotels.
+          Find everyone interested in a destination or airline and send them a special offer. Customers who switched it off are never listed.
+        </p>
+        <AdminCustomerInterests API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
       </section>
       )}
 

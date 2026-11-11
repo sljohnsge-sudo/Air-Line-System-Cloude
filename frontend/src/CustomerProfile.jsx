@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fmtDate } from './dateFormat.js';
 import { COUNTRIES } from './countries.js';
+import CustomerInterests from './CustomerInterests.jsx';
 
 const EMPTY_T = { first_name: '', last_name: '', date_of_birth: '', gender: '', nationality: '', passport_number: '',
   passport_expiry: '', passport_issue_country: '', phone: '', email: '', passenger_type: 'ADT' };
@@ -156,6 +157,9 @@ export default function CustomerProfile({ API_BASE, customerToken, fetchWithRetr
           ))}
         </div>
       </section>
+
+      <CustomerInterests API_BASE={API_BASE} customerToken={customerToken} fetchWithRetry={fetchWithRetry}
+                         handleApiResponse={handleApiResponse} onSessionExpired={onSessionExpired} />
 
       <section className="prof-card">
         <div className="prof-head"><div><h3>Other details</h3><p>Keep these up to date yourself — they help us look after your trips.</p></div></div>
