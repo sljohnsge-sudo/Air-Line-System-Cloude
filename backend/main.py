@@ -3142,6 +3142,27 @@ def _public_booking_view(data):
     return out
 
 
+_PASSPORT_KEYS = {"passport_number", "passportNumber", "docNumber", "passport_no"}
+
+
+def _mask_passports(data):
+    """Deep copy with every passport number masked to its last 3 characters."""
+    if isinstance(data, list):
+        return [_mask_passports(v) for v in data]
+    if isinstance(data, dict):
+        return {k: (_mask_tail(v) if k in _PASSPORT_KEYS and v else _mask_passports(v)) for k, v in data.items()}
+    return data
+
+
+def _staff_mask(data, principal: Optional[dict]):
+    """Personal data security (11/11/2026, item 2): staff see passport numbers
+    masked (e.g. *****221); only a super admin sees them in full. Customers
+    still see their own booking in full."""
+    if principal and principal.get("role") == "admin" and not go_live_switches.is_super_admin(principal.get("admin_id")):
+        return _mask_passports(data)
+    return data
+
+
 def _can_see_private(principal: Optional[dict], booking: Optional[dict]) -> bool:
     if not principal:
         return False
@@ -3226,7 +3247,7 @@ def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth
             _attach_live_addons(ticket, locator_code)
             if principal and principal.get("role") == "customer" and principal.get("customer_id"):
                 ticket["extras_invoices"] = _paid_addon_invoices(locator_code, principal["customer_id"])
-        return ticket if _can_see_private(principal, cached) else _public_booking_view(ticket)
+        return _staff_mask(ticket, principal) if _can_see_private(principal, cached) else _public_booking_view(ticket)
     except Exception as e:
         logger.warning(f"Live retrieval failed for PNR {locator_code}: {e}")
         if live_only:
@@ -3248,7 +3269,7 @@ def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth
             status = _cancelled_status(cached, e)
             if status:
                 cached = {**cached, "status": status}
-            return cached if _can_see_private(principal, cached) else _public_booking_view(cached)
+            return _staff_mask(cached, principal) if _can_see_private(principal, cached) else _public_booking_view(cached)
         raise HTTPException(status_code=404, detail=f"Reservation not found: {str(e)}")
 
 
@@ -3322,7 +3343,7 @@ def booking_history(email: Optional[str] = Query(None, description="Filter by pa
     """
     try:
         bookings = database.get_all_bookings(email)
-        return {"bookings": bookings, "count": len(bookings)}
+        return _staff_mask({"bookings": bookings, "count": len(bookings)}, _admin)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3733,7 +3754,7 @@ def get_invoice_report(
                         "phone": p.get("phone") or cached.get("phone", ""),
                     })
 
-    return {"success": True, "pax_records": pax_records}
+    return _staff_mask({"success": True, "pax_records": pax_records}, _admin)
 
 
 # ── PayCorp (Sampath Bank) Payment Gateway — Hosted Page Flow ──────────────────
