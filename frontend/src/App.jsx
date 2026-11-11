@@ -2579,7 +2579,7 @@ export default function App() {
   // ticket by locator from the existing retrieve-by-PNR endpoint.
   const KNOWN_PATH_PREFIXES = [
     '/', '/book', '/results', '/booking/', '/ndc', '/hotels', '/packages',
-    '/visa', '/cancel-booking', '/check-ticket', '/admin', '/account', '/invoice',
+    '/visa', '/cancel-booking', '/check-ticket', '/admin', '/account', '/invoice', '/analytics',
   ];
 
   useEffect(() => {
