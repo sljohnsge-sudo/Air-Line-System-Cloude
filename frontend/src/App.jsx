@@ -1484,6 +1484,8 @@ export default function App() {
       let pending = null;
       try { pending = JSON.parse(sessionStorage.getItem('tb_pending_share') || 'null'); sessionStorage.removeItem('tb_pending_share'); } catch { /* storage off */ }
       if (pending?.fId && pending?.item) {
+        keepShareRef.current = true;
+        setTimeout(() => { keepShareRef.current = false; }, 60000);
         setShareFares({ [pending.fId]: { ...pending.item, sharedAt: new Date().toISOString() } });
         setShareAutoOpen(true);
         showNotification('You are signed in. Choose how to share this fare.', 'info');
@@ -2133,6 +2135,9 @@ export default function App() {
   // Fare cards ticked to share by WhatsApp / email — fareCardKey -> text summary.
   const [shareFares, setShareFares] = useState({});
   const [shareAutoOpen, setShareAutoOpen] = useState(false);
+  // A fare restored after sign-in survives the results being searched again
+  // (a fresh page load re-runs the search, which normally clears the selection).
+  const keepShareRef = useRef(false);
   // Recent-search chips were removed from the home search — forget what they saved.
   useEffect(() => { try { localStorage.removeItem('tb_recent_searches'); } catch { /* storage off */ } }, []);
   // Live fare re-check after Travelport says the searched fare changed.
@@ -2723,7 +2728,7 @@ export default function App() {
     setLoadingFlights(true);
     setSearchError('');
     setFlights([]);
-    setShareFares({});
+    if (keepShareRef.current) keepShareRef.current = false; else setShareFares({});
     setShowSearchForm(false);
     setActiveTab('book');
 
