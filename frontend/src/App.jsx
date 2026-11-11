@@ -942,37 +942,48 @@ function ItineraryRow({ leg, label }) {
                 ) : (
                   <div className="rc-mid-endpoint">
                     {relayTotal && <RcWalker relayIndex={sIdx} relayTotal={relayTotal} />}
-                    <div className="rc-mid-row">
-                      <div className="rc-mid-side rc-mid-side-left">
-                        <span className="rc-mid-time" title="Arrives">{rcFmtTime(seg.arrival_time)}</span>
-                        <div className="rc-date">{rcFmtDateShort(seg.arrival_time)}</div>
-                      </div>
-                      <div className="rc-mid-center">
-                        <div className="rc-airport">{seg.arrival_airport}{seg.arrival_terminal && <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', fontWeight: 400 }}> T{seg.arrival_terminal}</span>}</div>
-                      </div>
-                      <div className="rc-mid-side rc-mid-side-right">
-                        <span className="rc-mid-time" title="Departs">{rcFmtTime(segments[sIdx + 1]?.departure_time)}</span>
-                        <div className="rc-date">{rcFmtDateShort(segments[sIdx + 1]?.departure_time)}</div>
-                      </div>
-                    </div>
-                    {layoverMin !== undefined && (
-                      <div
-                        className={`rc-layover-badge${layoverMin > 0 && layoverMin < 60 ? ' short' : ''}`}
-                        title={`Connection layover: ${Math.floor(layoverMin / 60)}h ${layoverMin % 60}m at ${seg.arrival_airport}`}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M4 12a8 8 0 0 1 14.5-4.5" />
-                          <path d="M20 12a8 8 0 0 1-14.5 4.5" />
-                          <g transform="translate(16.5,4) rotate(40) scale(0.4)" fill="currentColor" stroke="none">
-                            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z" />
-                          </g>
-                          <g transform="translate(7.5,20) rotate(-140) scale(0.4)" fill="currentColor" stroke="none">
-                            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z" />
-                          </g>
-                        </svg>
-                        <span className="rc-layover-badge-time">{Math.floor(layoverMin / 60)}h {layoverMin % 60}m</span>
-                      </div>
-                    )}
+                    {(() => {
+                      // Stop: arrival → next departure above the line, the
+                      // airport as a chip on the line, the layover below. (The
+                      // old row squeezed both times + full dates + airport into
+                      // 82 px, so the airport code was cut to a red sliver and
+                      // the dotted line ran under the dates.)
+                      const next = segments[sIdx + 1];
+                      const arrDate = rcFmtDateShort(seg.arrival_time);
+                      const depDate = rcFmtDateShort(next?.departure_time);
+                      const dateText = !depDate || arrDate === depDate ? arrDate : `${arrDate.slice(0, 5)} → ${depDate.slice(0, 5)}`;
+                      return (
+                        <>
+                          <div className="rc-mid-top" title={`Arrives ${seg.arrival_airport} ${rcFmtTime(seg.arrival_time)} ${arrDate} · next flight departs ${rcFmtTime(next?.departure_time)} ${depDate}`}>
+                            <span className="rc-mid-time">{rcFmtTime(seg.arrival_time)} → {rcFmtTime(next?.departure_time)}</span>
+                            <span className="rc-mid-date">{dateText}</span>
+                          </div>
+                          <div className="rc-mid-stop">
+                            <span className="rc-mid-airport">{seg.arrival_airport}{seg.arrival_terminal && <small> T{seg.arrival_terminal}</small>}</span>
+                          </div>
+                          <div className="rc-mid-bottom">
+                        {layoverMin !== undefined && (
+                          <div
+                            className={`rc-layover-badge${layoverMin > 0 && layoverMin < 60 ? ' short' : ''}`}
+                            title={`Connection layover: ${Math.floor(layoverMin / 60)}h ${layoverMin % 60}m at ${seg.arrival_airport}`}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 12a8 8 0 0 1 14.5-4.5" />
+                              <path d="M20 12a8 8 0 0 1-14.5 4.5" />
+                              <g transform="translate(16.5,4) rotate(40) scale(0.4)" fill="currentColor" stroke="none">
+                                <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z" />
+                              </g>
+                              <g transform="translate(7.5,20) rotate(-140) scale(0.4)" fill="currentColor" stroke="none">
+                                <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5L21 16z" />
+                              </g>
+                            </svg>
+                            <span className="rc-layover-badge-time">{Math.floor(layoverMin / 60)}h {layoverMin % 60}m</span>
+                          </div>
+                        )}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </React.Fragment>
@@ -1680,7 +1691,7 @@ export default function App() {
     e.preventDefault();
     if (!selectedPackage) return;
     if (!packagePdpaAgreed) {
-      setPackageBookingError('Please agree to the data collection disclosure before submitting.');
+      setPackageBookingError('Please tick the box to agree to how we use your details.');
       return;
     }
     setPackageBookingError('');
@@ -7664,15 +7675,19 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
                     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem', fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxHeight: '160px', overflowY: 'auto' }}>
                       <p style={{ margin: '0 0 0.5rem' }}>
-                        Tick and Book ("we," "us," "our," or the "Company") operates an online travel booking platform that enables customers to search, compare, book, and manage travel services, including airline tickets and hotel reservations. We are committed to protecting our customers' privacy and handling their personal information securely and transparently.
+                        <strong>How we use your details.</strong> Tick and Book uses the details you give here only to arrange your trip:
+                        to make and manage your booking, keep you updated about it and send you your travel documents.
+                      </p>
+                      <p style={{ margin: '0 0 0.5rem' }}>
+                        We share them only with the airlines, hotels and travel partners needed for your booking, and we keep them safe.
                       </p>
                       <p style={{ margin: 0 }}>
-                        By using our Platform and providing the required consent, you authorize Tick and Book to collect and process your personal data for booking and managing travel services, communicating booking updates, and providing personalized marketing communications, promotions, and travel offers. Your personal data will be processed in accordance with applicable laws, including the Personal Data Protection Act No. 9 of 2022 of Sri Lanka, as amended or replaced. Where consent is the applicable legal basis, you may withdraw your consent to personalized marketing communications at any time.
+                        We may also send you travel offers from Tick and Book. You can ask us to stop at any time.
                       </p>
                     </div>
                     <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer' }}>
                       <input type="checkbox" checked={packagePdpaAgreed} onChange={e => setPackagePdpaAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                      <span>I have read and agree to the data collection disclosure above.</span>
+                      <span>I agree to Tick and Book using my details as described above.</span>
                     </label>
 
                     <button type="submit" className="btn btn-primary" disabled={packageBookingSubmitting || !packagePdpaAgreed} style={{ width: '100%', marginTop: '0.5rem' }}>

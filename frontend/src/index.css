@@ -5127,3 +5127,51 @@ button, input, select, textarea { font-family: inherit; }
 .recon-ref { white-space: nowrap; color: var(--tb-navy); }
 .recon-more { align-self: flex-start; }
 .recon-runs-title { margin-top: 0.8rem; font-size: 0.9rem; }
+
+/* Search card: connecting-airport stop (item 1, 11/11). Three equal-height
+   rows — times/date above the line, the airport chip ON the line, the layover
+   below — so the chip always sits on the route line and nothing overlaps the
+   dotted section. Replaces the 82 px .rc-mid-row that squeezed the airport
+   code to a red sliver. */
+.rc-mid-endpoint {
+  --rc-mid-band: 1.45rem;
+  display: grid;
+  grid-template-rows: var(--rc-mid-band) auto var(--rc-mid-band);
+  justify-items: center;
+  min-width: 84px;
+  max-width: 116px;
+}
+.rc-mid-endpoint::before { left: -0.4rem; right: -0.4rem; border-top-width: 2px; }
+.rc-mid-top { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0.05rem; padding-bottom: 0.2rem; min-width: 0; }
+.rc-mid-top .rc-mid-time { font-size: 0.6rem; color: #64748b; }
+.rc-mid-date { font-size: 0.5rem; color: #94a3b8; white-space: nowrap; line-height: 1; }
+.rc-mid-stop { position: relative; z-index: 1; display: flex; align-items: center; }
+.rc-mid-airport { background: #fff; border: 1.5px solid #cbd5e1; border-radius: 999px; padding: 0.02rem 0.45rem;
+  font-size: 0.68rem; font-weight: 800; color: var(--gs-crimson); line-height: 1.35; white-space: nowrap; }
+.rc-mid-airport small { font-size: 0.78em; color: #64748b; font-weight: 600; }
+.rc-mid-bottom { display: flex; align-items: flex-start; justify-content: center; }
+.rc-mid-bottom .rc-layover-badge { margin-top: 0.2rem; }
+/* The relay walker crosses the stop on the line: smaller, behind the airport
+   chip, with room above it so it never covers the times/date. */
+.rc-mid-endpoint { --rc-mid-band: 1.8rem; }
+.rc-mid-top { justify-content: flex-start; padding-bottom: 0; }
+.rc-mid-stop { z-index: 2; }
+.rc-mid-endpoint .rc-relay-walker { z-index: 1; }
+.rc-mid-endpoint .rc-relay-walker svg { width: 20px; height: 13px; }
+
+/* Admin › Providers & Modules › Go-live controls */
+.glc { display: flex; flex-direction: column; gap: 0.5rem; max-width: 720px; }
+.glc-note { font-size: 0.78rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 0.5rem 0.75rem; }
+.glc-row { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; flex-wrap: wrap; padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 8px; background: #fff; }
+.glc-row.on { border-left-color: #16a34a; }
+.glc-row.off { border-left-color: #dc2626; background: #fef2f2; }
+.glc-text { flex: 1 1 260px; min-width: 0; }
+.glc-label { font-weight: 700; font-size: 0.88rem; }
+.glc-desc { font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.1rem; }
+.glc-actions { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.glc-state { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; color: #fff; border-radius: 4px; padding: 0.12rem 0.45rem; }
+.glc-state.on { background: #16a34a; }
+.glc-state.off { background: #dc2626; }
+.glc-confirm { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; font-weight: 700; color: #0f172a; }
+.glc-foot { font-size: 0.72rem; color: var(--text-muted); }

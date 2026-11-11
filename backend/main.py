@@ -68,6 +68,7 @@ from services import customer_notify
 from services import addon_deadlines
 from services import ticketing_exceptions
 from services import payment_reconciliation
+from services import go_live_switches
 from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
@@ -950,9 +951,17 @@ def _notify_cancel_failure(locator_code: str, error_message: str, recorded_statu
         logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
 
 
+def _require_switch(name: str) -> None:
+    """Super-admin go-live switch (services/go_live_switches.py). Only ever
+    called BEFORE a customer pays — a paid booking is never blocked."""
+    if not go_live_switches.is_on(name):
+        raise HTTPException(status_code=503, detail=go_live_switches.CUSTOMER_MESSAGES[name])
+
+
 @app.post("/api/flights/search")
 async def search_flights(request: FlightSearchRequest, http_request: Request,
                          customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+    await asyncio.to_thread(_require_switch, "flight_search_enabled")
     kind = http_request.headers.get("x-search-kind")
     kind = kind if kind in ("nearby", "recheck") else "search"
     result = await _search_core(request, kind=kind, customer_id=customer_id,
@@ -1519,6 +1528,7 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
     PayCorp payment confirmation. Returns the confirmed (not yet ticketed)
     booking details for the frontend popup.
     """
+    _require_switch("pnr_create_enabled")
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
     _claim_booking_submission(raw_offering, travelers)
@@ -1626,6 +1636,7 @@ def initiate_booking(request: BookingInitiateRequest):
     """
     Initiates booking: Creates GDS workbench, adds selected offer, and returns seat map.
     """
+    _require_switch("pnr_create_enabled")
     logger.info("Initiating booking and fetching live seat map...")
     if {str(s.get("carrier") or "").upper() for s in _segments_of_offering(request.raw_offering)} & PAUSED_CARRIERS:
         raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
@@ -1774,6 +1785,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     Solution: Always create a new workbench at confirm time using raw_offering.
     Steps 4-9 are re-executed atomically in one fresh session.
     """
+    _require_switch("pnr_create_enabled")
     logger.info("Confirming booking — creating fresh GDS workbench at commit time...")
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
@@ -2599,6 +2611,7 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
     and the PNR + ticket are created together, after payment, by
     /api/ndc/instant-pay/complete.
     """
+    _require_switch("pnr_create_enabled")
     _journey_booking_info(request.travelers, request.raw_offering)
     _check_travelers_for_trip(request.travelers, request.raw_offering)
     if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
@@ -2776,6 +2789,7 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
 @app.post("/api/ndc/search")
 def ndc_search(request: NdcSearchRequest):
     """NDC-only search (contentSourceList: ["NDC"]); one-way or round trip."""
+    _require_switch("flight_search_enabled")
     o, d = request.origin.upper(), request.destination.upper()
     legs = None
     if request.return_date:
@@ -3717,6 +3731,10 @@ def payments_init(request: PaymentInitRequestBody):
         addon = None if pending else (database.get_addon_payment(ref) if ref.startswith("ADD") else None)
         booking = None if (pending or addon) else database.get_booking_by_locator(ref.upper())
         if pending:
+            # Go-live switches: stop before the customer pays (an NDC pending
+            # payment books and tickets right after payment).
+            _require_switch("pnr_create_enabled")
+            _require_switch("ticketing_enabled")
             amount, currency = pending["amount"], pending["currency"]
         elif addon:
             # Manage My Booking add-on: amount fixed when the seats/extras were booked.
@@ -3738,6 +3756,7 @@ def payments_init(request: PaymentInitRequestBody):
                 database.set_addon_payment_started(addon["addon_id"], None)
             amount, currency = addon["amount"], addon["currency"]
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
+            _require_switch("ticketing_enabled")  # go-live switch: before the customer pays
             # Never take payment for a flight the airline has dropped — the
             # ticket could not be issued. Checked live, right now.
             problem, live_codes = _live_airline_check(ref.upper())
@@ -4274,11 +4293,37 @@ def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
 
 @app.put("/api/admin/provider-settings")
 def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
+    if not go_live_switches.is_super_admin(_admin.get("admin_id")):
+        # The void/refund switch is super-admin only (Go-live controls); an
+        # ordinary admin saving this page keeps its current value.
+        body.ticketed_cancel_enabled = bool(database.get_provider_settings().get("ticketed_cancel_enabled", False))
     return database.update_provider_settings(
         body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled,
         body.ticketed_cancel_enabled, body.extras_pay_hours, body.extras_pay_before_departure_hours,
         body.notify_email_enabled, body.notify_sms_enabled, body.extras_reminder_hours,
     )
+
+
+class GoLiveSwitchesRequest(BaseModel):
+    flight_search_enabled: Optional[bool] = None
+    pnr_create_enabled: Optional[bool] = None
+    ticketing_enabled: Optional[bool] = None
+    ticketed_cancel_enabled: Optional[bool] = None
+
+
+@app.get("/api/admin/go-live-switches")
+def admin_get_go_live_switches(admin: dict = Depends(auth.get_current_admin)):
+    """Super-admin switches for go-live testing (services/go_live_switches.py)."""
+    return {**go_live_switches.get(), "labels": go_live_switches.SWITCHES,
+            "can_change": go_live_switches.is_super_admin(admin.get("admin_id"))}
+
+
+@app.put("/api/admin/go-live-switches")
+def admin_put_go_live_switches(body: GoLiveSwitchesRequest, admin: dict = Depends(auth.get_current_admin)):
+    if not go_live_switches.is_super_admin(admin.get("admin_id")):
+        raise HTTPException(status_code=403, detail="Only a super admin can change these switches.")
+    values = go_live_switches.update(body.model_dump(), admin.get("sub"))
+    return {**values, "labels": go_live_switches.SWITCHES, "can_change": True}
 
 
 @app.get("/api/feature-flags")

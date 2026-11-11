@@ -316,23 +316,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
               </svg>
               Continue with Google
             </button>
-            <button
-              type="button"
-              onClick={() => { window.location.href = `${API_BASE}/customers/oauth/microsoft/start`; }}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
-                width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #e2e8f0',
-                background: 'white', color: '#0f172a', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer',
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true">
-                <path fill="#f25022" d="M1 1h10v10H1z"/>
-                <path fill="#00a4ef" d="M1 12h10v10H1z"/>
-                <path fill="#7fba00" d="M12 1h10v10H12z"/>
-                <path fill="#ffb900" d="M12 12h10v10H12z"/>
-              </svg>
-              Continue with Microsoft
-            </button>
+            {/* Microsoft sign-in removed from the page (11/11/2026): Google or an email account only. */}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0 0 1.25rem', color: '#94a3b8', fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase' }}>
             <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
