@@ -168,7 +168,7 @@ export default function PaxSignIn({ apiBase, customerToken, customerProfile, onL
             value=""
             onChange={e => { const t = saved[Number(e.target.value)]; if (t) onFill(activeIdx, t); }}
           >
-            <option value="">Fill from a previous traveller…</option>
+            <option value="">Fill from a saved traveller (My Profile)…</option>
             {saved.map((t, i) => (
               <option key={i} value={i}>{t.first_name} {t.last_name}{t.passenger_type && t.passenger_type !== 'ADT' ? ` (${TYPE_LABEL[t.passenger_type] || t.passenger_type})` : ''}</option>
             ))}

@@ -5188,6 +5188,29 @@ _SAVED_TRAVELLER_FIELDS = (
 
 @app.get("/api/customers/me/saved-travellers")
 def customer_saved_travellers(current: dict = Depends(auth.get_current_customer)):
+    """The booking form's "fill from saved traveller" list. Comes from My
+    Profile (services/customer_profile.py — filled from bookings, edited by
+    the customer, removed ones stay removed); extra fields only the booking
+    record has (address, birth place...) are added for the same person."""
+    try:
+        profile = customer_profile.get(int(current["customer_id"]))["travellers"]
+    except Exception as e:
+        logger.warning(f"Customer {current.get('customer_id')}: profile travellers not read ({e}) - using bookings")
+        profile = None
+    if profile is not None:
+        extra = {}
+        for b in database.get_bookings_for_customer(current["customer_id"]):
+            for t in (b.get("travelers") if isinstance(b.get("travelers"), list) else []):
+                if isinstance(t, dict) and t.get("first_name") and t.get("last_name"):
+                    extra.setdefault((str(t["first_name"]).strip().upper(), str(t["last_name"]).strip().upper()), t)
+        out = []
+        for p in profile[:20]:
+            base = extra.get((str(p["first_name"]).strip().upper(), str(p["last_name"]).strip().upper()), {})
+            merged = {f: base.get(f) for f in _SAVED_TRAVELLER_FIELDS if base.get(f) not in (None, "")}
+            merged.update({f: p.get(f) for f in _SAVED_TRAVELLER_FIELDS if p.get(f) not in (None, "")})
+            merged["passenger_type"] = p.get("passenger_type") or "ADT"
+            out.append(merged)
+        return {"travellers": out}
     seen, travellers = set(), []
     for b in database.get_bookings_for_customer(current["customer_id"]):
         for t in (b.get("travelers") if isinstance(b.get("travelers"), list) else []):
