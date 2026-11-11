@@ -5175,3 +5175,38 @@ button, input, select, textarea { font-family: inherit; }
 .glc-state.off { background: #dc2626; }
 .glc-confirm { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; font-weight: 700; color: #0f172a; }
 .glc-foot { font-size: 0.72rem; color: var(--text-muted); }
+
+/* Review step: payment method choice (bank transfer / cash, item 12) */
+.pay-methods { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
+.pay-methods-title { font-size: 0.8rem; font-weight: 800; color: var(--gs-dark, #0f172a); }
+.pay-method { display: flex; align-items: flex-start; gap: 0.55rem; padding: 0.55rem 0.8rem; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; }
+.pay-method.on { border-color: var(--gs-crimson); background: #fdf1f2; }
+.pay-method input { margin-top: 0.2rem; }
+.pay-method span { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.84rem; }
+.pay-method small { font-size: 0.74rem; color: #64748b; }
+/* Booking held — awaiting bank / cash payment */
+.offline-pay { display: flex; flex-direction: column; gap: 0.8rem; }
+.offline-pay-head { display: flex; align-items: center; gap: 0.7rem; }
+.offline-pay-icon { font-size: 1.8rem; }
+.offline-pay-title { font-weight: 800; font-size: 1.02rem; color: #0f172a; }
+.offline-pay-sub { font-size: 0.85rem; color: #475569; }
+.offline-pay-amount { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.7rem 0.9rem; border-radius: 10px; background: #fdf1f2; border: 1px solid #f3b8c0; }
+.offline-pay-amount span { font-size: 0.82rem; color: #475569; font-weight: 700; }
+.offline-pay-amount strong { font-size: 1.35rem; color: var(--gs-crimson); }
+.offline-pay-steps { margin: 0; padding-left: 1.2rem; font-size: 0.86rem; color: #334155; line-height: 1.6; }
+.offline-pay-bank { border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.7rem 0.9rem; background: #f8fafc; }
+.offline-pay-bank-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin-bottom: 0.3rem; }
+.offline-pay-bank pre { margin: 0; white-space: pre-wrap; font-family: inherit; font-size: 0.86rem; color: #0f172a; }
+.offline-pay-note { margin: 0; font-size: 0.8rem; color: #475569; }
+/* Admin › Bank & Cash Payments */
+.ofp { display: flex; flex-direction: column; gap: 0.6rem; }
+.ofp-h { margin: 0.6rem 0 0; font-size: 0.9rem; }
+.ofp-msg { font-size: 0.82rem; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.5rem 0.75rem; }
+.ofp-bank { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: 8px; background: #fff; }
+.ofp-bank-row { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.8rem; }
+.ofp-hours { width: 70px; display: inline-block; margin: 0 0.35rem; padding: 0.25rem 0.4rem; }
+.ofp-wrap { white-space: normal; }
+.ofp-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.ofp-form { display: flex; flex-direction: column; gap: 0.35rem; min-width: 220px; font-size: 0.74rem; }
+.ofp-form label { display: flex; flex-direction: column; gap: 0.15rem; font-weight: 700; color: #475569; }
+.ofp-form .form-input { padding: 0.3rem 0.45rem; font-size: 0.8rem; }

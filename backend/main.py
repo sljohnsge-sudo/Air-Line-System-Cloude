@@ -69,6 +69,7 @@ from services import addon_deadlines
 from services import ticketing_exceptions
 from services import payment_reconciliation
 from services import go_live_switches
+from services import offline_payments
 from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
@@ -3712,6 +3713,41 @@ class PaymentInitRequestBody(BaseModel):
     comment: Optional[str] = None
 
 
+def _held_booking_ready_to_pay(locator: str, booking: dict) -> dict:
+    """Checks before taking ANY payment (card, bank transfer, cash) for a held
+    booking: never take money for a flight the airline has dropped - the
+    ticket could not be issued. Checked live, right now. Returns the booking
+    (re-read when seats/extras confirmed since booking changed its total)."""
+    problem, live_codes = _live_airline_check(locator)
+    if problem:
+        if problem["status"] == segment_status.AIRLINE_CANCELLED:
+            _notify_airline_problem(locator, problem["codes"])
+        raise HTTPException(status_code=409, detail=problem["message"])
+    if {str(f)[:2].upper() for f in (live_codes or {})} & PAUSED_CARRIERS:
+        raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
+    _release_if_schedule_changed(locator, live_codes)
+    _release_if_fare_unticketable(locator, booking.get("fare_source"))
+    # Seats/extras the airline only "requested" at booking but has
+    # confirmed since are charged now (and paid with the ticket).
+    try:
+        if addon_billing.reconcile_held_booking(locator)["confirmed"]:
+            booking = database.get_booking_by_locator(locator)
+    except Exception as e:
+        logger.warning(f"Pending seats/extras check for {locator} failed (charging the saved total): {e}")
+    return booking
+
+
+def _require_card_enabled() -> None:
+    try:
+        on = offline_payments.get_settings()["card_enabled"]
+    except Exception as e:
+        logger.warning(f"Payment method settings unreadable ({e}) - card stays available")
+        on = True
+    if not on:
+        raise HTTPException(status_code=503, detail="Card payments are not available right now. "
+                                                    "Nothing has been charged - please choose another payment method.")
+
+
 @app.post("/api/payments/init")
 def payments_init(request: PaymentInitRequestBody):
     """
@@ -3735,6 +3771,7 @@ def payments_init(request: PaymentInitRequestBody):
             # payment books and tickets right after payment).
             _require_switch("pnr_create_enabled")
             _require_switch("ticketing_enabled")
+            _require_card_enabled()
             amount, currency = pending["amount"], pending["currency"]
         elif addon:
             # Manage My Booking add-on: amount fixed when the seats/extras were booked.
@@ -3757,24 +3794,8 @@ def payments_init(request: PaymentInitRequestBody):
             amount, currency = addon["amount"], addon["currency"]
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
             _require_switch("ticketing_enabled")  # go-live switch: before the customer pays
-            # Never take payment for a flight the airline has dropped — the
-            # ticket could not be issued. Checked live, right now.
-            problem, live_codes = _live_airline_check(ref.upper())
-            if problem:
-                if problem["status"] == segment_status.AIRLINE_CANCELLED:
-                    _notify_airline_problem(ref.upper(), problem["codes"])
-                raise HTTPException(status_code=409, detail=problem["message"])
-            if {str(f)[:2].upper() for f in (live_codes or {})} & PAUSED_CARRIERS:
-                raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
-            _release_if_schedule_changed(ref.upper(), live_codes)
-            _release_if_fare_unticketable(ref.upper(), booking.get("fare_source"))
-            # Seats/extras the airline only "requested" at booking but has
-            # confirmed since are charged now (and paid with the ticket).
-            try:
-                if addon_billing.reconcile_held_booking(ref.upper())["confirmed"]:
-                    booking = database.get_booking_by_locator(ref.upper())
-            except Exception as e:
-                logger.warning(f"Pending seats/extras check for {ref} failed (charging the saved total): {e}")
+            _require_card_enabled()
+            booking = _held_booking_ready_to_pay(ref.upper(), booking)
             amount, currency = float(booking["total_fare"]), booking.get("currency") or currency
         if (amount, currency) != (request.amount, request.currency):
             logger.warning(f"Payment init for {ref}: browser sent {request.currency} {request.amount}, "
@@ -4324,6 +4345,157 @@ def admin_put_go_live_switches(body: GoLiveSwitchesRequest, admin: dict = Depend
         raise HTTPException(status_code=403, detail="Only a super admin can change these switches.")
     values = go_live_switches.update(body.model_dump(), admin.get("sub"))
     return {**values, "labels": go_live_switches.SWITCHES, "can_change": True}
+
+
+# ── Bank transfer / deposit and cash payments (services/offline_payments) ───
+
+class OfflinePaymentStartRequest(BaseModel):
+    locator_code: str
+    method: Literal["bank", "cash"]
+
+
+class OfflinePaymentConfirmRequest(BaseModel):
+    received_amount: float = Field(..., gt=0)
+    bank_reference: Optional[str] = Field(default=None, max_length=120)
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+class PaymentMethodSettingsRequest(BaseModel):
+    card_enabled: Optional[bool] = None
+    bank_enabled: Optional[bool] = None
+    cash_enabled: Optional[bool] = None
+    bank_instructions: Optional[str] = Field(default=None, max_length=4000)
+    bank_hold_hours: Optional[int] = Field(default=None, ge=1, le=168)
+
+
+@app.get("/api/payment-methods")
+def public_payment_methods():
+    """Which payment methods the booking page offers (cash only to staff)."""
+    try:
+        return offline_payments.public_settings()
+    except Exception as e:
+        logger.warning(f"Payment method settings unreadable ({e}) - card only")
+        return {"card": True, "bank": False, "cash": False, "bank_instructions": "", "bank_hold_hours": 12}
+
+
+@app.post("/api/payments/offline/start")
+def offline_payment_start(request: OfflinePaymentStartRequest,
+                          principal: Optional[dict] = Depends(auth.get_optional_principal)):
+    """Bank transfer / cash for a booking already held at the airline. No
+    money moves here: the booking waits until staff confirm the payment
+    (Admin > Bank & Cash Payments); only then is the ticket issued."""
+    settings = offline_payments.get_settings()
+    method = request.method
+    if not settings[f"{method}_enabled"]:
+        raise HTTPException(status_code=503, detail=f"{offline_payments.METHOD_LABEL[method]} payments are not available right now.")
+    is_staff = bool(principal and principal.get("role") == "admin")
+    if method == "cash" and not is_staff:
+        raise HTTPException(status_code=403, detail="Cash payments are only taken by Tick and Book staff.")
+    _require_switch("ticketing_enabled")
+    locator = request.locator_code.upper().strip()
+    booking = database.get_booking_by_locator(locator)
+    if not booking or not booking.get("total_fare"):
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.get("ticket_number"):
+        raise HTTPException(status_code=409, detail="This booking is already ticketed.")
+    if (booking.get("fare_source") or "GDS").upper() == "NDC":
+        raise HTTPException(status_code=409, detail="This fare can only be paid by card.")
+    existing = offline_payments.open_for(locator)
+    if not existing:
+        booking = _held_booking_ready_to_pay(locator, booking)
+    p = existing or offline_payments.start(
+        locator, method, float(booking["total_fare"]), booking.get("currency") or "LKR",
+        booking.get("passenger_name"), booking.get("email") or booking.get("passenger_email"),
+        (principal or {}).get("admin_username") or (f"admin #{principal.get('admin_id')}" if is_staff else None),
+        settings["bank_hold_hours"])
+    emailed = False
+    if method == "bank" and not existing and p.get("customer_email"):
+        try:
+            from services import email_service
+            subject, body = offline_payments.instructions_email(p, settings["bank_instructions"])
+            emailed, err = email_service._send(p["customer_email"], subject, body)
+            if not emailed:
+                logger.warning(f"{locator}: bank-transfer instructions not emailed: {err}")
+        except Exception as e:
+            logger.warning(f"{locator}: bank-transfer instructions not emailed: {e}")
+    logger.info(f"{locator}: {method} payment started ({p['currency']} {p['amount']}) - awaiting staff confirmation")
+    pay_by = p.get("pay_by")
+    return {"payment_id": p["id"], "locator_code": locator, "method": method, "amount": float(p["amount"]),
+            "currency": p["currency"], "reference": locator,
+            "pay_by": pay_by.isoformat(sep=" ") if hasattr(pay_by, "isoformat") else pay_by,
+            "bank_instructions": settings["bank_instructions"] if method == "bank" else "", "emailed": emailed}
+
+
+@app.get("/api/admin/payment-methods")
+def admin_get_payment_methods(admin: dict = Depends(auth.get_current_admin)):
+    return {**offline_payments.get_settings(), "can_change": go_live_switches.is_super_admin(admin.get("admin_id"))}
+
+
+@app.put("/api/admin/payment-methods")
+def admin_put_payment_methods(body: PaymentMethodSettingsRequest, admin: dict = Depends(auth.get_current_admin)):
+    if not go_live_switches.is_super_admin(admin.get("admin_id")):
+        raise HTTPException(status_code=403, detail="Only a super admin can change payment methods.")
+    return {**offline_payments.update_settings(body.model_dump(), admin.get("sub")), "can_change": True}
+
+
+@app.get("/api/admin/offline-payments")
+def admin_list_offline_payments(status: Optional[str] = None, admin: dict = Depends(auth.get_current_admin)):
+    return {"payments": offline_payments.listing(status)}
+
+
+@app.post("/api/admin/offline-payments/{payment_id}/confirm")
+def admin_confirm_offline_payment(payment_id: int, body: OfflinePaymentConfirmRequest,
+                                  admin: dict = Depends(auth.get_current_admin)):
+    """Staff confirm the bank deposit / cash has been received -> the ticket is
+    issued and emailed (same step as after a card payment). A future bank API
+    confirming the deposit by its PNR reference would call this same step."""
+    p = offline_payments.get(payment_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Payment not found.")
+    if p["status"] != "awaiting":
+        raise HTTPException(status_code=409, detail=f"This payment is already {p['status']}.")
+    if body.received_amount + 0.5 < float(p["amount"]):
+        raise HTTPException(status_code=400, detail=f"Received {p['currency']} {body.received_amount:,.2f} is less than "
+                                                    f"the booking total {p['currency']} {float(p['amount']):,.2f}. Ticket not issued.")
+    if not offline_payments.claim_for_confirm(payment_id):
+        raise HTTPException(status_code=409, detail="This payment is already being confirmed.")
+    locator = p["locator_code"]
+    who = admin.get("sub")
+    ref = f"{p['method'].upper()}-{(body.bank_reference or str(payment_id)).strip()}"
+    fields = {"received_amount": body.received_amount, "bank_reference": body.bank_reference,
+              "confirmed_by": who, "confirmed_at": datetime.now(), "note": body.note}
+    existing = database.get_booking_by_locator(locator)
+    if existing and existing.get("ticket_number"):
+        offline_payments.finish(payment_id, "ticketed", ticket_number=existing["ticket_number"], **fields)
+        return {"success": True, "already_issued": True, "ticket_number": existing["ticket_number"]}
+    problem = _live_airline_problem(locator)
+    if problem:
+        _notify_airline_problem(locator, problem["codes"], ref)
+        _auto_refund_for_booking(locator, "airline has not confirmed / cancelled the flight", ref)
+        offline_payments.finish(payment_id, "failed", error="The airline has not confirmed / has cancelled the flight; "
+                                                            "refund request filed", **fields)
+        raise HTTPException(status_code=409, detail="The airline no longer holds this booking, so the ticket can't be issued. "
+                                                    "A refund request has been filed for the customer.")
+    try:
+        result = _issue_and_save_ticket(locator, {"txn_reference": ref, "auth_code": None})
+    except HTTPException as e:
+        offline_payments.finish(payment_id, "failed", error=str(e.detail)[:1000], **fields)
+        raise
+    ticket = (result or {}).get("ticket") or {}
+    offline_payments.finish(payment_id, "ticketed", ticket_number=ticket.get("ticket_number"), **fields)
+    logger.info(f"{locator}: {p['method']} payment confirmed by {who} - ticket {ticket.get('ticket_number')}")
+    return {"success": True, "ticket_number": ticket.get("ticket_number"), "locator_code": locator}
+
+
+@app.post("/api/admin/offline-payments/{payment_id}/cancel")
+def admin_cancel_offline_payment(payment_id: int, admin: dict = Depends(auth.get_current_admin)):
+    p = offline_payments.get(payment_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Payment not found.")
+    if p["status"] != "awaiting":
+        raise HTTPException(status_code=409, detail=f"This payment is already {p['status']}.")
+    offline_payments.finish(payment_id, "cancelled", note=f"Cancelled by {admin.get('sub')}")
+    return {"success": True}
 
 
 @app.get("/api/feature-flags")

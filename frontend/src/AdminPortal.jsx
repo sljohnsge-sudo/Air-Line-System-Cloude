@@ -7,6 +7,7 @@ import AdminInsights, { InsightAlerts } from './AdminInsights.jsx';
 import AdminRatesLogs from './AdminRatesLogs.jsx';
 import AdminPaymentRecon from './AdminPaymentRecon.jsx';
 import AdminGoLiveControls from './AdminGoLiveControls.jsx';
+import AdminOfflinePayments from './AdminOfflinePayments.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
 // Terminal dropdowns. Naming isn't standardized across airports (numbers,
@@ -1303,6 +1304,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       { id: 'stuck-bookings', label: 'Ticketing Exceptions Logs', icon: 'alert', count: stuckBookings.length },
       { id: 'notifications', label: 'Airline Rates Logs', icon: 'bell', count: notifications.length },
       { id: 'force-issue', label: 'Booking Lookup', icon: 'search' },
+      { id: 'bank-cash', label: 'Bank & Cash Payments', icon: 'tag' },
     ] },
     { group: 'Customer Requests', items: [
       { id: 'cancellations', label: 'Cancellations', icon: 'cancel', count: cancellationRequests.length },
@@ -2849,6 +2851,18 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             ))}
           </div>
         )}
+      </section>
+      )}
+
+      {activeAdminSection === 'bank-cash' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Bank &amp; Cash Payments</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
+          Bookings paid by bank transfer / deposit (the PNR is the payment reference) or cash wait here, held at the airline.
+          When the money has arrived, press Confirm received: the ticket is issued and emailed to the customer straight away.
+          If the airline has released the booking meanwhile, no ticket is issued and a refund request is filed.
+        </p>
+        <AdminOfflinePayments API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
       </section>
       )}
 

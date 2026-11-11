@@ -2252,6 +2252,18 @@ export default function App() {
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState('card');
+  // Payment methods offered at the review step (bank transfer / cash are
+  // switched on by a super admin; cash only for signed-in staff) and the
+  // result of starting a bank-transfer / cash payment.
+  const [payMethods, setPayMethods] = useState({ card: true, bank: false, cash: false });
+  const [offlinePayment, setOfflinePayment] = useState(null);
+  useEffect(() => {
+    if (bookingStep !== 'review') return;
+    fetch(`${API_BASE}/payment-methods`).then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) { setPayMethods(d); if (!d.card && paymentMethod === 'card') setPaymentMethod(d.bank ? 'bank' : 'card'); } })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingStep]);
   const [dataConfirmAgreed, setDataConfirmAgreed] = useState(false);
   const [cardholderName, setCardholderName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -3335,7 +3347,7 @@ export default function App() {
         setBookingStep('addons_result');
         return;
       }
-      await proceedToPayment(pnrTicket);
+      await payForHeldBooking(pnrTicket);
     } catch (err) {
       if (isScheduleBlockedError(err)) {
         setBookingStep('review');
@@ -3384,12 +3396,32 @@ export default function App() {
     window.location.href = payData.payment_page_url;
   };
 
+  // Bank transfer / cash: no card page. The booking stays held at the
+  // airline until staff confirm the money has arrived (Admin > Bank & Cash
+  // Payments); then the ticket is issued and emailed.
+  const startOfflinePayment = async (pnrTicket) => {
+    const res = await fetchWithRetry(`${API_BASE}/payments/offline/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(paymentMethod === 'cash' && adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+      },
+      body: JSON.stringify({ locator_code: pnrTicket.locator_code, method: paymentMethod }),
+    });
+    const data = await handleApiResponse(res, 'Could not record the payment method');
+    setOfflinePayment({ ...data, passenger: pnrTicket.passenger_name, email: pnrTicket.email });
+    setBookingStep('offline_pending');
+  };
+
+  const payForHeldBooking = (pnrTicket) =>
+    (paymentMethod === 'bank' || paymentMethod === 'cash') ? startOfflinePayment(pnrTicket) : proceedToPayment(pnrTicket);
+
   // "Continue to payment" on the seats/extras result step.
   const continueAfterAddonReview = async () => {
     if (!addonReviewTicket) return;
     setBookingStep('processing');
     try {
-      await proceedToPayment(addonReviewTicket);
+      await payForHeldBooking(addonReviewTicket);
     } catch (err) {
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
@@ -3419,6 +3451,7 @@ export default function App() {
     setCardExpiry('');
     setCardCvv('');
     setPaymentMethod('card');
+    setOfflinePayment(null);
     setAmadeusTravelers([]);
     setAmadeusContactEmail('');
     setAmadeusContactPhone('');
@@ -8481,6 +8514,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                  bookingStep === 'review' ? 'Review Your Booking' :
                  bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
                  bookingStep === 'amadeus_processing' ? 'Confirming with Amadeus...' :
+                 bookingStep === 'offline_pending' ? (offlinePayment?.method === 'cash' ? 'Cash Payment' : 'Pay by Bank Transfer') :
                  bookingStep === 'addons_result' ? 'Seats & Extras — Airline Response' :
                  'Issuing Ticket...'}
               </h3>
@@ -10306,8 +10340,36 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   );
                 })()}
 
+                {(() => {
+                  // Bank transfer is offered for GDS fares (the airline holds the
+                  // booking); NDC fares are card only. Cash only for staff.
+                  const isNdc = selectedFlight.fare_source === 'NDC';
+                  const options = [
+                    payMethods.card && { key: 'card', label: 'Card', note: "Pay now on NDB Bank's secure card page" },
+                    payMethods.bank && !isNdc && { key: 'bank', label: 'Bank transfer / deposit', note: 'Pay at the bank using your booking reference; ticket issued when we confirm your payment' },
+                    payMethods.cash && !isNdc && adminToken && { key: 'cash', label: 'Cash (staff)', note: 'Cash received at the counter; ticket issued after you confirm it in Admin' },
+                  ].filter(Boolean);
+                  if (options.length > 1 || (options.length === 1 && options[0].key !== 'card')) {
+                    return (
+                      <div className="pay-methods">
+                        <div className="pay-methods-title">How would you like to pay?</div>
+                        {options.map(o => (
+                          <label key={o.key} className={`pay-method${paymentMethod === o.key ? ' on' : ''}`}>
+                            <input type="radio" name="tbPaymentMethod" checked={paymentMethod === o.key} onChange={() => setPaymentMethod(o.key)} />
+                            <span><strong>{o.label}</strong><small>{o.note}</small></span>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <div style={{ fontSize: '0.78rem', color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.6rem 0.9rem', marginBottom: '0.75rem' }}>
-                  💳 Your booking is confirmed with the airline first, then you go to <strong>NDB Bank</strong>'s secure payment page to pay by card. Your ticket is issued as soon as payment goes through. This site never sees your card number.
+                  {paymentMethod === 'bank'
+                    ? <>🏦 Your booking is confirmed with the airline first and held for you. You then pay by bank transfer or deposit using your booking reference. Your ticket is issued and emailed as soon as our team confirms your payment has arrived.</>
+                    : paymentMethod === 'cash'
+                      ? <>💵 The booking is confirmed with the airline first and held. Record the cash received in Admin → Bank &amp; Cash Payments to issue the ticket.</>
+                      : <>💳 Your booking is confirmed with the airline first, then you go to <strong>NDB Bank</strong>'s secure payment page to pay by card. Your ticket is issued as soon as payment goes through. This site never sees your card number.</>}
                 </div>
 
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
@@ -10318,7 +10380,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 <div className="modal-actions">
                   <button className="btn btn-secondary" onClick={() => setBookingStep('passenger')}>← Back to Passenger Details</button>
                   <button className="btn btn-primary" disabled={!dataConfirmAgreed} onClick={handleConfirmBooking}>
-                    {paymentMethod === 'card' ? 'Confirm Booking → Proceed to Payment' : 'Confirm Booking'}
+                    {paymentMethod === 'card' ? 'Confirm Booking → Proceed to Payment' : paymentMethod === 'bank' ? 'Confirm Booking → Pay by Bank Transfer' : 'Confirm Booking'}
                   </button>
                 </div>
               </div>
@@ -10347,6 +10409,44 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             {/* STEP: Seats/extras result — shown only when the airline did
                 NOT confirm everything the customer picked. Nothing below is
                 charged unless the airline confirmed it. */}
+            {bookingStep === 'offline_pending' && offlinePayment && (
+              <div className="offline-pay">
+                <div className="offline-pay-head">
+                  <span className="offline-pay-icon">{offlinePayment.method === 'cash' ? '💵' : '🏦'}</span>
+                  <div>
+                    <div className="offline-pay-title">Booking held — {offlinePayment.method === 'cash' ? 'cash payment' : 'awaiting your bank payment'}</div>
+                    <div className="offline-pay-sub">Booking reference <strong>{offlinePayment.locator_code}</strong></div>
+                  </div>
+                </div>
+                <div className="offline-pay-amount">
+                  <span>Amount to pay</span>
+                  <strong>{offlinePayment.currency} {Number(offlinePayment.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                </div>
+                {offlinePayment.method === 'bank' ? (
+                  <>
+                    <ol className="offline-pay-steps">
+                      <li>Deposit or transfer the amount above{offlinePayment.pay_by ? <> by <strong>{fmtDateTime(offlinePayment.pay_by)}</strong></> : null}.</li>
+                      <li>Use your booking reference <strong>{offlinePayment.reference}</strong> as the payment reference.</li>
+                      <li>We issue your e-ticket and email it to you as soon as our team confirms your payment has arrived.</li>
+                    </ol>
+                    <div className="offline-pay-bank">
+                      <div className="offline-pay-bank-title">Bank details</div>
+                      <pre>{offlinePayment.bank_instructions || 'Bank details are being added — they will be emailed to you.'}</pre>
+                    </div>
+                    <p className="offline-pay-note">
+                      {offlinePayment.emailed ? <>These details have also been emailed to {offlinePayment.email}. </> : null}
+                      If the airline releases the booking before your payment reaches us, we will let you know.
+                    </p>
+                  </>
+                ) : (
+                  <p className="offline-pay-note">Collect the cash, then open <strong>Admin → Bank &amp; Cash Payments</strong> and press <strong>Confirm received</strong> for {offlinePayment.locator_code}. The ticket is issued and emailed to the customer at that moment.</p>
+                )}
+                <div className="modal-actions">
+                  <button className="btn btn-primary" onClick={closeBookingFlow}>Done</button>
+                </div>
+              </div>
+            )}
+
             {bookingStep === 'addons_result' && addonReviewTicket && (() => {
               const t = addonReviewTicket;
               const res = t.addon_results || { seats: [], extras: [] };
