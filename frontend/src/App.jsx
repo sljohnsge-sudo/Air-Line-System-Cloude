@@ -37,6 +37,7 @@ import CancelBookingDialog from './CancelBookingDialog.jsx';
 import FareRulesPanel from './FareRulesPanel.jsx';
 import { MEAL_OPTIONS, WHEELCHAIR_OPTIONS, ssrSupport, SsrStatusList, wheelchairCondition } from './SpecialServices.jsx';
 import AdminPortal from './AdminPortal.jsx';
+import AnalyticsDashboard from './AnalyticsDashboard.jsx';
 import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 import { COUNTRIES } from './countries.js';
@@ -1332,6 +1333,7 @@ export default function App() {
     packages: '/packages', visa: '/visa', cancelRequest: '/cancel-booking',
     ticketStatus: '/check-ticket',
     admin: '/admin', account: '/account', invoice: '/invoice',
+    analytics: '/analytics',
   };
 
   // Derives the initial `activeTab` from the real URL the page was loaded
@@ -1358,6 +1360,7 @@ export default function App() {
     if (pathname === '/admin/bookings') return 'bookings';
     if (pathname.startsWith('/admin')) return 'admin';
     if (pathname === '/account') return 'account';
+    if (pathname === '/analytics') return 'analytics';
     if (pathname.startsWith('/invoice')) return 'invoice';
     return 'home';
   };
@@ -8394,6 +8397,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
           onNavigate={setActiveTab}
         />
       )}
+
+      {activeTab === 'analytics' && <AnalyticsDashboard API_BASE={API_BASE} />}
 
       {/* ── CUSTOMER (ACCOUNT) PORTAL TAB ───────────────────────────────── */}
       {activeTab === 'account' && (

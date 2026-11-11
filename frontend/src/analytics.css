@@ -1,0 +1,105 @@
+/* Tick and Book business dashboard (/analytics) and Admin -> Analytics Logins.
+   Tick and Book tokens only (--tb-*). Chart series: #2F6FB5 (blue) and
+   #E07A5F (coral) — checked for colour-blind separation; every bar also
+   carries its value as text. */
+.an-page {
+  --an-a: #2F6FB5;
+  --an-b: #E07A5F;
+  --an-track: #EEF3F8;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.an-page .error-banner, .an-admin .error-banner {
+  margin: 0.6rem 0; padding: 0.6rem 0.8rem; border-radius: 10px;
+  background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 0.82rem;
+}
+.an-page .loading-state { padding: 1.5rem 0; color: var(--tb-muted); font-size: 0.85rem; }
+.an-wrap { white-space: normal; }
+
+/* header */
+.an-top .adm-crumb { margin-top: 0.1rem; }
+.an-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.an-tabs { margin: 0 0 0.9rem; }
+
+/* tiles */
+.an-page .recon-tiles { margin-bottom: 0.9rem; }
+.an-tiles-sm { grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); }
+.an-tiles-sm .recon-tile b { font-size: 1rem; }
+
+/* cards */
+.an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 0.75rem; margin-bottom: 0.9rem; }
+.an-card { border: 1px solid var(--tb-border); border-radius: 12px; background: #fff; padding: 0.8rem 0.9rem; min-width: 0; }
+.an-card h4, .an-h { margin: 0 0 0.6rem; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tb-navy); }
+.an-h { margin: 1rem 0 0.5rem; }
+.an-mt { margin-top: 0.7rem; }
+.an-empty { color: var(--tb-muted); font-size: 0.8rem; padding: 0.4rem 0; }
+.an-empty-big { padding: 2rem 1rem; text-align: center; border: 1px dashed var(--tb-border); border-radius: 12px; background: #fff; }
+.an-foot { margin-top: 1.2rem; }
+.an-count { margin: 0.2rem 0 0.4rem; }
+.an-notice { margin: 0.5rem 0; padding: 0.55rem 0.75rem; border-radius: 10px; background: var(--tb-ice); color: var(--tb-navy); font-size: 0.8rem; }
+
+/* horizontal bar rows */
+.an-bars { display: flex; flex-direction: column; gap: 0.35rem; }
+.an-bar-row { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; align-items: center; gap: 0.5rem; font-size: 0.78rem; }
+.an-bar-label { min-width: 0; display: flex; flex-direction: column; }
+.an-bar-label span { color: var(--tb-text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-bar-label small { color: var(--tb-muted); font-size: 0.68rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-bar-track { height: 10px; background: var(--an-track); border-radius: 4px; overflow: hidden; }
+.an-bar-fill { height: 100%; background: var(--an-a); border-radius: 0 4px 4px 0; }
+.an-bar-row:hover .an-bar-fill { background: #245a96; }
+.an-bar-value { color: var(--tb-text); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 0.74rem; }
+
+/* daily columns */
+.an-daychart-head { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.74rem; color: var(--tb-muted); margin-bottom: 0.25rem; }
+.an-daychart-head b { color: var(--tb-text); font-variant-numeric: tabular-nums; }
+.an-daychart svg { width: 100%; height: auto; display: block; }
+.an-col { fill: var(--an-a); }
+.an-col.on { fill: #1F4E85; }
+.an-axis { stroke: var(--tb-border); stroke-width: 1; }
+.an-tick { font-size: 10px; fill: var(--tb-muted); }
+
+/* two-part split */
+.an-split-track { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; background: #fff; }
+.an-split-a { background: var(--an-a); }
+.an-split-b { background: var(--an-b); }
+.an-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin-top: 0.45rem; font-size: 0.76rem; color: var(--tb-text); }
+.an-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 0.35rem; vertical-align: -1px; }
+.an-sw-a { background: var(--an-a); }
+.an-sw-b { background: var(--an-b); }
+.an-gds, .an-ndc { white-space: nowrap; }
+
+/* tables */
+.an-scroll { max-height: 560px; overflow: auto; }
+.an-click tbody tr { cursor: pointer; }
+.an-click tbody tr:hover td { background: #f5f9fd; }
+.an-click tbody tr[aria-selected="true"] td { background: var(--tb-ice); }
+.an-click .rl-chip { margin-top: 0.2rem; }
+.an-compact { min-width: 0; }
+.an-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; margin-bottom: 0.4rem; }
+.an-toolbar .recon-search { flex: 1 1 260px; }
+.an-toolbar .adm-chips { margin-bottom: 0; }
+.an-page .recon-search, .an-admin input.form-input { padding: 0.5rem 0.7rem; border: 1px solid var(--tb-border); border-radius: 10px; font-size: 0.85rem; width: 100%; box-sizing: border-box; }
+
+/* customer detail */
+.an-detail { margin-top: 1rem; padding: 0.9rem; border: 1px solid var(--tb-border); border-radius: 14px; background: #fbfdff; }
+.an-detail-head { display: flex; justify-content: space-between; gap: 0.6rem; align-items: flex-start; margin-bottom: 0.7rem; flex-wrap: wrap; }
+.an-detail-head .adm-sub { white-space: normal; }
+
+/* sign-in */
+.an-login { display: flex; justify-content: center; padding: 2.5rem 0; }
+.an-login-card { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 0.45rem; padding: 1.4rem 1.5rem;
+  border: 1px solid var(--tb-border); border-radius: 16px; background: #fff; box-shadow: 0 10px 28px rgba(12, 42, 82, 0.1); }
+.an-login-card .adm-eyebrow { color: var(--tb-muted); }
+.an-login-card h2 { margin: 0; color: var(--tb-navy); font-size: 1.35rem; }
+.an-login-card .btn { margin-top: 0.6rem; }
+
+/* admin: analytics logins */
+.an-admin .an-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 0.5rem; align-items: end; margin: 0.6rem 0 1rem; }
+.an-admin .an-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.72rem; font-weight: 700; color: var(--tb-muted); }
+.an-admin .an-row-actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.an-admin .an-ok { margin: 0.6rem 0; padding: 0.55rem 0.75rem; border-radius: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; font-size: 0.82rem; }
+
+@media (max-width: 640px) {
+  .an-bar-row { grid-template-columns: minmax(70px, 34%) 1fr auto; }
+  .an-top h2 { font-size: 1.2rem; }
+}
