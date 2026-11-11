@@ -19,7 +19,7 @@
 // of sharing". The link re-runs the same search live and shows the shared
 // flights first, with the airline's price right now — that, never the
 // message, is what gets booked.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import { encryptForUrl } from './urlCrypto.js';
@@ -118,6 +118,7 @@ export function buildShareItem({ flight, cabin, fareOption, price, currency, gra
     total,
     paxLabel,
     sharedAt: new Date().toISOString(),
+    card: screenCardData(flight, { price, grandTotal, currency, paxLabel }),
     label: `${flight.airline} · ${legs[0].from} → ${legs[0].to} · ${total}`,
   };
 }
@@ -224,6 +225,233 @@ async function loadImage(src) {
 
 // The site's one date format (DD/MM/YYYY HH:mm), in the sharer's local time.
 const fmtSharedAt = (iso) => fmtDateTime(iso ? new Date(iso) : new Date());
+
+
+// ── Picture that looks like the fare card on the results page ──────────────
+// (11/11/2026) The owner wants the shared picture to be the card the customer
+// sees: airline column, both legs with times / airports / dates / stop chip /
+// layover / flight times, price column — plus a slim Tick and Book footer.
+// Drawn on a canvas in the page's own colours; the airline logo comes from
+// our backend (/api/airline-logo/XX) so it never taints the canvas.
+const SC = {
+  text: '#0f172a', sub: '#1e293b', muted: '#64748b', faint: '#94a3b8', line: '#cbd5e1', border: '#e2e8f0',
+  crimson: '#c3122e', panel: '#fdf1f2', green: '#15803d', greenDark: '#1d6b3a', white: '#ffffff',
+  chipBg: '#f1f5f9', layBg: '#fdebd3', layText: '#9a3412', navy: '#0C2A52', sky: '#72BCEB',
+};
+const CARD_W = 1500;
+const LEFT_W = 290;
+const RIGHT_W = 230;
+const LEG_H = 168;
+const HEAD_H = 46;
+const FOOT_H = 58;
+const SCALE = 2;
+
+const dmy = (iso) => { const d = isoDay(iso); if (!d) return ''; const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+const dm = (iso) => dmy(iso).slice(0, 5);
+
+export function screenCardData(flight, { price, grandTotal, currency, paxLabel }) {
+  const legs = legsOf(flight).map((leg) => {
+    const segs = segsOf(leg);
+    const first = segs[0];
+    const last = segs[segs.length - 1];
+    return {
+      depTime: fmtTime(first.departure_time), depApt: first.departure_airport || '', depTerm: first.departure_terminal || '',
+      depDate: dmy(first.departure_time),
+      arrTime: fmtTime(last.arrival_time), arrApt: last.arrival_airport || '', arrTerm: last.arrival_terminal || '',
+      arrDate: dmy(last.arrival_time),
+      segDur: segs.map(s => fmtDuration(s.duration)),
+      stops: segs.slice(0, -1).map((s, k) => {
+        const next = segs[k + 1];
+        const mins = s.layover_minutes ?? minutesBetween(s.arrival_time, next.departure_time);
+        const a = dmy(s.arrival_time);
+        const b = dmy(next.departure_time);
+        return {
+          apt: s.arrival_airport || '', term: s.arrival_terminal || '',
+          times: `${fmtTime(s.arrival_time)} → ${fmtTime(next.departure_time)}`,
+          date: !b || a === b ? a : `${dm(s.arrival_time)} → ${dm(next.departure_time)}`,
+          layover: fmtMinutes(mins),
+        };
+      }),
+    };
+  });
+  const firstSeg = segsOf(legsOf(flight)[0])[0] || {};
+  const maxStops = Math.max(...legs.map(l => l.stops.length));
+  return {
+    totalDuration: fmtDuration(flight.duration || legsOf(flight)[0]?.duration),
+    flightNo: firstSeg.flight_number || flight.flight_number || '',
+    aircraft: flight.aircraft_type || firstSeg.aircraft_type || '',
+    fareSource: (flight.fare_source || 'GDS').toUpperCase(),
+    provider: flight.source === 'AD' ? 'AD · Amadeus' : 'TP · Travelport',
+    stopsLabel: maxStops === 0 ? 'Non-stop' : `${maxStops} Stop${maxStops > 1 ? 's' : ''}`,
+    seatSelection: flight.seat_map_heuristic === true,
+    currency: currency || 'LKR',
+    amount: Math.round(grandTotal || price || 0).toLocaleString(),
+    paxLabel: paxLabel || '',
+    legs,
+  };
+}
+
+function pill(ctx, x, y, text, { bg, fg, border, size = 14, weight = 800, padX = 9, h = 24, align = 'left', r = 5 }) {
+  font(ctx, size, weight);
+  const w = ctx.measureText(text).width + padX * 2;
+  const left = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  roundRect(ctx, left, y, w, h, r);
+  if (bg) { ctx.fillStyle = bg; ctx.fill(); }
+  if (border) { ctx.strokeStyle = border; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.fillStyle = fg;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillText(text, left + padX, y + h / 2 + 1);
+  ctx.textBaseline = 'alphabetic';
+  return w;
+}
+
+function textAt(ctx, text, x, y, { size = 16, weight = 400, color = SC.text, align = 'left', max } = {}) {
+  font(ctx, size, weight);
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.fillText(max ? fit(ctx, text, max) : text, x, y);
+  ctx.textAlign = 'left';
+}
+
+function dashed(ctx, x1, x2, y, color, dash) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash(dash || []);
+  ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+  ctx.restore();
+}
+
+export function screenCardHeight(card) {
+  const body = Math.max(card.legs.length * LEG_H, 320);
+  return HEAD_H + body + FOOT_H;
+}
+
+function paintScreenCard(ctx, it, { logo, siteHost }) {
+  const card = it.card;
+  const W = CARD_W;
+  const H = screenCardHeight(card);
+  const bodyTop = HEAD_H;
+  const bodyH = H - HEAD_H - FOOT_H;
+  ctx.fillStyle = SC.white;
+  ctx.fillRect(0, 0, W, H);
+
+  // Header: Total Duration
+  if (card.totalDuration) textAt(ctx, `Total Duration: ${card.totalDuration}`, W / 2, 30, { size: 17, weight: 800, color: '#1a1a1a', align: 'center' });
+
+  // Left column
+  ctx.fillStyle = SC.border;
+  ctx.fillRect(LEFT_W, bodyTop, 1, bodyH);
+  const cx = LEFT_W / 2;
+  let y = bodyTop + 14;
+  roundRect(ctx, cx - 32, y, 64, 64, 12);
+  ctx.fillStyle = SC.white; ctx.fill();
+  ctx.strokeStyle = SC.border; ctx.lineWidth = 1.5; ctx.stroke();
+  if (logo) {
+    ctx.drawImage(logo, cx - 26, y + 6, 52, 52);
+  } else {
+    textAt(ctx, it.airlineCode || '✈', cx, y + 41, { size: 20, weight: 800, color: SC.crimson, align: 'center' });
+  }
+  y += 92;
+  textAt(ctx, it.airlineName || '', cx, y, { size: 18, weight: 700, color: SC.sub, align: 'center', max: LEFT_W - 24 });
+  y += 14;
+  // badges row
+  font(ctx, 14, 800);
+  const badges = [
+    [it.airlineCode, '#f1f5f9', '#64748b'],
+    [card.fareSource, card.fareSource === 'NDC' ? '#f5d0fe' : card.fareSource === 'LCC' ? '#fef08a' : '#bae6fd',
+      card.fareSource === 'NDC' ? '#701a75' : card.fareSource === 'LCC' ? '#713f12' : '#0369a1'],
+    [card.provider, card.provider.startsWith('AD') ? '#ddd6fe' : '#bbf7d0', card.provider.startsWith('AD') ? '#4c1d95' : '#14532d'],
+  ].filter(b => b[0]);
+  const widths = badges.map(b => ctx.measureText(b[0]).width + 18);
+  let bx = cx - (widths.reduce((a, b) => a + b, 0) + 8 * (badges.length - 1)) / 2;
+  badges.forEach((b, i) => { pill(ctx, bx, y, b[0], { bg: b[1], fg: b[2], size: 14, padX: 9, h: 26, r: 4 }); bx += widths[i] + 8; });
+  y += 56;
+  if (card.flightNo) { textAt(ctx, card.flightNo, cx, y, { size: 16, weight: 600, color: SC.faint, align: 'center' }); y += 32; }
+  if (card.aircraft) { textAt(ctx, `✈ ${card.aircraft}`, cx, y, { size: 15, weight: 500, color: SC.faint, align: 'center', max: LEFT_W - 24 }); y += 18; }
+  pill(ctx, cx, y, card.stopsLabel, { bg: '#fef3c7', fg: '#92400e', border: '#fde68a', size: 15, weight: 700, padX: 14, h: 28, align: 'center', r: 14 });
+  y += 40;
+  if (card.seatSelection) pill(ctx, cx, y, '✓ Seat Selection Available', { bg: '#ecfdf3', fg: SC.green, border: '#a7dcb6', size: 14, weight: 700, padX: 12, h: 30, align: 'center', r: 6 });
+
+  // Right (price) column
+  const rx = W - RIGHT_W;
+  ctx.fillStyle = SC.panel;
+  ctx.fillRect(rx, bodyTop, RIGHT_W, bodyH);
+  const pcx = rx + RIGHT_W / 2;
+  const pTop = bodyTop + Math.max(28, bodyH / 2 - 110);
+  pill(ctx, pcx, pTop, it.cabin || 'Economy Class', { fg: SC.greenDark, border: SC.greenDark, size: 16, weight: 700, padX: 16, h: 34, align: 'center', r: 17 });
+  textAt(ctx, `from ${card.currency}`, pcx, pTop + 76, { size: 18, weight: 500, color: SC.muted, align: 'center' });
+  textAt(ctx, card.amount, pcx, pTop + 116, { size: 36, weight: 800, color: SC.greenDark, align: 'center' });
+  if (card.paxLabel) textAt(ctx, `for ${card.paxLabel}`, pcx, pTop + 144, { size: 15, weight: 600, color: SC.greenDark, align: 'center' });
+  textAt(ctx, 'price at the time of sharing', pcx, pTop + 170, { size: 13, weight: 500, color: SC.faint, align: 'center' });
+
+  // Legs
+  const mx0 = LEFT_W;
+  const mx1 = rx;
+  const legH = bodyH / card.legs.length;
+  card.legs.forEach((leg, i) => {
+    const top = bodyTop + i * legH;
+    if (i > 0) dashed(ctx, mx0 + 16, mx1 - 16, top, SC.border, [6, 6]);
+    pill(ctx, mx0 + 22, top + 10, i === 0 ? 'Depart' : card.legs.length === 2 ? 'Return' : `Flight ${i + 1}`,
+      { bg: '#eef2f7', fg: '#475569', size: 12, weight: 800, padX: 8, h: 22, r: 6 });
+    const cy = top + legH / 2 + 10;
+    const lx = mx0 + 30;
+    const rxText = mx1 - 28;
+    // departure
+    textAt(ctx, leg.depTime, lx, cy - 4, { size: 30, weight: 800, color: SC.text });
+    textAt(ctx, leg.depApt, lx, cy + 22, { size: 19, weight: 800, color: SC.crimson });
+    if (leg.depTerm) { font(ctx, 19, 800); const w = ctx.measureText(leg.depApt).width; textAt(ctx, ` Terminal ${leg.depTerm}`, lx + w, cy + 22, { size: 13, weight: 500, color: SC.muted }); }
+    textAt(ctx, leg.depDate, lx, cy + 46, { size: 16, weight: 500, color: SC.muted });
+    // arrival
+    textAt(ctx, leg.arrTime, rxText, cy - 4, { size: 30, weight: 800, color: SC.text, align: 'right' });
+    let termW = 0;
+    if (leg.arrTerm) {
+      font(ctx, 13, 500); termW = ctx.measureText(` Terminal ${leg.arrTerm}`).width;
+      textAt(ctx, ` Terminal ${leg.arrTerm}`, rxText, cy + 22, { size: 13, weight: 500, color: SC.muted, align: 'right' });
+    }
+    textAt(ctx, leg.arrApt, rxText - termW, cy + 22, { size: 19, weight: 800, color: SC.crimson, align: 'right' });
+    textAt(ctx, leg.arrDate, rxText, cy + 46, { size: 16, weight: 500, color: SC.muted, align: 'right' });
+    // route line
+    const ly = cy + 8;
+    const x1 = lx + 120;
+    const x2 = rxText - 150;
+    const n = leg.stops.length;
+    const chipX = leg.stops.map((_, k) => x1 + (x2 - x1) * (k + 1) / (n + 1));
+    const bounds = [x1, ...chipX, x2];
+    for (let k = 0; k < bounds.length - 1; k++) {
+      const a = bounds[k] + (k > 0 ? 58 : 0);
+      const b = bounds[k + 1] - (k < bounds.length - 2 ? 58 : 0);
+      dashed(ctx, a, b, ly, SC.line);
+      const dur = leg.segDur[k];
+      if (dur) pill(ctx, (a + b) / 2, ly + 14, dur, { bg: '#f8fafc', fg: '#475569', size: 14, weight: 600, padX: 9, h: 24, align: 'center', r: 5 });
+    }
+    leg.stops.forEach((st, k) => {
+      const x = chipX[k];
+      dashed(ctx, x - 58, x + 58, ly, SC.line, [3, 5]);
+      textAt(ctx, st.times, x, ly - 40, { size: 15, weight: 800, color: SC.muted, align: 'center' });
+      textAt(ctx, st.date, x, ly - 24, { size: 12, weight: 500, color: SC.faint, align: 'center' });
+      pill(ctx, x, ly - 14, `${st.apt}${st.term ? ` T${st.term}` : ''}`, { bg: SC.white, fg: SC.crimson, border: SC.line, size: 17, weight: 800, padX: 14, h: 28, align: 'center', r: 14 });
+      if (st.layover) pill(ctx, x, ly + 22, `⟳ ${st.layover}`, { bg: SC.layBg, fg: SC.layText, size: 16, weight: 800, padX: 12, h: 30, align: 'center', r: 7 });
+    });
+    if (n === 0) {
+      // plane mark in the middle of a non-stop line
+      textAt(ctx, '✈', (x1 + x2) / 2, ly + 6, { size: 18, weight: 700, color: SC.crimson, align: 'center' });
+    }
+  });
+
+  // Footer
+  const fy = H - FOOT_H;
+  ctx.fillStyle = SC.navy;
+  ctx.fillRect(0, fy, W, FOOT_H);
+  textAt(ctx, 'Tick and Book', 28, fy + 37, { size: 22, weight: 800, color: SC.white });
+  font(ctx, 22, 800);
+  const bw = ctx.measureText('Tick and Book').width;
+  textAt(ctx, 'Flights  |  Hotels  |  Travel', 28 + bw + 16, fy + 36, { size: 14, weight: 600, color: SC.sky });
+  textAt(ctx, `Shared ${fmtSharedAt(it.sharedAt)} · fares change — see today's price${siteHost ? ` on ${siteHost}` : ''}`,
+    W - 28, fy + 36, { size: 14, weight: 500, color: '#dbeafe', align: 'right' });
+  return H;
+}
 
 // Paints the card from the top; returns the height used.
 function paintFareCard(ctx, it, { logo, siteHost }) {
@@ -481,8 +709,19 @@ function canvasToBlob(canvas) {
 // One PNG of a fare card: { name, blob, file, url (object URL), dataUrl }.
 export async function drawFareCard(item, { siteHost, index = 0 } = {}) {
   try { await document.fonts?.load?.(`800 40px 'Plus Jakarta Sans'`); } catch { /* falls back to Arial */ }
-  const logo = await loadImage(usableLogo(item.logoUrl));
-  const render = (withLogo) => {
+  const logo = item.card && item.airlineCode
+    ? await loadImage(`/api/airline-logo/${encodeURIComponent(item.airlineCode)}`)
+    : await loadImage(usableLogo(item.logoUrl));
+  const render = item.card ? (withLogo) => {
+    const out = document.createElement('canvas');
+    const h = screenCardHeight(item.card);
+    out.width = CARD_W * SCALE;
+    out.height = h * SCALE;
+    const ctx = out.getContext('2d');
+    ctx.scale(SCALE, SCALE);
+    paintScreenCard(ctx, item, { logo: withLogo ? logo : null, siteHost });
+    return out;
+  } : (withLogo) => {
     const scratch = document.createElement('canvas');
     scratch.width = IMG_W;
     scratch.height = 3200;
@@ -604,9 +843,9 @@ const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
 // Bar pinned to the bottom of the screen while one or more fares are ticked.
 // customerToken + apiBase: for sending by email from our server.
-export function ShareFaresBar({ items, search, onClear, customerToken, apiBase = '/api', onSignIn }) {
+export function ShareFaresBar({ items, search, onClear, customerToken, apiBase = '/api', onSignIn, autoOpen = false, onAutoOpened }) {
   const [copied, setCopied] = useState(false);
-  const [panel, setPanel] = useState(null); // 'whatsapp' | 'email' | null
+  const [panel, setPanel] = useState(null); // 'choose' | 'whatsapp' | 'email' | 'text' | null
   const [images, setImages] = useState(null); // null = drawing, [] = couldn't draw
   const [emailTo, setEmailTo] = useState('');
   const [sending, setSending] = useState(false);
@@ -614,6 +853,18 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
   const visible = items.length > 0;
   const tooMany = items.length > MAX_SHARE_FARES;
   const itemsKey = items.map(i => `${i.key}|${i.total}|${i.fare}`).join(',');
+
+  // The share options pop up by themselves: when the first fare is ticked,
+  // and when the customer comes back signed in to share (autoOpen).
+  const prevCount = useRef(0);
+  useEffect(() => {
+    if ((items.length > 0 && prevCount.current === 0) || (autoOpen && items.length > 0)) {
+      setPanel('choose');
+      if (autoOpen) onAutoOpened?.();
+    }
+    prevCount.current = items.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length, autoOpen]);
 
   // Room at the bottom of the page so the bar never covers the last card.
   useEffect(() => {
@@ -681,6 +932,16 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
     }
   };
 
+  // Text message: phones share the picture + message through the share
+  // sheet (Messages etc.); elsewhere the message app opens with the text and
+  // link, and the picture can be downloaded and attached.
+  const smsUrl = `sms:?&body=${encodeURIComponent(plainText)}`;
+  const onText = async () => {
+    setStatus(null);
+    if (isPhone && canShareFiles && await shareFiles()) return;
+    setPanel(p => (p === 'text' ? null : 'text'));
+  };
+
   const onWhatsApp = async () => {
     setStatus(null);
     if (isPhone && canShareFiles && await shareFiles()) return;
@@ -739,6 +1000,48 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
       background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 30px rgba(15,23,42,0.18)',
       padding: '0.7rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
     }}>
+      {panel === 'choose' && !tooMany && (
+        <div style={{ flex: '1 1 100%', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.7rem', display: 'grid', gap: '0.6rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#1e293b' }}>Share {items.length > 1 ? `these ${items.length} fares` : 'this fare'}</div>
+            <button type="button" onClick={() => setPanel(null)} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '1.2rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+          </div>
+          {images?.length ? (
+            <img src={images[0].url} alt="The fare picture your friends will receive"
+                 style={{ width: '100%', maxWidth: '640px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'block' }} />
+          ) : thumbs}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem' }}>
+            <button type="button" onClick={onWhatsApp} style={{ ...btn, justifyContent: 'center', padding: '0.7rem', background: '#25d366', color: '#ffffff' }}>
+              <img src={whatsappIcon} alt="" style={{ width: '18px', height: '18px' }} /> WhatsApp
+            </button>
+            <button type="button" onClick={() => { setStatus(null); setPanel('email'); }} style={{ ...btn, justifyContent: 'center', padding: '0.7rem', background: '#1e293b', color: '#ffffff' }}>
+              ✉ Email
+            </button>
+            <button type="button" onClick={onText} style={{ ...btn, justifyContent: 'center', padding: '0.7rem', background: '#2563eb', color: '#ffffff' }}>
+              💬 Text message
+            </button>
+          </div>
+          <div style={small}>Your friends receive this picture with a link to the live price on Tick and Book.</div>
+        </div>
+      )}
+      {panel === 'text' && !tooMany && (
+        <div style={{ flex: '1 1 100%', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.7rem', display: 'grid', gap: '0.5rem' }}>
+          <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#1e293b' }}>Send as a text message</div>
+          {thumbs}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {(images || []).map((img, i) => (
+              <a key={img.url} href={img.url} download={img.name} style={{ ...btn, background: '#f1f5f9', color: '#1e293b' }}>
+                ⬇ Download {images.length > 1 ? `picture ${i + 1}` : 'image'}
+              </a>
+            ))}
+            <a href={smsUrl} style={{ ...btn, background: '#2563eb', color: '#ffffff' }}>💬 Open messages</a>
+            {canShareFiles && (
+              <button type="button" onClick={shareFiles} style={{ ...btn, background: '#f1f5f9', color: '#1e293b' }}>Share with an app…</button>
+            )}
+          </div>
+          <div style={small}>Your messages app opens with the flight details and the link filled in — attach the downloaded {picturesWord} to send it as a picture message.</div>
+        </div>
+      )}
       {panel === 'whatsapp' && !tooMany && (
         <div style={{ flex: '1 1 100%', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.7rem', display: 'grid', gap: '0.5rem' }}>
           <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#1e293b' }}>Send on WhatsApp</div>
@@ -808,6 +1111,10 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
       <button type="button" onClick={() => { setStatus(null); setPanel(p => (p === 'email' ? null : 'email')); }} disabled={tooMany}
               style={{ ...btn, background: '#1e293b', color: '#ffffff', opacity: tooMany ? 0.5 : 1 }}>
         ✉ Email
+      </button>
+      <button type="button" onClick={onText} disabled={tooMany}
+              style={{ ...btn, background: '#2563eb', color: '#ffffff', opacity: tooMany ? 0.5 : 1 }}>
+        💬 Text
       </button>
       <button type="button" onClick={copy} style={{ ...btn, background: '#f1f5f9', color: '#1e293b' }}>
         {copied ? '✓ Copied' : 'Copy text'}

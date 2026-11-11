@@ -1481,15 +1481,26 @@ export default function App() {
       setActiveTab('ticketStatus');
     } else if (next && next.startsWith('/results/')) {
       navigate(next);
-      showNotification('You are signed in. Tick “Share this fare” on the fares you want to share.', 'info');
+      let pending = null;
+      try { pending = JSON.parse(sessionStorage.getItem('tb_pending_share') || 'null'); sessionStorage.removeItem('tb_pending_share'); } catch { /* storage off */ }
+      if (pending?.fId && pending?.item) {
+        setShareFares({ [pending.fId]: { ...pending.item, sharedAt: new Date().toISOString() } });
+        setShareAutoOpen(true);
+        showNotification('You are signed in. Choose how to share this fare.', 'info');
+      } else {
+        showNotification('You are signed in. Tick “Share this fare” on the fares you want to share.', 'info');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerToken]);
   // Sharing fares (ShareFares.jsx) is for signed-in customers: the results
   // link is kept and the customer comes back to it after signing in.
-  const askSignInToShare = (mode) => {
+  const askSignInToShare = (mode, pending) => {
     try {
       if (window.location.pathname.startsWith('/results/')) sessionStorage.setItem(AFTER_SIGN_IN_KEY, window.location.pathname);
+      // The fare they wanted to share comes back selected after sign-in, with
+      // the share options (WhatsApp / Email / Text) already open.
+      if (pending?.item) sessionStorage.setItem('tb_pending_share', JSON.stringify(pending));
       sessionStorage.setItem('tb_account_mode', mode === 'register' ? 'register' : 'login');
     } catch { /* storage off */ }
     setActiveTab('account');
@@ -2121,6 +2132,7 @@ export default function App() {
   const [expandedFareIds, setExpandedFareIds] = useState({});
   // Fare cards ticked to share by WhatsApp / email — fareCardKey -> text summary.
   const [shareFares, setShareFares] = useState({});
+  const [shareAutoOpen, setShareAutoOpen] = useState(false);
   // Recent-search chips were removed from the home search — forget what they saved.
   useEffect(() => { try { localStorage.removeItem('tb_recent_searches'); } catch { /* storage off */ } }, []);
   // Live fare re-check after Travelport says the searched fare changed.
@@ -5978,6 +5990,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     }}
                     onClear={() => setShareFares({})}
                     customerToken={customerToken} apiBase={API_BASE} onSignIn={askSignInToShare}
+                    autoOpen={shareAutoOpen} onAutoOpened={() => setShareAutoOpen(false)}
                   />
                 )}
                 {!loadingFlights && !searchError && sharedSet && flights.length > 0 && (
@@ -6290,7 +6303,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                             </button>
                             <ShareToggle
                               checked={!!shareFares[fId]}
-                              signedIn={!!customerToken} onSignIn={askSignInToShare}
+                              signedIn={!!customerToken}
+                              onSignIn={mode => askSignInToShare(mode, { fId, item: buildShareItem({ flight, cabin: activeCabin, fareOption: selectedFareOption, price: displayPrice, currency: displayCurrency, grandTotal,
+                                paxLabel: [[adultCount, 'adult'], [childCount, 'child'], [infantCount, 'infant'], [studentCount, 'student']]
+                                  .filter(([n]) => n > 0).map(([n, w]) => `${n} ${w}${n > 1 ? (w === 'child' ? 'ren' : 's') : ''}`).join(', ') }) })}
                               onChange={on => setShareFares(prev => {
                                 const next = { ...prev };
                                 if (on) next[fId] = buildShareItem({ flight, cabin: activeCabin, fareOption: selectedFareOption, price: displayPrice, currency: displayCurrency, grandTotal,
@@ -10384,13 +10400,13 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   }
                   return null;
                 })()}
+                {paymentMethod !== 'card' && (
                 <div style={{ fontSize: '0.78rem', color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.6rem 0.9rem', marginBottom: '0.75rem' }}>
                   {paymentMethod === 'bank'
                     ? <>🏦 Your booking is confirmed with the airline first and held for you. You then pay by bank transfer or deposit using your booking reference. Your ticket is issued and emailed as soon as our team confirms your payment has arrived.</>
-                    : paymentMethod === 'cash'
-                      ? <>💵 The booking is confirmed with the airline first and held. Record the cash received in Admin → Bank &amp; Cash Payments to issue the ticket.</>
-                      : <>💳 Your booking is confirmed with the airline first, then you go to <strong>NDB Bank</strong>'s secure payment page to pay by card. Your ticket is issued as soon as payment goes through. This site never sees your card number.</>}
+                    : <>💵 The booking is confirmed with the airline first and held. Record the cash received in Admin → Bank &amp; Cash Payments to issue the ticket.</>}
                 </div>
+                )}
 
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
                   <input type="checkbox" checked={dataConfirmAgreed} onChange={e => setDataConfirmAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />

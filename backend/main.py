@@ -36,6 +36,7 @@ import asyncio
 import gzip
 import hashlib
 import json
+import re
 import zipfile
 import logging
 import os
@@ -4567,6 +4568,32 @@ def admin_cancel_offline_payment(payment_id: int, admin: dict = Depends(auth.get
         raise HTTPException(status_code=409, detail=f"This payment is already {p['status']}.")
     offline_payments.finish(payment_id, "cancelled", note=f"Cancelled by {admin.get('sub')}")
     return {"success": True}
+
+
+# Airline logo through our own address (11/11/2026): the shared fare picture
+# is drawn on a canvas, and a logo straight from another site would block the
+# picture from being saved. Fixed source, 2-character airline codes only,
+# kept in memory.
+_AIRLINE_LOGOS: dict = {}
+
+
+@app.get("/api/airline-logo/{code}")
+def airline_logo(code: str):
+    code = (code or "").upper()
+    if not re.fullmatch(r"[A-Z0-9]{2}", code):
+        raise HTTPException(status_code=404, detail="Unknown airline")
+    data = _AIRLINE_LOGOS.get(code)
+    if data is None:
+        try:
+            r = httpx.get(f"https://www.gstatic.com/flights/airline_logos/70px/{code}.png", timeout=8)
+            data = r.content if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/") else b""
+        except Exception as e:
+            logger.warning(f"Airline logo {code} not fetched: {e}")
+            return Response(status_code=404)
+        _AIRLINE_LOGOS[code] = data
+    if not data:
+        return Response(status_code=404)
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/feature-flags")
