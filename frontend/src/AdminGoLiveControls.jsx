@@ -81,6 +81,21 @@ export default function AdminGoLiveControls({ API_BASE, adminToken, onSessionExp
           </div>
         );
       })}
+      {data.is_super_admin && (
+        <div className={`glc-row ${data.all_admins_can_switch ? 'on' : 'off'}`}>
+          <div className="glc-text">
+            <div className="glc-label">All staff accounts can change these switches</div>
+            <div className="glc-desc">On: every staff account can change the go-live, payment-method and void/refund switches. Off: only the main admin account (admin).</div>
+          </div>
+          <div className="glc-actions">
+            <span className={`glc-state ${data.all_admins_can_switch ? 'on' : 'off'}`}>{data.all_admins_can_switch ? 'ON' : 'OFF'}</span>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={!!saving}
+                    onClick={() => apply('all_admins_can_switch', !data.all_admins_can_switch)}>
+              {data.all_admins_can_switch ? 'Turn off' : 'Turn on'}
+            </button>
+          </div>
+        </div>
+      )}
       {data.updated_by && (
         <div className="glc-foot">Last changed by {data.updated_by}{data.updated_at ? ` · ${fmtDateTime(data.updated_at)}` : ''}</div>
       )}

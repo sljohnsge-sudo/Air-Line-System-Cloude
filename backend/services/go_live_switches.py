@@ -60,6 +60,12 @@ def _ensure_tables() -> None:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )""")
             cur.execute("INSERT IGNORE INTO go_live_controls (id) VALUES (1)")
+            # 11/11/2026: for now every staff account may change the switches
+            # (owner's request); a super admin can turn this off later.
+            cur.execute("""SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+                           AND TABLE_NAME='go_live_controls' AND COLUMN_NAME='all_admins_can_switch'""")
+            if cur.fetchone()[0] == 0:
+                cur.execute("ALTER TABLE go_live_controls ADD COLUMN all_admins_can_switch TINYINT(1) NOT NULL DEFAULT 1")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS super_admins (
                     admin_id INT PRIMARY KEY,
@@ -86,14 +92,15 @@ def get() -> dict:
     conn = database.get_db_connection()
     cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT flight_search_enabled, pnr_create_enabled, ticketing_enabled, updated_by, updated_at "
-                    "FROM go_live_controls WHERE id=1")
+        cur.execute("SELECT flight_search_enabled, pnr_create_enabled, ticketing_enabled, all_admins_can_switch, "
+                    "updated_by, updated_at FROM go_live_controls WHERE id=1")
         row = cur.fetchone() or {}
     finally:
         cur.close()
         conn.close()
     value = {k: bool(row.get(k, 1)) for k in SWITCHES}
     value["ticketed_cancel_enabled"] = bool(database.get_provider_settings().get("ticketed_cancel_enabled", False))
+    value["all_admins_can_switch"] = bool(row.get("all_admins_can_switch", 1))
     value["updated_by"] = row.get("updated_by")
     value["updated_at"] = row["updated_at"].isoformat(sep=" ") if row.get("updated_at") else None
     _cache.update(at=now, value=value)
@@ -124,12 +131,24 @@ def is_super_admin(admin_id) -> bool:
         conn.close()
 
 
+def can_change(admin_id) -> bool:
+    """Who may change the switches (go-live, payment methods, void/refund):
+    a super admin always; every staff account while all_admins_can_switch is
+    on (the owner's choice for now)."""
+    if is_super_admin(admin_id):
+        return True
+    try:
+        return bool(admin_id) and get().get("all_admins_can_switch", True)
+    except Exception:
+        return False
+
+
 def update(values: dict, admin_username: str | None) -> dict:
     _ensure_tables()
     conn = database.get_db_connection()
     cur = conn.cursor()
     try:
-        cols = {k: (1 if values[k] else 0) for k in SWITCHES if k in values and values[k] is not None}
+        cols = {k: (1 if values[k] else 0) for k in (*SWITCHES, "all_admins_can_switch") if k in values and values[k] is not None}
         if cols:
             sets = ", ".join(f"{k}=%s" for k in cols)
             cur.execute(f"UPDATE go_live_controls SET {sets}, updated_by=%s WHERE id=1", (*cols.values(), admin_username))

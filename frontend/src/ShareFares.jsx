@@ -1104,6 +1104,8 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
           {tooMany ? `Up to ${MAX_SHARE_FARES} fares can be shared at a time — untick ${items.length - MAX_SHARE_FARES}.` : items.map(i => i.label).join('  ·  ')}
         </div>
       </div>
+      {/* The share pop-up has the big WhatsApp / Email / Text buttons — don't show them twice. */}
+      {panel !== 'choose' && (<>
       <button type="button" onClick={onWhatsApp} disabled={tooMany}
               style={{ ...btn, background: '#25d366', color: '#ffffff', opacity: tooMany ? 0.5 : 1 }}>
         <img src={whatsappIcon} alt="" style={{ width: '16px', height: '16px' }} /> WhatsApp
@@ -1116,6 +1118,7 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
               style={{ ...btn, background: '#2563eb', color: '#ffffff', opacity: tooMany ? 0.5 : 1 }}>
         💬 Text
       </button>
+      </>)}
       <button type="button" onClick={copy} style={{ ...btn, background: '#f1f5f9', color: '#1e293b' }}>
         {copied ? '✓ Copied' : 'Copy text'}
       </button>

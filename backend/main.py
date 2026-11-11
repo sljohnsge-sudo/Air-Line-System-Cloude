@@ -4390,7 +4390,7 @@ def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
 
 @app.put("/api/admin/provider-settings")
 def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = Depends(auth.get_current_admin)):
-    if not go_live_switches.is_super_admin(_admin.get("admin_id")):
+    if not go_live_switches.can_change(_admin.get("admin_id")):
         # The void/refund switch is super-admin only (Go-live controls); an
         # ordinary admin saving this page keeps its current value.
         body.ticketed_cancel_enabled = bool(database.get_provider_settings().get("ticketed_cancel_enabled", False))
@@ -4406,21 +4406,27 @@ class GoLiveSwitchesRequest(BaseModel):
     pnr_create_enabled: Optional[bool] = None
     ticketing_enabled: Optional[bool] = None
     ticketed_cancel_enabled: Optional[bool] = None
+    all_admins_can_switch: Optional[bool] = None
 
 
 @app.get("/api/admin/go-live-switches")
 def admin_get_go_live_switches(admin: dict = Depends(auth.get_current_admin)):
     """Super-admin switches for go-live testing (services/go_live_switches.py)."""
     return {**go_live_switches.get(), "labels": go_live_switches.SWITCHES,
-            "can_change": go_live_switches.is_super_admin(admin.get("admin_id")), "signed_in_as": admin.get("sub")}
+            "can_change": go_live_switches.can_change(admin.get("admin_id")), "signed_in_as": admin.get("sub"),
+            "is_super_admin": go_live_switches.is_super_admin(admin.get("admin_id"))}
 
 
 @app.put("/api/admin/go-live-switches")
 def admin_put_go_live_switches(body: GoLiveSwitchesRequest, admin: dict = Depends(auth.get_current_admin)):
-    if not go_live_switches.is_super_admin(admin.get("admin_id")):
+    is_super = go_live_switches.is_super_admin(admin.get("admin_id"))
+    if not go_live_switches.can_change(admin.get("admin_id")):
         raise HTTPException(status_code=403, detail="Only a super admin can change these switches.")
+    if body.all_admins_can_switch is not None and not is_super:
+        raise HTTPException(status_code=403, detail="Only the main admin account (admin) can decide who may change the switches.")
     values = go_live_switches.update(body.model_dump(), admin.get("sub"))
-    return {**values, "labels": go_live_switches.SWITCHES, "can_change": True}
+    return {**values, "labels": go_live_switches.SWITCHES, "can_change": True, "signed_in_as": admin.get("sub"),
+            "is_super_admin": is_super}
 
 
 # ── Bank transfer / deposit and cash payments (services/offline_payments) ───
@@ -4504,13 +4510,13 @@ def offline_payment_start(request: OfflinePaymentStartRequest,
 
 @app.get("/api/admin/payment-methods")
 def admin_get_payment_methods(admin: dict = Depends(auth.get_current_admin)):
-    return {**offline_payments.get_settings(), "can_change": go_live_switches.is_super_admin(admin.get("admin_id")),
+    return {**offline_payments.get_settings(), "can_change": go_live_switches.can_change(admin.get("admin_id")),
             "signed_in_as": admin.get("sub")}
 
 
 @app.put("/api/admin/payment-methods")
 def admin_put_payment_methods(body: PaymentMethodSettingsRequest, admin: dict = Depends(auth.get_current_admin)):
-    if not go_live_switches.is_super_admin(admin.get("admin_id")):
+    if not go_live_switches.can_change(admin.get("admin_id")):
         raise HTTPException(status_code=403, detail="Only a super admin can change payment methods.")
     return {**offline_payments.update_settings(body.model_dump(), admin.get("sub")), "can_change": True}
 
