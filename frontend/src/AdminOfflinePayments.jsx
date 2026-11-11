@@ -10,8 +10,8 @@ const STATUS = { awaiting: ['Awaiting payment', 'warn'], confirming: ['Issuing t
   failed: ['Not ticketed', 'bad'], cancelled: ['Cancelled', 'muted'] };
 const METHODS = [
   { key: 'card_enabled', label: 'Card (NDB / CyberSource)', desc: 'Customers pay by card on the bank’s secure page.' },
-  { key: 'bank_enabled', label: 'Bank transfer / deposit', desc: 'Customer pays at the bank with the PNR as reference; staff confirm here, then the ticket is issued. Travelport GDS fares only (NDC fares are card only).' },
-  { key: 'cash_enabled', label: 'Cash (staff bookings)', desc: 'Offered only to signed-in staff booking for a walk-in customer; staff confirm the cash here.' },
+  { key: 'bank_enabled', label: 'Bank transfer / deposit', desc: 'Customer pays at the bank with the PNR as reference; staff confirm here, then the ticket is issued. All fares except Emirates NDC (card only).' },
+  { key: 'cash_enabled', label: 'Cash', desc: 'Customers pay in cash at a Tick and Book office (or staff take cash at the counter) with the PNR as reference; staff confirm here, then the ticket is issued.' },
 ];
 
 export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionExpired, settingsOnly = false }) {

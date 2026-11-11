@@ -4471,8 +4471,7 @@ def offline_payment_start(request: OfflinePaymentStartRequest,
     if not settings[f"{method}_enabled"]:
         raise HTTPException(status_code=503, detail=f"{offline_payments.METHOD_LABEL[method]} payments are not available right now.")
     is_staff = bool(principal and principal.get("role") == "admin")
-    if method == "cash" and not is_staff:
-        raise HTTPException(status_code=403, detail="Cash payments are only taken by Tick and Book staff.")
+    # Cash: paid at a Tick and Book office (customers) or at the counter (staff).
     _require_switch("ticketing_enabled")
     locator = request.locator_code.upper().strip()
     booking = database.get_booking_by_locator(locator)
@@ -4480,7 +4479,9 @@ def offline_payment_start(request: OfflinePaymentStartRequest,
         raise HTTPException(status_code=404, detail="Booking not found.")
     if booking.get("ticket_number"):
         raise HTTPException(status_code=409, detail="This booking is already ticketed.")
-    if (booking.get("fare_source") or "GDS").upper() == "NDC":
+    # Held NDC bookings are paid like GDS ones; only pay-and-ticket-at-once
+    # fares (Emirates NDC Instant Pay) never reach here - they have no held PNR.
+    if (booking.get("fare_source") or "GDS").upper() == "NDC" and str(booking.get("airline_code") or booking.get("flight_number") or "")[:2].upper() in NDC_INSTANT_PAY_CARRIERS:
         raise HTTPException(status_code=409, detail="This fare can only be paid by card.")
     existing = offline_payments.open_for(locator)
     if not existing:
@@ -4491,10 +4492,11 @@ def offline_payment_start(request: OfflinePaymentStartRequest,
         (principal or {}).get("admin_username") or (f"admin #{principal.get('admin_id')}" if is_staff else None),
         settings["bank_hold_hours"])
     emailed = False
-    if method == "bank" and not existing and p.get("customer_email"):
+    if not existing and p.get("customer_email"):
         try:
             from services import email_service
-            subject, body = offline_payments.instructions_email(p, settings["bank_instructions"])
+            subject, body = (offline_payments.instructions_email(p, settings["bank_instructions"]) if method == "bank"
+                             else offline_payments.cash_email(p))
             emailed, err = email_service._send(p["customer_email"], subject, body)
             if not emailed:
                 logger.warning(f"{locator}: bank-transfer instructions not emailed: {err}")

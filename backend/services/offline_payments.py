@@ -23,7 +23,7 @@ import database
 
 logger = logging.getLogger(__name__)
 
-METHOD_LABEL = {"bank": "Bank Transfer", "cash": "Cash"}
+METHOD_LABEL = {"bank": "Bank Transfer", "cash": "Cash"}  # cash: at a Tick and Book office or the staff counter
 
 _ready = False
 _lock = threading.Lock()
@@ -139,7 +139,7 @@ def start(locator: str, method: str, amount: float, currency: str, customer_name
     existing = open_for(locator)
     if existing:
         return existing
-    pay_by = datetime.now() + timedelta(hours=hold_hours) if method == "bank" else None
+    pay_by = datetime.now() + timedelta(hours=hold_hours)
     new_id = _q("""INSERT INTO offline_payments (locator_code, method, amount, currency, customer_name, customer_email,
                    started_by, pay_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (locator.upper(), method, amount, currency, (customer_name or "")[:150] or None,
@@ -177,6 +177,21 @@ def listing(status: str | None = None, limit: int = 200) -> list:
             if r.get(k) is not None:
                 r[k] = float(r[k])
     return rows
+
+
+def cash_email(p: dict) -> tuple[str, str]:
+    subject = f"Tick and Book booking {p['locator_code']} - pay in cash at our office"
+    pay_by = p.get("pay_by")
+    pay_by_txt = pay_by.strftime("%d/%m/%Y %H:%M") if hasattr(pay_by, "strftime") else (pay_by or "")
+    body = (f"Dear {p.get('customer_name') or 'customer'},\n\n"
+            f"Your booking {p['locator_code']} is held with the airline. Please pay\n\n"
+            f"    {p['currency']} {float(p['amount']):,.2f}\n\n"
+            f"in cash at a Tick and Book office" + (f" by {pay_by_txt}" if pay_by_txt else "") +
+            f", quoting your booking reference {p['locator_code']}.\n\n"
+            "Your e-ticket is issued and emailed to you as soon as the payment is received.\n"
+            "If the airline releases the booking before you pay, we will let you know.\n\n"
+            "Tick and Book")
+    return subject, body
 
 
 def instructions_email(p: dict, instructions: str) -> tuple[str, str]:

@@ -2291,7 +2291,9 @@ export default function App() {
   const [payMethods, setPayMethods] = useState({ card: true, bank: false, cash: false });
   const [offlinePayment, setOfflinePayment] = useState(null);
   useEffect(() => {
-    if (bookingStep !== 'review') return;
+    // Loaded when the site opens and again at the review step, so the
+    // payment choice is complete the moment the review step shows.
+    if (bookingStep && bookingStep !== 'review') return;
     fetch(`${API_BASE}/payment-methods`).then(r => r.ok ? r.json() : null)
       .then(d => { if (d) { setPayMethods(d); if (!d.card && paymentMethod === 'card') setPaymentMethod(d.bank ? 'bank' : 'card'); } })
       .catch(() => {});
@@ -3437,7 +3439,7 @@ export default function App() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(paymentMethod === 'cash' && adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
       },
       body: JSON.stringify({ locator_code: pnrTicket.locator_code, method: paymentMethod }),
     });
@@ -8555,7 +8557,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                  bookingStep === 'review' ? 'Review Your Booking' :
                  bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
                  bookingStep === 'amadeus_processing' ? 'Confirming with Amadeus...' :
-                 bookingStep === 'offline_pending' ? (offlinePayment?.method === 'cash' ? 'Cash Payment' : 'Pay by Bank Transfer') :
+                 bookingStep === 'offline_pending' ? (offlinePayment?.method === 'cash' ? 'Pay in Cash' : 'Pay by Bank Transfer') :
                  bookingStep === 'addons_result' ? 'Seats & Extras — Airline Response' :
                  'Issuing Ticket...'}
               </h3>
@@ -10384,32 +10386,40 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 {(() => {
                   // Bank transfer is offered for GDS fares (the airline holds the
                   // booking); NDC fares are card only. Cash only for staff.
-                  const isNdc = selectedFlight.fare_source === 'NDC';
+                  // Customers choose Card, Bank transfer or Cash on every fare
+                  // (11/11/2026). Only Emirates NDC is paid and ticketed in one
+                  // step (Instant Pay) - nothing is held - so it is card only.
+                  const cardOnly = selectedFlight.fare_source === 'NDC' && selectedFlight.airline_code === 'EK';
+                  const offNote = cardOnly ? 'Not available for this fare - Emirates NDC fares are paid by card when booking' : null;
                   const options = [
-                    payMethods.card && { key: 'card', label: 'Card', note: "Pay now on NDB Bank's secure card page" },
-                    payMethods.bank && !isNdc && { key: 'bank', label: 'Bank transfer / deposit', note: 'Pay at the bank using your booking reference; ticket issued when we confirm your payment' },
-                    payMethods.cash && !isNdc && adminToken && { key: 'cash', label: 'Cash (staff)', note: 'Cash received at the counter; ticket issued after you confirm it in Admin' },
+                    payMethods.card && { key: 'card', label: 'Card', note: "Pay now on NDB Bank's secure card page; your ticket is issued straight away" },
+                    payMethods.bank && { key: 'bank', label: 'Bank transfer / deposit', note: 'Pay at the bank using your booking reference; ticket issued and emailed when we confirm your payment', off: offNote },
+                    payMethods.cash && { key: 'cash', label: adminToken ? 'Cash (at the counter)' : 'Cash at a Tick and Book office',
+                      note: adminToken ? 'Cash received at the counter; ticket issued after you confirm it in Admin' : 'Pay in cash at our office using your booking reference; ticket issued and emailed when we receive it', off: offNote },
                   ].filter(Boolean);
-                  if (options.length > 1 || (options.length === 1 && options[0].key !== 'card')) {
-                    return (
-                      <div className="pay-methods">
-                        <div className="pay-methods-title">How would you like to pay?</div>
-                        {options.map(o => (
-                          <label key={o.key} className={`pay-method${paymentMethod === o.key ? ' on' : ''}`}>
-                            <input type="radio" name="tbPaymentMethod" checked={paymentMethod === o.key} onChange={() => setPaymentMethod(o.key)} />
-                            <span><strong>{o.label}</strong><small>{o.note}</small></span>
-                          </label>
-                        ))}
-                      </div>
-                    );
+                  if (!options.length) return null;
+                  if (options.find(o => o.key === paymentMethod)?.off || !options.some(o => o.key === paymentMethod)) {
+                    const first = options.find(o => !o.off);
+                    if (first && first.key !== paymentMethod) setTimeout(() => setPaymentMethod(first.key), 0);
                   }
-                  return null;
+                  return (
+                    <div className="pay-methods">
+                      <div className="pay-methods-title">How would you like to pay?</div>
+                      {options.map(o => (
+                        <label key={o.key} className={`pay-method${paymentMethod === o.key && !o.off ? ' on' : ''}${o.off ? ' off' : ''}`}>
+                          <input type="radio" name="tbPaymentMethod" disabled={!!o.off} checked={paymentMethod === o.key && !o.off} onChange={() => setPaymentMethod(o.key)} />
+                          <span><strong>{o.label}</strong><small>{o.off || o.note}</small></span>
+                        </label>
+                      ))}
+                    </div>
+                  );
                 })()}
                 {paymentMethod !== 'card' && (
                 <div style={{ fontSize: '0.78rem', color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.6rem 0.9rem', marginBottom: '0.75rem' }}>
                   {paymentMethod === 'bank'
                     ? <>🏦 Your booking is confirmed with the airline first and held for you. You then pay by bank transfer or deposit using your booking reference. Your ticket is issued and emailed as soon as our team confirms your payment has arrived.</>
-                    : <>💵 The booking is confirmed with the airline first and held. Record the cash received in Admin → Bank &amp; Cash Payments to issue the ticket.</>}
+                    : adminToken ? <>💵 The booking is confirmed with the airline first and held. Record the cash received in Admin → Bank &amp; Cash Payments to issue the ticket.</>
+                      : <>💵 Your booking is confirmed with the airline first and held for you. Pay in cash at a Tick and Book office using your booking reference; your ticket is issued and emailed as soon as we receive it.</>}
                 </div>
                 )}
 
@@ -10421,7 +10431,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 <div className="modal-actions">
                   <button className="btn btn-secondary" onClick={() => setBookingStep('passenger')}>← Back to Passenger Details</button>
                   <button className="btn btn-primary" disabled={!dataConfirmAgreed} onClick={handleConfirmBooking}>
-                    {paymentMethod === 'card' ? 'Confirm Booking → Proceed to Payment' : paymentMethod === 'bank' ? 'Confirm Booking → Pay by Bank Transfer' : 'Confirm Booking'}
+                    {paymentMethod === 'card' ? 'Confirm Booking → Pay by Card' : paymentMethod === 'bank' ? 'Confirm Booking → Pay by Bank Transfer' : 'Confirm Booking → Pay in Cash'}
                   </button>
                 </div>
               </div>
@@ -10479,8 +10489,17 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                       If the airline releases the booking before your payment reaches us, we will let you know.
                     </p>
                   </>
-                ) : (
+                ) : adminToken ? (
                   <p className="offline-pay-note">Collect the cash, then open <strong>Admin → Bank &amp; Cash Payments</strong> and press <strong>Confirm received</strong> for {offlinePayment.locator_code}. The ticket is issued and emailed to the customer at that moment.</p>
+                ) : (
+                  <>
+                    <ol className="offline-pay-steps">
+                      <li>Pay the amount above in cash at a Tick and Book office{offlinePayment.pay_by ? <> by <strong>{fmtDateTime(offlinePayment.pay_by)}</strong></> : null}.</li>
+                      <li>Quote your booking reference <strong>{offlinePayment.reference}</strong>.</li>
+                      <li>Your e-ticket is issued and emailed to you as soon as we receive the payment.</li>
+                    </ol>
+                    <p className="offline-pay-note">If the airline releases the booking before you pay, we will let you know.</p>
+                  </>
                 )}
                 <div className="modal-actions">
                   <button className="btn btn-primary" onClick={closeBookingFlow}>Done</button>
