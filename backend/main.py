@@ -70,6 +70,7 @@ from services import ticketing_exceptions
 from services import payment_reconciliation
 from services import go_live_switches
 from services import offline_payments
+from services import contact_verification
 from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
@@ -2879,6 +2880,39 @@ def _phone_matches(entered: str, on_file: str) -> bool:
     return n >= 7 and a[-n:] == b[-n:]
 
 
+def _share_contacts_on_record(booking: dict) -> list:
+    """The only contacts a ticket may be shared to: what the customer entered
+    at booking, and their account's email/mobile (changed only with a
+    one-time code - services/contact_verification.py)."""
+    out = []
+    def add(channel, value, source):
+        value = (value or "").strip()
+        if value and not any(c["channel"] == channel and (c["value"].lower() == value.lower() if channel == "email"
+                                                          else _phone_matches(c["value"], value)) for c in out):
+            out.append({"channel": channel, "value": value, "source": source})
+    add("email", booking.get("email") or booking.get("passenger_email"), "Given at booking")
+    add("whatsapp", booking.get("phone"), "Given at booking")
+    if booking.get("customer_id"):
+        try:
+            cust = database.get_customer_by_id(int(booking["customer_id"])) or {}
+            add("email", cust.get("email"), "Customer account (verified)")
+            add("whatsapp", cust.get("phone"), "Customer account (verified)")
+        except Exception as e:
+            logger.warning(f"{booking.get('locator_code')}: account contacts not read: {e}")
+    return out
+
+
+@app.get("/api/admin/bookings/{locator_code}/share-contacts")
+def share_ticket_contacts(locator_code: str, admin: dict = Depends(auth.get_current_admin)):
+    """Contacts on record for the share pop-up - staff pick one, never type one."""
+    locator_code = locator_code.upper().strip()
+    booking = database.get_booking_by_locator(locator_code)
+    if not booking:
+        raise HTTPException(status_code=404, detail=f"No booking found for locator '{locator_code}'.")
+    return {"locator_code": locator_code, "status": booking.get("status"), "passenger": booking.get("passenger_name"),
+            "ticketed": booking.get("status") == "Ticketed", "contacts": _share_contacts_on_record(booking)}
+
+
 @app.post("/api/admin/bookings/{locator_code}/share-ticket")
 def share_ticket_with_customer(
     locator_code: str,
@@ -2896,12 +2930,15 @@ def share_ticket_with_customer(
         )
 
     contact = request.contact.strip()
+    contacts = _share_contacts_on_record(booking)
     if request.channel == "email":
-        on_file = (booking.get("email") or booking.get("passenger_email") or "").strip().lower()
-        matched = bool(on_file) and contact.lower() == on_file
+        emails = [c["value"] for c in contacts if c["channel"] == "email"]
+        on_file = next((e for e in emails if e.lower() == contact.lower()), emails[0] if emails else "")
+        matched = bool(on_file) and contact.lower() == on_file.lower()
     else:
-        on_file = booking.get("phone") or ""
-        matched = _phone_matches(contact, on_file)
+        phones = [c["value"] for c in contacts if c["channel"] == "whatsapp"]
+        on_file = next((ph for ph in phones if _phone_matches(contact, ph)), phones[0] if phones else "")
+        matched = bool(on_file) and _phone_matches(contact, on_file)
 
     if not matched:
         database.log_ticket_share(
@@ -5651,6 +5688,41 @@ def customer_my_loyalty(current: dict = Depends(auth.get_current_customer)):
     summary["recent_transactions"] = database.get_loyalty_transactions(current["sub"], limit=50)
     summary["points_by_booking"] = database.get_loyalty_points_by_locator(current["sub"])
     return summary
+
+
+# ── Contact change with a one-time code (services/contact_verification) ──────
+
+class ContactChangeStartBody(BaseModel):
+    field: Literal["email", "phone"]
+    new_value: str = Field(..., min_length=5, max_length=190)
+
+
+class ContactChangeVerifyBody(BaseModel):
+    code: str = Field(..., min_length=4, max_length=10)
+
+
+def _customer_for_change(current: dict) -> dict:
+    cust = database.get_customer_by_id(int(current["customer_id"]))
+    if not cust:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    return cust
+
+
+@app.post("/api/customers/me/contact-change/start")
+def customer_contact_change_start(body: ContactChangeStartBody, current: dict = Depends(auth.get_current_customer)):
+    try:
+        return contact_verification.start(_customer_for_change(current), body.field, body.new_value)
+    except contact_verification.ContactChangeError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@app.post("/api/customers/me/contact-change/verify")
+def customer_contact_change_verify(body: ContactChangeVerifyBody, current: dict = Depends(auth.get_current_customer)):
+    try:
+        changed = contact_verification.verify(_customer_for_change(current), body.code)
+    except contact_verification.ContactChangeError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+    return {"success": True, **changed, "sign_in_again": changed["field"] == "email"}
 
 
 # ── Email Change Requests (Customer) ──────────────────────────────────────────

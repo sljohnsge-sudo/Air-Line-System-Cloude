@@ -192,6 +192,8 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   const [shareLocator, setShareLocator] = useState('');
   const [shareChannel, setShareChannel] = useState('email');
   const [shareContact, setShareContact] = useState('');
+  // Contacts on record for the share pop-up (staff pick one, never type one).
+  const [shareContacts, setShareContacts] = useState(null);
   const [shareSubmitting, setShareSubmitting] = useState(false);
   const [shareError, setShareError] = useState('');
   const [shareResult, setShareResult] = useState(null);
@@ -748,11 +750,26 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     }
   };
 
-  const submitShareTicket = async () => {
+  const loadShareContacts = async () => {
     const locator = shareLocator.trim().toUpperCase();
-    const contact = shareContact.trim();
+    if (!locator) { setShareError('Enter the PNR.'); return; }
+    setShareSubmitting(true); setShareError(''); setShareResult(null); setShareContacts(null);
+    try {
+      const res = await fetchWithRetry(`${API_BASE}/admin/bookings/${locator}/share-contacts`, { headers: authHeaders });
+      setShareContacts(await adminApiResponse(res, 'Booking not found'));
+    } catch (err) {
+      setShareError(err.message);
+    } finally {
+      setShareSubmitting(false);
+    }
+  };
+
+  const submitShareTicket = async (channelArg, contactArg) => {
+    const locator = shareLocator.trim().toUpperCase();
+    const contact = (contactArg ?? shareContact).trim();
+    const shareChannel = channelArg || 'email';
     if (!locator || !contact) {
-      setShareError('Enter the PNR and the customer\'s contact to send to.');
+      setShareError('Choose one of the customer\'s contacts on record.');
       return;
     }
     setShareSubmitting(true);
@@ -2791,35 +2808,43 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
         <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: 'var(--gs-dark)' }}>Share Ticket with Customer</h4>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
-          If a customer paid successfully but never received their ticket, re-send it here by PNR. For security,
-          the email or WhatsApp number you enter must match exactly what the customer gave at booking time — if it
-          doesn't match, sending is blocked so a booking can never be sent to the wrong person.
+          Re-send a ticket by PNR. The ticket can only go to the email or mobile number the customer entered — shown
+          below from the booking record (and their account, if they have one). Nothing can be typed in, so a ticket is
+          never sent to the wrong person. A customer who wants a different email or number changes it themselves:
+          signed in to their account, confirmed with a one-time code.
         </p>
-        <form onSubmit={e => { e.preventDefault(); submitShareTicket(); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '520px' }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
+        <form onSubmit={e => { e.preventDefault(); loadShareContacts(); }} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap', maxWidth: '520px' }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: '1 1 200px' }}>
             <label className="form-label">PNR / Locator Code</label>
-            <input className="form-input" required value={shareLocator} onChange={e => setShareLocator(e.target.value.toUpperCase())} />
+            <input className="form-input" required value={shareLocator}
+                   onChange={e => { setShareLocator(e.target.value.toUpperCase()); setShareContacts(null); setShareResult(null); }} />
           </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Send Via</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="button" onClick={() => setShareChannel('email')} className={`btn ${shareChannel === 'email' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }}>Email</button>
-              <button type="button" onClick={() => setShareChannel('whatsapp')} className={`btn ${shareChannel === 'whatsapp' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }}>WhatsApp</button>
-            </div>
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Customer's {shareChannel === 'email' ? 'Email Address' : 'WhatsApp Number'} *</label>
-            <input
-              className="form-input" required
-              type={shareChannel === 'email' ? 'email' : 'tel'}
-              placeholder={shareChannel === 'email' ? 'customer@example.com' : '+94771234567'}
-              value={shareContact} onChange={e => setShareContact(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={shareSubmitting} style={{ alignSelf: 'flex-start' }}>
-            {shareSubmitting ? 'Verifying…' : shareChannel === 'email' ? 'Verify & Send Email' : 'Verify & Open WhatsApp'}
+          <button type="submit" className="btn btn-primary" disabled={shareSubmitting}>
+            {shareSubmitting && !shareContacts ? 'Looking up…' : 'Show contacts on record'}
           </button>
         </form>
+        {shareContacts && (
+          <div className="share-pop" role="dialog" aria-label="Share ticket">
+            <div className="share-pop-head">
+              <strong>{shareContacts.locator_code}</strong>{shareContacts.passenger ? ` · ${shareContacts.passenger}` : ''}
+              <span className={`rl-chip ${shareContacts.ticketed ? 'ok' : 'warn'}`}>{shareContacts.status}</span>
+            </div>
+            {!shareContacts.ticketed && <div className="adm-sub share-pop-wrap">Not ticketed yet — there is no ticket to share.</div>}
+            {shareContacts.contacts.length === 0 && <div className="adm-sub share-pop-wrap">No email or mobile number on record for this booking.</div>}
+            {shareContacts.contacts.map(c => (
+              <div key={`${c.channel}-${c.value}`} className="share-pop-row">
+                <div>
+                  <div className="share-pop-value">{c.channel === 'email' ? '✉️' : '📱'} {c.value}</div>
+                  <div className="adm-sub">{c.source}</div>
+                </div>
+                <button type="button" className="btn btn-primary btn-sm" disabled={shareSubmitting || !shareContacts.ticketed}
+                        onClick={() => submitShareTicket(c.channel, c.value)}>
+                  {c.channel === 'email' ? 'Send email' : 'Open WhatsApp'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {shareError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{shareError}</div>}
         {shareResult && (
           <p style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.75rem' }}>

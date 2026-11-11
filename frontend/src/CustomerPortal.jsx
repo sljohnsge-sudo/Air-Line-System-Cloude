@@ -49,6 +49,8 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const [loyalty, setLoyalty] = useState(null);
 
   const [emailRequest, setEmailRequest] = useState(null);
+  // Change email / mobile with a one-time code sent to the new contact.
+  const [cc, setCc] = useState({ open: false, field: 'phone', value: '', code: '', sentTo: '', busy: false, error: '', done: '' });
 
   const [cancellationRequests, setCancellationRequests] = useState([]);
 
@@ -417,6 +419,36 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     </section>
   ) : null;
 
+  const ccCall = async (path, body) => {
+    const res = await fetchWithRetry(`${API_BASE}/customers/me/contact-change/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 401) { handleSessionExpired(); throw new Error('Please sign in again.'); }
+    return handleApiResponse(res, 'Could not change your contact details');
+  };
+  const ccSend = async () => {
+    setCc(c => ({ ...c, busy: true, error: '', done: '' }));
+    try {
+      const d = await ccCall('start', { field: cc.field, new_value: cc.value });
+      setCc(c => ({ ...c, busy: false, sentTo: d.sent_to, code: '' }));
+    } catch (e) { setCc(c => ({ ...c, busy: false, error: e.message })); }
+  };
+  const ccVerify = async () => {
+    setCc(c => ({ ...c, busy: true, error: '' }));
+    try {
+      const d = await ccCall('verify', { code: cc.code });
+      if (d.sign_in_again) {
+        setCc(c => ({ ...c, busy: false, done: 'Your email has been changed. Please sign in again with your new email.' }));
+        setTimeout(() => onCustomerLogout(), 2500);
+        return;
+      }
+      setCc({ open: false, field: 'phone', value: '', code: '', sentTo: '', busy: false, error: '', done: `Your mobile number is now ${d.value}.` });
+      if (typeof loadProfile === 'function') loadProfile();
+    } catch (e) { setCc(c => ({ ...c, busy: false, error: e.message })); }
+  };
+
   const customerNavItems = [
     { id: 'loyalty', label: 'Loyalty Program' },
     { id: 'bookings', label: 'My Bookings', count: bookings.length },
@@ -431,16 +463,52 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
           <div>
             <h2 className="section-title" style={{ margin: 0 }}>Welcome, {customerProfile?.full_name}</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0' }}>{customerProfile?.email}</p>
+            {customerProfile?.phone && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.1rem 0 0' }}>{customerProfile.phone}</p>}
             {emailRequest && (
               <p style={{ fontSize: '0.78rem', color: '#b45309', margin: '0.35rem 0 0', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 ⏳ Email change to <strong>{emailRequest.new_email}</strong> pending admin approval.
               </p>
             )}
+            {cc.done && <p className="cc-done">{cc.done}</p>}
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setCc(c => ({ ...c, open: !c.open, error: '', done: '' }))}>
+              Change email / mobile
+            </button>
             <button className="btn btn-secondary btn-sm" onClick={onCustomerLogout}>Log Out</button>
           </div>
         </div>
+        {cc.open && (
+          <div className="cc-panel">
+            <div className="cc-title">Change your contact details</div>
+            <p className="cc-help">For your security we send a one-time code to the <strong>new</strong> email address or mobile number. Your tickets are only ever shared to contacts confirmed this way.</p>
+            {!cc.sentTo ? (
+              <div className="cc-row">
+                <select className="form-input cc-field" value={cc.field} onChange={e => setCc(c => ({ ...c, field: e.target.value, value: '' }))}>
+                  <option value="phone">Mobile number</option>
+                  <option value="email">Email address</option>
+                </select>
+                <input className="form-input" type={cc.field === 'email' ? 'email' : 'tel'} value={cc.value}
+                       placeholder={cc.field === 'email' ? 'new email address' : 'new mobile number, e.g. 0771234567'}
+                       onChange={e => setCc(c => ({ ...c, value: e.target.value }))} />
+                <button className="btn btn-primary btn-sm" disabled={cc.busy || cc.value.trim().length < 5} onClick={ccSend}>
+                  {cc.busy ? 'Sending…' : 'Send code'}
+                </button>
+              </div>
+            ) : (
+              <div className="cc-row">
+                <span className="cc-sent">Code sent to {cc.sentTo}</span>
+                <input className="form-input cc-code" inputMode="numeric" maxLength={6} value={cc.code} placeholder="6-digit code"
+                       onChange={e => setCc(c => ({ ...c, code: e.target.value.replace(/\D/g, '') }))} />
+                <button className="btn btn-primary btn-sm" disabled={cc.busy || cc.code.length !== 6} onClick={ccVerify}>
+                  {cc.busy ? 'Checking…' : 'Confirm'}
+                </button>
+                <button className="btn btn-secondary btn-sm" disabled={cc.busy} onClick={() => setCc(c => ({ ...c, sentTo: '', code: '' }))}>Back</button>
+              </div>
+            )}
+            {cc.error && <div className="error-banner" style={{ marginTop: '0.5rem' }}>{cc.error}</div>}
+          </div>
+        )}
       </section>
 
       {/* Account menu: one row of tabs across the top (was a left sidebar). */}
