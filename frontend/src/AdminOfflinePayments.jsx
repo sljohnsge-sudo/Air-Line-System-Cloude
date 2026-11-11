@@ -4,6 +4,7 @@
 // same step as after a card payment (backend services/offline_payments.py).
 import { useCallback, useEffect, useState } from 'react';
 import { fmtDateTime } from './dateFormat.js';
+import IssuedTicketPopup from './IssuedTicketPopup.jsx';
 
 const money = (a, c) => (a || a === 0 ? `${c || ''} ${Number(a).toLocaleString(undefined, { minimumFractionDigits: 2 })}`.trim() : '—');
 const STATUS = { awaiting: ['Awaiting payment', 'warn'], confirming: ['Issuing ticket…', 'warn'], ticketed: ['Ticketed', 'ok'],
@@ -35,6 +36,7 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
   const [busy, setBusy] = useState('');
   const [open, setOpen] = useState(null); // payment id being confirmed
   const [form, setForm] = useState({ received_amount: '', bank_reference: '', note: '' });
+  const [view, setView] = useState(null); // {payment, justIssued}: the issued-ticket pop-up
 
   const loadSettings = useCallback(() => api('/payment-methods').then(d => {
     setSettings(d); setInstructions(d.bank_instructions || ''); setHoldHours(d.bank_hold_hours || 12);
@@ -56,8 +58,13 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
     try {
       const d = await api(`/offline-payments/${p.id}/confirm`, { method: 'POST', body: JSON.stringify({
         received_amount: Number(form.received_amount), bank_reference: form.bank_reference || null, note: form.note || null }) });
-      setMsg(`${p.locator_code}: ticket ${d.ticket_number || ''} issued and emailed to the customer.`);
+      setMsg(`${p.locator_code}: ticket ${d.ticket_number || ''} issued.`);
       setOpen(null); loadPayments();
+      // Show the ticket straight away so staff can see it was issued properly and share it.
+      const fresh = await api('/offline-payments').then(x => (x.payments || []).find(r => r.id === p.id)).catch(() => null);
+      setView({ payment: fresh || { ...p, status: 'ticketed', ticket_number: d.ticket_number,
+                                    received_amount: Number(form.received_amount), bank_reference: form.bank_reference || null },
+                justIssued: true });
     } catch (e) { setError(`${p.locator_code}: ${e.message}`); loadPayments(); }
     setBusy('');
   };
@@ -150,6 +157,10 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
                           <button className="btn btn-secondary btn-sm" disabled={!!busy} onClick={() => cancel(p)}>Cancel</button>
                         </div>
                       )}
+                      {(p.status === 'ticketed' || p.status === 'failed') && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => setView({ payment: p, justIssued: false })}>
+                          {p.status === 'ticketed' ? 'View ticket & share' : 'Check booking'}</button>
+                      )}
                       {open === p.id && (
                         <div className="ofp-form">
                           <label>Amount received ({p.currency})
@@ -176,6 +187,8 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
         </div>
       )}
       </>)}
+      {view && <IssuedTicketPopup API_BASE={API_BASE} adminToken={adminToken} payment={view.payment} justIssued={view.justIssued}
+                                  onClose={() => setView(null)} onSessionExpired={onSessionExpired} />}
     </div>
   );
 }

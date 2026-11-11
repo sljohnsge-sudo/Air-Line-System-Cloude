@@ -5290,3 +5290,28 @@ button, input, select, textarea { font-family: inherit; }
 .aci-send { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.85rem; border: 1px solid var(--border-color); border-radius: 12px; background: #fff; }
 .aci-send h4 { margin: 0; font-size: 0.9rem; }
 .aci-send .form-input { margin: 0; }
+
+/* Admin › Bank & Cash Payments › issued-ticket pop-up */
+.itp-overlay { animation: none; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(3px); align-items: flex-start; }
+.itp { width: 100%; max-width: 720px; margin: auto; background: #fff; border-radius: 14px; border-top: 5px solid var(--tb-navy, #1e3a5f);
+       box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.35); padding: 1.1rem 1.25rem 1rem; display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+.itp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
+.itp-head h3 { margin: 0.1rem 0 0; font-size: 1.25rem; letter-spacing: 0.02em; }
+.itp-head h3 span { font-size: 0.95rem; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; }
+.itp-kicker { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.itp-x { border: 0; background: #f1f5f9; width: 32px; height: 32px; border-radius: 50%; font-size: 1.2rem; line-height: 1; cursor: pointer; color: #475569; flex-shrink: 0; }
+.itp-x:hover { background: #e2e8f0; }
+.itp-pay { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; font-size: 0.8rem; color: var(--text-secondary); padding: 0.5rem 0.7rem; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; }
+.itp-check { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.7rem 0.85rem; border-radius: 10px; font-size: 0.84rem; border: 1px solid; }
+.itp-check strong { font-size: 0.95rem; }
+.itp-check ul { margin: 0.15rem 0 0; padding-left: 1.1rem; }
+.itp-check.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.itp-check.bad { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+.itp-check.wait { flex-direction: row; align-items: center; gap: 0.5rem; background: #f8fafc; border-color: var(--border-color); color: var(--text-secondary); }
+.itp-spin { width: 14px; height: 14px; border-width: 2px; }
+.itp-live { border: 1px solid var(--border-color); border-radius: 10px; padding: 0.6rem 0.8rem 0.4rem; min-width: 0; }
+.itp-live-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.72rem; color: var(--text-muted); }
+.itp-share { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.75rem 0.85rem; border: 1px solid var(--border-color); border-radius: 10px; background: #fbfdff; }
+.itp-share h4 { margin: 0; font-size: 0.9rem; }
+.itp-foot { display: flex; justify-content: flex-end; }
+@media (max-width: 600px) { .itp { padding: 0.9rem 0.85rem; } .itp-overlay { padding: 0.5rem; } }
