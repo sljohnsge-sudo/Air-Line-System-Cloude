@@ -76,7 +76,7 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
       <h4 className="ofp-h">Payment methods</h4>
       {!settings ? <div className="loading-state"><div className="spinner"></div></div> : (
         <div className="glc">
-          {!settings.can_change && <div className="glc-note">Only a super admin can change payment methods.</div>}
+          {!settings.can_change && <div className="glc-note">Only the main admin account (<strong>admin</strong>) can change payment methods{settings.signed_in_as ? <> — you are signed in as <strong>{settings.signed_in_as}</strong></> : null}.</div>}
           {METHODS.map(m => {
             const on = !!settings[m.key];
             return (

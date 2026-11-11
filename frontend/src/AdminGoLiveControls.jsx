@@ -50,7 +50,7 @@ export default function AdminGoLiveControls({ API_BASE, adminToken, onSessionExp
   return (
     <div className="glc">
       {!data.can_change && (
-        <div className="glc-note">Only a super admin can change these switches. You can see their current state.</div>
+        <div className="glc-note">Only the main admin account (<strong>admin</strong>) can change these switches{data.signed_in_as ? <> — you are signed in as <strong>{data.signed_in_as}</strong></> : null}. To change them, log out and sign in as <strong>admin</strong>.</div>
       )}
       {error && <div className="error-banner">{error}</div>}
       {ROWS.map(r => {

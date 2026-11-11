@@ -4408,7 +4408,7 @@ class GoLiveSwitchesRequest(BaseModel):
 def admin_get_go_live_switches(admin: dict = Depends(auth.get_current_admin)):
     """Super-admin switches for go-live testing (services/go_live_switches.py)."""
     return {**go_live_switches.get(), "labels": go_live_switches.SWITCHES,
-            "can_change": go_live_switches.is_super_admin(admin.get("admin_id"))}
+            "can_change": go_live_switches.is_super_admin(admin.get("admin_id")), "signed_in_as": admin.get("sub")}
 
 
 @app.put("/api/admin/go-live-switches")
@@ -4500,7 +4500,8 @@ def offline_payment_start(request: OfflinePaymentStartRequest,
 
 @app.get("/api/admin/payment-methods")
 def admin_get_payment_methods(admin: dict = Depends(auth.get_current_admin)):
-    return {**offline_payments.get_settings(), "can_change": go_live_switches.is_super_admin(admin.get("admin_id"))}
+    return {**offline_payments.get_settings(), "can_change": go_live_switches.is_super_admin(admin.get("admin_id")),
+            "signed_in_as": admin.get("sub")}
 
 
 @app.put("/api/admin/payment-methods")

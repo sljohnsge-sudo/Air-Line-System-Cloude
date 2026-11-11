@@ -98,7 +98,7 @@ export default function AdminAnalyticsUsers({ API_BASE, adminToken, onSessionExp
               </button>
             </form>
           ) : (
-            <p className="adm-sub an-wrap" style={{ margin: '0.6rem 0' }}>Read only — only a super admin can add analytics accounts, set passwords or deactivate them.</p>
+            <p className="adm-sub an-wrap" style={{ margin: '0.6rem 0' }}>Read only — only the main admin account (<strong>admin</strong>) can add analytics accounts, set passwords or deactivate them. Log out and sign in as <strong>admin</strong> to manage them.</p>
           )}
 
           <div className="adm-table-wrap">
