@@ -25,7 +25,14 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   // The Loyalty Program page is the portal's home page after sign-in.
   const [activeSection, setActiveSection] = useState('loyalty');
 
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  // 'login' | 'register' — "Create free account" on the share-fares prompt
+  // (ShareFares.jsx) opens this page on the register form.
+  const [mode, setMode] = useState(() => {
+    try { return sessionStorage.getItem('tb_account_mode') === 'register' ? 'register' : 'login'; } catch { return 'login'; }
+  });
+  useEffect(() => {
+    try { sessionStorage.removeItem('tb_account_mode'); } catch { /* storage off */ }
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');

@@ -1,18 +1,31 @@
 // Share fares from the search results with friends by WhatsApp or email.
 // The customer ticks one or more fare cards; each tick stores a summary of
 // that fare as shown on the card at that moment (flights, cabin, baggage,
-// price). Sharing opens WhatsApp or the customer's own mail app with the
-// message filled in — nothing is sent from our server and no customer
-// details are included.
+// price). Sharing is for signed-in customers: ticking a fare while signed
+// out asks them to create a free account or sign in first, and brings them
+// back to the same results afterwards (App.jsx, tb_after_sign_in).
 //
-// The message text can be edited by whoever forwards it, so the price in it
-// is only "at the time of sharing". The message carries a link that re-runs
-// the same search live and shows the shared flights first, with the
-// airline's price right now — that, never the message, is what gets booked.
+// Each shared fare goes as a picture of the fare card (drawn here on a
+// canvas from the fare data — drawFareCard) plus the text summary and the
+// link:
+//   WhatsApp  phones: the picture + text through the share sheet (pick
+//             WhatsApp); computers: download the picture, then WhatsApp
+//             opens with the text and link to attach it to.
+//   Email     sent from Tick and Book's own address to the address the
+//             customer types (POST /api/customers/share-fare/email), or the
+//             customer's own mail app with the text only.
+//
+// The picture and text can't be booked and their price is only "at the time
+// of sharing". The link re-runs the same search live and shows the shared
+// flights first, with the airline's price right now — that, never the
+// message, is what gets booked.
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import whatsappIcon from './assets/whatsapp_icon.png';
 import { encryptForUrl } from './urlCrypto.js';
-import { fmtDateWeekday } from './dateFormat.js';
+import { fmtDateWeekday, fmtDateTime } from './dateFormat.js';
+
+export const MAX_SHARE_FARES = 5;
 
 const fmtTime = (iso) => iso?.split('T')[1]?.slice(0, 5) || iso?.split(' ')[1]?.slice(0, 5) || '';
 const isoDay = (iso) => iso?.split('T')[0] || iso?.split(' ')[0] || '';
@@ -41,6 +54,12 @@ const minutesBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 60000)
 const terminal = (t) => t ? ` T${t}` : '';
 // "SecondCheckedBag" -> "Second Checked Bag"
 const bagName = (t) => (t || 'Baggage').replace(/([a-z])([A-Z])/g, '$1 $2');
+// Days between two ISO dates' calendar days (arrival "+1").
+const dayShift = (fromIso, toIso) => {
+  const a = Date.parse(isoDay(fromIso));
+  const b = Date.parse(isoDay(toIso));
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86400000) : 0;
+};
 
 // Everything on one fare card, as the customer sees it now: each flight of
 // each leg with times, terminals, aircraft and stopover, plus fare, baggage,
@@ -50,6 +69,21 @@ export function buildShareItem({ flight, cabin, fareOption, price, currency, gra
     const segs = segsOf(leg);
     const first = segs[0];
     const last = segs[segs.length - 1];
+    const segments = segs.map((s, k) => {
+      const next = segs[k + 1];
+      const stopMinutes = next ? (s.layover_minutes ?? minutesBetween(s.arrival_time, next.departure_time)) : 0;
+      return {
+        flightNo: s.flight_number,
+        // Another airline's flight on this ticket (a 2-letter code alone adds nothing to the flight number).
+        carrier: s.carrier_name && s.carrier_name.length > 3 && s.carrier_name !== flight.airline ? s.carrier_name : null,
+        aircraft: s.aircraft_type || (segs.length === 1 ? leg.aircraft_type || flight.aircraft_type : null),
+        dep: `${fmtTime(s.departure_time)} ${s.departure_airport}${terminal(s.departure_terminal)}`,
+        arr: `${fmtTime(s.arrival_time)} ${s.arrival_airport}${terminal(s.arrival_terminal)}`,
+        arrDate: isoDay(s.arrival_time) !== isoDay(first.departure_time) ? fmtDate(s.arrival_time) : null,
+        duration: fmtDuration(s.duration),
+        stopover: next ? `${s.arrival_airport}${fmtMinutes(stopMinutes) ? ` · ${fmtMinutes(stopMinutes)}` : ''}` : null,
+      };
+    });
     return {
       outbound: i === 0,
       label: all.length === 2 ? (i === 0 ? 'Depart' : 'Return') : all.length > 2 ? `Flight ${i + 1}` : 'Depart',
@@ -58,21 +92,10 @@ export function buildShareItem({ flight, cabin, fareOption, price, currency, gra
       date: fmtDate(first.departure_time),
       stops: segs.length === 1 ? 'Non-stop' : `${segs.length - 1} stop${segs.length > 2 ? 's' : ''}`,
       duration: fmtDuration(leg.duration),
-      segments: segs.map((s, k) => {
-        const next = segs[k + 1];
-        const stopMinutes = next ? (s.layover_minutes ?? minutesBetween(s.arrival_time, next.departure_time)) : 0;
-        return {
-          flightNo: s.flight_number,
-          // Another airline's flight on this ticket (a 2-letter code alone adds nothing to the flight number).
-          carrier: s.carrier_name && s.carrier_name.length > 3 && s.carrier_name !== flight.airline ? s.carrier_name : null,
-          aircraft: s.aircraft_type || (segs.length === 1 ? leg.aircraft_type || flight.aircraft_type : null),
-          dep: `${fmtTime(s.departure_time)} ${s.departure_airport}${terminal(s.departure_terminal)}`,
-          arr: `${fmtTime(s.arrival_time)} ${s.arrival_airport}${terminal(s.arrival_terminal)}`,
-          arrDate: isoDay(s.arrival_time) !== isoDay(first.departure_time) ? fmtDate(s.arrival_time) : null,
-          duration: fmtDuration(s.duration),
-          stopover: next ? `${s.arrival_airport}${fmtMinutes(stopMinutes) ? ` · ${fmtMinutes(stopMinutes)}` : ''}` : null,
-        };
-      }),
+      depTime: fmtTime(first.departure_time),
+      arrTime: fmtTime(last.arrival_time),
+      arrShift: dayShift(first.departure_time, last.arrival_time),
+      segments,
     };
   });
   const bags = (fareOption?.baggage_allowance || []).map(b => `${bagName(b.type)}: ${b.allowance}`);
@@ -80,6 +103,9 @@ export function buildShareItem({ flight, cabin, fareOption, price, currency, gra
   return {
     key: flightIdentity(flight),
     airline: `${flight.airline}${flight.airline_code ? ` (${flight.airline_code})` : ''}`,
+    airlineName: flight.airline || '',
+    airlineCode: flight.airline_code || '',
+    logoUrl: flight.airline_logo_url || '',
     // "Economy Classic" says the cabin already; "Saver" alone doesn't.
     fare: fareOption?.brand_name
       ? (titleCase(fareOption.brand_name).includes(cabinName(cabin)) ? titleCase(fareOption.brand_name) : `${cabinName(cabin)} · ${titleCase(fareOption.brand_name)}`)
@@ -91,6 +117,7 @@ export function buildShareItem({ flight, cabin, fareOption, price, currency, gra
     bags,
     total,
     paxLabel,
+    sharedAt: new Date().toISOString(),
     label: `${flight.airline} · ${legs[0].from} → ${legs[0].to} · ${total}`,
   };
 }
@@ -134,17 +161,421 @@ export function shareText(items, link, { bold, italic }) {
   ].join(items.length > 1 ? '\n\n━━━━━━━━━━\n\n' : '\n\n');
 }
 
-// The tick box on a fare card.
-export function ShareToggle({ checked, onChange }) {
+// ── Picture of a fare card ──────────────────────────────────────────────────
+// Drawn from the fare data (no screenshot library). Tick and Book colours.
+const C = {
+  navy: '#123B70', navyDeep: '#0C2A52', sky: '#72BCEB', ice: '#EAF4FC', champagne: '#F5E9D8',
+  coral: '#E98270', text: '#24364B', muted: '#52657C', border: '#D6E3EF', green: '#15803d', white: '#FFFFFF',
+};
+const FONT = "'Plus Jakarta Sans', Arial, Helvetica, sans-serif";
+const IMG_W = 1080;
+const PAD = 56;
+
+const font = (ctx, size, weight = 400) => { ctx.font = `${weight} ${size}px ${FONT}`; };
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function fit(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxW) t = t.slice(0, -1);
+  return `${t}…`;
+}
+
+function wrap(ctx, text, maxW) {
+  const lines = [];
+  let line = '';
+  for (const word of String(text).split(' ')) {
+    const test = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(test).width > maxW) { lines.push(line); line = word; } else line = test;
+  }
+  if (line) lines.push(line);
+  return lines.map(l => fit(ctx, l, maxW));
+}
+
+// The airline's logo only when it can't taint the canvas (our own site or
+// an inline data image); otherwise the airline code in a circle.
+function usableLogo(url) {
+  if (!url) return null;
+  if (url.startsWith('data:image/')) return url;
+  try {
+    const u = new URL(url, window.location.href);
+    return u.origin === window.location.origin ? u.href : null;
+  } catch { return null; }
+}
+
+async function loadImage(src) {
+  if (!src) return null;
+  try {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    return img;
+  } catch { return null; }
+}
+
+// The site's one date format (DD/MM/YYYY HH:mm), in the sharer's local time.
+const fmtSharedAt = (iso) => fmtDateTime(iso ? new Date(iso) : new Date());
+
+// Paints the card from the top; returns the height used.
+function paintFareCard(ctx, it, { logo, siteHost }) {
+  const W = IMG_W;
+  const inner = W - PAD * 2;
+  ctx.fillStyle = C.white;
+  ctx.fillRect(0, 0, W, ctx.canvas.height);
+  ctx.textBaseline = 'alphabetic';
+
+  // Header band
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, C.navyDeep);
+  grad.addColorStop(1, C.navy);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, 116);
+  ctx.fillStyle = C.white;
+  font(ctx, 40, 800);
+  ctx.textAlign = 'left';
+  ctx.fillText('Tick and Book', PAD, 64);
+  ctx.fillStyle = C.sky;
+  font(ctx, 20, 600);
+  ctx.fillText('Flight option shared with you', PAD, 96);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = C.white;
+  font(ctx, 18, 500);
+  ctx.fillText('Shared', W - PAD, 60);
+  font(ctx, 20, 700);
+  ctx.fillText(fmtSharedAt(it.sharedAt), W - PAD, 88);
+
+  // Airline
+  let y = 152;
+  const cx = PAD + 42;
+  const cy = y + 42;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 42, 0, Math.PI * 2);
+  ctx.fillStyle = C.ice;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = C.border;
+  ctx.stroke();
+  if (logo) {
+    const s = 60;
+    const ratio = Math.min(s / logo.naturalWidth, s / logo.naturalHeight) || 1;
+    const w = logo.naturalWidth * ratio;
+    const h = logo.naturalHeight * ratio;
+    ctx.drawImage(logo, cx - w / 2, cy - h / 2, w, h);
+  } else {
+    ctx.fillStyle = C.navy;
+    font(ctx, 28, 800);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((it.airlineCode || it.airlineName.slice(0, 2) || '✈').toUpperCase(), cx, cy + 1);
+    ctx.textBaseline = 'alphabetic';
+  }
+  const tx = PAD + 108;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = C.text;
+  font(ctx, 34, 800);
+  ctx.fillText(fit(ctx, it.airlineName || it.airline, inner - 108 - 220), tx, y + 36);
+  const flightNos = it.legs.flatMap(l => l.segments.map(s => s.flightNo)).filter(Boolean).join(' · ');
+  ctx.fillStyle = C.muted;
+  font(ctx, 21, 600);
+  ctx.fillText(fit(ctx, [it.airlineCode, flightNos].filter(Boolean).join('  |  '), inner - 108 - 220), tx, y + 72);
+  // Fare / cabin pill on the right
+  font(ctx, 20, 700);
+  const pill = fit(ctx, it.fare || it.cabin, 260);
+  const pw = ctx.measureText(pill).width + 32;
+  roundRect(ctx, W - PAD - pw, y + 18, pw, 44, 22);
+  ctx.fillStyle = C.ice;
+  ctx.fill();
+  ctx.fillStyle = C.navy;
+  ctx.textAlign = 'center';
+  ctx.fillText(pill, W - PAD - pw / 2, y + 47);
+  y += 116;
+
+  // Legs
+  for (const leg of it.legs) {
+    ctx.strokeStyle = C.border;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(PAD, y);
+    ctx.lineTo(W - PAD, y);
+    ctx.stroke();
+    y += 34;
+
+    // Label pill + date + stops
+    font(ctx, 18, 800);
+    const lab = leg.label.toUpperCase();
+    const lw = ctx.measureText(lab).width + 28;
+    roundRect(ctx, PAD, y, lw, 36, 18);
+    ctx.fillStyle = leg.outbound ? C.navy : C.sky;
+    ctx.fill();
+    ctx.fillStyle = leg.outbound ? C.white : C.navyDeep;
+    ctx.textAlign = 'center';
+    ctx.fillText(lab, PAD + lw / 2, y + 25);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = C.text;
+    font(ctx, 24, 700);
+    ctx.fillText(leg.date, PAD + lw + 18, y + 27);
+    ctx.textAlign = 'right';
+    font(ctx, 22, 800);
+    ctx.fillStyle = leg.segments.length > 1 ? C.coral : C.green;
+    ctx.fillText(leg.stops, W - PAD, y + 27);
+    y += 60;
+
+    // Times, line, airports
+    const timeY = y + 52;
+    ctx.fillStyle = C.text;
+    font(ctx, 60, 800);
+    ctx.textAlign = 'left';
+    ctx.fillText(leg.depTime, PAD, timeY);
+    const depW = ctx.measureText(leg.depTime).width;
+    ctx.textAlign = 'right';
+    let arrRight = W - PAD;
+    if (leg.arrShift > 0) {
+      font(ctx, 22, 800);
+      ctx.fillStyle = C.coral;
+      const shift = `+${leg.arrShift}`;
+      ctx.fillText(shift, arrRight, timeY - 30);
+      arrRight -= ctx.measureText(shift).width + 6;
+      ctx.fillStyle = C.text;
+      font(ctx, 60, 800);
+    }
+    ctx.fillText(leg.arrTime, arrRight, timeY);
+    const arrW = ctx.measureText(leg.arrTime).width + (W - PAD - arrRight);
+
+    const x1 = PAD + depW + 36;
+    const x2 = W - PAD - arrW - 36;
+    const lineY = timeY - 20;
+    ctx.strokeStyle = C.sky;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x1, lineY);
+    ctx.lineTo(x2, lineY);
+    ctx.stroke();
+    const dot = (x, fill) => { ctx.beginPath(); ctx.arc(x, lineY, 7, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); };
+    dot(x1, C.navy);
+    dot(x2, C.navy);
+    const stopCount = leg.segments.length - 1;
+    for (let k = 1; k <= stopCount; k++) {
+      const sx = x1 + ((x2 - x1) * k) / (stopCount + 1);
+      ctx.beginPath();
+      ctx.arc(sx, lineY, 9, 0, Math.PI * 2);
+      ctx.fillStyle = C.white;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = C.coral;
+      ctx.stroke();
+    }
+    ctx.textAlign = 'center';
+    if (leg.duration) {
+      ctx.fillStyle = C.muted;
+      font(ctx, 20, 700);
+      ctx.fillText(`${leg.duration} total`, (x1 + x2) / 2, lineY - 16);
+    }
+    const stopsAt = leg.segments.filter(s => s.stopover).map(s => s.stopover).join('  ·  ');
+    if (stopsAt) {
+      ctx.fillStyle = C.coral;
+      font(ctx, 19, 700);
+      ctx.fillText(fit(ctx, `via ${stopsAt}`, x2 - x1), (x1 + x2) / 2, lineY + 34);
+    }
+    y = timeY + 40;
+    ctx.fillStyle = C.navy;
+    font(ctx, 30, 800);
+    ctx.textAlign = 'left';
+    ctx.fillText(leg.from, PAD, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(leg.to, W - PAD, y);
+    y += 40;
+
+    // Each flight of the leg
+    ctx.textAlign = 'left';
+    for (const s of leg.segments) {
+      font(ctx, 20, 700);
+      ctx.fillStyle = C.text;
+      const head = [s.flightNo, s.carrier, s.aircraft].filter(Boolean).join(' · ');
+      ctx.fillText(fit(ctx, head, inner * 0.45), PAD, y);
+      font(ctx, 20, 500);
+      ctx.fillStyle = C.muted;
+      const times = `${s.dep} → ${s.arr}${s.arrDate ? ` (${s.arrDate})` : ''}${s.duration ? ` · ${s.duration}` : ''}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(fit(ctx, times, inner * 0.55 - 12), W - PAD, y);
+      ctx.textAlign = 'left';
+      y += 32;
+      if (s.stopover) {
+        font(ctx, 19, 600);
+        ctx.fillStyle = C.coral;
+        ctx.fillText(fit(ctx, `Stopover in ${s.stopover}`, inner), PAD + 18, y);
+        y += 32;
+      }
+    }
+    y += 12;
+  }
+
+  // Cabin, baggage, seats + price panel
+  y += 8;
+  const leftW = inner - 360;
+  font(ctx, 20, 500);
+  const bagLines = it.bags.length ? wrap(ctx, `Baggage: ${it.bags.join(' · ')}`, leftW - 40) : [];
+  const seatLine = `${it.seats}${it.seatsLeft ? ` · ${it.seatsLeft}` : ''}`;
+  const leftH = 40 + 34 + bagLines.length * 30 + 30 + 28;
+  const panelH = Math.max(leftH, 170);
+  roundRect(ctx, PAD, y, inner, panelH, 18);
+  ctx.fillStyle = C.ice;
+  ctx.fill();
+  ctx.textAlign = 'left';
+  let ly = y + 48;
+  ctx.fillStyle = C.text;
+  font(ctx, 24, 800);
+  ctx.fillText(fit(ctx, it.cabin, leftW - 40), PAD + 28, ly);
+  ly += 36;
+  font(ctx, 20, 500);
+  ctx.fillStyle = C.muted;
+  for (const l of bagLines) { ctx.fillText(l, PAD + 28, ly); ly += 30; }
+  ctx.fillText(fit(ctx, seatLine, leftW - 40), PAD + 28, ly);
+
+  // Price block
+  const px = W - PAD - 28;
+  ctx.textAlign = 'right';
+  ctx.fillStyle = C.muted;
+  font(ctx, 20, 600);
+  ctx.fillText('from', px, y + 44);
+  ctx.fillStyle = C.navy;
+  font(ctx, 48, 800);
+  ctx.fillText(fit(ctx, it.total, 340), px, y + 98);
+  ctx.fillStyle = C.muted;
+  font(ctx, 19, 600);
+  ctx.fillText(fit(ctx, it.paxLabel ? `for ${it.paxLabel}` : 'total price', 340), px, y + 130);
+  y += panelH + 36;
+
+  // Note + where to book
+  ctx.textAlign = 'left';
+  ctx.fillStyle = C.muted;
+  font(ctx, 19, 500);
+  const note = `Price at the time of sharing (${fmtSharedAt(it.sharedAt)}). Prices change with seat availability — open the link in the message for the live price and to book.`;
+  for (const l of wrap(ctx, note, inner)) { ctx.fillText(l, PAD, y); y += 28; }
+  if (siteHost) {
+    y += 10;
+    ctx.fillStyle = C.navy;
+    font(ctx, 22, 800);
+    ctx.fillText(`Book on ${siteHost}`, PAD, y);
+    y += 10;
+  }
+  return y + PAD - 10;
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Could not make the picture'))), 'image/png');
+    } catch (e) { reject(e); }
+  });
+}
+
+// One PNG of a fare card: { name, blob, file, url (object URL), dataUrl }.
+export async function drawFareCard(item, { siteHost, index = 0 } = {}) {
+  try { await document.fonts?.load?.(`800 40px 'Plus Jakarta Sans'`); } catch { /* falls back to Arial */ }
+  const logo = await loadImage(usableLogo(item.logoUrl));
+  const render = (withLogo) => {
+    const scratch = document.createElement('canvas');
+    scratch.width = IMG_W;
+    scratch.height = 3200;
+    const h = Math.ceil(paintFareCard(scratch.getContext('2d'), item, { logo: withLogo ? logo : null, siteHost }));
+    const out = document.createElement('canvas');
+    out.width = IMG_W;
+    out.height = h;
+    out.getContext('2d').drawImage(scratch, 0, 0, IMG_W, h, 0, 0, IMG_W, h);
+    return out;
+  };
+  let canvas = render(true);
+  let dataUrl;
+  try {
+    dataUrl = canvas.toDataURL('image/png');
+  } catch {
+    // The logo tainted the canvas after all: draw the airline code instead.
+    canvas = render(false);
+    dataUrl = canvas.toDataURL('image/png');
+  }
+  const blob = await canvasToBlob(canvas);
+  const route = item.legs[0] ? `${item.legs[0].from}-${item.legs[0].to}` : 'flight';
+  const name = `tick-and-book-${item.airlineCode || 'flight'}-${route}${index ? `-${index + 1}` : ''}.png`.replace(/[^A-Za-z0-9._-]/g, '');
+  const file = typeof File === 'function' ? new File([blob], name, { type: 'image/png' }) : null;
+  return { name, blob, file, url: URL.createObjectURL(blob), dataUrl };
+}
+
+const siteHostOf = (link) => {
+  try { return new URL(link).host; } catch { return ''; }
+};
+
+// ── Sign-in prompt ───────────────────────────────────────────────────────────
+function SignInToSharePrompt({ onSignIn, onClose }) {
+  const btn = { border: 'none', borderRadius: '8px', padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' };
   return (
-    <label title="Tick to share this fare by WhatsApp or email" style={{
-      display: 'inline-flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer',
-      fontSize: '0.68rem', fontWeight: 600, color: checked ? '#245d38' : '#64748b', userSelect: 'none',
+    // Clicks stop here: in React they would still bubble up to the fare card.
+    <div role="dialog" aria-modal="true" aria-labelledby="share-signin-title" onClick={e => { e.stopPropagation(); onClose(); }} style={{
+      position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(12,42,82,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
     }}>
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
-             style={{ accentColor: '#245d38', width: '13px', height: '13px', margin: 0, cursor: 'pointer' }} />
-      Share this fare
-    </label>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#ffffff', borderRadius: '14px', maxWidth: '400px', width: '100%', boxSizing: 'border-box',
+        padding: '1.4rem', boxShadow: '0 20px 50px rgba(12,42,82,0.3)', color: C.text, textAlign: 'left',
+      }}>
+        <h3 id="share-signin-title" style={{ margin: '0 0 0.5rem', fontSize: '1.05rem', color: C.navy }}>
+          Create a free account or sign in to share fares
+        </h3>
+        <p style={{ margin: '0 0 1.1rem', fontSize: '0.85rem', lineHeight: 1.5, color: C.muted }}>
+          Share a picture of this fare with a link to the live price by WhatsApp or email.
+          You'll come back to these results after signing in.
+        </p>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => onSignIn('register')} style={{ ...btn, background: C.navy, color: '#ffffff', flex: '1 1 150px' }}>
+            Create free account
+          </button>
+          <button type="button" onClick={() => onSignIn('login')} style={{ ...btn, background: C.ice, color: C.navy, flex: '1 1 100px' }}>
+            Sign in
+          </button>
+        </div>
+        <button type="button" onClick={onClose} style={{ ...btn, background: 'none', color: C.muted, padding: '0.6rem 0', marginTop: '0.4rem' }}>
+          Not now
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// The tick box on a fare card. signedIn === false: ticking asks the customer
+// to create an account or sign in first (onSignIn('register' | 'login')).
+export function ShareToggle({ checked, onChange, signedIn, onSignIn }) {
+  const [asking, setAsking] = useState(false);
+  return (
+    <>
+      <label title="Tick to share this fare by WhatsApp or email" style={{
+        display: 'inline-flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer',
+        fontSize: '0.68rem', fontWeight: 600, color: checked ? '#245d38' : '#64748b', userSelect: 'none',
+      }}>
+        <input type="checkbox" checked={checked}
+               onChange={e => {
+                 if (e.target.checked && signedIn === false) { setAsking(true); return; }
+                 onChange(e.target.checked);
+               }}
+               style={{ accentColor: '#245d38', width: '13px', height: '13px', margin: 0, cursor: 'pointer' }} />
+        Share this fare
+      </label>
+      {/* On <body>: a fare card's transform would otherwise hold the fixed overlay inside the card. */}
+      {asking && createPortal(
+        <SignInToSharePrompt
+          onClose={() => setAsking(false)}
+          onSignIn={(mode) => { setAsking(false); onSignIn?.(mode); }}
+        />,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -169,10 +600,21 @@ export function SharedFaresBanner({ count, found, onDismiss }) {
   );
 }
 
+const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+
 // Bar pinned to the bottom of the screen while one or more fares are ticked.
-export function ShareFaresBar({ items, search, onClear }) {
+// customerToken + apiBase: for sending by email from our server.
+export function ShareFaresBar({ items, search, onClear, customerToken, apiBase = '/api', onSignIn }) {
   const [copied, setCopied] = useState(false);
+  const [panel, setPanel] = useState(null); // 'whatsapp' | 'email' | null
+  const [images, setImages] = useState(null); // null = drawing, [] = couldn't draw
+  const [emailTo, setEmailTo] = useState('');
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState(null); // { ok, text }
   const visible = items.length > 0;
+  const tooMany = items.length > MAX_SHARE_FARES;
+  const itemsKey = items.map(i => `${i.key}|${i.total}|${i.fare}`).join(',');
+
   // Room at the bottom of the page so the bar never covers the last card.
   useEffect(() => {
     if (!visible) return undefined;
@@ -180,12 +622,42 @@ export function ShareFaresBar({ items, search, onClear }) {
     document.body.style.paddingBottom = '110px';
     return () => { document.body.style.paddingBottom = prev; };
   }, [visible]);
+
+  // The pictures are drawn as soon as fares are ticked, so the phone share
+  // sheet can open straight from the button press.
+  useEffect(() => {
+    setStatus(null);
+    if (!visible || tooMany) { setImages(null); return undefined; }
+    let cancelled = false;
+    let made = [];
+    setImages(null);
+    const host = siteHostOf((import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin));
+    Promise.all(items.map((it, i) => drawFareCard(it, { siteHost: host, index: items.length > 1 ? i : 0 })))
+      .then(r => {
+        made = r;
+        if (cancelled) r.forEach(x => URL.revokeObjectURL(x.url));
+        else setImages(r);
+      })
+      .catch(() => { if (!cancelled) setImages([]); });
+    return () => { cancelled = true; made.forEach(x => URL.revokeObjectURL(x.url)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsKey, visible, tooMany]);
+
   if (!visible) return null;
 
   const link = shareLink(items, search);
   const whatsappText = shareText(items, link, { bold: s => `*${s}*`, italic: s => `_${s}_` });
   const plainText = shareText(items, link, { bold: s => s, italic: s => s });
   const subject = items.length > 1 ? `${items.length} flight options for you` : `Flight option: ${items[0].label}`;
+  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappText)}`;
+  const files = (images || []).map(x => x.file).filter(Boolean);
+  const canShareFiles = (() => {
+    try { return files.length > 0 && !!navigator.canShare?.({ files }); } catch { return false; }
+  })();
+  const isPhone = (() => {
+    try { return window.matchMedia('(pointer: coarse)').matches; } catch { return false; }
+  })();
+  const picturesWord = items.length > 1 ? 'pictures' : 'picture';
 
   const copy = async () => {
     try {
@@ -195,35 +667,152 @@ export function ShareFaresBar({ items, search, onClear }) {
     } catch { /* clipboard blocked — the WhatsApp and email buttons still work */ }
   };
 
+  // Phones: picture + text through the share sheet. The text is also copied,
+  // since some apps keep only the picture when both are shared.
+  const shareFiles = async () => {
+    try { navigator.clipboard?.writeText(whatsappText).catch(() => {}); } catch { /* clipboard off */ }
+    try {
+      await navigator.share({ files, text: whatsappText, title: subject });
+      setStatus({ ok: true, text: `Shared. The message with the link was also copied — paste it in the chat if only the ${picturesWord} arrived.` });
+      return true;
+    } catch (err) {
+      if (err?.name === 'AbortError') return true;
+      return false;
+    }
+  };
+
+  const onWhatsApp = async () => {
+    setStatus(null);
+    if (isPhone && canShareFiles && await shareFiles()) return;
+    setPanel(p => (p === 'whatsapp' ? null : 'whatsapp'));
+  };
+
+  const sendEmail = async (e) => {
+    e.preventDefault();
+    const to = emailTo.trim();
+    if (!EMAIL_RE.test(to)) { setStatus({ ok: false, text: 'Please enter one valid email address.' }); return; }
+    if (!customerToken) { setStatus({ ok: false, text: 'Please sign in to send by email.', signIn: true }); return; }
+    if (!images?.length) { setStatus({ ok: false, text: 'The fare picture is still being made. Please try again in a moment.' }); return; }
+    setSending(true);
+    setStatus(null);
+    try {
+      const res = await fetch(`${apiBase}/customers/share-fare/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customerToken}` },
+        body: JSON.stringify({
+          to,
+          results_path: new URL(link, window.location.origin).pathname,
+          text: plainText,
+          images: images.map(x => x.dataUrl),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { setStatus({ ok: false, text: 'Your sign-in has expired. Please sign in again to send by email.', signIn: true }); return; }
+      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : "We couldn't send the email just now. Please try again in a minute.");
+      setStatus({ ok: true, text: `Sent to ${to}.` });
+      setEmailTo('');
+    } catch (err) {
+      setStatus({ ok: false, text: err.message || "We couldn't send the email just now." });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const btn = { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', border: 'none', borderRadius: '6px', padding: '0.5rem 0.9rem', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap' };
+  const small = { fontSize: '0.75rem', color: '#475569', lineHeight: 1.45 };
+  const thumbs = images?.length ? (
+    <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+      {images.map((img, i) => (
+        <a key={img.url} href={img.url} download={img.name} title={`Download picture ${i + 1}`} style={{ flex: '0 0 auto' }}>
+          <img src={img.url} alt={`Fare picture ${i + 1}`} style={{ height: '110px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'block' }} />
+        </a>
+      ))}
+    </div>
+  ) : (
+    <div style={small}>{images === null && !tooMany ? 'Making the fare picture…' : tooMany ? '' : "The fare picture couldn't be made in this browser — the message and link still work."}</div>
+  );
+
   return (
     <div style={{
       position: 'fixed', left: '50%', bottom: '16px', transform: 'translateX(-50%)', zIndex: 900,
-      width: 'min(760px, calc(100% - 32px))', boxSizing: 'border-box',
+      width: 'min(760px, calc(100% - 32px))', boxSizing: 'border-box', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto',
       background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 30px rgba(15,23,42,0.18)',
       padding: '0.7rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
     }}>
+      {panel === 'whatsapp' && !tooMany && (
+        <div style={{ flex: '1 1 100%', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.7rem', display: 'grid', gap: '0.5rem' }}>
+          <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#1e293b' }}>Send on WhatsApp</div>
+          {thumbs}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {(images || []).map((img, i) => (
+              <a key={img.url} href={img.url} download={img.name} style={{ ...btn, background: '#f1f5f9', color: '#1e293b' }}>
+                ⬇ Download {images.length > 1 ? `picture ${i + 1}` : 'image'}
+              </a>
+            ))}
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ ...btn, background: '#25d366', color: '#ffffff' }}>
+              <img src={whatsappIcon} alt="" style={{ width: '16px', height: '16px' }} /> Open WhatsApp
+            </a>
+            {canShareFiles && (
+              <button type="button" onClick={shareFiles} style={{ ...btn, background: '#f1f5f9', color: '#1e293b' }}>Share with an app…</button>
+            )}
+          </div>
+          <div style={small}>
+            {images?.length
+              ? <>Download the {picturesWord}, then open WhatsApp — the message with the link is filled in. Attach the downloaded {picturesWord} in the chat and send.</>
+              : <>Open WhatsApp — the message with the link is filled in.</>}
+          </div>
+        </div>
+      )}
+      {panel === 'email' && !tooMany && (
+        <form onSubmit={sendEmail} style={{ flex: '1 1 100%', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.7rem', display: 'grid', gap: '0.5rem' }}>
+          <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#1e293b' }}>Send by email</div>
+          {thumbs}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <input type="email" required value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="Friend's email address"
+                   aria-label="Recipient email address" maxLength={254}
+                   style={{ flex: '1 1 220px', minWidth: 0, padding: '0.5rem 0.7rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+            <button type="submit" disabled={sending || !images?.length} style={{ ...btn, background: C.navy, color: '#ffffff', opacity: sending || !images?.length ? 0.6 : 1 }}>
+              {sending ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+          <div style={small}>
+            Tick and Book emails the {picturesWord}, the flight details and the link to the live price, with your name as the sender.{' '}
+            <a href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainText)}`} style={{ color: C.navy, fontWeight: 700 }}>
+              Or use your own email app
+            </a> (text and link only).
+          </div>
+        </form>
+      )}
+      {status && (
+        <div role="status" style={{ flex: '1 1 100%', fontSize: '0.78rem', fontWeight: 600, color: status.ok ? '#166534' : '#b91c1c' }}>
+          {status.text}
+          {status.signIn && onSignIn && (
+            <button type="button" onClick={() => onSignIn('login')} style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: C.navy, fontWeight: 800, cursor: 'pointer', textDecoration: 'underline', fontSize: '0.78rem' }}>
+              Sign in
+            </button>
+          )}
+        </div>
+      )}
       <div style={{ flex: '1 1 180px', minWidth: 0 }}>
         <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#1e293b' }}>
           {items.length} fare{items.length > 1 ? 's' : ''} selected to share
         </div>
-        <div style={{ fontSize: '0.7rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {items.map(i => i.label).join('  ·  ')}
+        <div style={{ fontSize: '0.7rem', color: tooMany ? '#b91c1c' : '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {tooMany ? `Up to ${MAX_SHARE_FARES} fares can be shared at a time — untick ${items.length - MAX_SHARE_FARES}.` : items.map(i => i.label).join('  ·  ')}
         </div>
       </div>
-      {/* api.whatsapp.com keeps emoji intact; wa.me's redirect can garble them. */}
-      <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappText)}`} target="_blank" rel="noopener noreferrer"
-         style={{ ...btn, background: '#25d366', color: '#ffffff' }}>
+      <button type="button" onClick={onWhatsApp} disabled={tooMany}
+              style={{ ...btn, background: '#25d366', color: '#ffffff', opacity: tooMany ? 0.5 : 1 }}>
         <img src={whatsappIcon} alt="" style={{ width: '16px', height: '16px' }} /> WhatsApp
-      </a>
-      <a href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainText)}`}
-         style={{ ...btn, background: '#1e293b', color: '#ffffff' }}>
+      </button>
+      <button type="button" onClick={() => { setStatus(null); setPanel(p => (p === 'email' ? null : 'email')); }} disabled={tooMany}
+              style={{ ...btn, background: '#1e293b', color: '#ffffff', opacity: tooMany ? 0.5 : 1 }}>
         ✉ Email
-      </a>
+      </button>
       <button type="button" onClick={copy} style={{ ...btn, background: '#f1f5f9', color: '#1e293b' }}>
         {copied ? '✓ Copied' : 'Copy text'}
       </button>
-      <button type="button" onClick={onClear} style={{ ...btn, background: 'none', color: '#64748b', padding: '0.5rem 0.4rem' }}>
+      <button type="button" onClick={() => { setPanel(null); setStatus(null); onClear(); }} style={{ ...btn, background: 'none', color: '#64748b', padding: '0.5rem 0.4rem' }}>
         Clear
       </button>
     </div>

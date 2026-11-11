@@ -72,6 +72,7 @@ from services import go_live_switches
 from services import offline_payments
 from services import contact_verification
 from services import analytics_sync, analytics_service
+from services import share_fare_service
 from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
@@ -5789,6 +5790,24 @@ def customer_request_email_change(request: EmailChangeRequestBody, current: dict
 def customer_get_email_change_request(current: dict = Depends(auth.get_current_customer)):
     req = database.get_pending_email_change_request(current["customer_id"])
     return {"request": req}
+
+
+# "Share this fare" by email (signed-in customers only): the fare pictures,
+# the summary and the live-search link go to one address from our own
+# sender. Checks and the per-customer limit: services/share_fare_service.py.
+class ShareFareEmailRequest(BaseModel):
+    to: str = Field(..., max_length=254)
+    results_path: str = Field(..., max_length=4100)
+    text: str = Field(..., max_length=share_fare_service.MAX_TEXT_CHARS)
+    images: List[str] = Field(..., max_length=share_fare_service.MAX_FARES)
+
+
+@app.post("/api/customers/share-fare/email")
+def customer_share_fare_email(request: ShareFareEmailRequest, current: dict = Depends(auth.get_current_customer)):
+    try:
+        return share_fare_service.send_share_email(current, request.to, request.results_path, request.text, request.images)
+    except share_fare_service.ShareFareError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
 
 # ── Cancellation Request (Customer-facing, public) ────────────────────────────
