@@ -69,6 +69,16 @@ def init_db():
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """)
+    # 12/11/2026: ticket numbers get their own column (they used to be looked
+    # for inside raw_order, where nothing ever wrote them, so a lookup by
+    # ticket number always said "not found").
+    for ddl in ("ALTER TABLE bookings ADD COLUMN ticket_numbers VARCHAR(255) NULL",
+                "ALTER TABLE bookings ADD COLUMN ticketed_at DATETIME NULL",
+                "ALTER TABLE bookings ADD COLUMN emd_numbers VARCHAR(500) NULL"):
+        try:
+            cur.execute(ddl)
+        except mysql.connector.Error:
+            pass  # column already there
     conn.commit()
     cur.close()
     conn.close()
@@ -92,11 +102,50 @@ def save_booking(order_id: str, origin: str, destination: str, departure_date: s
     conn.close()
 
 
+def amadeus_date_to_iso(value: str | None) -> str | None:
+    """Amadeus dates are DDMMYY ("101226" = 10 Dec 2026). MySQL read them as
+    YYMMDD and saved 2010-12-26 -- 55 of 59 bookings had a wrong departure
+    date until 12/11/2026. ISO input passes through unchanged."""
+    if not value:
+        return None
+    value = str(value).strip()
+    if len(value) == 6 and value.isdigit():
+        return f"20{value[4:6]}-{value[2:4]}-{value[0:2]}"
+    return value[:10]
+
+
+def mark_ticketed(order_id: str, ticket_numbers: list[str]) -> None:
+    numbers = ",".join(dict.fromkeys(n for n in ticket_numbers if n))
+    if not numbers:
+        return
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE bookings SET ticket_numbers=%s, ticketed_at=COALESCE(ticketed_at, NOW()), status='ticketed' "
+                "WHERE order_id=%s", (numbers, order_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def mark_emds(order_id: str, emd_numbers: list[str]) -> None:
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT emd_numbers FROM bookings WHERE order_id=%s", (order_id,))
+    row = cur.fetchone() or {}
+    have = [n for n in (row.get("emd_numbers") or "").split(",") if n]
+    merged = ",".join(dict.fromkeys(have + [n for n in emd_numbers if n]))
+    cur.execute("UPDATE bookings SET emd_numbers=%s WHERE order_id=%s", (merged, order_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
 def list_bookings():
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT id, order_id, origin, destination, departure_date, return_date, "
-                "passenger_name, passenger_email, status, created_at FROM bookings ORDER BY created_at DESC")
+                "passenger_name, passenger_email, status, ticket_numbers, ticketed_at, emd_numbers, created_at "
+                "FROM bookings ORDER BY created_at DESC")
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -114,10 +163,12 @@ def find_booking_by_pnr_or_ticket(query: str) -> dict | None:
     find a row by one."""
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
+    digits = "".join(ch for ch in query if ch.isdigit())
     cur.execute(
         "SELECT * FROM bookings WHERE order_id=%s OR JSON_SEARCH(raw_order, 'one', %s) IS NOT NULL "
+        "OR (%s <> '' AND REPLACE(COALESCE(ticket_numbers, ''), '-', '') LIKE %s) "
         "ORDER BY created_at DESC LIMIT 1",
-        (query, query),
+        (query, query, digits, f"%{digits}%" if len(digits) >= 10 else "__no_match__"),
     )
     row = cur.fetchone()
     cur.close()

@@ -1239,7 +1239,11 @@ async def amadeus_booking_confirm(request: AmadeusBookingConfirmRequest):
 
 
 @app.post("/api/amadeus-bookings/{locator}/issue-ticket")
-async def amadeus_booking_issue_ticket(locator: str):
+async def amadeus_booking_issue_ticket(locator: str, _admin: dict = Depends(auth.get_current_admin)):
+    # Staff only (12/11/2026): Amadeus bookings don't go through the NDB /
+    # bank / cash payment step yet, so a customer-side call here would issue
+    # a ticket with no payment confirmed. Until that step exists, only a
+    # signed-in staff member can issue an Amadeus ticket.
     try:
         return await services.issue_amadeus_ticket(locator)
     except services.AmadeusBookingError as e:

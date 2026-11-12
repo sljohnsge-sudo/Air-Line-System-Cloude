@@ -21,6 +21,13 @@ import os
 import httpx
 
 AMADEUS_BACKEND_URL = os.getenv("AMADEUS_BACKEND_URL", "http://localhost:8002")
+# Shared key the Amadeus backend requires on ticket issue, extras purchase,
+# EMD issue, the booking list and the lookup (12/11/2026).
+AMADEUS_INTERNAL_KEY = os.getenv("AMADEUS_INTERNAL_KEY", "").strip()
+
+
+def _internal_headers() -> dict:
+    return {"X-Internal-Key": AMADEUS_INTERNAL_KEY} if AMADEUS_INTERNAL_KEY else {}
 
 
 class AmadeusBookingError(Exception):
@@ -46,7 +53,7 @@ async def confirm_booking(segments: list[dict], travelers: list[dict], contact_e
 
 async def issue_ticket(locator: str) -> dict:
     async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(f"{AMADEUS_BACKEND_URL}/api/bookings/{locator}/issue-ticket")
+        resp = await client.post(f"{AMADEUS_BACKEND_URL}/api/bookings/{locator}/issue-ticket", headers=_internal_headers())
     if resp.status_code >= 400:
         raise AmadeusBookingError(_extract_error(resp), resp.status_code)
     return resp.json()
@@ -60,7 +67,7 @@ async def lookup_booking(query: str) -> dict:
     the caller (main.py's /api/ticket-status) treats that as "not Amadeus
     either" after already ruling out Travelport, not as a real failure."""
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(f"{AMADEUS_BACKEND_URL}/api/bookings/lookup", params={"query": query})
+        resp = await client.get(f"{AMADEUS_BACKEND_URL}/api/bookings/lookup", params={"query": query}, headers=_internal_headers())
     if resp.status_code >= 400:
         raise AmadeusBookingError(_extract_error(resp), resp.status_code)
     return resp.json()

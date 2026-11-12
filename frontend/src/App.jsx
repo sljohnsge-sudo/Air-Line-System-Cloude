@@ -3604,6 +3604,8 @@ export default function App() {
           from: seg.from, to: seg.to,
           marketingCarrier: seg.marketingCarrier, flightNumber: seg.flightNumber,
           bookingClass: seg.bookingClass,
+          // Amadeus prices seats by the fare basis (12/11/2026).
+          fareBasis: seg.fareBasis, ticketDesignator: seg.ticketDesignator,
         }),
       });
       const result = resp.ok ? await resp.json() : null;

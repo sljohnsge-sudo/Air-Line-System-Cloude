@@ -321,21 +321,41 @@ def _parse_reply(reply: ET.Element) -> dict:
         # fareDetails per passenger type (e.g. ADT then CHD); last write wins,
         # and in every live response seen so far the rbd is identical across
         # passenger types for the same leg.
-        rbd_by_seg_ref = {}
-        pax_fare_product = _find_local(rec, "paxFareProduct")
+        fares_by_leg: dict[str, list[dict]] = {}
+        pax_fare_product = _find_local(rec, "paxFareProduct")  # first = adult fare
         if pax_fare_product is not None:
             for fd in _find_all_local(pax_fare_product, "fareDetails"):
                 seg_ref_el = _find_local(fd, "segmentRef")
                 seg_ref = _text(seg_ref_el, "segRef") if seg_ref_el is not None else None
-                group_of_fares = _find_local(fd, "groupOfFares")
-                product_info = _find_local(group_of_fares, "productInformation") if group_of_fares is not None else None
-                cabin_product = _find_local(product_info, "cabinProduct") if product_info is not None else None
-                rbd = _text(cabin_product, "rbd") if cabin_product is not None else None
-                if seg_ref and rbd:
-                    rbd_by_seg_ref[seg_ref] = rbd
+                fares = []
+                for gof in _find_all_local(fd, "groupOfFares"):
+                    pi = _find_local(gof, "productInformation")
+                    cabin = _find_local(pi, "cabinProduct") if pi is not None else None
+                    fpd = _find_local(pi, "fareProductDetail") if pi is not None else None
+                    ti = _find_local(gof, "ticketInfos")
+                    afd = _find_local(ti, "additionalFareDetails") if ti is not None else None
+                    fares.append({
+                        "bookingClass": _text(cabin, "rbd") if cabin is not None else None,
+                        "fareBasis": _text(fpd, "fareBasis") if fpd is not None else None,
+                        "ticketDesignator": _text(afd, "ticketDesignator") if afd is not None else None,
+                    })
+                if seg_ref and fares:
+                    fares_by_leg[seg_ref] = fares
 
+        # One groupOfFares per physical flight of the leg, in order (Amadeus's
+        # sample step 1) -- each flight of a connection keeps its OWN booking
+        # class and fare basis. (Until 12/11/2026 every flight of a leg got the
+        # first flight's class.) The fare basis (+ ticket designator) is what
+        # Amadeus asks us to send for seat prices and extras.
+        position_in_leg: dict[int, int] = {}
         for seg, leg_number in zip(segments, seg_leg_numbers):
-            seg["bookingClass"] = rbd_by_seg_ref.get(str(leg_number))
+            idx = position_in_leg.get(leg_number, 0)
+            position_in_leg[leg_number] = idx + 1
+            fares = fares_by_leg.get(str(leg_number)) or []
+            fare = fares[idx] if idx < len(fares) else (fares[0] if fares else {})
+            seg["bookingClass"] = fare.get("bookingClass")
+            seg["fareBasis"] = fare.get("fareBasis")
+            seg["ticketDesignator"] = fare.get("ticketDesignator")
 
         item_number_el = _find_local(rec, "itemNumber")
         rec_item_id = _text(_find_local(item_number_el, "itemNumberId"), "number") if item_number_el is not None else None

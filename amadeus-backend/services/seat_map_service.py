@@ -55,7 +55,14 @@ async def get_seat_map(segment: dict) -> dict:
     # still returning real pricing) — same pattern as the ancillary/seat
     # browse calls elsewhere in this file's family, which also use
     # placeholder data before a PNR exists.
-    rate_class = segment.get("bookingClass") or "Y"
+    # Amadeus support, 12/11/2026: rateClass is the FARE BASIS plus ticket
+    # designator ("OL1PYL/YL" in their sample), not the booking class -- seat
+    # prices can depend on the fare. Booking class only as a fallback when
+    # the search gave no fare basis.
+    if segment.get("fareBasis"):
+        rate_class = segment["fareBasis"] + (f"/{segment['ticketDesignator']}" if segment.get("ticketDesignator") else "")
+    else:
+        rate_class = segment.get("bookingClass") or "Y"
     body = f"""<Air_RetrieveSeatMap xmlns="{NS}">
       <travelProductIdent>
         {_segment_product_xml(segment)}

@@ -66,7 +66,7 @@ def _criteria_value(parent, group_name, attribute_type):
     return None
 
 
-async def get_ancillary_offers(segments: list[dict]) -> list[dict]:
+async def get_ancillary_offers(segments: list[dict], adults: int = 1, children: int = 0) -> list[dict]:
     """segments: the same per-leg dicts already used for the seat map call
     (departureDate/departureTime/arrivalDate/arrivalTime/from/to/
     marketingCarrier/flightNumber/bookingClass, native Amadeus string
@@ -83,12 +83,12 @@ async def get_ancillary_offers(segments: list[dict]) -> list[dict]:
     return BOTH categories complete is two separate Service_StandaloneCatalogue
     calls (one GRP/BG-only, one GRP/ML-only), merged here in Python.
     """
-    bg_items = await _fetch_ancillary_category(segments, "BG")
-    ml_items = await _fetch_ancillary_category(segments, "ML")
+    bg_items = await _fetch_ancillary_category(segments, "BG", adults, children)
+    ml_items = await _fetch_ancillary_category(segments, "ML", adults, children)
     return bg_items + ml_items
 
 
-async def _fetch_ancillary_category(segments: list[dict], category: str) -> list[dict]:
+async def _fetch_ancillary_category(segments: list[dict], category: str, adults: int = 1, children: int = 0) -> list[dict]:
     """One Service_StandaloneCatalogue call for a single GRP category (BG or
     ML) -- see get_ancillary_offers()'s docstring for why this can't be a
     single combined call."""
@@ -107,12 +107,34 @@ async def _fetch_ancillary_category(segments: list[dict], category: str) -> list
           <paxSegTstReference><referenceDetails><type>S</type><value>{i}</value></referenceDetails></paxSegTstReference>
         </pricingOption>"""
 
+    # Every passenger (adults, then children) and the fare basis of each
+    # flight, as in Amadeus's sample (step 12) -- extras are priced for the
+    # actual fare and passenger type. Added 12/11/2026; before that only one
+    # adult and no fare basis were sent.
+    pax_types = ["ADT"] * max(1, adults) + ["CHD"] * max(0, children)
+    pax_xml = "".join(f"""<passengerInfoGroup>
+        <specificTravellerDetails><travellerDetails><referenceNumber>{i}</referenceNumber></travellerDetails></specificTravellerDetails>
+        <fareInfo><valueQualifier>{ptc}</valueQualifier></fareInfo>
+      </passengerInfoGroup>""" for i, ptc in enumerate(pax_types, start=1))
+    pax_refs = "".join(f"<referenceDetails><type>P</type><value>{i}</value></referenceDetails>" for i in range(1, len(pax_types) + 1))
+    far_xml = ""
+    for fb in dict.fromkeys(seg.get("fareBasis") for seg in segments if seg.get("fareBasis")):
+        far_xml += f"""<pricingOption>
+          <pricingOptionKey><pricingOptionKey>FAR</pricingOptionKey></pricingOptionKey>
+          <optionDetail><criteriaDetails><attributeType>B</attributeType><attributeDescription>{fb}</attributeDescription></criteriaDetails></optionDetail>
+          <paxSegTstReference>{pax_refs}</paxSegTstReference>
+        </pricingOption>"""
+
+    # With a fare basis the request follows the sample exactly (FAR, no FBA):
+    # FAR together with the per-flight FBA options is refused with errorCode
+    # 6392 "CHECK COMBINATION : INVALID REPETITIVE OPTION" (seen 12/11/2026).
+    if far_xml:
+        pricing_fba_xml = ""
+
     body = f"""<Service_StandaloneCatalogue xmlns="{NS}">
-      <passengerInfoGroup>
-        <specificTravellerDetails><travellerDetails><referenceNumber>1</referenceNumber></travellerDetails></specificTravellerDetails>
-        <fareInfo><valueQualifier>ADT</valueQualifier></fareInfo>
-      </passengerInfoGroup>
+      {pax_xml}
       {flight_info_xml}
+      {far_xml}
       {pricing_fba_xml}
       <pricingOption>
         <pricingOptionKey><pricingOptionKey>GRP</pricingOptionKey></pricingOptionKey>
@@ -155,8 +177,19 @@ async def _fetch_ancillary_category(segments: list[dict], category: str) -> list
         service_type = _text(ssr_info, "serviceType")
         free_text = _text(ssr_info, "serviceFreeText")
 
-        rfic = _criteria_value(detail_group, "fsfkwDataGroup", "RFIC") if detail_group is not None else None
-        rfisc = _criteria_value(detail_group, "fsfkwDataGroup", "RFISC") if detail_group is not None else None
+        # RFIC / RFISC (needed to BOOK the item with Service_BookPriceService)
+        # are in serviceGroup/serviceCodes: specialCondition = RFIC,
+        # otherSpecialCondition = RFISC (e.g. C / 0C1) -- confirmed live
+        # 12/11/2026; reading only fsfkwDataGroup left both empty on every
+        # item, so nothing could ever have been booked.
+        codes = _find_local(group, "serviceCodes")
+        rfic = _text(codes, "specialCondition") if codes is not None else None
+        rfisc = _text(codes, "otherSpecialCondition") if codes is not None else None
+        airline_code = _text(ssr_info, "airlineCode")
+        if rfic is None and detail_group is not None:
+            rfic = _criteria_value(detail_group, "fsfkwDataGroup", "RFIC")
+        if rfisc is None and detail_group is not None:
+            rfisc = _criteria_value(detail_group, "fsfkwDataGroup", "RFISC")
         # fsfkwDataGroup/fsfkwValues nests one level deeper than
         # serviceAttributes does -- _criteria_value already looks inside each
         # <fsfkwDataGroup> for a <criteriaDetails> child, but the real
@@ -213,6 +246,8 @@ async def _fetch_ancillary_category(segments: list[dict], category: str) -> list
             "ssr_code": ssr_code,
             "rfic": rfic,
             "rfisc": rfisc,
+            "airline_code": airline_code,
+            "free_text": free_text,
             "name": name,
             # serviceFreeText (e.g. "05") is a raw internal code, not a
             # labelled quantity/unit like Travelport's Measurement block --

@@ -37,14 +37,17 @@ import logging
 from datetime import date
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException
+import os
+import secrets
+
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
 import database
 from services.amadeus_soap_client import AmadeusSoapError
-from services import flight_search_service, flight_booking_service, fare_rules_service, seat_map_service, ancillary_service
+from services import flight_search_service, flight_booking_service, fare_rules_service, seat_map_service, ancillary_service, ancillary_booking_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -61,11 +64,29 @@ app.add_middleware(
     # unified app (Travelport + Amadeus) -- added so its browser can call the
     # customer-facing Amadeus-only features (seat maps, fare rules, cancel)
     # directly, without a proxy through the Travelport backend.
-    allow_origins=["http://localhost:5175", "http://localhost:5173"],
+    # 12/11/2026: the website moved to :5176 on 09/11 (test copies :5186/
+    # :5187) and is also opened by LAN/server address, so origins are matched
+    # by port on any host instead of the two old localhost URLs.
+    allow_origin_regex=r"^https?://[^/:]+(:(5173|5175|5176|5186|5187))?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Ticket issue, extras purchase, EMD issue, the booking list and the lookup
+# carry money or passport data, so only the website's own backend may call
+# them (server to server), never a browser: it sends this shared key. With no
+# key configured they stay locked (fail closed). Added 12/11/2026 -- until
+# then anyone who could reach this port could issue a ticket for any PNR.
+INTERNAL_KEY = os.getenv("AMADEUS_INTERNAL_KEY", "").strip()
+
+
+def require_internal_key(x_internal_key: str | None = Header(default=None)):
+    if not INTERNAL_KEY:
+        raise HTTPException(status_code=503, detail="Locked: AMADEUS_INTERNAL_KEY is not configured on the Amadeus backend.")
+    if not x_internal_key or not secrets.compare_digest(x_internal_key, INTERNAL_KEY):
+        raise HTTPException(status_code=403, detail="Not allowed.")
 
 
 @app.on_event("startup")
@@ -119,6 +140,10 @@ class Segment(BaseModel):
     marketingCarrier: str
     flightNumber: str
     bookingClass: str
+    # From the search (12/11/2026): Amadeus prices seats and extras by the
+    # fare basis (+ ticket designator), not the booking class.
+    fareBasis: Optional[str] = None
+    ticketDesignator: Optional[str] = None
 
     model_config = {"populate_by_name": True}
 
@@ -161,6 +186,8 @@ async def confirm_booking(request: BookingConfirmRequest):
             "marketingCarrier": s.marketingCarrier,
             "flightNumber": s.flightNumber,
             "bookingClass": s.bookingClass,
+            "fareBasis": s.fareBasis,
+            "ticketDesignator": s.ticketDesignator,
         }
         for s in request.segments
     ]
@@ -177,8 +204,8 @@ async def confirm_booking(request: BookingConfirmRequest):
         order_id=result["locator"],
         origin=segments[0]["from"],
         destination=segments[-1]["to"],
-        departure_date=segments[0]["departureDate"],
-        return_date=None,
+        departure_date=database.amadeus_date_to_iso(segments[0]["departureDate"]),
+        return_date=_return_date(segments),
         passenger_name=f"{travelers[0]['firstName']} {travelers[0]['lastName']}",
         passenger_email=request.contactEmail,
         raw_offer={"segments": segments},
@@ -208,6 +235,8 @@ async def fare_rules(request: FareRulesRequest):
             "marketingCarrier": s.marketingCarrier,
             "flightNumber": s.flightNumber,
             "bookingClass": s.bookingClass,
+            "fareBasis": s.fareBasis,
+            "ticketDesignator": s.ticketDesignator,
         }
         for s in request.segments
     ]
@@ -228,6 +257,8 @@ async def seat_map(request: Segment):
         "marketingCarrier": request.marketingCarrier,
         "flightNumber": request.flightNumber,
         "bookingClass": request.bookingClass,
+        "fareBasis": request.fareBasis,
+        "ticketDesignator": request.ticketDesignator,
     }
     return await seat_map_service.get_seat_map(segment)
 
@@ -236,6 +267,8 @@ async def seat_map(request: Segment):
 
 class AncillaryRequest(BaseModel):
     segments: List[Segment]
+    adults: int = 1
+    children: int = 0
 
 
 @app.post("/api/flights/ancillaries")
@@ -251,24 +284,94 @@ async def ancillaries(request: AncillaryRequest):
             "marketingCarrier": s.marketingCarrier,
             "flightNumber": s.flightNumber,
             "bookingClass": s.bookingClass,
+            "fareBasis": s.fareBasis,
+            "ticketDesignator": s.ticketDesignator,
         }
         for s in request.segments
     ]
-    items = await ancillary_service.get_ancillary_offers(segments)
+    items = await ancillary_service.get_ancillary_offers(segments, adults=request.adults, children=request.children)
     return {"ancillaries": items, "ancillaries_available": bool(items)}
 
 
-@app.post("/api/bookings/{locator}/issue-ticket")
+def _return_date(segments: list[dict]) -> str | None:
+    """First departure of the second origin-destination (return or next
+    leg), if the trip has one."""
+    groups = flight_booking_service._od_groups(segments)
+    for seg, g in zip(segments, groups):
+        if g > 1:
+            return database.amadeus_date_to_iso(seg["departureDate"])
+    return None
+
+
+@app.post("/api/bookings/{locator}/issue-ticket", dependencies=[Depends(require_internal_key)])
 async def issue_ticket(locator: str):
-    return await flight_booking_service.issue_ticket(locator.upper().strip())
+    locator = locator.upper().strip()
+    result = await flight_booking_service.issue_ticket(locator)
+    if result.get("ticketNumbers"):
+        database.mark_ticketed(locator, result["ticketNumbers"])
+    return result
 
 
-@app.get("/api/bookings/history")
+# ── Paid extras, seats and EMDs on an existing PNR (Amadeus sample flow) ──
+# Website backend only (internal key). Order for a paid booking: confirm ->
+# add extras/seats (airline prices them, nothing charged) -> customer pays the
+# airline-confirmed total -> issue ticket -> issue EMDs.
+
+class PassengerRef(BaseModel):
+    lastName: str
+    firstName: Optional[str] = None
+
+
+class ExtraItem(BaseModel):
+    ssr_code: str
+    rfic: str
+    rfisc: str
+    airline_code: Optional[str] = None
+    name: Optional[str] = None
+    free_text: Optional[str] = None
+    flight: Optional[str] = None
+    traveler: Optional[PassengerRef] = None
+
+
+class SeatItem(BaseModel):
+    seat: str
+    flight: Optional[str] = None
+    traveler: PassengerRef
+
+
+class PurchaseRequest(BaseModel):
+    extras: List[ExtraItem] = []
+    seats: List[SeatItem] = []
+    receivedFrom: str = "WEB"
+
+
+@app.post("/api/bookings/{locator}/extras", dependencies=[Depends(require_internal_key)])
+async def add_extras(locator: str, request: PurchaseRequest):
+    if not request.extras and not request.seats:
+        raise HTTPException(status_code=400, detail="Nothing to add.")
+    return await ancillary_booking_service.purchase_on_pnr(
+        locator.upper().strip(),
+        extras=[x.model_dump() for x in request.extras],
+        seats=[s.model_dump() for s in request.seats],
+        received_from=request.receivedFrom[:30].upper() or "WEB",
+    )
+
+
+@app.post("/api/bookings/{locator}/issue-emd", dependencies=[Depends(require_internal_key)])
+async def issue_emd(locator: str):
+    locator = locator.upper().strip()
+    result = await ancillary_booking_service.issue_emds(locator)
+    if result.get("emd_numbers"):
+        database.mark_emds(locator, result["emd_numbers"])
+    return result
+
+
+@app.get("/api/bookings/history", dependencies=[Depends(require_internal_key)])
 def booking_history():
     return database.list_bookings()
 
 
-@app.get("/api/bookings/lookup")
+@app.get("/api/bookings/lookup", dependencies=[Depends(require_internal_key)])
 async def lookup_booking(query: str):
     """"Check My Ticket Status" support -- called by the Travelport
     backend's unified /api/ticket-status endpoint (never directly by the

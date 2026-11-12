@@ -227,45 +227,169 @@ def _segment_product_xml(seg: dict) -> str:
           </flightIdentification>"""
 
 
-def _informative_pricing_body(segments: list[dict], travelers: list[dict]) -> str:
-    pax_xml = ""
-    for t in travelers:
-        ptc = _PTC_MAP.get((t.get("type") or "adult").lower(), "ADT")
+def _od_groups(segments: list[dict]) -> list[int]:
+    """Origin-destination group number per segment (1 = outbound, 2 = return
+    or next leg ...). A new group starts when the gap between one segment's
+    arrival and the next one's departure is over 24 hours -- connections stay
+    in the same group, the way Amadeus's sample numbers flightIndicator."""
+    from datetime import datetime
+    groups, current, prev_arr = [], 1, None
+    for seg in segments:
+        try:
+            dep = datetime.strptime(seg["departureDate"] + seg["departureTime"].zfill(4), "%d%m%y%H%M")
+            if prev_arr is not None and (dep - prev_arr).total_seconds() > 24 * 3600:
+                current += 1
+            prev_arr = datetime.strptime(seg["arrivalDate"] + seg["arrivalTime"].zfill(4), "%d%m%y%H%M")
+        except (KeyError, ValueError):
+            pass
+        groups.append(current)
+    return groups
+
+
+# Fare_InformativePricingWithoutPNR in the exact shape of Amadeus's own sample
+# (Booking-Flow_Ancillaries step 2, shared 12/11/2026). Our earlier, shorter
+# request (empty segmentRepetitionControl, no travellersID, RP only) was
+# answered with errorCode 146 "CHECK - CALL SUPERVISOR" on every route;
+# Amadeus called that a test-system issue, but the sample shape priced 5/5
+# routes (CMB-DXB/DOH/SIN/MAA, DEL-BOM) at exactly the search price.
+_INFO_PTC = {"adult": "ADT", "child": "CNN", "infant": "INF"}
+
+
+def _informative_pricing_body(segments: list[dict], travelers: list[dict], currency: str | None = None,
+                              validating_carrier: str | None = None) -> str:
+    by_type: dict[str, int] = {}
+    for t in travelers or [{"type": "adult"}]:
+        ptc = _INFO_PTC.get((t.get("type") or "adult").lower(), "ADT")
+        by_type[ptc] = by_type.get(ptc, 0) + 1
+
+    pax_xml, group, next_ref = "", 0, 1
+    for ptc in ("ADT", "CNN", "INF"):
+        n = by_type.get(ptc, 0)
+        if not n:
+            continue
+        group += 1
+        if ptc == "INF":
+            # An infant travels on an adult's lap: its traveller reference is
+            # the adult it belongs to (adults are 1..n), flagged as an
+            # infant fare (766).
+            refs = list(range(1, n + 1))
+            fare_details = "<fareDetails><qualifier>766</qualifier></fareDetails>"
+        else:
+            refs = list(range(next_ref, next_ref + n))
+            next_ref += n
+            fare_details = ""
+        ids = "".join(f"<travellerDetails><measurementValue>{r}</measurementValue></travellerDetails>" for r in refs)
         pax_xml += f"""<passengersGroup>
-        <segmentRepetitionControl/>
-        <discountPtc><valueQualifier>{escape(ptc)}</valueQualifier></discountPtc>
+        <segmentRepetitionControl><segmentControlDetails><quantity>{group}</quantity><numberOfUnits>{n}</numberOfUnits></segmentControlDetails></segmentRepetitionControl>
+        <travellersID>{ids}</travellersID>
+        <discountPtc><valueQualifier>{ptc}</valueQualifier>{fare_details}</discountPtc>
       </passengersGroup>"""
 
     seg_xml = ""
-    for seg in segments:
+    for i, (seg, od) in enumerate(zip(segments, _od_groups(segments)), start=1):
         seg_xml += f"""<segmentGroup>
         <segmentInformation>
           {_segment_product_xml(seg)}
+          <flightTypeDetails><flightIndicator>{od}</flightIndicator></flightTypeDetails>
+          <itemNumber>{i}</itemNumber>
         </segmentInformation>
       </segmentGroup>"""
 
+    vc_xml = ""
+    if validating_carrier:
+        vc_xml = f"""<pricingOptionGroup>
+        <pricingOptionKey><pricingOptionKey>VC</pricingOptionKey></pricingOptionKey>
+        <carrierInformation><companyIdentification><otherCompany>{escape(validating_carrier)}</otherCompany></companyIdentification></carrierInformation>
+      </pricingOptionGroup>"""
+    currency_xml = ""
+    if currency:
+        currency_xml = f"""<pricingOptionGroup>
+        <pricingOptionKey><pricingOptionKey>FCO</pricingOptionKey></pricingOptionKey>
+        <currency><firstCurrencyDetails><currencyQualifier>FCO</currencyQualifier><currencyIsoCode>{escape(currency)}</currencyIsoCode></firstCurrencyDetails></currency>
+      </pricingOptionGroup>"""
     return f"""<Fare_InformativePricingWithoutPNR xmlns="{NS['informative']}">
       {pax_xml}
       {seg_xml}
-      <pricingOptionGroup>
-        <pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey>
-      </pricingOptionGroup>
+      {vc_xml}
+      <pricingOptionGroup><pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey></pricingOptionGroup>
+      <pricingOptionGroup><pricingOptionKey><pricingOptionKey>RLO</pricingOptionKey></pricingOptionKey></pricingOptionGroup>
+      {currency_xml}
     </Fare_InformativePricingWithoutPNR>"""
 
 
-async def informative_pricing(session: AmadeusSession, segments: list[dict], travelers: list[dict], end_session: bool = True) -> dict:
-    body = _informative_pricing_body(segments, travelers)
-    body_root = await call(
-        operation="Fare_InformativePricingWithoutPNR",
-        soap_action="http://webservices.amadeus.com/TIPNRQ_23_1_1A",
-        body_xml=body,
-        log_prefix="10b_fare_informative_pricing",
-        session=session,
-        stateful=True,
-        end_session=end_session,
-    )
-    reply = _find_local(body_root, "Fare_InformativePricingWithoutPNRReply")
-    return {"raw": reply is not None}
+def _parse_informative_reply(reply) -> dict:
+    """Total, currency, fare basis per segment and fare components from a
+    Fare_InformativePricingWithoutPNRReply -- or the error Amadeus gave."""
+    if reply is None:
+        return {"ok": False, "error": "No reply from Amadeus pricing"}
+    err = None
+    for el in reply.iter():
+        if _local(el.tag) in ("errorCode", "applicationErrorCode") and el.text and el.text.strip() not in ("0", "OK"):
+            err = el.text.strip()
+            break
+    groups = []
+    main = _find_local(reply, "mainGroup")
+    for pg in _find_all_local(main, "pricingGroupLevelGroup"):
+        units = _find_deep(pg, "numberOfPax", "segmentControlDetails", "numberOfUnits")
+        n = int(units.text) if units is not None and units.text and units.text.isdigit() else 1
+        fig = _find_local(pg, "fareInfoGroup")
+        total = cur = None
+        fare_amount = _find_local(fig, "fareAmount")
+        for md in _find_all_local(fare_amount, "otherMonetaryDetails") + _find_all_local(fare_amount, "monetaryDetails"):
+            if _text(md, "typeQualifier") == "712":
+                total, cur = _text(md, "amount"), _text(md, "currency")
+                break
+        segs = []
+        for slg in _find_all_local(fig, "segmentLevelGroup"):
+            fb = _find_deep(slg, "fareBasis", "additionalFareDetails", "rateClass")
+            td = _find_deep(slg, "additionalInformation", "idNumber")
+            ptc = _find_deep(slg, "ptcSegment", "quantityDetails", "unitQualifier")
+            segs.append({"fareBasis": fb.text if fb is not None else None,
+                         "ticketDesignator": td.text if td is not None else None,
+                         "ptc": ptc.text if ptc is not None else None})
+        fcs = []
+        for fc in _find_all_local(fig, "fareComponentDetailsGroup"):
+            num = _find_deep(fc, "fareComponentID", "itemNumberDetails", "number")
+            if num is not None and num.text:
+                fcs.append(num.text)
+        groups.append({"units": n, "total": float(total) if total else None, "currency": cur,
+                       "segments": segs, "fare_components": fcs})
+    if not groups:
+        return {"ok": False, "error": err or "Amadeus pricing returned no fare"}
+    grand = sum((g["total"] or 0) * g["units"] for g in groups)
+    return {"ok": True, "total": round(grand, 2), "currency": next((g["currency"] for g in groups if g["currency"]), None),
+            "groups": groups}
+
+
+async def informative_pricing(session: AmadeusSession, segments: list[dict], travelers: list[dict], end_session: bool = True,
+                              currency: str | None = None) -> dict:
+    """The sample names the validating carrier (VC). That's right when one
+    airline flies the whole trip; on a mixed-airline trip (UL + LH ...) a
+    wrong guess gives errorCode 911 "NO FARE FOR BOOKING CODE", so there
+    Amadeus picks it -- and a single-airline quote that fails is retried
+    once without VC too."""
+    carriers = list(dict.fromkeys(s["marketingCarrier"] for s in segments))
+    attempts = [carriers[0], None] if len(carriers) == 1 else [None]
+    result: dict = {"ok": False, "error": "not priced"}
+    for i, vc in enumerate(attempts):
+        last = i == len(attempts) - 1
+        body_root = await call(
+            operation="Fare_InformativePricingWithoutPNR",
+            soap_action="http://webservices.amadeus.com/TIPNRQ_23_1_1A",
+            body_xml=_informative_pricing_body(segments, travelers, currency, vc),
+            log_prefix="10b_fare_informative_pricing",
+            session=session,
+            stateful=True,
+            end_session=end_session and last,
+        )
+        result = _parse_informative_reply(_find_local(body_root, "Fare_InformativePricingWithoutPNRReply"))
+        if result.get("ok"):
+            if end_session and not last:
+                await call(operation="Security_SignOut", soap_action="http://webservices.amadeus.com/VLSSOQ_04_1_1A",
+                           body_xml='<Security_SignOut xmlns="http://xml.amadeus.com/VLSSOQ_04_1_1A"/>',
+                           log_prefix="10c_signout", session=session, stateful=True, end_session=True)
+            return result
+    return result
 
 
 # ── Step 2: PNR_AddMultiElements -- travellers + contact ───────────────
@@ -305,10 +429,21 @@ def _traveller_blocks(travelers: list[dict]) -> str:
           <travellerInformation>
             <traveller><surname>{escape(t['lastName'].upper())}</surname><quantity>1</quantity></traveller>
             <passenger><firstName>{escape(t['firstName'].upper())}</firstName><type>{ptc}</type></passenger>
-          </travellerInformation>
+          </travellerInformation>{_dob_xml(t.get('dateOfBirth'))}
         </passengerData>
       </travellerInfo>"""
     return blocks
+
+
+def _dob_xml(dob: str | None) -> str:
+    """Date of birth on the name element, positioned exactly as Amadeus's own
+    sample shows it (Booking-Flow_Ancillaries step 5): passengerData/
+    dateOfBirth/dateAndTimeDetails/date, DDMMMYY, a sibling AFTER
+    travellerInformation -- not inside <passenger> (that position is the
+    schema error noted above)."""
+    if not dob or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", dob):
+        return ""
+    return f"<dateOfBirth><dateAndTimeDetails><date>{_ddmmmyy(dob)}</date></dateAndTimeDetails></dateOfBirth>"
 
 
 # NOTE: a Form of Payment (FP) element was tested here (both cash "CA" and
@@ -474,11 +609,13 @@ def _docs_ssr_xml(traveler: dict, pax_ref: str, marketing_carrier: str) -> str:
         f"{traveler['nationality']}/{_ddmmmyy(traveler['dateOfBirth'])}/{gender}/"
         f"{_ddmmmyy(traveler['passportExpiry'])}/{traveler['lastName'].upper()}/{traveler['firstName'].upper()}"
     )
+    # The passenger goes in referenceForDataElement (Amadeus's sample step 5).
+    # It used to sit in elementManagementData/reference -- the element's OWN
+    # id -- which Amadeus only tolerated with a single passenger; with two or
+    # more it refused every DOCS/FOID line ("INVALID PASSENGER ASSOCIATION",
+    # PNR 9UIPOY, 12/11/2026), so multi-passenger bookings had no passports.
     return f"""<dataElementsIndiv>
-        <elementManagementData>
-          <reference><qualifier>PT</qualifier><number>{escape(pax_ref)}</number></reference>
-          <segmentName>SSR</segmentName>
-        </elementManagementData>
+        <elementManagementData><segmentName>SSR</segmentName></elementManagementData>
         <serviceRequest>
           <ssr>
             <type>DOCS</type>
@@ -488,6 +625,7 @@ def _docs_ssr_xml(traveler: dict, pax_ref: str, marketing_carrier: str) -> str:
             <freetext>{escape(freetext)}</freetext>
           </ssr>
         </serviceRequest>
+        <referenceForDataElement><reference><qualifier>PT</qualifier><number>{escape(pax_ref)}</number></reference></referenceForDataElement>
       </dataElementsIndiv>"""
 
 
@@ -501,10 +639,7 @@ def _foid_ssr_xml(traveler: dict, pax_ref: str, marketing_carrier: str) -> str:
     passport number already collected for SSR DOCS, no new data needed."""
     freetext = f"PP{traveler['passportNumber']}"
     return f"""<dataElementsIndiv>
-        <elementManagementData>
-          <reference><qualifier>PT</qualifier><number>{escape(pax_ref)}</number></reference>
-          <segmentName>SSR</segmentName>
-        </elementManagementData>
+        <elementManagementData><segmentName>SSR</segmentName></elementManagementData>
         <serviceRequest>
           <ssr>
             <type>FOID</type>
@@ -514,21 +649,80 @@ def _foid_ssr_xml(traveler: dict, pax_ref: str, marketing_carrier: str) -> str:
             <freetext>{escape(freetext)}</freetext>
           </ssr>
         </serviceRequest>
+        <referenceForDataElement><reference><qualifier>PT</qualifier><number>{escape(pax_ref)}</number></reference></referenceForDataElement>
       </dataElementsIndiv>"""
 
 
-async def add_document_elements(session: AmadeusSession, travelers: list[dict], pax_refs: list[str], marketing_carrier: str):
-    """One PNR_AddMultiElements call, one SSR DOCS + one SSR FOID per
-    traveler who actually supplied passport data -- travelers without it are
-    silently skipped, same as every other optional field in this flow, so
-    routes that don't need document data (the majority so far) are
-    completely unaffected."""
+# Calling code -> ISO country for the SSR CTCM "<number>/<country>" format.
+_CALLING_CODES = {"94": "LK", "91": "IN", "971": "AE", "974": "QA", "966": "SA", "965": "KW", "968": "OM",
+                  "973": "BH", "960": "MV", "977": "NP", "880": "BD", "92": "PK", "65": "SG", "60": "MY",
+                  "66": "TH", "86": "CN", "852": "HK", "81": "JP", "82": "KR", "61": "AU", "64": "NZ",
+                  "44": "GB", "49": "DE", "33": "FR", "39": "IT", "41": "CH", "31": "NL", "7": "RU",
+                  "90": "TR", "20": "EG", "27": "ZA", "1": "US"}
+
+
+def _ctcm_text(phone: str, fallback_country: str | None) -> str | None:
+    """'+94 77 000 0000' / '0770000000' -> '94770000000/LK' (IATA SSR CTCM:
+    full international number, then the phone's country). A Sri Lankan local
+    number (leading 0, 10 digits) is turned into its +94 form."""
+    digits = re.sub(r"\D", "", phone or "")
+    if not digits:
+        return None
+    if digits.startswith("00"):
+        digits = digits[2:]
+    elif len(digits) == 10 and digits.startswith("0"):
+        digits = "94" + digits[1:]
+    country = next((c for k, c in sorted(_CALLING_CODES.items(), key=lambda kv: -len(kv[0])) if digits.startswith(k)), None)
+    country = country or (fallback_country or "").upper()[:2] or None
+    return f"{digits}/{country}" if country else digits
+
+
+def _ctce_text(email: str) -> str | None:
+    """'jane_doe-x@mail.com' -> 'JANE..DOE./X//MAIL.COM' (IATA SSR CTCE
+    encoding: @ -> //, _ -> .., - -> ./), as in Amadeus's sample step 5."""
+    if not email or "@" not in email:
+        return None
+    return email.strip().upper().replace("_", "..").replace("-", "./").replace("@", "//")
+
+
+def _contact_ssr_xml(ssr_type: str, text: str) -> str:
+    # No passenger reference: applies to everyone on the booking, YY = every
+    # airline on it (Amadeus's sample step 5).
+    return f"""<dataElementsIndiv>
+        <elementManagementData><segmentName>SSR</segmentName></elementManagementData>
+        <serviceRequest>
+          <ssr>
+            <type>{ssr_type}</type>
+            <status>HK</status>
+            <companyId>YY</companyId>
+            <freetext>{escape(text)}</freetext>
+          </ssr>
+        </serviceRequest>
+      </dataElementsIndiv>"""
+
+
+async def add_document_elements(session: AmadeusSession, travelers: list[dict], pax_refs: list[str], carriers: list[str] | str,
+                                email: str | None = None, phone: str | None = None):
+    """One PNR_AddMultiElements call carrying, as in Amadeus's sample step 5:
+      - SSR DOCS per traveler who supplied passport data, to ALL airlines on
+        the booking (YY) -- it used to go to the first airline only, so the
+        second airline of a connection never got the passport;
+      - SSR FOID per traveler and per airline on the booking;
+      - SSR CTCE / CTCM: the passenger's email and mobile for the airlines.
+    Travelers without passport data are skipped for DOCS/FOID, as before."""
+    carriers = [carriers] if isinstance(carriers, str) else list(dict.fromkeys(c for c in carriers if c))
     eligible = [
         (t, ref) for t, ref in zip(travelers, pax_refs)
         if t.get("passportNumber") and t.get("passportExpiry") and t.get("passportIssueCountry") and t.get("nationality") and t.get("dateOfBirth")
     ]
-    blocks = "".join(_docs_ssr_xml(t, ref, marketing_carrier) for t, ref in eligible)
-    blocks += "".join(_foid_ssr_xml(t, ref, marketing_carrier) for t, ref in eligible)
+    blocks = "".join(_docs_ssr_xml(t, ref, "YY") for t, ref in eligible)
+    blocks += "".join(_foid_ssr_xml(t, ref, c) for t, ref in eligible for c in carriers)
+    ctce = _ctce_text(email)
+    ctcm = _ctcm_text(phone, (travelers[0].get("nationality") if travelers else None))
+    if ctce:
+        blocks += _contact_ssr_xml("CTCE", ctce)
+    if ctcm:
+        blocks += _contact_ssr_xml("CTCM", ctcm)
     if not blocks:
         return
 
@@ -753,19 +947,21 @@ async def confirm_booking(segments: list[dict], travelers: list[dict], email: st
     total_pax = len(travelers) or 1
 
     # Fare_InformativePricingWithoutPNR in its own fresh session, standalone,
-    # BEFORE selling -- its own name says "without PNR" and its purpose is a
-    # non-committal quote; chaining it onto the sell session instead (i.e.
-    # pricing already-sold/held inventory) returned errorCode 146 "CHECK -
-    # CALL SUPERVISOR" on every attempt. Matches the realistic real-world
-    # order too: quote first, only hold inventory (sell) if the customer
-    # proceeds.
+    # BEFORE selling: quote first, only hold inventory (sell) if the customer
+    # proceeds. Its own errorCode 146 "CHECK - CALL SUPERVISOR" came from our
+    # old request shape (fixed 12/11/2026, see _informative_pricing_body); a
+    # failed quote is reported back but doesn't stop the booking -- the
+    # PNR's own pricing below is what the ticket uses.
     informative_session = AmadeusSession()
-    await informative_pricing(informative_session, segments, travelers)
+    try:
+        quote = await informative_pricing(informative_session, segments, travelers)
+    except AmadeusSoapError as e:
+        quote = {"ok": False, "error": e.message}
 
     session = AmadeusSession()
     await sell_segments(session, segments, total_pax)
     pax_refs = await add_travellers_and_contact(session, travelers, email, phone)
-    await add_document_elements(session, travelers, pax_refs, segments[0]["marketingCarrier"])
+    await add_document_elements(session, travelers, pax_refs, [s["marketingCarrier"] for s in segments], email, phone)
     pricing = await price_pnr(session)
     await create_tst(session, pricing["tstReferences"])
     locator = await end_transact(session, received_from=travelers[0]["lastName"].upper(), end_session=True)
@@ -773,6 +969,7 @@ async def confirm_booking(segments: list[dict], travelers: list[dict], email: st
     return {
         "locator": locator,
         "pricing": pricing,
+        "quote": quote,
     }
 
 
