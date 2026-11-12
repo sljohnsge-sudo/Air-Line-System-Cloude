@@ -21,6 +21,11 @@ Amadeus's own session-based SOAP requirements):
     POST /api/bookings/confirm            -> sell + PNR + price + TST (one
                                               Amadeus session, confirmed live)
     POST /api/bookings/{locator}/issue-ticket -> DocIssuance_IssueTicket
+    GET  /api/bookings/{locator}/servicing -> tickets/EMDs and what staff may do
+    POST /api/bookings/{locator}/cancel    -> PNR_Cancel (no valid tickets left)
+    POST /api/bookings/{locator}/void      -> Ticket_CancelDocument (day of issue)
+    POST /api/bookings/{locator}/refund-quote, /refund -> Ticket_*Refund 3.0
+                                              (all staff-only, internal key)
     GET  /api/bookings/history             -> local cache of confirmed bookings
     GET  /api/bookings/lookup?query=...    -> "Check My Ticket Status": resolves a
                                               PNR/ticket number against our own
@@ -47,7 +52,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 import database
 from services.amadeus_soap_client import AmadeusSoapError
-from services import flight_search_service, flight_booking_service, fare_rules_service, seat_map_service, ancillary_service, ancillary_booking_service
+from services import flight_search_service, flight_booking_service, fare_rules_service, seat_map_service, ancillary_service, ancillary_booking_service, servicing_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -363,6 +368,70 @@ async def issue_emd(locator: str):
     result = await ancillary_booking_service.issue_emds(locator)
     if result.get("emd_numbers"):
         database.mark_emds(locator, result["emd_numbers"])
+    return result
+
+
+# ── Staff: cancel, void and refund (services/servicing_service.py) ─────
+# Website backend only (internal key); each action also has its own on/off
+# switch on the website. Cancel is refused while a ticket or EMD is still
+# valid, so no booking loses its seats while the money is still with the
+# airline.
+
+class ServicingRequest(BaseModel):
+    staff: str = Field(default="STAFF", max_length=60)
+    documents: List[str] = []                 # refund only: empty = every valid ticket and EMD
+    fees: dict[str, float] = {}               # refund only: airline cancellation fee per document
+    cancelFlights: bool = True
+    confirmEmds: bool = False                 # cancel: go ahead although a seat/bag EMD is still valid
+
+
+def _rf(staff: str) -> str:
+    return ("ADMIN " + "".join(ch for ch in (staff or "STAFF").upper() if ch.isalnum() or ch == " "))[:30]
+
+
+def _note(action: str, staff: str, detail: str) -> str:
+    return f"{action} by {staff or 'staff'}: {detail}"
+
+
+@app.get("/api/bookings/{locator}/servicing", dependencies=[Depends(require_internal_key)])
+async def servicing_view(locator: str):
+    return await servicing_service.get_servicing_view(locator.upper().strip())
+
+
+@app.post("/api/bookings/{locator}/cancel", dependencies=[Depends(require_internal_key)])
+async def cancel_booking(locator: str, request: ServicingRequest):
+    locator = locator.upper().strip()
+    result = await servicing_service.cancel_booking(locator, _rf(request.staff), confirm_emds=request.confirmEmds)
+    if result.get("success"):
+        database.mark_servicing(locator, "cancelled", _note("Cancelled", request.staff, result.get("message", "")))
+    return result
+
+
+@app.post("/api/bookings/{locator}/void", dependencies=[Depends(require_internal_key)])
+async def void_booking(locator: str, request: ServicingRequest):
+    locator = locator.upper().strip()
+    result = await servicing_service.void_booking(locator, _rf(request.staff), cancel_flights=request.cancelFlights)
+    voided = [r["number"] for r in result.get("results", []) if r.get("voided")]
+    if voided:
+        database.mark_servicing(locator, "voided" if result.get("success") else "partly voided",
+                                _note("Voided", request.staff, ", ".join(voided)))
+    return result
+
+
+@app.post("/api/bookings/{locator}/refund-quote", dependencies=[Depends(require_internal_key)])
+async def refund_quote(locator: str, request: ServicingRequest):
+    return await servicing_service.refund_quote(locator.upper().strip(), request.documents or None, request.fees)
+
+
+@app.post("/api/bookings/{locator}/refund", dependencies=[Depends(require_internal_key)])
+async def refund_booking(locator: str, request: ServicingRequest):
+    locator = locator.upper().strip()
+    result = await servicing_service.refund_booking(locator, _rf(request.staff), request.documents or None,
+                                                    request.fees, cancel_flights=request.cancelFlights)
+    if result.get("success"):
+        lines = "; ".join(f"{l['number']} {l['refundable']:.0f} {l['refund_currency']}"
+                          + (f" (fee {l['airline_fee']:.0f})" if l.get("airline_fee") else "") for l in result["lines"])
+        database.mark_servicing(locator, "refunded", _note("Refunded", request.staff, lines))
     return result
 
 

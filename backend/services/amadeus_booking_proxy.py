@@ -73,6 +73,47 @@ async def lookup_booking(query: str) -> dict:
     return resp.json()
 
 
+# ── Staff: Amadeus bookings list, cancel, void, refund (12/11/2026) ──────
+# Admin > Amadeus Bookings. Every action is behind its own staff switch
+# (go_live_switches.AMADEUS_SWITCHES), checked in main.py before calling.
+
+async def _staff_call(method: str, path: str, payload: dict | None = None, timeout: float = 120) -> dict:
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.request(method, f"{AMADEUS_BACKEND_URL}{path}", json=payload, headers=_internal_headers())
+    except httpx.ConnectError:
+        raise AmadeusBookingError("The Amadeus system is not running, so Amadeus bookings can't be reached right now.", 503)
+    except httpx.TimeoutException:
+        raise AmadeusBookingError("Amadeus took too long to answer. Check the booking before trying again.", 504)
+    if resp.status_code >= 400:
+        raise AmadeusBookingError(_extract_error(resp), resp.status_code)
+    return resp.json()
+
+
+async def list_bookings() -> list:
+    return await _staff_call("GET", "/api/bookings/history", timeout=30)
+
+
+async def servicing_view(locator: str) -> dict:
+    return await _staff_call("GET", f"/api/bookings/{locator}/servicing", timeout=60)
+
+
+async def cancel_booking(locator: str, staff: str, confirm_emds: bool = False) -> dict:
+    return await _staff_call("POST", f"/api/bookings/{locator}/cancel", {"staff": staff, "confirmEmds": confirm_emds})
+
+
+async def void_booking(locator: str, staff: str) -> dict:
+    return await _staff_call("POST", f"/api/bookings/{locator}/void", {"staff": staff})
+
+
+async def refund_quote(locator: str, documents: list[str], fees: dict) -> dict:
+    return await _staff_call("POST", f"/api/bookings/{locator}/refund-quote", {"documents": documents, "fees": fees})
+
+
+async def refund_booking(locator: str, staff: str, documents: list[str], fees: dict) -> dict:
+    return await _staff_call("POST", f"/api/bookings/{locator}/refund", {"staff": staff, "documents": documents, "fees": fees})
+
+
 def _extract_error(resp: httpx.Response) -> str:
     try:
         data = resp.json()

@@ -8,6 +8,7 @@ import AdminRatesLogs from './AdminRatesLogs.jsx';
 import AdminPaymentRecon from './AdminPaymentRecon.jsx';
 import AdminGoLiveControls from './AdminGoLiveControls.jsx';
 import AdminOfflinePayments from './AdminOfflinePayments.jsx';
+import AdminAmadeusBookings from './AdminAmadeusBookings.jsx';
 import AdminAnalyticsUsers from './AdminAnalyticsUsers.jsx';
 import AdminCustomerInterests from './AdminCustomerInterests.jsx';
 
@@ -1324,6 +1325,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       { id: 'notifications', label: 'Airline Rates Logs', icon: 'bell', count: notifications.length },
       { id: 'force-issue', label: 'Booking Lookup', icon: 'search' },
       { id: 'bank-cash', label: 'Bank & Cash Payments', icon: 'tag' },
+      { id: 'amadeus-bookings', label: 'Amadeus Bookings', icon: 'list' },
     ] },
     { group: 'Customer Requests', items: [
       { id: 'cancellations', label: 'Cancellations', icon: 'cancel', count: cancellationRequests.length },
@@ -2129,7 +2131,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
         <h3 className="results-heading" style={{ marginTop: '2rem' }}>Go-live Controls (super admin)</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
-          Switch flight search, new bookings, ticketing and staff void/refund on or off while testing for go-live.
+          Switch flight search, new bookings, ticketing, staff void/refund and the Amadeus cancel / void / refund actions on or off while testing for go-live.
           A switch only ever stops a customer before they pay; anyone who has already paid still gets their booking and ticket.
           Takes effect within a few seconds, no restart needed.
         </p>
@@ -2887,6 +2889,18 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
             ))}
           </div>
         )}
+      </section>
+      )}
+
+      {activeAdminSection === 'amadeus-bookings' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Amadeus Bookings</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
+          Bookings made on Amadeus. Check &amp; manage reads the booking live from Amadeus and lets staff cancel it, void its tickets
+          (day of issue only) or refund them. Each action has its own switch in Providers &amp; Modules › Go-live controls.
+        </p>
+        <AdminAmadeusBookings API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout}
+                              onOpenSwitches={() => setActiveAdminSection('providers')} />
       </section>
       )}
 

@@ -74,7 +74,10 @@ def init_db():
     # ticket number always said "not found").
     for ddl in ("ALTER TABLE bookings ADD COLUMN ticket_numbers VARCHAR(255) NULL",
                 "ALTER TABLE bookings ADD COLUMN ticketed_at DATETIME NULL",
-                "ALTER TABLE bookings ADD COLUMN emd_numbers VARCHAR(500) NULL"):
+                "ALTER TABLE bookings ADD COLUMN emd_numbers VARCHAR(500) NULL",
+                # 12/11/2026: staff cancel / void / refund (services/servicing_service.py)
+                "ALTER TABLE bookings ADD COLUMN servicing_at DATETIME NULL",
+                "ALTER TABLE bookings ADD COLUMN servicing_note VARCHAR(500) NULL"):
         try:
             cur.execute(ddl)
         except mysql.connector.Error:
@@ -140,11 +143,24 @@ def mark_emds(order_id: str, emd_numbers: list[str]) -> None:
     conn.close()
 
 
+def mark_servicing(order_id: str, status: str, note: str) -> None:
+    """After a staff cancel / void / refund: status cancelled, voided or
+    refunded, with who did it and the amounts (servicing_service.py)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE bookings SET status=%s, servicing_at=NOW(), servicing_note=%s WHERE order_id=%s",
+                (status, (note or "")[:500], order_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
 def list_bookings():
     conn = get_db_connection()
     cur = conn.cursor(dictionary=True)
     cur.execute("SELECT id, order_id, origin, destination, departure_date, return_date, "
-                "passenger_name, passenger_email, status, ticket_numbers, ticketed_at, emd_numbers, created_at "
+                "passenger_name, passenger_email, status, ticket_numbers, ticketed_at, emd_numbers, "
+                "servicing_at, servicing_note, created_at "
                 "FROM bookings ORDER BY created_at DESC")
     rows = cur.fetchall()
     cur.close()

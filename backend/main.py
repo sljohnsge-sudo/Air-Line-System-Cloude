@@ -52,7 +52,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict
 import database
 import services
 import auth
@@ -70,6 +70,7 @@ from services import addon_deadlines
 from services import ticketing_exceptions
 from services import payment_reconciliation
 from services import go_live_switches
+from services import amadeus_booking_proxy as amadeus_staff
 from services import offline_payments
 from services import contact_verification
 from services import analytics_sync, analytics_service
@@ -1249,6 +1250,92 @@ async def amadeus_booking_issue_ticket(locator: str, _admin: dict = Depends(auth
     except services.AmadeusBookingError as e:
         logger.error(f"Amadeus ticket issuance failed for {locator}: {e.message}")
         raise HTTPException(status_code=e.status_code, detail=e.message)
+
+
+# ── Staff: Amadeus bookings — cancel / void / refund (12/11/2026) ────────
+# Admin > Amadeus Bookings. Each action has its own staff switch on Go-live
+# controls (go_live_switches.AMADEUS_SWITCHES), OFF until someone turns it
+# on, and fails closed. The Amadeus backend does the work (servicing_service);
+# nothing here touches Travelport bookings.
+
+_AMADEUS_SWITCH_OFF = {
+    "amadeus_cancel_enabled": "Cancelling Amadeus bookings is switched off. Turn it on in Providers & Modules > Go-live controls.",
+    "amadeus_void_enabled": "Voiding Amadeus tickets is switched off. Turn it on in Providers & Modules > Go-live controls.",
+    "amadeus_refund_enabled": "Refunding Amadeus tickets is switched off. Turn it on in Providers & Modules > Go-live controls.",
+}
+
+
+class AmadeusStaffActionRequest(BaseModel):
+    documents: List[str] = []
+    fees: Dict[str, float] = {}
+    confirm_emds: bool = False
+
+
+def _amadeus_switch(name: str) -> None:
+    if not go_live_switches.staff_switch_on(name):
+        raise HTTPException(status_code=403, detail=_AMADEUS_SWITCH_OFF[name])
+
+
+def _amadeus_locator(locator: str) -> str:
+    loc = (locator or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9]{5,8}", loc):
+        raise HTTPException(status_code=400, detail="That is not a booking reference.")
+    return loc
+
+
+async def _amadeus_staff(coro, what: str, locator: str = ""):
+    try:
+        return await coro
+    except amadeus_staff.AmadeusBookingError as e:
+        logger.warning(f"Amadeus {what} {locator}: {e.message}")
+        raise HTTPException(status_code=e.status_code if 400 <= e.status_code < 600 else 502, detail=e.message)
+
+
+@app.get("/api/admin/amadeus-bookings")
+async def admin_amadeus_bookings(_admin: dict = Depends(auth.get_current_admin)):
+    rows = await _amadeus_staff(amadeus_staff.list_bookings(), "booking list")
+    switches = await asyncio.to_thread(go_live_switches.get)
+    return {"bookings": rows, "switches": {k: switches.get(k, False) for k in go_live_switches.AMADEUS_SWITCHES},
+            "labels": go_live_switches.AMADEUS_SWITCHES}
+
+
+@app.get("/api/admin/amadeus-bookings/{locator}")
+async def admin_amadeus_booking(locator: str, _admin: dict = Depends(auth.get_current_admin)):
+    loc = _amadeus_locator(locator)
+    return await _amadeus_staff(amadeus_staff.servicing_view(loc), "booking check", loc)
+
+
+@app.post("/api/admin/amadeus-bookings/{locator}/cancel")
+async def admin_amadeus_cancel(locator: str, body: AmadeusStaffActionRequest, admin: dict = Depends(auth.get_current_admin)):
+    await asyncio.to_thread(_amadeus_switch, "amadeus_cancel_enabled")
+    loc = _amadeus_locator(locator)
+    logger.warning(f"Amadeus cancel {loc} by {admin.get('sub')}")
+    return await _amadeus_staff(amadeus_staff.cancel_booking(loc, admin.get("sub") or "staff", body.confirm_emds), "cancel", loc)
+
+
+@app.post("/api/admin/amadeus-bookings/{locator}/void")
+async def admin_amadeus_void(locator: str, admin: dict = Depends(auth.get_current_admin)):
+    await asyncio.to_thread(_amadeus_switch, "amadeus_void_enabled")
+    loc = _amadeus_locator(locator)
+    logger.warning(f"Amadeus void {loc} by {admin.get('sub')}")
+    return await _amadeus_staff(amadeus_staff.void_booking(loc, admin.get("sub") or "staff"), "void", loc)
+
+
+@app.post("/api/admin/amadeus-bookings/{locator}/refund-quote")
+async def admin_amadeus_refund_quote(locator: str, body: AmadeusStaffActionRequest, _admin: dict = Depends(auth.get_current_admin)):
+    await asyncio.to_thread(_amadeus_switch, "amadeus_refund_enabled")
+    loc = _amadeus_locator(locator)
+    return await _amadeus_staff(amadeus_staff.refund_quote(loc, body.documents, body.fees), "refund quote", loc)
+
+
+@app.post("/api/admin/amadeus-bookings/{locator}/refund")
+async def admin_amadeus_refund(locator: str, body: AmadeusStaffActionRequest, admin: dict = Depends(auth.get_current_admin)):
+    await asyncio.to_thread(_amadeus_switch, "amadeus_refund_enabled")
+    loc = _amadeus_locator(locator)
+    if not body.documents:
+        raise HTTPException(status_code=400, detail="Choose the tickets to refund.")
+    logger.warning(f"Amadeus refund {loc} {body.documents} fees={body.fees} by {admin.get('sub')}")
+    return await _amadeus_staff(amadeus_staff.refund_booking(loc, admin.get("sub") or "staff", body.documents, body.fees), "refund", loc)
 
 
 def _segments_of_offering(raw_offering: dict) -> list:
@@ -4407,6 +4494,9 @@ def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = De
 
 
 class GoLiveSwitchesRequest(BaseModel):
+    amadeus_cancel_enabled: Optional[bool] = None
+    amadeus_void_enabled: Optional[bool] = None
+    amadeus_refund_enabled: Optional[bool] = None
     flight_search_enabled: Optional[bool] = None
     pnr_create_enabled: Optional[bool] = None
     ticketing_enabled: Optional[bool] = None
@@ -4417,7 +4507,7 @@ class GoLiveSwitchesRequest(BaseModel):
 @app.get("/api/admin/go-live-switches")
 def admin_get_go_live_switches(admin: dict = Depends(auth.get_current_admin)):
     """Super-admin switches for go-live testing (services/go_live_switches.py)."""
-    return {**go_live_switches.get(), "labels": go_live_switches.SWITCHES,
+    return {**go_live_switches.get(), "labels": {**go_live_switches.SWITCHES, **go_live_switches.AMADEUS_SWITCHES},
             "can_change": go_live_switches.can_change(admin.get("admin_id")), "signed_in_as": admin.get("sub"),
             "is_super_admin": go_live_switches.is_super_admin(admin.get("admin_id"))}
 
@@ -4430,7 +4520,7 @@ def admin_put_go_live_switches(body: GoLiveSwitchesRequest, admin: dict = Depend
     if body.all_admins_can_switch is not None and not is_super:
         raise HTTPException(status_code=403, detail="Only the main admin account (admin) can decide who may change the switches.")
     values = go_live_switches.update(body.model_dump(), admin.get("sub"))
-    return {**values, "labels": go_live_switches.SWITCHES, "can_change": True, "signed_in_as": admin.get("sub"),
+    return {**values, "labels": {**go_live_switches.SWITCHES, **go_live_switches.AMADEUS_SWITCHES}, "can_change": True, "signed_in_as": admin.get("sub"),
             "is_super_admin": is_super}
 
 

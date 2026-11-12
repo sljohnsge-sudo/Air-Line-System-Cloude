@@ -15,6 +15,12 @@ const ROWS = [
     desc: 'Customers can pay for and receive tickets. Off: stopped at the payment step, so nobody pays for a ticket that won’t be issued. Bookings already paid for still get their ticket.' },
   { key: 'ticketed_cancel_enabled', label: 'Void & refund ticketed bookings',
     desc: 'Staff can void or refund a ticketed booking (All Bookings and Cancellation Requests). Cancelling a held booking always works.' },
+  { key: 'amadeus_cancel_enabled', label: 'Amadeus: cancel bookings', group: 'Amadeus bookings (Operations › Amadeus Bookings)',
+    desc: 'Staff can cancel the flights of an Amadeus booking that has no valid ticket. The airline releases the seats.' },
+  { key: 'amadeus_void_enabled', label: 'Amadeus: void tickets & EMDs',
+    desc: 'Staff can void every ticket and EMD of an Amadeus booking on the day they were issued (no airline fee), then the flights are cancelled.' },
+  { key: 'amadeus_refund_enabled', label: 'Amadeus: refund tickets',
+    desc: 'Staff can refund Amadeus tickets (minus the airline fee they enter from the fare rules), then the flights are cancelled. Seat/bag EMDs are claimed from the airline.' },
 ];
 
 export default function AdminGoLiveControls({ API_BASE, adminToken, onSessionExpired, onChanged }) {
@@ -57,7 +63,9 @@ export default function AdminGoLiveControls({ API_BASE, adminToken, onSessionExp
         const on = !!data[r.key];
         const pending = confirm && confirm.key === r.key;
         return (
-          <div key={r.key} className={`glc-row ${on ? 'on' : 'off'}`}>
+          <div key={r.key} className="glc-item">
+          {r.group && <div className="glc-group">{r.group}</div>}
+          <div className={`glc-row ${on ? 'on' : 'off'}`}>
             <div className="glc-text">
               <div className="glc-label">{r.label}</div>
               <div className="glc-desc">{r.desc}</div>
@@ -78,6 +86,7 @@ export default function AdminGoLiveControls({ API_BASE, adminToken, onSessionExp
                 </span>
               )}
             </div>
+          </div>
           </div>
         );
       })}

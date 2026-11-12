@@ -34,6 +34,16 @@ CUSTOMER_MESSAGES = {
                          "Nothing has been charged — please try again later.",
 }
 
+# 12/11/2026: staff switches for Amadeus bookings (Admin > Amadeus Bookings).
+# They start OFF: nothing on Amadeus can be cancelled, voided or refunded
+# until someone turns the switch on. Unlike the customer switches above they
+# fail CLOSED (off) if the switches can't be read.
+AMADEUS_SWITCHES = {
+    "amadeus_cancel_enabled": "Amadeus: cancel bookings",
+    "amadeus_void_enabled": "Amadeus: void tickets & EMDs",
+    "amadeus_refund_enabled": "Amadeus: refund tickets",
+}
+
 _ready = False
 _lock = threading.Lock()
 _cache = {"at": 0.0, "value": None}
@@ -66,6 +76,11 @@ def _ensure_tables() -> None:
                            AND TABLE_NAME='go_live_controls' AND COLUMN_NAME='all_admins_can_switch'""")
             if cur.fetchone()[0] == 0:
                 cur.execute("ALTER TABLE go_live_controls ADD COLUMN all_admins_can_switch TINYINT(1) NOT NULL DEFAULT 1")
+            for col in AMADEUS_SWITCHES:
+                cur.execute("""SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+                               AND TABLE_NAME='go_live_controls' AND COLUMN_NAME=%s""", (col,))
+                if cur.fetchone()[0] == 0:
+                    cur.execute(f"ALTER TABLE go_live_controls ADD COLUMN {col} TINYINT(1) NOT NULL DEFAULT 0")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS super_admins (
                     admin_id INT PRIMARY KEY,
@@ -93,12 +108,13 @@ def get() -> dict:
     cur = conn.cursor(dictionary=True)
     try:
         cur.execute("SELECT flight_search_enabled, pnr_create_enabled, ticketing_enabled, all_admins_can_switch, "
-                    "updated_by, updated_at FROM go_live_controls WHERE id=1")
+                    f"{', '.join(AMADEUS_SWITCHES)}, updated_by, updated_at FROM go_live_controls WHERE id=1")
         row = cur.fetchone() or {}
     finally:
         cur.close()
         conn.close()
     value = {k: bool(row.get(k, 1)) for k in SWITCHES}
+    value.update({k: bool(row.get(k, 0)) for k in AMADEUS_SWITCHES})
     value["ticketed_cancel_enabled"] = bool(database.get_provider_settings().get("ticketed_cancel_enabled", False))
     value["all_admins_can_switch"] = bool(row.get("all_admins_can_switch", 1))
     value["updated_by"] = row.get("updated_by")
@@ -115,6 +131,16 @@ def is_on(name: str) -> bool:
     except Exception as e:
         logger.warning(f"Go-live switch {name} could not be read ({e}) — treating it as ON")
         return True
+
+
+def staff_switch_on(name: str) -> bool:
+    """Amadeus staff switches: fail closed — if they can't be read, the
+    action stays off."""
+    try:
+        return bool(get().get(name, False))
+    except Exception as e:
+        logger.warning(f"Staff switch {name} could not be read ({e}) — treating it as OFF")
+        return False
 
 
 def is_super_admin(admin_id) -> bool:
@@ -148,7 +174,8 @@ def update(values: dict, admin_username: str | None) -> dict:
     conn = database.get_db_connection()
     cur = conn.cursor()
     try:
-        cols = {k: (1 if values[k] else 0) for k in (*SWITCHES, "all_admins_can_switch") if k in values and values[k] is not None}
+        cols = {k: (1 if values[k] else 0) for k in (*SWITCHES, *AMADEUS_SWITCHES, "all_admins_can_switch")
+                if k in values and values[k] is not None}
         if cols:
             sets = ", ".join(f"{k}=%s" for k in cols)
             cur.execute(f"UPDATE go_live_controls SET {sets}, updated_by=%s WHERE id=1", (*cols.values(), admin_username))
