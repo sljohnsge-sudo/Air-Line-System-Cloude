@@ -1332,13 +1332,13 @@ class AmadeusHoldTraveler(BaseModel):
     lastName: str = Field(..., min_length=1, max_length=60)
     # 13/11/2026 audit: type, gender and nationality are required - never
     # filled in by us (they go to the airline in the passport SSR).
-    type: Literal["adult", "child", "infant"]
+    type: Optional[Literal["adult", "child", "infant"]] = None
     dateOfBirth: str
-    gender: Literal["Male", "Female"]
+    gender: Optional[Literal["Male", "Female"]] = None
     passportNumber: str = Field(..., min_length=3, max_length=20)
     passportExpiry: str
     passportIssueCountry: str = Field(..., min_length=2, max_length=3)
-    nationality: str = Field(..., min_length=2, max_length=3)
+    nationality: Optional[str] = Field(None, max_length=3)
     # 14/11/2026: special requests and the home address (SSR DOCA). The code
     # the customer picked goes to the airline as it is (4-letter SSR code);
     # the airline's own answer is shown before payment.
@@ -1355,6 +1355,8 @@ class AmadeusHoldRequest(BaseModel):
     segments: List[dict] = Field(..., min_length=1, max_length=12)
     travelers: List[AmadeusHoldTraveler] = Field(..., min_length=1, max_length=9)
     contactEmail: EmailStr
+    # The mobile in international form (+ and country code): it goes to the
+    # airlines as entered - no country is assumed for a local number.
     contactPhone: str = Field(..., min_length=6, max_length=30)
     quotedPrice: Optional[float] = None
     quotedCurrency: Optional[str] = Field(None, max_length=3)
@@ -1396,6 +1398,12 @@ def _check_amadeus_travelers(travelers: list, segments: list) -> None:
     problems = []
     for i, t in enumerate(travelers, 1):
         who = f"Passenger {i} ({t.firstName.strip().upper()} {t.lastName.strip().upper()})"
+        # Required as entered - never filled in by us (13/11/2026 audit).
+        missing = [label for label, v in (("passenger type", t.type), ("gender", t.gender),
+                                          ("nationality", (t.nationality or "").strip())) if not v]
+        if missing:
+            problems.append(f"{who}: please choose the {' and '.join(missing)}.")
+            continue
         if not re.fullmatch(r"[A-Za-z][A-Za-z ]*", t.firstName.strip()) or not re.fullmatch(r"[A-Za-z][A-Za-z ]*", t.lastName.strip()):
             problems.append(f"{who}: names can only use the letters A-Z, as printed in the passport.")
         try:
@@ -1573,6 +1581,11 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
             raise HTTPException(status_code=422, detail="This fare's flight details are incomplete. Please search again.")
         segments.append(seg)
     _check_amadeus_travelers(request.travelers, segments)
+    # The mobile in international form (+ or 00 and the country code): it goes
+    # to the airlines as entered - no country is assumed for a local number.
+    if not re.fullmatch(r"\s*(\+|00)[0-9][0-9 ()\-]{6,24}", request.contactPhone or ""):
+        raise HTTPException(status_code=422, detail="Please enter the mobile number with its country code, "
+                                                    "for example +94 77 123 4567.")
     travelers = [{**t.model_dump(), "firstName": t.firstName.strip(), "lastName": t.lastName.strip(),
                   "passportNumber": t.passportNumber.strip().upper(), "nationality": t.nationality.strip().upper(),
                   "mealCode": (t.mealCode or "").upper() or None, "wheelchair": (t.wheelchair or "").upper() or None}
@@ -1623,7 +1636,9 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
     except Exception as e:
         logger.warning(f"Amadeus {loc}: special request answers not recorded: {e}")
     quoted = request.quotedPrice
-    price_changed = quoted is not None and (abs(float(quoted) - amount) >= 1
+    # Any difference from the price the customer was shown counts (13/11/2026
+    # audit: it used to count only at 1 unit or more).
+    price_changed = quoted is not None and (abs(float(quoted) - amount) >= 0.005
                                             or (request.quotedCurrency or currency).upper() != currency)
     logger.info(f"Amadeus {loc} held for {currency} {amount} (net {net}, {tickets} ticket(s))"
                 + (f" - price changed from {request.quotedCurrency} {quoted}" if price_changed else ""))
