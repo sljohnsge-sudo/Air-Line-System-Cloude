@@ -27,6 +27,18 @@ REF_PREFIX = "AD-"  # payment reference: AD-<Amadeus PNR>, never confused with a
 _ready = False
 _lock = threading.Lock()
 
+# 14/11/2026: My Bookings (the flights as booked, passenger names - no
+# passport numbers) and the ERP push result, like Travelport bookings.
+_EXTRA_COLUMNS = (
+    ("itinerary_json", "TEXT NULL"),
+    ("travelers_json", "TEXT NULL"),
+    ("erp_quotation_name", "VARCHAR(140) NULL"),
+    ("erp_sales_order_name", "VARCHAR(140) NULL"),
+    ("erp_invoice_name", "VARCHAR(140) NULL"),
+    ("erp_sync_error", "VARCHAR(1000) NULL"),
+    ("erp_synced_at", "DATETIME NULL"),
+)
+
 
 def _ensure_tables() -> None:
     global _ready
@@ -64,6 +76,11 @@ def _ensure_tables() -> None:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_acb_status (status)
                 )""")
+            for col, ddl in _EXTRA_COLUMNS:
+                cur.execute("""SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+                               AND TABLE_NAME='amadeus_customer_bookings' AND COLUMN_NAME=%s""", (col,))
+                if cur.fetchone()[0] == 0:
+                    cur.execute(f"ALTER TABLE amadeus_customer_bookings ADD COLUMN {col} {ddl}")
             conn.commit()
             _ready = True
         finally:
@@ -97,18 +114,28 @@ def _clean(row: dict | None) -> dict | None:
         if row.get(k) and hasattr(row[k], "isoformat"):
             row[k] = row[k].isoformat(sep=" ")
     row["ticket_list"] = json.loads(row["ticket_numbers"]) if row.get("ticket_numbers") else []
+    for k in ("itinerary_json", "travelers_json"):
+        try:
+            row[k[:-5]] = json.loads(row[k]) if row.get(k) else None
+        except ValueError:
+            row[k[:-5]] = None
+    if row.get("erp_synced_at") and hasattr(row["erp_synced_at"], "isoformat"):
+        row["erp_synced_at"] = row["erp_synced_at"].isoformat(sep=" ")
     return row
 
 
 def create(locator: str, *, net_amount: float, amount: float, currency: str, tickets: int, customer_id,
            lead_name: str, email: str, phone: str, travel_date: str, route: str, flights: str,
-           airline_code: str, booked_by: str | None) -> dict:
+           airline_code: str, booked_by: str | None, itinerary: dict | None = None,
+           travelers: list | None = None) -> dict:
     _q("""INSERT INTO amadeus_customer_bookings (locator, net_amount, amount, currency, tickets, customer_id,
-              lead_name, email, phone, travel_date, route, flights, airline_code, booked_by)
-          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+              lead_name, email, phone, travel_date, route, flights, airline_code, booked_by,
+              itinerary_json, travelers_json)
+          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
        (locator.upper(), net_amount, amount, currency, tickets, customer_id, (lead_name or "")[:150],
         (email or "")[:190], (phone or "")[:40], (travel_date or "")[:10], (route or "")[:120],
-        (flights or "")[:200], (airline_code or "")[:3], booked_by), write=True)
+        (flights or "")[:200], (airline_code or "")[:3], booked_by,
+        json.dumps(itinerary) if itinerary else None, json.dumps(travelers) if travelers else None), write=True)
     return get(locator)
 
 
@@ -136,3 +163,27 @@ def finish(locator: str, status: str, *, payment_method: str | None = None, paym
        (status, payment_method, (payment_ref or "")[:120] or None,
         json.dumps(ticket_numbers) if ticket_numbers else None, (error or "")[:1000] or None, locator.upper()),
        write=True)
+
+
+def for_customer(customer_id: int, email: str | None) -> list:
+    """This customer's Amadeus bookings. Bookings made as a guest with the
+    account's email are claimed first - the same rule as Travelport bookings
+    (database.link_guest_bookings_by_email)."""
+    if email:
+        _q("UPDATE amadeus_customer_bookings SET customer_id=%s WHERE customer_id IS NULL AND email=%s",
+           (customer_id, email), write=True)
+    rows = _q("SELECT * FROM amadeus_customer_bookings WHERE customer_id=%s ORDER BY id DESC", (customer_id,))
+    return [_clean(r) for r in rows]
+
+
+def set_erp(locator: str, **fields) -> None:
+    """ERP push progress / result on the booking (quotation, sales order,
+    invoice names, or the error)."""
+    allowed = {"erp_quotation_name", "erp_sales_order_name", "erp_invoice_name", "erp_sync_error"}
+    cols = {k: v for k, v in fields.items() if k in allowed}
+    if not cols:
+        return
+    sets = ", ".join(f"{k}=%s" for k in cols)
+    extra = ", erp_synced_at=NOW()" if cols.get("erp_invoice_name") else ""
+    _q(f"UPDATE amadeus_customer_bookings SET {sets}{extra} WHERE locator=%s",
+       (*[(str(v)[:1000] if v is not None else None) for v in cols.values()], locator.upper()), write=True)

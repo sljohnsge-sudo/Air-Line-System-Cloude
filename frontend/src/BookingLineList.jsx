@@ -66,7 +66,7 @@ export default function BookingLineList({ bookings, liveStatuses = {}, refreshin
             <span className="bl-status">
               <span className={`pass-status-badge ${status?.toLowerCase()}`}>{status}</span>
               <small>
-                {live?.checked ? <span title="Checked live with Travelport and the airline">✓ Live {time(live.retrieved_at)}</span>
+                {live?.checked ? <span title={b.source === 'AD' ? 'Checked live with the airline' : 'Checked live with Travelport and the airline'}>✓ Live {time(live.retrieved_at)}</span>
                   : live?.missing ? <span style={{ color: '#b45309', fontWeight: 700 }} title="Travelport no longer holds this booking — please contact us">⚠ Not on Travelport</span>
                   : live ? <span title={live.error}>Couldn't check live</span>
                   : refreshing && isUpcoming(b) && !CANCELLED.includes(b.status) ? 'Checking…' : ''}

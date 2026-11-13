@@ -69,7 +69,10 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           {!cancelled && onRequestCancellation && (
             <button className="btn btn-secondary btn-sm" onClick={() => onRequestCancellation(b)}>Request Cancellation</button>
           )}
-          <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => onLiveStatus(b)}>Live status & manage booking</button>
+          {/* Manage booking (seats / extras after the ticket) is Travelport-only for now. */}
+          {b.source !== 'AD' && (
+            <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => onLiveStatus(b)}>Live status & manage booking</button>
+          )}
         </div>
       </section>
 

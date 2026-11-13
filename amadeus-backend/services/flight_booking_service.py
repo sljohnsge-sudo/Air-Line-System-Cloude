@@ -1533,27 +1533,37 @@ def _parse_pnr_reply(body_root) -> dict:
     # and a TST's amount is per passenger, for every passenger it references
     # (PT). The booking total is the sum over all TSTs - reading only the
     # first TST gave the adult's fare alone for a family booking.
-    total_fare, fare_currency = None, None
-    grand, found = 0.0, False
+    total_fare, fare_currency, base_fare = None, None, None
+    grand, base_sum, found, base_ok = 0.0, 0.0, False, True
     for tst_data in _find_all_local(reply, "tstData"):
         fare_data = _find_local(tst_data, "fareData")
-        amount = None
+        amounts = {}
         for mon in _find_all_local(fare_data, "monetaryInfo") if fare_data is not None else []:
-            if _text(mon, "qualifier") == "T":
-                amount = _text(mon, "amount")
-                fare_currency = fare_currency or _text(mon, "currencyCode")
-                break
+            amounts.setdefault(_text(mon, "qualifier"), (_text(mon, "amount"), _text(mon, "currencyCode")))
+        if "T" not in amounts:
+            continue
+        fare_currency = fare_currency or amounts["T"][1]
         try:
-            per_pax = float(amount) if amount else None
-        except ValueError:
-            per_pax = None
-        if per_pax is None:
+            per_pax = float(amounts["T"][0])
+        except (TypeError, ValueError):
             continue
         pax = sum(1 for ref in tst_data.iter() if _local(ref.tag) == "reference" and _text(ref, "qualifier") == "PT")
         grand += per_pax * max(pax, 1)
         found = True
+        # 14/11/2026: base fare in the TST currency - "E" (equivalent base,
+        # when the fare is filed in another currency) else "F" when it is
+        # already in the same currency as the total. Used for the ERP
+        # invoice's base / taxes split; left out if not cleanly known.
+        base = amounts.get("E") or (amounts.get("F") if amounts.get("F", (None, None))[1] == amounts["T"][1] else None)
+        try:
+            base_sum += float(base[0]) * max(pax, 1) if base else 0.0
+            base_ok = base_ok and bool(base)
+        except (TypeError, ValueError):
+            base_ok = False
     if found:
         total_fare = str(int(grand)) if grand == int(grand) else f"{grand:.2f}"
+        if base_ok and base_sum > 0:
+            base_fare = str(int(base_sum)) if base_sum == int(base_sum) else f"{base_sum:.2f}"
 
     return {
         "locator": locator,
@@ -1565,6 +1575,7 @@ def _parse_pnr_reply(body_root) -> dict:
         "airlineDeadlines": deadlines,
         "ticketNumbers": ticket_numbers,
         "totalFare": total_fare,
+        "baseFare": base_fare,
         "currency": fare_currency,
         "specialRequests": special_requests,
         "email": email,

@@ -37,6 +37,7 @@ import gzip
 import hashlib
 import json
 import re
+import inspect
 import zipfile
 import logging
 import os
@@ -1304,6 +1305,7 @@ async def amadeus_booking_issue_ticket(locator: str, _admin: dict = Depends(auth
 from services import amadeus_customer_bookings as ad_bookings
 from services import amadeus_ssr_outcomes as ad_ssr
 from services.amadeus_aggregator import customer_price as amadeus_customer_price
+from services.amadeus_aggregator import _leg_fields as _ad_leg_fields, _cabin_name as _ad_cabin_name
 from services.pricing_service import get_settings as _markup_settings
 
 _AD_CONFIRMED = {"HK", "KK", "TK", "RR"}  # flight statuses the airline has confirmed
@@ -1583,9 +1585,180 @@ def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> di
 
     ad_bookings.finish(loc, "ticketed", payment_method=method, payment_ref=payment_ref, ticket_numbers=numbers)
     logger.info(f"{ref}: paid ({method} {payment_ref}) - ticket(s) {numbers}")
+    _amadeus_after_ticket(row)
     return {"success": True, **(issue or {}), "locator": loc, "ticketNumbers": numbers,
             # what the customer paid (Amadeus's own figure has no markup)
             "totalFare": row["amount"], "currency": row["currency"]}
+
+
+def _ad_itinerary(raw_segments: list) -> dict | None:
+    """The flights as booked, in the same shape as a Travelport booking (for
+    My Bookings): one-way, or two legs for a round trip. From the Amadeus
+    search flights the customer booked; nothing added."""
+    try:
+        segs = [dict(s) for s in raw_segments]
+        outbound = [s for s in segs if s.get("leg") == 1]
+        inbound = [s for s in segs if s.get("leg") == 2]
+        legs = None
+        if outbound and inbound and len(outbound) + len(inbound) == len(segs):
+            legs = [_ad_leg_fields(outbound), _ad_leg_fields(inbound)]
+            flight = dict(legs[0])
+        else:
+            flight = _ad_leg_fields(segs)
+        flight.pop("source", None)
+        return {**flight, "legs": legs, "cabin_class": _ad_cabin_name(segs)}
+    except Exception as e:
+        logger.warning(f"Amadeus itinerary for My Bookings not saved: {e}")
+        return None
+
+
+def _amadeus_after_ticket(row: dict) -> None:
+    """After an Amadeus ticket is issued (14/11/2026), the same follow-ups as
+    a Travelport ticket: loyalty points, then the ERP sales chain in the
+    background. Both best-effort - the ticket is already issued."""
+    loc = row["locator"]
+    try:
+        if row.get("email"):
+            services.award_points_for_booking(row["email"], float(row.get("amount") or 0), row.get("currency") or "LKR", loc)
+    except Exception as e:
+        logger.warning(f"Loyalty points award failed for Amadeus {loc} (non-fatal): {e}")
+    _push_amadeus_to_erp_background(loc)
+
+
+_AD_DOC_PTC = {"ADT": "ADT", "CHD": "CNN", "CNN": "CNN", "INF": "INF", "YTH": "ADT", "STU": "ADT"}
+
+
+def _amadeus_erp_booking(locator: str) -> dict:
+    """An Amadeus ticket as the booking dict the ERP push takes (the shape of
+    a Travelport booking). Every figure is real: the customer's amount from
+    our record, the airline's price, base fare and each ticket's amount from
+    the live Amadeus PNR (its TSTs and FA lines). Raises if the PNR can't be
+    read or holds no ticket."""
+    row = ad_bookings.get(locator)
+    if not row:
+        raise ValueError(f"No Amadeus booking {locator}")
+    view = amadeus_staff.servicing_view_sync(locator)
+    docs = [d for d in view.get("documents") or [] if d.get("kind") == "ticket" and d.get("status") == "issued"]
+    if not docs:
+        raise ValueError(f"Amadeus {locator} holds no issued ticket")
+    type_by_name = {f"{t.get('firstName') or ''} {t.get('lastName') or ''}".strip().upper(): (t.get("type") or "ADT").upper()
+                    for t in view.get("travelers") or []}
+    tickets, per_type = [], {}
+    for i, d in enumerate(docs):
+        ptc = "INF" if d.get("infant") else _AD_DOC_PTC.get(type_by_name.get((d.get("passenger") or "").upper(), "ADT"), "ADT")
+        tickets.append({"number": d["number"], "traveler_name": d.get("passenger") or "", "passenger_type": ptc,
+                        "traveler_index": i})
+        per_type.setdefault(ptc, float(d.get("amount") or 0))
+    it = row.get("itinerary") or {}
+    airline_total = sum(float(d.get("amount") or 0) for d in docs)
+    fare_breakdown = {"total": airline_total, "per_type": per_type, "total_fees": 0}
+    if view.get("base_fare"):
+        fare_breakdown["base_fare"] = float(view["base_fare"])
+    return {
+        "locator_code": locator, "pnr": locator,
+        "ticket_number": docs[0]["number"], "ticket_numbers": tickets,
+        "passenger_name": row.get("lead_name") or "", "passenger_email": row.get("email") or "",
+        "email": row.get("email") or "",
+        "airline": it.get("airline") or row.get("airline_code") or "",
+        "flight_number": it.get("flight_number") or (row.get("flights") or "").split(" ")[0],
+        "departure_airport": it.get("departure_airport") or (row.get("route") or "").split("-")[0],
+        "arrival_airport": it.get("arrival_airport") or (row.get("route") or "").split("-")[-1],
+        "departure_time": it.get("departure_time") or row.get("travel_date") or "",
+        "total_fare": float(row["amount"]), "currency": row.get("currency") or "LKR",
+        "booking_date": str(row.get("created_at") or "")[:10],
+        "fare_breakdown": fare_breakdown,
+        "erp_quotation_name": row.get("erp_quotation_name"),
+        "erp_sales_order_name": row.get("erp_sales_order_name"),
+    }
+
+
+def _push_amadeus_to_erp_background(locator: str) -> None:
+    """New Amadeus ticket -> the ERP sales chain, on a background thread like
+    Travelport tickets (_push_booking_to_erp_background). Only ever called
+    right after a new ticket is issued - old bookings are never sent. The
+    result is kept on amadeus_customer_bookings (erp_* columns)."""
+    if not services.erp_configured():
+        return
+
+    def run():
+        try:
+            booking = _amadeus_erp_booking(locator)
+            push = services.push_booking_to_erp
+            # Newer ERP code records each step (quotation / sales order) so a
+            # retry continues from there; older code takes the booking only.
+            if "on_step" in inspect.signature(push).parameters:
+                invoice = push(booking, on_step=lambda kind, name: ad_bookings.set_erp(
+                    locator, **{f"erp_{kind}_name": name}))
+            else:
+                invoice = push(booking)
+            ad_bookings.set_erp(locator, erp_invoice_name=invoice, erp_sync_error=None)
+            logger.info(f"ERP sync: Amadeus {locator} -> Sales Invoice {invoice}")
+        except Exception as e:
+            logger.warning(f"ERP sync failed for Amadeus {locator} (non-fatal): {e}")
+            try:
+                ad_bookings.set_erp(locator, erp_sync_error=str(e))
+            except Exception as db_err:
+                logger.error(f"Could not record ERP sync failure for Amadeus {locator}: {db_err}")
+
+    threading.Thread(target=run, name=f"erp-ad-{locator}", daemon=True).start()
+
+
+# ── My Bookings: Amadeus bookings (14/11/2026) ───────────────────────────
+_AD_LIST_STATUS = {"held": "Confirmed", "ticketing": "Confirmed", "ticketed": "Ticketed",
+                   "failed": "Not ticketed - refund requested", "cancelled": "Cancelled"}
+
+
+def _ad_my_booking(row: dict) -> dict:
+    """One Amadeus booking in the shape My Bookings shows for Travelport
+    bookings (no passport numbers). Flights from the itinerary saved at
+    booking; status from our record (the list then checks it live)."""
+    it = row.get("itinerary") or {}
+    route = (row.get("route") or "").split("-")
+    tickets = row.get("ticket_list") or []
+    return {
+        "id": f"AD-{row['id']}", "source": "AD",
+        "locator_code": row["locator"], "airline_pnr": row["locator"],
+        "airline": it.get("airline") or row.get("airline_code"), "airline_code": row.get("airline_code"),
+        "flight_number": it.get("flight_number") or (row.get("flights") or "").split(" ")[0],
+        "cabin_class": it.get("cabin_class"),
+        "departure_airport": it.get("departure_airport") or (route[0] if route else None),
+        "arrival_airport": it.get("arrival_airport") or (route[-1] if route else None),
+        "departure_time": it.get("departure_time") or row.get("travel_date"),
+        "arrival_time": it.get("arrival_time"),
+        "departure_terminal": it.get("departure_terminal"), "arrival_terminal": it.get("arrival_terminal"),
+        "segments": it.get("segments"), "legs": it.get("legs"), "stops": it.get("stops"),
+        "ticket_number": tickets[0] if tickets else None,
+        "ticket_numbers": [{"number": n} for n in tickets],
+        "passenger_name": row.get("lead_name"), "email": row.get("email"),
+        "travelers": row.get("travelers") or [],
+        "total_fare": row.get("amount"), "currency": row.get("currency"),
+        "status": _AD_LIST_STATUS.get(row.get("status"), row.get("status")),
+        "payment_method": row.get("payment_method"),
+        "booking_date": row.get("created_at"),
+    }
+
+
+def _ad_owned(locator: str, current: dict) -> dict:
+    """The customer's own Amadeus booking (by account, or the account email)."""
+    loc = _amadeus_locator(locator)
+    customer = database.get_customer_by_id(current["customer_id"]) or {}
+    rows = ad_bookings.for_customer(current["customer_id"], customer.get("email"))
+    row = next((r for r in rows if r["locator"] == loc), None)
+    if not row:
+        raise HTTPException(status_code=404, detail="Booking not found on your account.")
+    return row
+
+
+def _ad_live_status(view: dict) -> str:
+    docs = view.get("documents") or []
+    tickets = [d for d in docs if d.get("kind") == "ticket"]
+    if any(d.get("status") == "issued" for d in tickets):
+        return "Ticketed"
+    if any(d.get("status") == "refunded" for d in tickets):
+        return "Refunded"
+    if any(d.get("status") == "voided" for d in tickets):
+        return "Voided"
+    return "Confirmed" if view.get("has_itinerary") else "Cancelled"
 
 
 @app.post("/api/amadeus-bookings/hold")
@@ -1636,6 +1809,7 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
     amount = amadeus_customer_price(net, _markup_settings(), tickets)
     is_staff = bool(principal and principal.get("role") == "admin")
     first = travelers[0]
+    itinerary = _ad_itinerary(request.segments)
     row = ad_bookings.create(
         loc, net_amount=net, amount=amount, currency=currency, tickets=tickets,
         customer_id=principal.get("customer_id") if principal and principal.get("role") == "customer" else None,
@@ -1644,7 +1818,10 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
         route="-".join([segments[0]["from"]] + [s["to"] for s in segments]),
         flights=" ".join(s["marketingCarrier"] + s["flightNumber"] for s in segments),
         airline_code=segments[0]["marketingCarrier"],
-        booked_by=f"admin #{principal.get('admin_id')}" if is_staff else None)
+        booked_by=f"admin #{principal.get('admin_id')}" if is_staff else None,
+        itinerary=itinerary,
+        travelers=[{"first_name": t["firstName"], "last_name": t["lastName"],
+                    "passenger_type": _AD_TYPE_PTC[t["type"]]} for t in travelers])
     # Special requests: the airline's answers for this booking, shown to the
     # customer before paying, and recorded for staff. They are not used to
     # grey options out for other bookings (13/11/2026 audit).
@@ -5829,7 +6006,31 @@ def customer_oauth_callback(provider: str, code: Optional[str] = None, state: Op
 @app.get("/api/customers/me/bookings")
 def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
     bookings = database.get_bookings_for_customer(current["customer_id"])
+    # Amadeus bookings too (14/11/2026), newest first with the rest.
+    try:
+        customer = database.get_customer_by_id(current["customer_id"]) or {}
+        ad_rows = [_ad_my_booking(r) for r in ad_bookings.for_customer(current["customer_id"], customer.get("email"))]
+    except Exception as e:
+        logger.warning(f"My Bookings: Amadeus bookings not loaded for customer {current['customer_id']}: {e}")
+        ad_rows = []
+    if ad_rows:
+        bookings = sorted(list(bookings) + ad_rows, key=lambda b: str(b.get("booking_date") or ""), reverse=True)
     return {"bookings": bookings, "count": len(bookings)}
+
+
+@app.get("/api/customers/me/amadeus-bookings/{locator}/ticket")
+def customer_amadeus_ticket(locator: str, current: dict = Depends(auth.get_current_customer)):
+    """The customer's Amadeus e-ticket, read live from the Amadeus PNR
+    (My Bookings > View / Print Ticket)."""
+    row = _ad_owned(locator, current)
+    try:
+        live = amadeus_staff.lookup_booking_sync(row["locator"])
+    except amadeus_staff.AmadeusBookingError as e:
+        logger.warning(f"Amadeus ticket view {row['locator']}: {e.message}")
+        raise HTTPException(status_code=503, detail="We couldn't get your ticket from the airline just now. Please try again in a moment.")
+    return {**live, "locator": row["locator"], "ticketNumbers": live.get("ticketNumbers") or row.get("ticket_list") or [],
+            # what the customer paid (Amadeus's own figure has no markup)
+            "totalFare": row["amount"], "currency": row["currency"], "paymentMethod": row.get("payment_method")}
 
 
 # Passengers from this customer's earlier bookings, newest first, so the
@@ -5939,9 +6140,30 @@ def customer_refresh_booking_status(current: dict = Depends(auth.get_current_cus
             "flights": {f["flight"]: f.get("airline_status_code") for f in live.get("flights") or []},
         }
 
+    # Amadeus bookings (14/11/2026): checked live from the Amadeus PNR.
+    try:
+        customer = database.get_customer_by_id(current["customer_id"]) or {}
+        ad_due = [r for r in ad_bookings.for_customer(current["customer_id"], customer.get("email"))
+                  if r.get("status") in ("held", "ticketing", "ticketed")
+                  and str((r.get("itinerary") or {}).get("departure_time") or r.get("travel_date") or "")[:10] >= today]
+    except Exception as e:
+        logger.warning(f"Live status: Amadeus bookings not loaded: {e}")
+        ad_due = []
+
+    def check_ad(r: dict) -> tuple[str, dict]:
+        try:
+            view = amadeus_staff.servicing_view_sync(r["locator"])
+        except Exception as e:
+            return r["locator"], {"checked": False, "missing": False, "error": str(getattr(e, "message", e))[:200]}
+        return r["locator"], {"checked": True, "status": _ad_live_status(view),
+                              "retrieved_at": datetime.now().isoformat(sep=" ", timespec="seconds"),
+                              "flights": {s.get("flight_number"): s.get("status") for s in view.get("segments") or []}}
+
     with ThreadPoolExecutor(max_workers=6) as pool:
         results = dict(pool.map(check, due))
-    return {"statuses": results, "checked": sum(1 for r in results.values() if r.get("checked")), "upcoming": len(due)}
+        results.update(dict(pool.map(check_ad, ad_due)))
+    return {"statuses": results, "checked": sum(1 for r in results.values() if r.get("checked")),
+            "upcoming": len(due) + len(ad_due)}
 
 # ── Booking Status / Manage My Booking (Customer Portal) ──────────────────────
 # Booking Status looks a booking up by PNR or ticket number AND the

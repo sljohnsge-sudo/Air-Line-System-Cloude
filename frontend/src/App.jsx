@@ -1659,7 +1659,7 @@ export default function App() {
     setCancelAgreed(false);
     if (booking) {
       setCancelForm({
-        booking_locator: booking.locator_code || '',
+        booking_locator: booking.source === 'AD' && booking.locator_code ? `AD-${booking.locator_code}` : (booking.locator_code || ''),
         travel_date: (booking.departure_time || '').split(' ')[0] || (booking.departure_time || '').split('T')[0] || '',
         requester_name: customerProfile?.full_name || '',
         email: customerProfile?.email || booking.email || '',
@@ -2759,6 +2759,20 @@ export default function App() {
     const locator = ticket.locator_code || ticket.pnr;
     setTicketOriginTab(activeTab);
     setTicketFetch({ ticket, error: '' });
+    if (ticket.source === 'AD') {
+      // Amadeus booking (14/11/2026): read live from the Amadeus PNR.
+      try {
+        const res = await fetchWithRetry(`${API_BASE}/customers/me/amadeus-bookings/${locator}/ticket`, { headers: signedInHeaders() });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : "We couldn't get your ticket from the airline just now. Please try again in a moment.");
+        setIssuedTicket(buildAmadeusIssuedTicket(data, { paymentMethod: data.paymentMethod, fallbackFlight: ticket }));
+        setBookingStep('ticket');
+        setTicketFetch(null);
+      } catch (e) {
+        setTicketFetch({ ticket, error: e.message || String(e) });
+      }
+      return;
+    }
     try {
       const res = await fetchWithRetry(`${API_BASE}/bookings/retrieve/${locator}?live_only=true`, { headers: signedInHeaders() });
       const data = await res.json().catch(() => ({}));

@@ -178,6 +178,7 @@ def _view(body_root) -> dict:
         "can_void": bool(valid) and all(d["can_void"] for d in valid),
         "can_refund": bool(valid),
         "total_fare": pnr.get("totalFare"),
+        "base_fare": pnr.get("baseFare"),
         "currency": pnr.get("currency"),
     }
 
