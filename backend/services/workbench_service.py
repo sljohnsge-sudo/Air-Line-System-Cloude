@@ -394,7 +394,8 @@ def _build_offering_selection(raw_offering: dict) -> dict:
     }
 
 
-def _build_specific_flight_criteria(segments: list, cabin: str | None = None, class_of_service: str | None = None, content_source: str | None = None) -> list:
+def _build_specific_flight_criteria(segments: list, cabins: list | None = None, classes: list | None = None,
+                                    content_source: str | None = None) -> list:
     """
     Build the SpecificFlightCriteria array (one entry per physical flight segment)
     for the full-payload AddOffer request, from one leg's parsed `segments` list
@@ -429,6 +430,11 @@ def _build_specific_flight_criteria(segments: list, cabin: str | None = None, cl
             entry["arrivalDate"] = arr_date
         if arr_time:
             entry["arrivalTime"] = arr_time
+        # Each flight's own cabin and class, exactly as Travelport's search
+        # listed them for that flight (13/11/2026). Left out when Travelport
+        # didn't give one for this flight — never copied from another flight.
+        cabin = (cabins or [None] * idx)[idx - 1] if cabins and idx <= len(cabins) else None
+        class_of_service = classes[idx - 1] if classes and idx <= len(classes) else None
         if cabin:
             entry["cabin"] = cabin
         if class_of_service:
@@ -494,15 +500,22 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
     """
     product_criteria = []
     for i, leg in enumerate(leg_offerings, start=1):
-        cos_list = leg.get("classes_of_service") or []
+        segs = leg.get("segments", [])
+        seg_classes = leg.get("segment_classes") or []
+        seg_cabins = leg.get("segment_cabins") or []
+        if len(seg_classes) != len(segs):
+            # A fare found before 13/11/2026 has no per-flight list. When
+            # Travelport gave a single class for the whole leg it applies to
+            # every flight; otherwise send none rather than guess.
+            unique = leg.get("classes_of_service") or []
+            seg_classes = unique * len(segs) if len(unique) == 1 else []
+        if len(seg_cabins) != len(segs):
+            seg_cabins = []
         product_criteria.append({
             "@type": "ProductCriteriaAir",
             "sequence": i,
             "SpecificFlightCriteria": _build_specific_flight_criteria(
-                leg.get("segments", []),
-                cabin=leg.get("cabin_class"),
-                class_of_service=cos_list[0] if cos_list else None,
-                content_source=leg.get("fare_source")
+                segs, cabins=seg_cabins, classes=seg_classes, content_source=leg.get("fare_source")
             )
         })
 
@@ -517,8 +530,10 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
     # ("auto stored fare") instead of the one that was shown and picked.
     brand_id = leg_offerings[0].get("brand_id")
     brand_name = leg_offerings[0].get("brand_name")
-    if brand_id or brand_name:
-        brand_obj = {"@type": "Brand", "name": brand_name or "Standard"}
+    # Travelport's own brand name only (Brand.name is required by the spec);
+    # 13/11/2026: no invented "Standard" when the fare has no brand name.
+    if brand_name:
+        brand_obj = {"@type": "Brand", "name": brand_name}
         if brand_id:
             brand_obj["BrandRef"] = brand_id
         request_air["PricingModifiersAir"] = {
@@ -776,16 +791,14 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict, force_referenc
 
 # ── STEP 6: Add Traveler(s) ───────────────────────────────────────────────────
 
-def _person_prefix(gender: str, passenger_type: str) -> str:
-    """
-    PersonName.Prefix per Travelport/Galileo 1G convention:
-    - Adults: MR / MRS
-    - Children and infants (CNN / INF): MSTR (male) / MISS (female)
-    """
-    is_male = gender == "Male"
-    if passenger_type in ("CNN", "INF"):
-        return "MSTR" if is_male else "MISS"
-    return "MR" if is_male else "MRS"
+def _person_prefix(traveler: dict) -> str | None:
+    """PersonName.Prefix — the salutation the customer chose (Travelport:
+    "Salutation of honorific (e.g. Mr., Mrs., Ms., Miss, Dr.)", optional).
+    13/11/2026: no longer worked out from gender (every adult woman used to
+    be sent as MRS). None when the customer gave no title: Prefix is left
+    out rather than guessed."""
+    title = (traveler.get("title") or "").strip().upper()
+    return title or None
 
 
 def _calculate_age(date_of_birth: str) -> int | None:
@@ -799,19 +812,21 @@ def _calculate_age(date_of_birth: str) -> int | None:
         return None
 
 
-def _split_phone(phone: str) -> tuple[str, str]:
-    """"+94771234567" -> ("94", "771234567"). Clean phone number and parse
-    country code for Galileo 1G; shared by the traveler payload and the
-    contact SSR (PrimaryContact) so both always carry the same number."""
-    phone_clean = (phone or "").replace("+", "").replace(" ", "").replace("-", "")
-    country_code = "94"
-    phone_num = phone_clean
-    if phone_clean.startswith("94"):
-        phone_num = phone_clean[2:]
-    elif len(phone_clean) > 9:
-        country_code = phone_clean[:-9]
-        phone_num = phone_clean[-9:]
-    return country_code, phone_num
+def _split_phone(phone: str, country_code: str | None = None) -> tuple[str | None, str]:
+    """Travelport Telephone: countryAccessCode ([0-9]{1,3}) and phoneNumber,
+    as the customer gave them (13/11/2026). The country code is the one the
+    customer picked on the form, sent separately; nothing is assumed (it
+    used to default to 94 and take the last 9 digits, which split Indian,
+    UK and US numbers wrongly). If the number itself starts with that
+    country code (the form sends "+<code><number>"), it is taken off once.
+    A single leading trunk 0 is dropped — it is not dialled from abroad."""
+    digits = re.sub(r"\D", "", phone or "")
+    code = re.sub(r"\D", "", country_code or "") or None
+    if code and digits.startswith(code) and (phone or "").strip().startswith("+"):
+        digits = digits[len(code):]
+    if code and digits.startswith("0"):
+        digits = digits[1:]
+    return code, digits
 
 
 def add_primary_contacts(workbench_id: str, travelers: list) -> list:
@@ -856,9 +871,11 @@ def add_primary_contacts(workbench_id: str, travelers: list) -> list:
             "TravelerIdentifier": {"id": wt.get("id"), **({"Identifier": wt["Identifier"]} if wt.get("Identifier") else {})},
         }
         if phone:
-            country_code, phone_num = _split_phone(phone)
-            contact["Telephone"] = {"@type": "Telephone", "countryAccessCode": country_code,
-                                    "phoneNumber": phone_num, "role": "Mobile"}
+            own_phone = bool(traveler.get("phone"))
+            country_code, phone_num = _split_phone(
+                phone, (traveler if own_phone else lead).get("phone_country_code"))
+            contact["Telephone"] = {"@type": "Telephone", "phoneNumber": phone_num, "role": "Mobile",
+                                    **({"countryAccessCode": country_code} if country_code else {})}
         if email:
             contact["Email"] = {"value": email}
         if not phone and not email:
@@ -996,9 +1013,9 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_g
             codebase always sends "Passport", never the other GDS-only
             "PassportCard" value the same guide calls out.
     """
-    country_code, phone_num = _split_phone(traveler.get("phone", ""))
+    country_code, phone_num = _split_phone(traveler.get("phone", ""), traveler.get("phone_country_code"))
 
-    prefix =_person_prefix(traveler.get("gender") or "", traveler.get("passenger_type", "ADT"))
+    prefix = _person_prefix(traveler)
 
     passenger_type = traveler.get("passenger_type", "ADT")
 
@@ -1013,11 +1030,12 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_g
 
     telephone_entry = {
         "@type": "Telephone",
-        "countryAccessCode": country_code,
         "phoneNumber": phone_num,
         "id": telephone_id,
         "role": "Mobile"
     }
+    if country_code:
+        telephone_entry["countryAccessCode"] = country_code
     if traveler.get("phone_area_city_code"):
         telephone_entry["areaCityCode"] = traveler.get("phone_area_city_code")
     if traveler.get("phone_extension") and is_gds:
@@ -1087,7 +1105,8 @@ def _build_traveler_payload(traveler: dict, traveler_id: str | None = None, is_g
         "passengerTypeCode": passenger_type,
         "PersonName": {
             "@type": "PersonNameDetail",
-            "Prefix": prefix,  # Prefix required for Galileo 1G validation
+            # The title the customer chose (the booking form requires it).
+            **({"Prefix": prefix} if prefix else {}),
             "Given": traveler.get("first_name", "").upper(),
             "Surname": traveler.get("last_name", "").upper()
         },
@@ -1583,6 +1602,11 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
                 committed = commit_workbench(workbench_id, received_from=TravelportConfig.RECEIVED_FROM if is_gds else None)
                 committed["charge_amount"] = charge_amount
                 committed["charge_currency"] = charge_currency
+                # Travelport's own AirPrice total (no markup), kept with the
+                # booking so ticketing can pay Travelport exactly that when
+                # buildfromlocator returns no price (13/11/2026).
+                committed["supplier_total"] = priced.get("total")
+                committed["supplier_currency"] = priced.get("currency")
                 committed["ssr_requests"] = ssr_requests
                 return committed
 
@@ -1702,7 +1726,12 @@ def run_instant_pay_flow(raw_offering: dict, travelers: list, max_attempts: int 
 
                 price = offer.get("Price") or {}
                 total = float(price.get("TotalPrice") or 0)
-                currency = (price.get("CurrencyCode") or {}).get("value") or "LKR"
+                currency = (price.get("CurrencyCode") or {}).get("value")
+                # Only Travelport's own price and currency are paid (13/11/2026):
+                # no assumed LKR, never a zero amount.
+                if total <= 0 or not currency:
+                    raise ValueError("Travelport returned no price or currency for this Instant Pay offer — "
+                                     "not paying a guessed amount")
                 pay = _api_post(TravelportEndpoints.add_payment_to_workbench(workbench_id), {
                     "Payment": {
                         "id": "payment_1",

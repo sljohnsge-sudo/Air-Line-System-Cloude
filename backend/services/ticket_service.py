@@ -961,14 +961,14 @@ def issue_ticket(locator_code: str) -> dict:
         # ticket AND the EMDs together (confirmed live 2026-10-22, PNR
         # HNFNCM: ticket + 2 EMDs from one Issuance=Ticket commit).
         total_fare = 0.0
-        currency_code = "USD"
+        currency_code = None  # only Travelport's own currency, never assumed (13/11/2026)
         extra_offers: list = []
         try:
             offers = reservation.get("Offer", [])
             if offers:
                 price = offers[0].get("Price", {})
                 total_fare = float(price.get("TotalPrice", 0.0))
-                currency_code = price.get("CurrencyCode", {}).get("value", "USD")
+                currency_code = (price.get("CurrencyCode") or {}).get("value")
             # Safety lock: only pay Travelport for seat/extra offers the
             # customer was actually charged for at /confirm (addon_results
             # status "confirmed" only, matched by offer id). Anything else on
@@ -1008,14 +1008,27 @@ def issue_ticket(locator_code: str) -> dict:
             # to the local cache's total_fare/currency (saved at /confirm
             # time from the original commit response), the same source
             # cancel_reservation() already trusts for fare_source on NDC PNRs.
-            cached_booking = database.get_booking_by_locator(locator_code)
-            if cached_booking and cached_booking.get("total_fare"):
-                total_fare = float(cached_booking["total_fare"])
-                currency_code = cached_booking.get("currency") or currency_code
+            #
+            # 13/11/2026: that cache used to be total_fare — OUR charge to the
+            # customer (Travelport's price + markup + seats/extras) — so
+            # Travelport was paid our marked-up total. Now only Travelport's
+            # own AirPrice total, saved at booking as supplier_total /
+            # supplier_currency, is used. A booking without it is not paid
+            # with a guessed amount: ticketing stops and the paid-not-ticketed
+            # path files the refund request.
+            cached_booking = database.get_booking_by_locator(locator_code) or {}
+            if cached_booking.get("supplier_total") and cached_booking.get("supplier_currency"):
+                total_fare = float(cached_booking["supplier_total"])
+                currency_code = cached_booking["supplier_currency"]
                 logger.warning(
-                    f"Step 1: buildfromlocator returned no usable Offer/Price — "
-                    f"using cached fare instead: {currency_code} {total_fare}"
+                    f"Step 1: buildfromlocator returned no usable Offer/Price — using Travelport's own "
+                    f"AirPrice total saved at booking: {currency_code} {total_fare}"
                 )
+            else:
+                raise ValueError("Travelport returned no price for this booking and no Travelport price was "
+                                 "saved when it was made — not paying Travelport a guessed amount")
+        if not currency_code:
+            raise ValueError("Travelport returned no currency for this booking's price — not paying a guessed currency")
         logger.info(f"Step 1: Fare for payment = {currency_code} {total_fare}")
 
         # Extract every traveler's own workbench-assigned ref id (Travelport's

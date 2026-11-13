@@ -414,6 +414,12 @@ class TravelerInfo(BaseModel):
     email: EmailStr
     phone: str = Field(..., min_length=7, max_length=20)
     passenger_type: Optional[str] = Field(default="ADT", pattern="^(ADT|CNN|INF|STU)$", description="ADT|CNN|INF|STU")
+    # 13/11/2026: the customer's own title and phone country code, sent to
+    # Travelport exactly as chosen (PersonName.Prefix, Telephone.countryAccessCode).
+    # Before this the title was worked out from gender (every adult woman
+    # went as MRS) and the country code was assumed to be 94.
+    title: Literal["MR", "MRS", "MS", "MISS", "MSTR", "DR"] = Field(..., description="Salutation chosen by the customer")
+    phone_country_code: str = Field(..., pattern=r"^[0-9]{1,3}$", description="Country calling code the customer picked, digits only")
 
     # These two fields were previously only validated in the frontend (format,
     # "must be a future date" for passport_expiry) — a direct API call bypassing
@@ -2493,6 +2499,10 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # retrieve has no Price, so its "USD" default must not be kept.
         ticket["total_fare"] = round(commit_result["charge_amount"] + seat_charges, 2)
         ticket["currency"] = commit_result["charge_currency"]
+        # Travelport's own price for the air fare (no markup), used only to pay
+        # Travelport at ticketing if it returns no price then (13/11/2026).
+        ticket["supplier_total"] = commit_result.get("supplier_total")
+        ticket["supplier_currency"] = commit_result.get("supplier_currency")
 
         ticket["seat_charge"] = seat_charges
         ticket["ancillary_charge"] = ancillary_charges
@@ -3076,7 +3086,10 @@ def _ndc_instant_pay(raw_offering: dict, travelers: list, selected_seats: list =
     ticket["ticket_numbers"] = [{"passenger_type": p, "number": n} for p, n in ip["ticket_numbers"]]
     ticket["status"] = "Ticketed"
     ticket["fare_source"] = "NDC"
-    ticket["payment_method"] = "Cash"
+    # The customer paid by card (Instant Pay is card only). "Cash" is only
+    # the form of payment sent to Travelport, not how the customer paid
+    # (13/11/2026: was saved as "Cash" on staff screens and in the ERP).
+    ticket["payment_method"] = "Credit Card"
     _backfill_terminals(ticket, _segments_of_offering(raw_offering))
     if charged_amount:
         # What the customer actually paid (Travelport's priced fare + markup,
@@ -4308,6 +4321,12 @@ def _held_booking_ready_to_pay(locator: str, booking: dict) -> dict:
     booking: never take money for a flight the airline has dropped - the
     ticket could not be issued. Checked live, right now. Returns the booking
     (re-read when seats/extras confirmed since booking changed its total)."""
+    # 13/11/2026: ticketing pays Travelport its own price. An NDC booking
+    # made before that price was saved can't be ticketed safely (Travelport
+    # gives no price for NDC at ticketing), so it is not paid for at all.
+    if (booking.get("fare_source") or "GDS").upper() != "GDS" and not booking.get("supplier_total"):
+        raise HTTPException(status_code=409, detail="This booking can't be paid online. Nothing has been charged - "
+                                                    "please search and book the flight again.")
     problem, live_codes = _live_airline_check(locator)
     if problem:
         if problem["status"] == segment_status.AIRLINE_CANCELLED:

@@ -3033,6 +3033,9 @@ export default function App() {
 
     const travelerList = [];
     const extraFields = {
+      // 13/11/2026: chosen by the customer, never assumed (title used to be
+      // worked out from gender, the phone code to default to +94).
+      title: '', phone_country_code: '',
       birth_place: '', document_issue_date: '', issued_for_geo_political_area: '',
       phone_area_city_code: '', phone_extension: '', phone_city_code: '',
       address_street: '', address_city: '', address_state_name: '',
@@ -3079,6 +3082,11 @@ export default function App() {
   const fillTravelerFromSaved = (idx, saved) => {
     const { passenger_type, meal_code, wheelchair, ...details } = saved || {};
     if (details.gender) details.gender = { M: 'Male', F: 'Female' }[String(details.gender).toUpperCase()] || details.gender;
+    // A saved number in international form ("+94...") carries its own code.
+    if (details.phone && !details.phone_country_code) {
+      const { dial } = splitPhone(details.phone);
+      if (dial) details.phone_country_code = dial;
+    }
     setTravelers(prev => prev.map((t, i) => (i === idx ? { ...t, ...details } : t)));
   };
 
@@ -3095,21 +3103,31 @@ export default function App() {
   // the stored "+<dial><local number>" string into a dial-code dropdown and a
   // local-number input. Dial codes aren't unique length, so this matches the
   // LONGEST registered dial code that prefixes the stored number (e.g. "+94"
-  // before trying "+9"), falling back to Sri Lanka (+94) when the field is
-  // empty or doesn't start with a recognized code.
+  // before trying "+9"). Nothing is assumed when it doesn't start with one.
   const DIAL_CODES = [...new Map(NATIONALITIES.map(n => [n.dial, n])).values()].sort((a, b) => b.dial.length - a.dial.length);
-  const splitPhone = (phone) => {
+  // 13/11/2026: the country code is the one the customer picked
+  // (phone_country_code). No +94 default when it can't be read.
+  const splitPhone = (phone, chosenDial) => {
     const digits = (phone || '').replace(/[^\d+]/g, '');
     const withoutPlus = digits.startsWith('+') ? digits.slice(1) : digits;
-    const match = DIAL_CODES.find(c => withoutPlus.startsWith(c.dial));
+    if (chosenDial && withoutPlus.startsWith(chosenDial)) {
+      return { dial: chosenDial, local: withoutPlus.slice(chosenDial.length) };
+    }
+    if (chosenDial) return { dial: chosenDial, local: withoutPlus };
+    const match = digits.startsWith('+') && DIAL_CODES.find(c => withoutPlus.startsWith(c.dial));
     if (match) {
       return { dial: match.dial, local: withoutPlus.slice(match.dial.length) };
     }
-    return { dial: '94', local: withoutPlus };
+    return { dial: '', local: withoutPlus };
   };
+  const phoneParts = (t) => splitPhone(t?.phone, t?.phone_country_code);
   const handleTravelerPhoneDialChange = (dial) => {
-    const { local } = splitPhone(travelers[activePassengerIdx]?.phone);
-    handleTravelerChange('phone', `+${dial}${local}`);
+    const { local } = phoneParts(travelers[activePassengerIdx]);
+    setTravelers(prev => {
+      const updated = [...prev];
+      updated[activePassengerIdx] = { ...updated[activePassengerIdx], phone_country_code: dial, phone: dial ? `+${dial}${local}` : local };
+      return updated;
+    });
   };
   // The number box takes the local number. A number typed in full
   // international form ("0094 77…", "+94 77…") sets the country code from
@@ -3118,14 +3136,20 @@ export default function App() {
   const handleTravelerPhoneLocalChange = (local) => {
     const typed = local.trim();
     if (/^(\+|00)/.test(typed)) {
+      // Typed in full international form: the code is read from what the
+      // customer typed, matched against the official calling codes.
       const intl = splitPhone(`+${typed.replace(/^(\+|00)/, '').replace(/\D/g, '')}`);
-      handleTravelerChange('phone', `+${intl.dial}${intl.local}`);
+      setTravelers(prev => {
+        const updated = [...prev];
+        updated[activePassengerIdx] = { ...updated[activePassengerIdx], phone_country_code: intl.dial, phone: intl.dial ? `+${intl.dial}${intl.local}` : intl.local };
+        return updated;
+      });
       return;
     }
-    const { dial } = splitPhone(travelers[activePassengerIdx]?.phone);
-    let digits = typed.replace(/\D/g, '');
-    if (dial === '94') digits = digits.replace(/^0+/, '');
-    handleTravelerChange('phone', `+${dial}${digits}`);
+    const { dial } = phoneParts(travelers[activePassengerIdx]);
+    // Kept exactly as typed (no zero removed); a leading 0 is flagged on Next.
+    const digits = typed.replace(/\D/g, '');
+    handleTravelerChange('phone', dial ? `+${dial}${digits}` : digits);
   };
 
   // The phone country code stays +94 Sri Lanka by default whatever the
@@ -3149,7 +3173,7 @@ export default function App() {
 
   const handlePassengerNext = async (e) => {
     e.preventDefault();
-    const required = ['first_name', 'last_name', 'date_of_birth', 'gender', 'passport_number', 'passport_expiry', 'nationality', 'passport_issue_country', 'email', 'phone'];
+    const required = ['title', 'first_name', 'last_name', 'date_of_birth', 'gender', 'passport_number', 'passport_expiry', 'nationality', 'passport_issue_country', 'email', 'phone', 'phone_country_code'];
     // Collects every problem across every passenger in one pass (rather than
     // stopping at the first) so each gets shown right under its own field —
     // the customer fixes everything they can see at once instead of
@@ -3216,6 +3240,10 @@ export default function App() {
       }
       if (t.phone && t.phone.replace(/\D/g, '').length < 7) {
         addError(i, 'phone', 'Looks too short — please include the full mobile number.');
+      } else if (t.phone && phoneParts(t).local.startsWith('0')) {
+        // Sent exactly as entered (13/11/2026), so the customer removes the
+        // trunk 0 rather than the system doing it silently.
+        addError(i, 'phone', 'Enter the mobile number without the leading 0 (for example 771234567).');
       }
     }
 
@@ -3354,7 +3382,7 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               amount: bookData.amount ?? selectedFlight.price,
-              currency: bookData.currency || selectedFlight.currency || 'LKR',
+              currency: bookData.currency || selectedFlight.currency, // never assumed (13/11/2026)
               return_url: `${baseUrl}?ndc_pending=${bookData.pending_id}`,
               cancel_url: `${baseUrl}?ndc_pending=${bookData.pending_id}&payment=cancelled`,
               client_ref: bookData.pending_id,
@@ -3462,7 +3490,7 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         amount: pnrTicket.total_fare,
-        currency: pnrTicket.currency || 'LKR',
+        currency: pnrTicket.currency, // the booking's own currency, never assumed (13/11/2026)
         return_url: `${baseUrl}?locator=${pnrTicket.locator_code}`,
         cancel_url: `${baseUrl}?locator=${pnrTicket.locator_code}&payment=cancelled`,
         client_ref: pnrTicket.locator_code,
@@ -8714,6 +8742,24 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 <div className="pax-subhead">Personal details <span>Exactly as shown on the passport</span></div>
                 <div className="form-grid-2">
                   <div className="form-group">
+                    <label className="form-label">Title <span className="req">*</span></label>
+                    <div className="pax-control">
+                      <Ico.IconUser size={16} className="pax-control-icon" />
+                      <select className="form-select" required style={fieldErrorStyle(activePassengerIdx, 'title')} value={travelers[activePassengerIdx]?.title || ''} onChange={e => handleTravelerChange('title', e.target.value)}>
+                        <option value="">Select title</option>
+                        <option value="MR">Mr</option>
+                        <option value="MRS">Mrs</option>
+                        <option value="MS">Ms</option>
+                        <option value="MISS">Miss</option>
+                        <option value="MSTR">Master (boy)</option>
+                        <option value="DR">Dr</option>
+                      </select>
+                    </div>
+                    {renderFieldError(activePassengerIdx, 'title')}
+                  </div>
+                </div>
+                <div className="form-grid-2">
+                  <div className="form-group">
                     <label className="form-label">First name <span className="req">*</span></label>
                     <div className="pax-control">
                       <Ico.IconUser size={16} className="pax-control-icon" />
@@ -8809,9 +8855,11 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         <select
                           className="form-input"
                           style={{ paddingRight: '0.2rem' }}
-                          value={splitPhone(travelers[activePassengerIdx]?.phone).dial}
+                          required
+                          value={phoneParts(travelers[activePassengerIdx]).dial}
                           onChange={e => handleTravelerPhoneDialChange(e.target.value)}
                         >
+                          <option value="">Code</option>
                           {DIAL_CODES.map(c => (
                             <option key={c.code} value={c.dial}>+{c.dial} {c.code}</option>
                           ))}
@@ -8823,10 +8871,11 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         required
                         placeholder="771234567"
                         style={{ flex: 1, ...fieldErrorStyle(activePassengerIdx, 'phone') }}
-                        value={splitPhone(travelers[activePassengerIdx]?.phone).local}
+                        value={phoneParts(travelers[activePassengerIdx]).local}
                         onChange={e => handleTravelerPhoneLocalChange(e.target.value)}
                       />
                     </div>
+                    {renderFieldError(activePassengerIdx, 'phone_country_code')}
                     {renderFieldError(activePassengerIdx, 'phone')}
                   </div>
                   <div className="form-group pax-email">
@@ -10103,6 +10152,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     // have a different seat outbound vs. return.
                     const passengerSeats = selectedSeats.filter(s => s.passenger_idx === idx);
                     const rows = [
+                      ['Title', ({ MR: 'Mr', MRS: 'Mrs', MS: 'Ms', MISS: 'Miss', MSTR: 'Master', DR: 'Dr' })[t.title] || t.title],
                       ['Name (as on passport)', `${t.first_name || ''} ${t.last_name || ''}`.trim()],
                       ['Gender', t.gender],
                       ['Date of birth', fmtDate(t.date_of_birth)],

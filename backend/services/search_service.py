@@ -721,6 +721,12 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
         product_cabin_map = {}
         product_fare_basis_map = {}
         product_cos_map = {}
+        # prod_id -> {segmentSequence: (classOfService, cabin)} exactly as
+        # Travelport lists them per FlightProduct (13/11/2026): one product
+        # can hold different classes on its flights (live AI connection: Y
+        # Economy then N PremiumEconomy). Used to send each flight its own
+        # class and cabin when booking — never the first flight's for all.
+        product_seg_map = {}
         product_flightrefs_map = {}
         # flightRef -> True when ANY product's FlightSegment marks that flight
         # boundFlightsInd:true (checked live: consistent across every product
@@ -753,6 +759,8 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
                                 cos = fp.get("classOfService")
                                 if cos and cos not in cos_list:
                                     cos_list.append(cos)
+                                for seq in fp.get("segmentSequence") or []:
+                                    product_seg_map.setdefault(prod_id, {})[seq] = (cos, c)
                     except Exception:
                         pass
                     if brand_ref:
@@ -957,12 +965,24 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
                                 if cos not in classes_of_service:
                                     classes_of_service.append(cos)
 
-                    display_brand_name = brand_name or "Standard"
+                    # Travelport's own brand name, exactly as returned; None
+                    # when the fare has no brand (13/11/2026: no invented
+                    # "Standard", no stripping of "EK"/"QR"/"AI" from names).
+                    display_brand_name = brand_name
 
-                    # Clean brand name mapping if EK or QR prefixes
-                    for prefix in ["EK", "QR", "AI"]:
-                        if display_brand_name.startswith(prefix):
-                            display_brand_name = display_brand_name.replace(prefix, "").strip()
+                    # Each flight's own class and cabin, from the product's
+                    # FlightProduct.segmentSequence (1-based within the
+                    # product). None for a flight Travelport didn't list.
+                    segment_classes, segment_cabins = [], []
+                    _offset = 0
+                    for pr in prod_refs:
+                        seg_map = product_seg_map.get(pr) or {}
+                        n_in_product = max(seg_map.keys()) if seg_map else 0
+                        for seq in range(1, n_in_product + 1):
+                            cos_c, cab_c = seg_map.get(seq, (None, None))
+                            segment_classes.append(cos_c)
+                            segment_cabins.append(cab_c)
+                        _offset += n_in_product
 
                     # Extract terms and conditions details
                     tc_ref = brand_offering.get("TermsAndConditions", {}).get("termsAndConditionsRef")
@@ -1048,6 +1068,8 @@ def parse_flight_offers(raw_response: dict, legs: Optional[list] = None, origin:
                     selected_raw_offering["segments"] = segments_list
                     selected_raw_offering["cabin_class"] = cabin
                     selected_raw_offering["classes_of_service"] = classes_of_service
+                    selected_raw_offering["segment_classes"] = segment_classes
+                    selected_raw_offering["segment_cabins"] = segment_cabins
                     selected_raw_offering["brand_id"] = brand_id
                     selected_raw_offering["brand_name"] = display_brand_name
 
