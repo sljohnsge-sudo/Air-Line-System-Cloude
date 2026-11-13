@@ -1155,6 +1155,7 @@ async def price_pnr(session: AmadeusSession, segments: list[dict] | None = None,
         raise AmadeusSoapError("Amadeus pricing returned no fare", status_code=502)
 
     tst_refs: list[str] = []
+    held_families: list[str] = []
     seen_pax_refs: set[str] = set()
     last_ticketing: dict | None = None
     validating_carrier_text = None
@@ -1202,6 +1203,12 @@ async def price_pnr(session: AmadeusSession, segments: list[dict] | None = None,
                            + (f"T{int(_text(dt, 'hour')):02d}:{int(_text(dt, 'minutes') or 0):02d}" if _text(dt, "hour") else ""),
                 }
         tst_refs.append(_text(fare_ref_el, "uniqueReference", default=str(idx + 1)))
+        # The brand of the fare actually booked (the fareLists kept here) -
+        # the reply also lists the airline's other fare families for the same
+        # passenger, which are not what is booked.
+        for fam in fare_family_codes(fare_list):
+            if fam not in held_families:
+                held_families.append(fam)
 
         if validating_carrier_text is None:
             vc = _find_deep(fare_list, "validatingCarrier", "carrierInformation", "carrierCode")
@@ -1231,7 +1238,7 @@ async def price_pnr(session: AmadeusSession, segments: list[dict] | None = None,
         # The fare's last ticketing date (lastTktDate LT) - TK XL at commit.
         "lastTicketing": last_ticketing,
         # 14/11/2026: the airline's fare family (brand) on the held fare.
-        "fareFamilies": fare_family_codes(reply),
+        "fareFamilies": held_families,
     }
 
 
