@@ -1619,7 +1619,7 @@ def _amadeus_after_ticket(row: dict) -> None:
     loc = row["locator"]
     try:
         if row.get("email"):
-            services.award_points_for_booking(row["email"], float(row.get("amount") or 0), row.get("currency") or "LKR", loc)
+            services.award_points_for_booking(row["email"], float(row["amount"]), row["currency"], loc)
     except Exception as e:
         logger.warning(f"Loyalty points award failed for Amadeus {loc} (non-fatal): {e}")
     _push_amadeus_to_erp_background(loc)
@@ -1641,17 +1641,21 @@ def _amadeus_erp_booking(locator: str) -> dict:
     docs = [d for d in view.get("documents") or [] if d.get("kind") == "ticket" and d.get("status") == "issued"]
     if not docs:
         raise ValueError(f"Amadeus {locator} holds no issued ticket")
-    type_by_name = {f"{t.get('firstName') or ''} {t.get('lastName') or ''}".strip().upper(): (t.get("type") or "ADT").upper()
+    # 13/11/2026 audit: each ticket's passenger type from the booking itself -
+    # a ticket whose passenger or type can't be found is not sent (no "ADT").
+    type_by_name = {f"{t.get('firstName') or ''} {t.get('lastName') or ''}".strip().upper(): (t.get("type") or "").upper()
                     for t in view.get("travelers") or []}
     tickets, per_type = [], {}
     for i, d in enumerate(docs):
-        ptc = "INF" if d.get("infant") else _AD_DOC_PTC.get(type_by_name.get((d.get("passenger") or "").upper(), "ADT"), "ADT")
+        ptc = "INF" if d.get("infant") else _AD_DOC_PTC.get(type_by_name.get((d.get("passenger") or "").upper(), ""))
+        if not ptc:
+            raise ValueError(f"Amadeus {locator}: passenger type of ticket {d['number']} not found on the booking")
         tickets.append({"number": d["number"], "traveler_name": d.get("passenger") or "", "passenger_type": ptc,
                         "traveler_index": i})
         per_type.setdefault(ptc, float(d.get("amount") or 0))
     it = row.get("itinerary") or {}
     airline_total = sum(float(d.get("amount") or 0) for d in docs)
-    fare_breakdown = {"total": airline_total, "per_type": per_type, "total_fees": 0}
+    fare_breakdown = {"total": airline_total, "per_type": per_type}
     if view.get("base_fare"):
         fare_breakdown["base_fare"] = float(view["base_fare"])
     return {
@@ -1664,7 +1668,7 @@ def _amadeus_erp_booking(locator: str) -> dict:
         "departure_airport": it.get("departure_airport") or (row.get("route") or "").split("-")[0],
         "arrival_airport": it.get("arrival_airport") or (row.get("route") or "").split("-")[-1],
         "departure_time": it.get("departure_time") or row.get("travel_date") or "",
-        "total_fare": float(row["amount"]), "currency": row.get("currency") or "LKR",
+        "total_fare": float(row["amount"]), "currency": row["currency"],
         "booking_date": str(row.get("created_at") or "")[:10],
         "fare_breakdown": fare_breakdown,
         "erp_quotation_name": row.get("erp_quotation_name"),
@@ -1704,7 +1708,9 @@ def _push_amadeus_to_erp_background(locator: str) -> None:
 
 
 # ── My Bookings: Amadeus bookings (14/11/2026) ───────────────────────────
-_AD_LIST_STATUS = {"held": "Confirmed", "ticketing": "Confirmed", "ticketed": "Ticketed",
+# Our record's own states, said as they are (13/11/2026 audit: a held,
+# unpaid booking is not "Confirmed").
+_AD_LIST_STATUS = {"held": "On hold - not ticketed", "ticketing": "Ticketing", "ticketed": "Ticketed",
                    "failed": "Not ticketed - refund requested", "cancelled": "Cancelled"}
 
 
@@ -1769,7 +1775,7 @@ def _ad_live_status(view: dict) -> str:
         return "Refunded"
     if any(d.get("status") == "voided" for d in tickets):
         return "Voided"
-    return "Confirmed" if view.get("has_itinerary") else "Cancelled"
+    return "Not ticketed" if view.get("has_itinerary") else "Cancelled"
 
 
 @app.post("/api/amadeus-bookings/hold")

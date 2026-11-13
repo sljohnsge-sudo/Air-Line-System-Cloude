@@ -73,7 +73,7 @@ export default function BookingLineList({ bookings, liveStatuses = {}, refreshin
               <span className={`pass-status-badge ${b.not_ticketed ? 'cancelled' : status?.toLowerCase()}`}>{b.not_ticketed ? 'Not ticketed' : status}</span>
               <small>
                 {b.not_ticketed ? refundNote(b)
-                  : live?.checked ? <span title={b.source === 'AD' ? 'Checked live with the airline' : 'Checked live with Travelport and the airline'}>✓ Live {time(live.retrieved_at)}</span>
+                  : live?.checked ? <span title={b.source === 'AD' ? 'Checked live in Amadeus' : 'Checked live with Travelport and the airline'}>✓ Live {time(live.retrieved_at)}</span>
                   : live?.missing ? <span style={{ color: '#b45309', fontWeight: 700 }} title="Travelport no longer holds this booking — please contact us">⚠ Not on Travelport</span>
                   : live ? <span title={live.error}>Couldn't check live</span>
                   : refreshing && isUpcoming(b) && !CANCELLED.includes(b.status) ? 'Checking…' : ''}
