@@ -7,6 +7,7 @@ import HomeFeatures from './HomeFeatures.jsx';
 import NearbyDates from './NearbyDates.jsx';
 import { fmtDate, fmtDateTime, fmtDateWeekday } from './dateFormat.js';
 import BookingWaitLoader from './BookingWaitLoader.jsx';
+import AmadeusFareRulesBox from './AmadeusFareRulesBox.jsx';
 import heroPlaneOnly from './assets/tickbook-hero-plane-only.webp';
 
 // Home page plane:
@@ -2293,7 +2294,7 @@ export default function App() {
   useEffect(() => {
     // Loaded when the site opens and again at the review step, so the
     // payment choice is complete the moment the review step shows.
-    if (bookingStep && bookingStep !== 'review' && bookingStep !== 'amadeus_passenger') return;
+    if (bookingStep && bookingStep !== 'review') return;
     fetch(`${API_BASE}/payment-methods`).then(r => r.ok ? r.json() : null)
       .then(d => { if (d) { setPayMethods(d); if (!d.card && paymentMethod === 'card') setPaymentMethod(d.bank ? 'bank' : 'card'); } })
       .catch(() => {});
@@ -2312,9 +2313,6 @@ export default function App() {
   // so this reuses the existing paymentMethod/card fields but keeps its own
   // minimal traveler list and result shape rather than overloading the
   // Travelport-shaped `travelers`/`issuedTicket` state.
-  const [amadeusTravelers, setAmadeusTravelers] = useState([]);
-  const [amadeusContactEmail, setAmadeusContactEmail] = useState('');
-  const [amadeusContactPhone, setAmadeusContactPhone] = useState('');
   const amadeusBookingInFlightRef = useRef(false);
   // The held booking (locator, AD-<PNR> reference, server price) between
   // holding and paying.
@@ -2927,6 +2925,13 @@ export default function App() {
   // step is re-submitted with the details already entered.
   const resumeAfterRecheckRef = useRef(null);
   const continueWithNewFare = () => {
+    if (fareRecheck?.adHeld) {
+      const held = fareRecheck.adHeld;
+      setFareRecheck(null);
+      reportJourneyStep('Continued with new fare', { detail: `${held.currency} ${Math.round(held.amount).toLocaleString()}`, amount: held.amount, currency: held.currency });
+      continueAmadeusPayment(held);
+      return;
+    }
     const { flight, fare, fresh, resumeAt } = fareRecheck;
     setFlights(fresh);
     setBookingError('');
@@ -2972,46 +2977,13 @@ export default function App() {
       fare_source: flight.fare_source, amount: fareOption?.price, currency: fareOption?.currency,
     });
 
-    // Amadeus ("AD") offers skip the whole Travelport wizard (passport-heavy
-    // passenger form, seat map, Travelport-shaped review/payment/ticket) and
-    // go through a separate, minimal flow -- see the 'amadeus_passenger' /
-    // 'amadeus_ticket' booking steps below and handleConfirmAmadeusBooking.
-    if (flight.source === 'AD') {
-      setSelectedFlight({
-        ...flight,
-        price: fareOption.price,
-        currency: fareOption.currency,
-        raw_offering: fareOption.raw_offering,
-        cabin_class: fareOption.cabin_class,
-        fare_family: fareOption.brand_name,
-        baggage_allowance: fareOption.baggage_allowance,
-        change_policy: fareOption.change_policy,
-        cancel_policy: fareOption.cancel_policy,
-      });
-      const count = adultCount + childCount + infantCount || 1;
-      const types = [
-        ...Array(adultCount || (childCount || infantCount ? 0 : 1)).fill('adult'),
-        ...Array(childCount).fill('child'),
-        ...Array(infantCount).fill('infant'),
-      ];
-      setAmadeusTravelers((types.length ? types : ['adult']).map(type => ({
-        firstName: '', lastName: '', type,
-        dateOfBirth: '', gender: 'Male',
-        passportNumber: '', passportExpiry: '', passportIssueCountry: '', nationality: '',
-      })));
-      setAmadeusContactEmail('');
-      setAmadeusContactPhone('');
-      setAmadeusHeld(null);
-      setDataConfirmAgreed(false);
-      setBookingError('');
-      setBookingStep('amadeus_passenger');
-      return;
-    }
-
+    // Amadeus ("AD") fares use the same passenger and Review & Pay steps as
+    // Travelport (14/11/2026); only what Amadeus can't do yet is hidden.
     setSelectedFlight(flightWithFare(flight, fareOption));
     setBookingStep('passenger');
     setBookingError('');
     setDataConfirmAgreed(false);
+    setAmadeusHeld(null);
 
     const travelerList = [];
     const extraFields = {
@@ -3148,7 +3120,13 @@ export default function App() {
     // checked against these (the server repeats this check before payment).
     const ro = selectedFlight?.raw_offering || {};
     const roLegs = ro.outbound && ro.inbound ? [ro.outbound, ro.inbound] : (ro.legs || [ro]);
-    const tripDates = roLegs.flatMap(l => (l?.segments || []).map(s => String(s.departure_time || '').slice(0, 10)))
+    const isAmadeusFare = selectedFlight?.source === 'AD';
+    // Amadeus fares: dates from the flights shown to the customer (their
+    // raw_offering holds Amadeus-native DDMMYY dates).
+    const tripDates = (isAmadeusFare
+      ? (selectedFlight.legs?.length ? selectedFlight.legs : [selectedFlight])
+          .flatMap(l => (l?.segments?.length ? l.segments : [l]).map(s => String(s?.departure_time || '').slice(0, 10)))
+      : roLegs.flatMap(l => (l?.segments || []).map(s => String(s.departure_time || '').slice(0, 10))))
       .filter(Boolean).sort();
     const firstFlight = tripDates[0], lastFlight = tripDates[tripDates.length - 1];
     const ageOn = (dob, day) => {
@@ -3203,6 +3181,19 @@ export default function App() {
     }
     setPassengerFieldErrors({});
     setBookingError('');
+    if (isAmadeusFare) {
+      // Amadeus: nothing to open at the airline yet - the seats are held on
+      // Confirm Booking. Seats and extras aren't sold on these fares yet.
+      if (travelers.length > 0) setCardholderName(`${travelers[0].first_name} ${travelers[0].last_name}`.toUpperCase());
+      setSeatMaps([]);
+      setSelectedSeats([]);
+      setAncillaries([]);
+      setSelectedAncillaries([]);
+      setAddonsNote('');
+      setActivePassengerIdx(0);
+      setBookingStep('review');
+      return;
+    }
     setBookingStep('seats_loading');
 
     try {
@@ -3268,6 +3259,10 @@ export default function App() {
     // Guards against a duplicate PNR/GDS hold from a rapid double-click or a
     // stale-element click still registering — a synchronous ref check, not
     // dependent on React re-render timing like a state flag would be.
+    if (selectedFlight?.source === 'AD') {
+      handleConfirmAmadeusBooking();
+      return;
+    }
     if (confirmBookingInFlightRef.current) return;
     confirmBookingInFlightRef.current = true;
 
@@ -3488,9 +3483,7 @@ export default function App() {
     setCardCvv('');
     setPaymentMethod('card');
     setOfflinePayment(null);
-    setAmadeusTravelers([]);
-    setAmadeusContactEmail('');
-    setAmadeusContactPhone('');
+    setAmadeusHeld(null);
   };
 
   // Lazily fetches real change/cancel policy text for one Amadeus offer
@@ -3545,46 +3538,37 @@ export default function App() {
   };
 
   // ── Amadeus ("AD") booking: hold → pay → ticket (13/11/2026) ─────────────
-  // Same order as Travelport fares. Our server books and holds the flights
-  // with the airline and works out the price (never the browser); the
-  // customer then pays by card, bank transfer or cash, and the ticket is only
-  // issued once the payment is confirmed. Seats and extras are not sold on
-  // these fares yet, so nothing is shown or charged for them.
+  // Same screens and order as Travelport fares (14/11/2026): Passenger
+  // Details → Review & Pay → Confirm Booking. Our server books and holds the
+  // flights with Amadeus and works out the price (never the browser); the
+  // customer then pays by card, bank transfer or cash, and the ticket is
+  // only issued once the payment is confirmed.
+  const AD_TYPE = { ADT: 'adult', STU: 'adult', CNN: 'child', INF: 'infant' };
   const handleConfirmAmadeusBooking = async () => {
     if (amadeusBookingInFlightRef.current) return;
-    if (amadeusTravelers.some(t => !t.firstName.trim() || !t.lastName.trim())) {
-      setBookingError('Enter first and last name for every traveler.');
-      return;
-    }
-    if (amadeusTravelers.some(t => !t.dateOfBirth || !t.passportNumber.trim() || !t.passportExpiry || !t.passportIssueCountry)) {
-      setBookingError('Enter date of birth and passport details for every traveler.');
-      return;
-    }
-    if (!amadeusContactEmail.trim() || !amadeusContactPhone.trim()) {
-      setBookingError('Enter a contact email and phone number.');
-      return;
-    }
     if (!dataConfirmAgreed) {
       setBookingError('Please confirm the passenger details match the travel documents.');
       return;
     }
     amadeusBookingInFlightRef.current = true;
-    setBookingStep('amadeus_processing');
+    setBookingStep('processing');
     setBookingError('');
     try {
+      const lead = travelers[0] || {};
       const res = await fetchWithRetry(`${API_BASE}/amadeus-bookings/hold`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...signedInHeaders() },
         body: JSON.stringify({
           segments: selectedFlight.raw_offering.segments,
-          travelers: amadeusTravelers.map(t => ({
-            firstName: t.firstName.trim(), lastName: t.lastName.trim(), type: t.type,
-            dateOfBirth: t.dateOfBirth, gender: t.gender || 'Male',
-            passportNumber: t.passportNumber.trim(), passportExpiry: t.passportExpiry,
-            passportIssueCountry: t.passportIssueCountry, nationality: t.nationality || t.passportIssueCountry,
+          travelers: travelers.map(t => ({
+            firstName: (t.first_name || '').trim(), lastName: (t.last_name || '').trim(),
+            type: AD_TYPE[t.passenger_type] || 'adult',
+            dateOfBirth: t.date_of_birth, gender: t.gender || 'Male',
+            passportNumber: (t.passport_number || '').trim(), passportExpiry: t.passport_expiry,
+            passportIssueCountry: t.passport_issue_country, nationality: t.nationality || t.passport_issue_country,
           })),
-          contactEmail: amadeusContactEmail.trim(),
-          contactPhone: amadeusContactPhone.trim(),
+          contactEmail: (lead.email || '').trim(),
+          contactPhone: (lead.phone || '').trim(),
           quotedPrice: selectedFlight.price,
           quotedCurrency: selectedFlight.currency,
         }),
@@ -3593,18 +3577,22 @@ export default function App() {
       setAmadeusHeld(held);
       reportJourneyStep('Booking held', { detail: `Held with the airline (${held.reference}) for ${held.currency} ${held.amount}` });
       if (held.price_changed) {
-        // The airline's price differs from the one shown: the customer sees
-        // the new amount (also in the trip summary) and decides before
-        // anything is charged.
-        setSelectedFlight(f => (f ? { ...f, price: held.amount, currency: held.currency } : f));
-        setBookingStep('amadeus_pay');
+        // The airline's price differs from the one shown: the same fare
+        // notice as Travelport fares, before anything is charged.
+        setBookingStep('review');
+        setFareRecheck({
+          state: 'changed', adHeld: held,
+          fare: { price: held.amount, currency: held.currency, cabin_class: selectedFlight.cabin_class, brand_name: selectedFlight.fare_family || null },
+          oldPrice: selectedFlight.price, oldCurrency: selectedFlight.currency, oldFamily: null,
+          airlinePriced: held.currency === selectedFlight.currency && held.amount > selectedFlight.price,
+        });
         return;
       }
       await payAmadeusBooking(held);
     } catch (err) {
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
-      setBookingStep('amadeus_passenger');
+      setBookingStep('review');
       showNotification(errMsg, 'error');
     } finally {
       amadeusBookingInFlightRef.current = false;
@@ -3615,6 +3603,7 @@ export default function App() {
   // booking). Bank transfer / cash: the booking stays held until staff
   // confirm the money in Admin > Bank & Cash Payments.
   const payAmadeusBooking = async (held) => {
+    const lead = travelers[0] || {};
     if (paymentMethod === 'bank' || paymentMethod === 'cash') {
       const res = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${held.locator}/offline-start`, {
         method: 'POST',
@@ -3622,8 +3611,7 @@ export default function App() {
         body: JSON.stringify({ method: paymentMethod }),
       });
       const data = await handleApiResponse(res, 'Could not record the payment method');
-      const lead = amadeusTravelers[0] || {};
-      setOfflinePayment({ ...data, passenger: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(), email: amadeusContactEmail.trim() });
+      setOfflinePayment({ ...data, passenger: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(), email: (lead.email || '').trim() });
       setBookingStep('offline_pending');
       return;
     }
@@ -3644,23 +3632,46 @@ export default function App() {
     window.location.href = payData.payment_page_url;
   };
 
-  // "Continue to payment" on the price-changed step.
-  const continueAmadeusPayment = async () => {
-    if (!amadeusHeld || amadeusBookingInFlightRef.current) return;
+  // "Continue with this fare" on the fare notice, for a held Amadeus booking.
+  const continueAmadeusPayment = async (held) => {
+    if (!held || amadeusBookingInFlightRef.current) return;
     amadeusBookingInFlightRef.current = true;
-    setBookingStep('amadeus_processing');
+    setSelectedFlight(f => (f ? { ...f, price: held.amount, currency: held.currency } : f));
+    setBookingStep('processing');
     setBookingError('');
     try {
-      await payAmadeusBooking(amadeusHeld);
+      await payAmadeusBooking(held);
     } catch (err) {
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
-      setBookingStep('amadeus_pay');
+      setBookingStep('review');
       showNotification(errMsg, 'error');
     } finally {
       amadeusBookingInFlightRef.current = false;
     }
   };
+
+  // Fare rules for an Amadeus fare on Review & Pay, if the fare pop-up didn't
+  // already load them (Amadeus Fare_CheckRules, through our backend).
+  const [adReviewRules, setAdReviewRules] = useState('idle');
+  useEffect(() => {
+    if (bookingStep !== 'review' || selectedFlight?.source !== 'AD') return;
+    if (selectedFlight.change_policy || selectedFlight.cancel_policy || adReviewRules !== 'idle') return;
+    const segments = selectedFlight.raw_offering?.segments;
+    if (!segments?.length) { setAdReviewRules('none'); return; }
+    setAdReviewRules('loading');
+    fetch(`${API_BASE}/amadeus-fare-rules`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ segments, paxCount: 1 }),
+    }).then(r => (r.ok ? r.json() : null)).then(rules => {
+      if (rules && (rules.change_policy || rules.cancel_policy)) {
+        setSelectedFlight(f => (f ? { ...f, change_policy: rules.change_policy, cancel_policy: rules.cancel_policy } : f));
+        setAdReviewRules('done');
+      } else setAdReviewRules('none');
+    }).catch(() => setAdReviewRules('none'));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingStep, selectedFlight]);
+  useEffect(() => { setAdReviewRules('idle'); }, [selectedFlight?.offer_id]);
 
   // ── Check My Ticket Status ───────────────────────────────────────────────
   const handleCheckTicketStatus = async (e) => {
@@ -6095,7 +6106,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               Seat Selection Available
                             </div>
                           ) : (
-                            <div title="Seat selection via Travelport GDS is not available for this carrier." style={{
+                            <div title={flight.source === 'AD' ? "Seat selection isn't available for this fare yet." : 'Seat selection via Travelport GDS is not available for this carrier.'} style={{
                               display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
                               marginTop: '0.4rem', padding: '0.2rem 0.55rem',
                               borderRadius: '4px', fontSize: '0.6rem', fontWeight: '600',
@@ -6161,7 +6172,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                   // on offer, Select opens the fare chooser
                                   // pop-up first. The round-trip outbound pick
                                   // only locks the outbound leg, so it skips it.
-                                  if (roundTripPhase !== 'outbound' && (flight.fare_options || []).length > 1) {
+                                  if (roundTripPhase !== 'outbound' && ((flight.fare_options || []).length > 1 || flight.source === 'AD')) {
                                     setExpandedFareIds(prev => ({ ...prev, [fId]: true }));
                                     if (flight.source === 'AD') fetchAmadeusFareRules(flight);
                                   } else {
@@ -6376,7 +6387,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                     color: 'white',
                                     position: 'relative'
                                   }}>
-                                    <div style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.01em', paddingRight: isCheapest ? '3.6rem' : 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={fo.brand_name}>{fo.brand_name}</div>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.01em', paddingRight: isCheapest ? '3.6rem' : 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={fo.brand_name || (flight.source === 'AD' ? fo.cabin_class : '')}>{fo.brand_name || (flight.source === 'AD' ? fo.cabin_class : '')}</div>
                                     <div style={{ fontSize: '0.98rem', fontWeight: '800', marginTop: '0.05rem' }}>
                                       {fo.currency} {Math.floor(fo.price).toLocaleString()}
                                     </div>
@@ -6431,7 +6442,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                                         return (
                                           <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.3rem' }}>
                                             {/* Full change/cancel conditions, live from Travelport's Fare Rules API */}
-                                            {flight.source !== 'AD' && fo.raw_offering ? (
+                                            {flight.source === 'AD' ? (
+                                              <AmadeusFareRulesBox flight={fo} compact loading={!!amadeusFareRulesLoading[flight.offer_id]} />
+                                            ) : fo.raw_offering ? (
                                               <div className="fc-rules">
                                                 <FareRulesPanel apiBase={API_BASE} rawOffering={fo.raw_offering} title="Fare rules" defaultOpen consolidated>
                                                   {policyLines}
@@ -8418,7 +8431,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
             {/* Progress Steps — this stepper is shaped for Travelport's own step sequence; Amadeus
                 offers use a shorter flow (passenger details → seats → processing → ticket) and
                 are kept on their own step titles below instead of this (mismatched) step dial. */}
-            <div className="booking-stepper wz-stepper" style={{ display: selectedFlight.source === 'AD' ? 'none' : 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
+            <div className="booking-stepper wz-stepper" style={{ display: 'flex', gap: '0', padding: '1.25rem 1.5rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
   {(() => {
                 // Booking is the flight only; seats and extras are added
                 // after ticketing in Manage my booking.
@@ -8459,9 +8472,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                  bookingStep === 'ancillaries' ? 'Optional Extras' :
                  bookingStep === 'options' ? 'Options' :
                  bookingStep === 'review' ? 'Review Your Booking' :
-                 bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
-                 bookingStep === 'amadeus_processing' ? 'Confirming your booking...' :
-                 bookingStep === 'amadeus_pay' ? 'Price update' :
                  bookingStep === 'offline_pending' ? (offlinePayment?.method === 'cash' ? 'Pay in Cash' : 'Pay by Bank Transfer') :
                  bookingStep === 'addons_result' ? 'Seats & Extras — Airline Response' :
                  'Issuing Ticket...'}
@@ -8589,170 +8599,6 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 sent as an SSR DOCS element per traveler, see
                 amadeus-backend/services/flight_booking_service.py's
                 add_document_elements. */}
-            {bookingStep === 'amadeus_passenger' && (
-              <form className="booking-modal-form" onSubmit={e => { e.preventDefault(); handleConfirmAmadeusBooking(); }}>
-                {amadeusTravelers.map((t, idx) => {
-                  const setField = (field, value) => setAmadeusTravelers(ts => ts.map((x, i) => i === idx ? { ...x, [field]: value } : x));
-                  return (
-                  <div key={idx} style={{ border: '1px solid var(--border-color)', borderRadius: '6px', padding: '1rem', marginBottom: '1rem' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.5rem' }}>
-                      {t.type === 'adult' ? 'Adult' : t.type === 'child' ? 'Child' : 'Infant'} {idx + 1}
-                    </div>
-                    <div className="form-grid-2">
-                      <div className="form-group">
-                        <label className="form-label">First Name *</label>
-                        <input type="text" className="form-input" required placeholder="John" value={t.firstName} onChange={e => setField('firstName', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Last Name *</label>
-                        <input type="text" className="form-input" required placeholder="Doe" value={t.lastName} onChange={e => setField('lastName', e.target.value.replace(/[^a-zA-Z\s]/g, ''))} />
-                      </div>
-                    </div>
-                    <div className="form-grid-2">
-                      <div className="form-group">
-                        <label className="form-label">Date of Birth *</label>
-                        <input type="date" className="form-input" required max={getToday()} value={t.dateOfBirth} onChange={e => setField('dateOfBirth', e.target.value)} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Gender *</label>
-                        <select className="form-select" value={t.gender || 'Male'} onChange={e => setField('gender', e.target.value)}>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="form-grid-2">
-                      <div className="form-group">
-                        <label className="form-label">Passport Number *</label>
-                        <input type="text" className="form-input" required placeholder="N1234567" value={t.passportNumber} onChange={e => setField('passportNumber', e.target.value)} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Passport Expiry *</label>
-                        <input type="date" className="form-input" required min={getTomorrow()} value={t.passportExpiry} onChange={e => setField('passportExpiry', e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="form-grid-2">
-                      <div className="form-group">
-                        <label className="form-label">Nationality</label>
-                        <select
-                          className="form-select" value={t.nationality}
-                          onChange={e => {
-                            const code = e.target.value;
-                            setAmadeusTravelers(ts => ts.map((x, i) => {
-                              if (i !== idx) return x;
-                              const shouldFillIssueCountry = !x.passportIssueCountry || x.passportIssueCountry === x.nationality;
-                              return { ...x, nationality: code, passportIssueCountry: shouldFillIssueCountry ? code : x.passportIssueCountry };
-                            }));
-                          }}
-                        >
-                          <option value="">-- Select nationality --</option>
-                          {NATIONALITIES.map(n => (
-                            <option key={n.code} value={n.code}>{n.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Passport Issue Country *</label>
-                        <select className="form-select" required value={t.passportIssueCountry} onChange={e => setField('passportIssueCountry', e.target.value)}>
-                          <option value="">-- Select issue country --</option>
-                          {NATIONALITIES.map(n => (
-                            <option key={n.code} value={n.code}>{n.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  );
-                })}
-                <div className="form-grid-2" style={{ marginBottom: '0.75rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="ad-contact-email">Contact email *</label>
-                    <input id="ad-contact-email" type="email" className="form-input" required placeholder="you@example.com" value={amadeusContactEmail} onChange={e => setAmadeusContactEmail(e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="ad-contact-phone">Contact phone *</label>
-                    <input id="ad-contact-phone" type="tel" className="form-input" required placeholder="077 123 4567" value={amadeusContactPhone} onChange={e => setAmadeusContactPhone(e.target.value)} />
-                  </div>
-                </div>
-
-                {(() => {
-                  // Same payment choice as Travelport fares (11/11/2026): card,
-                  // bank transfer / deposit, cash - each switched on or off in
-                  // Admin > Providers & Modules > Payment Methods.
-                  const options = [
-                    payMethods.card && { key: 'card', label: 'Card', note: "Pay now on NDB Bank's secure card page; your ticket is issued straight away" },
-                    payMethods.bank && { key: 'bank', label: 'Bank transfer / deposit', note: 'Pay at the bank using your booking reference; ticket issued and emailed when we confirm your payment' },
-                    payMethods.cash && { key: 'cash', label: adminToken ? 'Cash (at the counter)' : 'Cash at a Tick and Book office',
-                      note: adminToken ? 'Cash received at the counter; ticket issued after you confirm it in Admin' : 'Pay in cash at our office using your booking reference; ticket issued and emailed when we receive it' },
-                  ].filter(Boolean);
-                  if (!options.length) return null;
-                  if (!options.some(o => o.key === paymentMethod)) setTimeout(() => setPaymentMethod(options[0].key), 0);
-                  return (
-                    <div className="pay-methods">
-                      <div className="pay-methods-title">How would you like to pay?</div>
-                      {options.map(o => (
-                        <label key={o.key} className={`pay-method${paymentMethod === o.key ? ' on' : ''}`}>
-                          <input type="radio" name="adPaymentMethod" checked={paymentMethod === o.key} onChange={() => setPaymentMethod(o.key)} />
-                          <span><strong>{o.label}</strong><small>{o.note}</small></span>
-                        </label>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                <div style={{ fontSize: '0.78rem', color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.6rem 0.9rem', marginBottom: '0.75rem' }}>
-                  {paymentMethod === 'bank'
-                    ? <>🏦 Your booking is confirmed with the airline first and held for you. You then pay by bank transfer or deposit using your booking reference. Your ticket is issued and emailed as soon as our team confirms your payment has arrived.</>
-                    : paymentMethod === 'cash'
-                      ? (adminToken ? <>💵 The booking is confirmed with the airline first and held. Record the cash received in Admin → Bank &amp; Cash Payments to issue the ticket.</>
-                        : <>💵 Your booking is confirmed with the airline first and held for you. Pay in cash at a Tick and Book office using your booking reference; your ticket is issued and emailed as soon as we receive it.</>)
-                      : <>💳 Your booking is confirmed with the airline first, then you pay on NDB Bank's secure card page. Your e-ticket is issued as soon as the payment is confirmed.</>}
-                  {' '}Seat selection and extra baggage aren't available for this fare.
-                </div>
-
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
-                  <input type="checkbox" checked={dataConfirmAgreed} onChange={e => setDataConfirmAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                  <span>I confirm that all passenger details entered (names, passport information, dates of birth) are accurate and match my travel documents exactly. I understand that incorrect information may result in denied boarding, additional airline fees, or ticket cancellation with no refund.</span>
-                </label>
-
-                <div className="modal-actions">
-                  <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={!dataConfirmAgreed}>
-                    {paymentMethod === 'card' ? 'Confirm Booking → Pay by Card' : paymentMethod === 'bank' ? 'Confirm Booking → Pay by Bank Transfer' : 'Confirm Booking → Pay in Cash'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {bookingStep === 'amadeus_pay' && amadeusHeld && (
-              <div className="booking-modal-form">
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '6px', padding: '0.9rem 1rem', marginBottom: '1rem' }}>
-                  <strong>The airline's price for this fare has changed.</strong>
-                  <div style={{ marginTop: '0.4rem' }}>
-                    Your seats are held (booking reference <strong>{amadeusHeld.locator}</strong>). The price is now{' '}
-                    <strong>{amadeusHeld.currency} {Number(amadeusHeld.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
-                    {amadeusHeld.quoted_price != null && <> (shown before: {selectedFlight.currency} {Number(amadeusHeld.quoted_price).toLocaleString(undefined, { minimumFractionDigits: 2 })})</>}.
-                    Nothing has been charged.
-                  </div>
-                </div>
-                <div className="modal-actions">
-                  <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Don't book</button>
-                  <button type="button" className="btn btn-primary" onClick={continueAmadeusPayment}>
-                    Pay {amadeusHeld.currency} {Number(amadeusHeld.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {paymentMethod === 'card' ? 'by Card' : paymentMethod === 'bank' ? 'by Bank Transfer' : 'in Cash'} →
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {bookingStep === 'amadeus_processing' && (
-              <BookingWaitLoader
-                icon="ticket"
-                title="Confirming your booking"
-                subtitle="We're securing your seats with the airline. This can take up to a minute — please don't close or refresh this page."
-                steps={['Checking your fare', 'Reserving your seats', 'Preparing secure payment']}
-              />
-            )}
-
             {/* STEP: Passenger Details Form */}
             {bookingStep === 'passenger' && (
               <form id="pax-form" onSubmit={handlePassengerNext} className="booking-modal-form pax-form">
@@ -8934,12 +8780,17 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                 </div>
 
+                {/* Amadeus fares (14/11/2026): these extra document / address
+                    fields and special requests aren't sent to Amadeus yet, so
+                    they are not asked for. */}
+                {selectedFlight.source !== 'AD' && (
                 <button type="button" className="pax-more" onClick={() => setShowExtraTravelerFields(v => !v)}>
                   <Ico.IconChevronDown size={18} style={{ transform: showExtraTravelerFields ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
                   Additional Document &amp; Contact Details (optional)
                 </button>
+                )}
 
-                {showExtraTravelerFields && (
+                {selectedFlight.source !== 'AD' && showExtraTravelerFields && (
                   <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '1rem', marginBottom: '1rem' }}>
                     <div className="form-grid-2">
                       <div className="form-group">
@@ -9011,13 +8862,15 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                 )}
 
+                {selectedFlight.source !== 'AD' && (
                 <button type="button" className="pax-more" onClick={() => setShowSpecialRequest(v => !v)}>
                   <Ico.IconChevronDown size={18} style={{ transform: showSpecialRequest ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
                   Special Request (optional)
                 </button>
+                )}
 
                 {/* Special assistance — sent to the airline as SSRs with the booking */}
-                {showSpecialRequest && (() => {
+                {selectedFlight.source !== 'AD' && showSpecialRequest && (() => {
                     const support = ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes);
                     const t = travelers[activePassengerIdx] || {};
                     return (
@@ -9538,7 +9391,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     </>
                   ) : (
                   <>
-                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep('amadeus_passenger')}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep('passenger')}>
                     ← Back to Passenger
                   </button>
                   <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }}>
@@ -10125,7 +9978,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 </div>
 
                 <div className="modal-actions" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep(seatMap ? 'seats' : (selectedFlight.source === 'AD' ? 'amadeus_passenger' : 'passenger'))}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setBookingStep(seatMap ? 'seats' : 'passenger')}>
                     ← Back
                   </button>
                   <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }}>
@@ -10207,7 +10060,11 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 {/* Fare conditions of the chosen fare, live from Travelport,
                     always shown in full before the customer confirms. */}
                 <div style={{ marginBottom: '1rem' }}>
-                  <FareRulesPanel apiBase={API_BASE} rawOffering={selectedFlight.raw_offering} title="Fare rules — changes & cancellations" alwaysOpen />
+                  {selectedFlight.source === 'AD' ? (
+                    <AmadeusFareRulesBox flight={selectedFlight} loading={adReviewRules === 'loading'} />
+                  ) : (
+                    <FareRulesPanel apiBase={API_BASE} rawOffering={selectedFlight.raw_offering} title="Fare rules — changes & cancellations" alwaysOpen />
+                  )}
                 </div>
 
                 {/* Flight Itinerary Details */}
@@ -10330,7 +10187,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           </strong>
                         </div>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>All prices are sourced in real-time from the Travelport GDS platform.</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>{selectedFlight.source === 'AD' ? 'All prices are live from the airline.' : 'All prices are sourced in real-time from the Travelport GDS platform.'}</div>
                     </div>
                   );
                 })()}
@@ -10398,7 +10255,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 steps={['Checking your fare', 'Reserving your seats', 'Preparing secure payment']}
               />
             )}
-            {bookingStep === 'processing' && (
+            {bookingStep === 'processing' && selectedFlight.source !== 'AD' && (
               <div className="mmb-promo" role="note">
                 <div className="mmb-promo-title">Personalise your journey after booking</div>
                 <div className="mmb-promo-text">

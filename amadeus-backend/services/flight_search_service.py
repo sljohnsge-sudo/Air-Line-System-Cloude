@@ -338,6 +338,10 @@ def _parse_reply(reply: ET.Element) -> dict:
                         "bookingClass": _text(cabin, "rbd") if cabin is not None else None,
                         "fareBasis": _text(fpd, "fareBasis") if fpd is not None else None,
                         "ticketDesignator": _text(afd, "ticketDesignator") if afd is not None else None,
+                        # 14/11/2026: cabin code (M economy, W premium economy,
+                        # C business, F first) and seats left in this class.
+                        "cabin": _text(cabin, "cabin") if cabin is not None else None,
+                        "seatsAvailable": _text(cabin, "avlStatus") if cabin is not None else None,
                     })
                 if seg_ref and fares:
                     fares_by_leg[seg_ref] = fares
@@ -360,6 +364,8 @@ def _parse_reply(reply: ET.Element) -> dict:
             # flight belongs to, so the website can show a round trip as two
             # legs. Booking ignores it.
             seg["leg"] = leg_number
+            seg["cabin"] = fare.get("cabin")
+            seg["seatsAvailable"] = fare.get("seatsAvailable")
 
         item_number_el = _find_local(rec, "itemNumber")
         rec_item_id = _text(_find_local(item_number_el, "itemNumberId"), "number") if item_number_el is not None else None

@@ -92,6 +92,22 @@ def _leg_fields(segs: list[dict]) -> dict:
     }
 
 
+# Amadeus cabin codes (MasterPricer cabinProduct/cabin) -> the cabin names the
+# website uses for Travelport fares (14/11/2026). Before this the booking
+# class letter (e.g. "O") was shown as the cabin.
+_CABIN_NAMES = {"M": "Economy", "Y": "Economy", "W": "Premium Economy", "C": "Business", "F": "First"}
+
+
+def _cabin_name(segs: list[dict]) -> str | None:
+    codes = [str(s.get("cabin") or "").upper() for s in segs if s.get("cabin")]
+    if not codes:
+        return None
+    # The fare's main cabin: the highest one any flight is booked in.
+    order = ["F", "C", "W", "M", "Y"]
+    best = min(codes, key=lambda c: order.index(c) if c in order else len(order))
+    return _CABIN_NAMES.get(best, best)
+
+
 def customer_price(net_price: float, pricing_settings: dict, tickets: int = 1) -> float:
     """The price a customer pays for an Amadeus fare: the Amadeus fare plus
     the admin's markup (Admin Portal -> Pricing & Markup). Used for the
@@ -132,6 +148,10 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_tr
     # Travelport's own ticket markup (category "ticket"), 'separate' uses
     # its own amadeus_ticket_markup_* values (category "amadeus_ticket").
     price = customer_price(net_price, pricing_settings, tickets)
+    # Seats left in the booked class (Amadeus avlStatus, per flight): the
+    # lowest across the trip, shown like Travelport's "seats left".
+    seats = [int(s["seatsAvailable"]) for s in segs if str(s.get("seatsAvailable") or "").isdigit()]
+    seats_left = min(seats) if seats else None
 
     round_trip_fields = {"is_round_trip": True, "legs": legs} if legs else {}
     return {
@@ -144,8 +164,13 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_tr
         "fare_options": [{
             "price": price,
             "currency": raw_offer.get("currency") or "LKR",
-            "cabin_class": segs[0].get("bookingClass") or "Economy",
+            # Real cabin name from Amadeus; no fare-family (brand) name until
+            # Amadeus turns fare families on for this office.
+            "cabin_class": _cabin_name(segs),
             "brand_name": None,
+            "fare_basis_codes": list(dict.fromkeys(s.get("fareBasis") for s in segs if s.get("fareBasis"))),
+            "classes_of_service": list(dict.fromkeys(s.get("bookingClass") for s in segs if s.get("bookingClass"))),
+            "seats_remaining": seats_left,
             # Master Pricer returns baggage in one shared serviceFeesGrp
             # block (not nested per-recommendation) -- the reference chain
             # back to a specific offer WAS found (recommendation's own
