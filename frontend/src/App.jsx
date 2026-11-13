@@ -3039,7 +3039,8 @@ export default function App() {
       <ul style={{ textAlign: 'left', margin: '0.5rem 0 0.75rem', paddingLeft: '1.1rem', fontSize: '0.85rem' }}>
         {(list || []).map((r, i) => (
           <li key={i} style={{ marginBottom: '0.25rem', color: r.state === 'refused' ? '#9a3412' : r.state === 'confirmed' ? '#166534' : '#334155' }}>
-            {r.passenger ? `${r.passenger}: ` : ''}{labelOf(r.code)} ({r.code}){r.flight ? ` on ${r.flight}` : r.carrier ? ` (${r.carrier})` : ''} — {stateText[r.state] || `Airline status ${r.status || 'not given'}`}
+            {r.passenger ? `${r.passenger}: ` : ''}{labelOf(r.code)} ({r.code}){r.flight ? ` on ${r.flight}` : r.carrier ? ` (${r.carrier})` : ''} — {r.kind === 'address' && r.status
+              ? `On the booking (status ${r.status})` : (stateText[r.state] || `Airline status ${r.status || 'not given'}`)}
             {r.note && <div style={{ fontSize: '0.78rem', color: '#475569' }}>Airline note: {r.note}</div>}
           </li>
         ))}

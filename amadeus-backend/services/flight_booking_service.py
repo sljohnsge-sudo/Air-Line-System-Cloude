@@ -838,13 +838,16 @@ def special_request_outcomes(sent: list[dict], pnr: dict) -> list[dict]:
         if not it.get("added"):
             out.append({**base, "flight": None, "status": None, "state": "not_sent", "reason": it.get("error")})
             continue
+        # Sent to YY (every airline on the booking), Amadeus files it once per
+        # airline (e.g. companyId UL) - each of those lines is its answer.
         found = [r for r in in_pnr if r.get("code") == it["code"] and r.get("paxRef") == it["pax_ref"]
-                 and (r.get("carrier") in (it["carrier"], None))]
+                 and (it["carrier"] == "YY" or r.get("carrier") in (it["carrier"], None))]
         if not found:
             out.append({**base, "flight": None, "status": None, "state": "missing",
                         "reason": "not on the booking after it was saved"})
         for r in found:
-            out.append({**base, "flight": flights.get(r.get("segmentRef")), "status": r.get("status"),
+            out.append({**base, "carrier": r.get("carrier") or base["carrier"],
+                        "flight": flights.get(r.get("segmentRef")), "status": r.get("status"),
                         "state": ssr_state(r.get("status")), "reason": None, "note": r.get("note")})
     return out
 

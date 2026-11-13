@@ -3901,6 +3901,16 @@ async def ticket_status(query: str = Query(..., min_length=3, max_length=20),
         raise HTTPException(status_code=502, detail=f"Found this booking but Amadeus's live lookup failed: {e.message}")
 
     amadeus_result["source"] = "AD"
+    # 13/11/2026 audit: totalFare here is Amadeus's fare for the booking (no
+    # markup); what the customer paid us is our own record - given apart.
+    try:
+        ad_row = ad_bookings.get(str(amadeus_result.get("locator") or "")) if amadeus_result.get("locator") else None
+    except Exception as e:
+        logger.warning(f"Ticket-status: our record for Amadeus {amadeus_result.get('locator')} not read: {e}")
+        ad_row = None
+    if ad_row and ad_row.get("status") == "ticketed":
+        amadeus_result["amount_paid"] = ad_row.get("amount")
+        amadeus_result["amount_paid_currency"] = ad_row.get("currency")
     return amadeus_result if (principal and principal["role"] == "admin") else _public_booking_view(amadeus_result)
 
 
