@@ -254,8 +254,10 @@ def _flight_key(offer: dict) -> tuple:
 def _one_card_per_flight(offers: list[dict]) -> list[dict]:
     """14/11/2026: the same flights priced in Economy and in Business come
     back as separate Amadeus recommendations. One card per set of flights,
-    with one fare per cabin (the cheapest Amadeus returned for it), like the
-    cabin tabs of Travelport fares. A cabin Amadeus didn't price isn't shown."""
+    with every fare Amadeus returned for them (13/11/2026 audit: none
+    dropped), grouped by cabin in the pop-up like Travelport's cabin tabs.
+    A cabin Amadeus didn't price isn't shown. Exact repeats (same cabin,
+    classes, fare basis and price) are listed once."""
     cards: dict = {}
     for o in offers:
         key = _flight_key(o)
@@ -264,11 +266,10 @@ def _one_card_per_flight(offers: list[dict]) -> list[dict]:
         if card is None:
             cards[key] = {**o, "fare_options": [fare]}
             continue
-        same_cabin = next((f for f in card["fare_options"] if f.get("cabin_class") == fare.get("cabin_class")), None)
-        if same_cabin is None:
+        same = lambda f: (f.get("cabin_class"), tuple(f.get("classes_of_service") or ()),
+                          tuple(f.get("fare_basis_codes") or ()), f.get("price"))
+        if not any(same(f) == same(fare) for f in card["fare_options"]):
             card["fare_options"].append(fare)
-        elif fare["price"] < same_cabin["price"]:
-            card["fare_options"][card["fare_options"].index(same_cabin)] = fare
     out = []
     for card in cards.values():
         card["fare_options"].sort(key=lambda f: f["price"])
