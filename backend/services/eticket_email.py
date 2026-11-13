@@ -306,8 +306,16 @@ def amadeus_facts(row: dict, view: dict | None) -> tuple[list, str | None, dict]
     docs = [d for d in ((view or {}).get("documents") or []) if d.get("kind") == "ticket" and d.get("status") == "issued"]
     travelers = row.get("travelers") or []
     if docs:
-        passengers = [{"name": (d.get("passenger") or "").upper(),
-                       "type": "Infant" if d.get("infant") else "", "ticket": d.get("number")} for i, d in enumerate(docs)]
+        # A lap infant's ticket line is filed under its adult's name; the
+        # infant's own name is its INF passenger on the booking (in order).
+        infants = [f"{t.get('firstName') or ''} {t.get('lastName') or ''}".strip().upper()
+                   for t in ((view or {}).get("travelers") or []) if (t.get("type") or "").upper() == "INF"]
+        passengers = []
+        for d in docs:
+            name = (d.get("passenger") or "").upper()
+            if d.get("infant"):
+                name = infants.pop(0) if infants else ""
+            passengers.append({"name": name, "type": "Infant" if d.get("infant") else "", "ticket": d.get("number")})
         tickets = [d.get("number") for d in docs]
     else:
         tickets = row.get("ticket_list") or []
