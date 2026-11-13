@@ -1736,6 +1736,7 @@ def _ad_my_booking(row: dict, refund: dict | None = None) -> dict:
         "airline": it.get("airline") or row.get("airline_code"), "airline_code": row.get("airline_code"),
         "flight_number": it.get("flight_number") or (row.get("flights") or "").split(" ")[0],
         "cabin_class": it.get("cabin_class"),
+        "fare_family": it.get("fare_family"), "baggage_allowance": it.get("baggage_allowance"),
         "departure_airport": it.get("departure_airport") or (route[0] if route else None),
         "arrival_airport": it.get("arrival_airport") or (route[-1] if route else None),
         "departure_time": it.get("departure_time") or row.get("travel_date"),
@@ -1827,6 +1828,14 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
     is_staff = bool(principal and principal.get("role") == "admin")
     first = travelers[0]
     itinerary = _ad_itinerary(request.segments)
+    # The airline's brand and free checked baggage on the held fare (Amadeus's
+    # pricing of this PNR) - for My Bookings and the e-ticket email.
+    if itinerary is not None:
+        if pricing.get("fareFamilies"):
+            itinerary["fare_family"] = " / ".join(pricing["fareFamilies"])
+        bags = list(dict.fromkeys(pricing.get("baggage") or []))
+        if bags:
+            itinerary["baggage_allowance"] = " / ".join(bags)
     row = ad_bookings.create(
         loc, net_amount=net, amount=amount, currency=currency, tickets=tickets,
         customer_id=principal.get("customer_id") if principal and principal.get("role") == "customer" else None,

@@ -331,6 +331,25 @@ def fare_family_codes(reply) -> list[str]:
     return out
 
 
+def baggage_texts(fare_list) -> list[str]:
+    """The free checked baggage of one priced fare, per flight in order, as
+    the airline filed it: "30 kg" (weight) or "2 pieces" (piece count); "0 kg"
+    means no free checked bag. Empty when the airline files none."""
+    out = []
+    for seg in _find_all_local(fare_list, "segmentInformation") if fare_list is not None else []:
+        det = _find_deep(seg, "bagAllowanceInformation", "bagAllowanceDetails")
+        if det is None:
+            continue
+        kind = _text(det, "baggageType")
+        if kind == "W" and _text(det, "baggageWeight") is not None:
+            unit = {"K": "kg", "L": "lb"}.get(_text(det, "measureUnit") or "K", "kg")
+            out.append(f"{_text(det, 'baggageWeight')} {unit}")
+        elif kind == "N" and _text(det, "baggageQuantity") is not None:
+            qty = _text(det, "baggageQuantity")
+            out.append(f"{qty} piece{'s' if qty != '1' else ''}")
+    return out
+
+
 def _parse_informative_reply(reply) -> dict:
     """Total, currency, fare basis per segment and fare components from a
     Fare_InformativePricingWithoutPNRReply -- or the error Amadeus gave."""
@@ -1156,6 +1175,7 @@ async def price_pnr(session: AmadeusSession, segments: list[dict] | None = None,
 
     tst_refs: list[str] = []
     held_families: list[str] = []
+    held_baggage: list[str] = []
     seen_pax_refs: set[str] = set()
     last_ticketing: dict | None = None
     validating_carrier_text = None
@@ -1209,6 +1229,9 @@ async def price_pnr(session: AmadeusSession, segments: list[dict] | None = None,
         for fam in fare_family_codes(fare_list):
             if fam not in held_families:
                 held_families.append(fam)
+        # Free baggage of the booked fare - the first passenger type's.
+        if not held_baggage:
+            held_baggage = baggage_texts(fare_list)
 
         if validating_carrier_text is None:
             vc = _find_deep(fare_list, "validatingCarrier", "carrierInformation", "carrierCode")
@@ -1239,6 +1262,8 @@ async def price_pnr(session: AmadeusSession, segments: list[dict] | None = None,
         "lastTicketing": last_ticketing,
         # 14/11/2026: the airline's fare family (brand) on the held fare.
         "fareFamilies": held_families,
+        # Free checked baggage per flight, as priced by the airline.
+        "baggage": held_baggage,
     }
 
 
