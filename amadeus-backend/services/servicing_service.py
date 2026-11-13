@@ -161,9 +161,13 @@ def _view(body_root) -> dict:
     valid_tickets = [d for d in valid if d["kind"] == "ticket"]
     return {
         "locator": pnr.get("locator"),
-        "travelers": [{"firstName": t.get("firstName"), "lastName": t.get("lastName"), "type": t.get("type")}
+        "travelers": [{"firstName": t.get("firstName"), "lastName": t.get("lastName"), "type": t.get("type"),
+                       "paxRef": t.get("paxRef")}
                       for t in pnr.get("travelers", [])],
         "segments": pnr.get("segments", []),
+        # Every SSR with the airline's status code (passport/contact text left
+        # out) - the customer's Booking Status page shows meals and assistance.
+        "special_requests": pnr.get("specialRequests") or [],
         "documents": docs,
         # The airline's own ticketing deadline / cancellation time (OPW / OPC).
         "airline_deadlines": pnr.get("airlineDeadlines") or [],

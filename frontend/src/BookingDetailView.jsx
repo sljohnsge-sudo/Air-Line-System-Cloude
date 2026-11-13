@@ -3,7 +3,6 @@
 // fare, seats and extras as booked). "Live status & manage booking" opens the
 // Booking Status page (BookingStatusPage) pre-filled for this booking. The
 // ticket and cancellation actions live here rather than on the list row.
-import { useState } from 'react';
 import { cleanPassengerName } from './BookingCard.jsx';
 import { fmtDateTime } from './dateFormat.js';
 
@@ -21,8 +20,11 @@ const panel = { padding: '0.9rem 1.1rem', marginBottom: '0.9rem' };
 const h4 = { margin: '0 0 0.6rem' };
 const line = { display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', fontSize: '0.82rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-color)' };
 
+// A leg saved without its own segment list (an Amadeus direct flight) is its one segment.
 const legsOf = (b) => {
-  if (Array.isArray(b.legs) && b.legs.length) return b.legs;
+  if (Array.isArray(b.legs) && b.legs.length) {
+    return b.legs.map(l => (Array.isArray(l.segments) && l.segments.length ? l : { ...l, segments: [l] }));
+  }
   if (Array.isArray(b.segments) && b.segments.length) return [{ ...b, segments: b.segments }];
   return [{ ...b, segments: [{ flight_number: b.flight_number, departure_airport: b.departure_airport, arrival_airport: b.arrival_airport,
                                departure_time: b.departure_time, arrival_time: b.arrival_time, departure_terminal: b.departure_terminal,
@@ -32,7 +34,6 @@ const legsOf = (b) => {
 const travelerName = (t) => cleanPassengerName(t.confirmed_name || t.full_name || `${t.first_name || t.given_name || ''} ${t.last_name || t.surname || ''}`);
 
 export default function BookingDetailView({ booking: b, liveStatus, onBack, onViewTicket, onRequestCancellation, onLiveStatus }) {
-  const [adManageNote, setAdManageNote] = useState(false);
   const status = liveStatus?.checked ? liveStatus.status : b.status;
   // Paid but the airline issued no ticket (Amadeus): a full refund request was
   // filed automatically. Shown with that request's status - nothing to manage.
@@ -90,21 +91,9 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           {!cancelled && onRequestCancellation && (
             <button className="btn btn-secondary btn-sm" onClick={() => onRequestCancellation(b)}>Request Cancellation</button>
           )}
-          {/* Manage booking (seats / extras after the ticket) is Travelport-only for now:
-              on Amadeus bookings it is shown greyed out and says so. */}
-          {b.source !== 'AD' ? (
-            <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => onLiveStatus(b)}>Live status & manage booking</button>
-          ) : (
-            <button type="button" className="btn btn-secondary btn-sm" aria-disabled="true"
-                    style={{ marginLeft: 'auto', opacity: 0.55, cursor: 'not-allowed' }}
-                    title="Seats and extras are not available for this booking yet"
-                    onClick={() => setAdManageNote(true)}>Seats &amp; extras</button>
-          )}
-          {b.source === 'AD' && adManageNote && (
-            <div role="alert" style={{ flexBasis: '100%', fontSize: '0.8rem', color: '#9a3412' }}>
-              Seats and extras are not available for this booking yet.
-            </div>
-          )}
+          {/* Travelport and Amadeus: the same Booking Status page (what can't be
+              changed online for a booking is greyed out there and says why). */}
+          <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => onLiveStatus(b)}>Live status & manage booking</button>
         </div>
         )}
       </section>

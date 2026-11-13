@@ -1440,6 +1440,8 @@ def _parse_pnr_reply(body_root) -> dict:
                     "firstName": _text(passenger, "firstName") if passenger is not None else None,
                     "type": ptype,
                     "date_of_birth": dob if (len(passengers) < 2 or is_infant) else None,
+                    # The PNR's passenger element (PT) - SSRs and FA lines point to it.
+                    "paxRef": pax_ref,
                 }
                 travelers.append(t)
                 if pax_ref:

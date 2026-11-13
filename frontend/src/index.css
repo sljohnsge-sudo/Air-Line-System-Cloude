@@ -4641,9 +4641,9 @@ button, input, select, textarea { font-family: inherit; }
 .mmb-tabs { display: flex; gap: 0.3rem; background: #fff; border: 1px solid var(--tb-border); border-radius: 14px; padding: 0.35rem; overflow-x: auto; scrollbar-width: thin; }
 .mmb-tab { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border: 0; border-radius: 10px;
   background: transparent; color: var(--tb-muted); font: inherit; font-size: 0.88rem; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
-.mmb-tab:hover:not(:disabled) { background: var(--tb-ice); color: var(--tb-navy); }
+.mmb-tab:hover:not(:disabled):not(.is-off) { background: var(--tb-ice); color: var(--tb-navy); }
 .mmb-tab[aria-selected="true"] { background: var(--tb-navy); color: #fff; box-shadow: 0 3px 10px rgba(18, 59, 112, 0.22); }
-.mmb-tab:disabled { opacity: 0.45; cursor: not-allowed; }
+.mmb-tab:disabled, .mmb-tab.is-off { opacity: 0.45; cursor: not-allowed; }
 .mmb-tab:focus-visible { outline: none; box-shadow: var(--tb-focus-ring); }
 @media (max-width: 600px) {
   .mmb-tabs { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; }

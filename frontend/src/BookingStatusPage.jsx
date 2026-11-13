@@ -118,8 +118,8 @@ function Overview({ data, onGo }) {
                 <span className="mmb-flight-icon"><IconPlane size={15} /></span>
                 <span className="mmb-flight-main"><strong>{f.flight}</strong> <span>{f.from} → {f.to}</span><small>{f.dir}</small></span>
                 <span className="mmb-flight-when">{fmtDateWeekday(f.departure)} · {fmtTime(f.departure)}{f.arrival ? ` – ${fmtTime(f.arrival)}` : ''}</span>
-                <span className="mmb-flight-cabin">{f.cabin ? `${f.cabin}${f.class ? ` (${f.class})` : ''}` : '–'}</span>
-                <span><Chip status={f.state}>{f.airline_status || 'No airline status'}{f.airline_status_code ? ` · ${f.airline_status_code}` : ''}</Chip></span>
+                <span className="mmb-flight-cabin">{f.cabin ? `${f.cabin}${f.class ? ` (${f.class})` : ''}` : f.class ? `Class ${f.class}` : '–'}</span>
+                <span><Chip status={f.state}>{f.airline_status || (f.airline_status_code ? 'Airline status' : 'No airline status')}{f.airline_status_code ? ` · ${f.airline_status_code}` : ''}</Chip></span>
               </div>
             ))}
           </div>
@@ -134,10 +134,12 @@ function Overview({ data, onGo }) {
               <div className="mmb-mini-row"><strong className="mmb-mono">{t.number}</strong><span className="mmb-muted">{t.issued ? `issued ${fmtDate(t.issued)}` : ''}</span></div>
               {t.passenger && <div className="mmb-muted">{t.passenger}</div>}
               <div className="mmb-chips">
+                {t.document_status && <Chip status={t.document_status === 'issued' ? 'ok' : t.document_status}>{t.status_label || t.document_status}</Chip>}
                 {t.error ? <span className="mmb-muted">{t.error}</span> : (t.coupons || []).map((c, i) => (
                   <Chip key={i} status={c.status}>{c.flight} {COUPON_LABELS[c.status] || c.status}</Chip>
                 ))}
               </div>
+              {t.coupons_note && !(t.coupons || []).length && <div className="mmb-muted">{t.coupons_note}</div>}
             </div>
           ))}
         </div>
@@ -168,7 +170,7 @@ function Overview({ data, onGo }) {
               {r.reason && <div className="mmb-muted mmb-seat-reason">{r.reason}</div>}
             </div>
           ))}
-          {!(data.seats || []).length && !(data.seat_requests || []).length && <div className="mmb-muted">No seats on the booking yet.</div>}
+          {!(data.seats || []).length && !(data.seat_requests || []).length && <div className="mmb-muted">{data.seats_note || 'No seats on the booking yet.'}</div>}
           {(data.seat_rules || []).map(c => (
             <div key={c.flight} className={`mmb-seat-rule${c.closed ? ' closed' : ''}`}>
               <IconInfo size={14} />
@@ -186,7 +188,7 @@ function Overview({ data, onGo }) {
           {list(data.extras, 'No extras on the booking yet.', (x, i) => (
             <div key={i} className="mmb-mini-row">
               <span><strong>{x.description}</strong> <span className="mmb-muted">{(x.flights || []).join(', ')}{x.passenger ? ` · ${x.passenger}` : ''}{x.emd ? ` · EMD ${x.emd}` : ''}</span></span>
-              <Chip status={x.status}>{x.status}</Chip>
+              <Chip status={x.status === 'issued' ? 'ok' : x.status}>{x.status_label || x.status}</Chip>
             </div>
           ))}
           {data.can_add_seats_extras && <button type="button" className="mmb-link" onClick={() => onGo('extras')}><IconBag size={14} /> Add extras</button>}
@@ -197,7 +199,7 @@ function Overview({ data, onGo }) {
           {list(data.special_services, 'No special requests on the booking yet.', (s, i) => (
             <div key={i} className="mmb-mini-row">
               <span><strong>{s.description}</strong> <span className="mmb-muted">{(s.flights || []).join(', ')}{s.passenger ? ` · ${s.passenger}` : ''}</span></span>
-              <Chip status={s.status}>{s.status}</Chip>
+              <Chip status={s.status}>{s.status || 'Airline status'}{s.status_code ? ` · ${s.status_code}` : ''}</Chip>
             </div>
           ))}
           {data.can_add_special_requests && <button type="button" className="mmb-link" onClick={() => onGo('requests')}><IconWheelchair size={14} /> Add a special request</button>}
@@ -218,6 +220,7 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
   const [manageMounted, setManageMounted] = useState(false);
   const [paying, setPaying] = useState(false);
   const [invoiceId, setInvoiceId] = useState(null);
+  const [tabNote, setTabNote] = useState('');
 
   // Seats/extras the airline confirmed after they were requested, on a
   // ticketed booking: price fixed server-side, then the usual card payment.
@@ -243,6 +246,7 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
     const fresh = !!e || q.trim().toUpperCase() !== (data?.locator_code || '');
     setLoading(true);
     setError('');
+    setTabNote('');
     try {
       const res = await fetchWithRetry(`${apiBase}/booking-status/lookup`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
@@ -384,13 +388,16 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
               const allowed = tabAllowed(t.id);
               const Icon = t.icon;
               return (
-                <button key={t.id} type="button" role="tab" className="mmb-tab" aria-selected={tab === t.id} disabled={!allowed}
-                        title={allowed ? undefined : 'Not available online for this booking'} onClick={() => go(t.id)}>
+                <button key={t.id} type="button" role="tab" className={`mmb-tab${allowed ? '' : ' is-off'}`} aria-selected={tab === t.id}
+                        aria-disabled={allowed ? undefined : 'true'}
+                        title={allowed ? undefined : (data.manage_note || 'Not available online for this booking')}
+                        onClick={() => { if (allowed) { setTabNote(''); go(t.id); } else setTabNote(data.manage_note || 'Not available online for this booking.'); }}>
                   <Icon size={17} /> {t.label}
                 </button>
               );
             })}
           </nav>
+          {tabNote && <div className="mmb-alert warn" role="alert">{tabNote}</div>}
 
           {tab === 'overview' && <Overview data={data} onGo={go} />}
           {manageMounted && (
@@ -398,7 +405,7 @@ export default function BookingStatusPage({ apiBase, fetchWithRetry, authToken, 
                              fetchWithRetry={fetchWithRetry} authToken={authToken} onChanged={() => lookup()} />
           )}
           {tab === 'overview' && (
-            <p className="mmb-footnote"><IconInfo size={14} /> Everything above is read live from the airline. Changes you make in the other tabs go straight to the airline.</p>
+            <p className="mmb-footnote"><IconInfo size={14} /> Everything above is read live from the airline.{TABS.some(t => t.id !== 'overview' && tabAllowed(t.id)) ? ' Changes you make in the other tabs go straight to the airline.' : ''}</p>
           )}
         </>
       )}

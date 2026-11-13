@@ -1304,6 +1304,7 @@ async def amadeus_booking_issue_ticket(locator: str, _admin: dict = Depends(auth
 # Paid seats and extras are not sold on Amadeus fares yet.
 
 from services import amadeus_customer_bookings as ad_bookings
+from services import amadeus_booking_status
 from services import amadeus_ssr_outcomes as ad_ssr
 from services.amadeus_aggregator import customer_price as amadeus_customer_price
 from services.amadeus_aggregator import _leg_fields as _ad_leg_fields, _cabin_name as _ad_cabin_name
@@ -6300,21 +6301,25 @@ LOOKUP_UNAVAILABLE = ("The airline's booking system didn't answer just now, so w
 
 @app.post("/api/booking-status/lookup")
 def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = Depends(auth.get_current_customer)):
+    # An Amadeus booking made on this website (PNR or ticket number): the same
+    # page, read live from the Amadeus PNR (services/amadeus_booking_status.py).
+    try:
+        ad_locator = amadeus_booking_status.find_locator(request.query)
+    except Exception as e:
+        logger.warning(f"Booking lookup {request.query}: Amadeus bookings table not readable — {e}")
+        ad_locator = None
+    if ad_locator:
+        try:
+            return amadeus_booking_status.lookup(ad_locator, request.last_name)
+        except amadeus_booking_status.NotFound:
+            raise HTTPException(status_code=404, detail=LOOKUP_NOT_FOUND)
+        except amadeus_booking_status.Unavailable as e:
+            logger.warning(f"Booking lookup {ad_locator}: Amadeus not reachable — {e}")
+            raise HTTPException(status_code=503, detail=amadeus_booking_status.UNAVAILABLE)
     with services.flow_trace_id() as trace_id:
         try:
             live = manage_booking_service.lookup(request.query, request.last_name)
         except manage_booking_service.NotFound as e:
-            # This page reads Travelport bookings. An Amadeus booking does
-            # exist — say where to see it rather than "couldn't find" (13/11/2026).
-            q = (request.query or "").strip().upper()
-            try:
-                ad_row = ad_bookings.get(q) if re.fullmatch(r"[A-Z0-9]{5,8}", q) else None
-            except Exception:
-                ad_row = None
-            if ad_row:
-                raise HTTPException(status_code=404, detail=(
-                    f"Booking {q} is in your account under My Bookings — open it there to see the booking and "
-                    f"ticket. Changes to this booking can't be made online yet."))
             raise HTTPException(status_code=404, detail=str(e) or LOOKUP_NOT_FOUND)
         except (manage_booking_service.Unavailable, services.CancelError) as e:
             logger.warning(f"Booking lookup {request.query}: airline system unavailable — {e} (TraceId {trace_id})")

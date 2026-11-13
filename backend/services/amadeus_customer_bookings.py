@@ -16,6 +16,7 @@ numbers are stored here.
 """
 import json
 import logging
+import re
 import threading
 
 import database
@@ -141,6 +142,20 @@ def create(locator: str, *, net_amount: float, amount: float, currency: str, tic
 
 def get(locator: str) -> dict | None:
     return _clean(_q("SELECT * FROM amadeus_customer_bookings WHERE locator=%s", ((locator or "").upper(),), one=True))
+
+
+def locator_for_ticket(ticket_number: str) -> str | None:
+    """The booking whose saved ticket numbers include this one (13 digits,
+    with or without the dash Amadeus writes: 603-3943119061)."""
+    digits = re.sub(r"\D", "", ticket_number or "")
+    if len(digits) != 13:
+        return None
+    rows = _q("SELECT * FROM amadeus_customer_bookings WHERE REPLACE(ticket_numbers, '-', '') LIKE %s",
+              (f"%{digits}%",))
+    for row in rows:
+        if any(re.sub(r"\D", "", str(n)) == digits for n in (_clean(row).get("ticket_list") or [])):
+            return row["locator"]
+    return None
 
 
 def set_method(locator: str, method: str) -> None:
