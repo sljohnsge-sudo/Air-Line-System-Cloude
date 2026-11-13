@@ -850,6 +850,7 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
   const [emailTo, setEmailTo] = useState('');
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState(null); // { ok, text }
+  const pictureCopied = useRef(false); // this set of pictures is on the clipboard (WhatsApp on a computer)
   const visible = items.length > 0;
   const tooMany = items.length > MAX_SHARE_FARES;
   const itemsKey = items.map(i => `${i.key}|${i.total}|${i.fare}`).join(',');
@@ -878,6 +879,7 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
   // sheet can open straight from the button press.
   useEffect(() => {
     setStatus(null);
+    pictureCopied.current = false;
     if (!visible || tooMany) { setImages(null); return undefined; }
     let cancelled = false;
     let made = [];
@@ -929,6 +931,43 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
     } catch (err) {
       if (err?.name === 'AbortError') return true;
       return false;
+    }
+  };
+
+  // Computers (13/11/2026): WhatsApp's chat link can only carry text, so the
+  // picture used to arrive only if the customer downloaded and attached it.
+  // Now "Copy picture & open WhatsApp" puts the picture on the clipboard
+  // first; in the chat the customer presses Ctrl+V (⌘V on a Mac) to add it.
+  // The clipboard holds one picture: with several fares the first is copied
+  // and the others stay as downloads.
+  const canCopyPicture = (() => {
+    try { return !!(images?.length && window.ClipboardItem && navigator.clipboard?.write); } catch { return false; }
+  })();
+  const pasteKey = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || '') ? '⌘V' : 'Ctrl+V';
+  const copyPicture = async () => {
+    if (!canCopyPicture) return false;
+    try {
+      const blob = images[0].blob || images[0].file;
+      await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': blob })]);
+      return true;
+    } catch { return false; }
+  };
+  const openWhatsApp = async (e) => {
+    e.preventDefault();
+    // Copy first (the page must still have focus), then open WhatsApp. A
+    // second click opens at once, so a browser that blocks a tab opened
+    // after a wait still gets the chat on the next click.
+    if (!pictureCopied.current) pictureCopied.current = await copyPicture();
+    const win = window.open(whatsappUrl, '_blank');
+    if (win) { try { win.opener = null; } catch { /* other site */ } }
+    const others = images?.length > 2 ? ` Download pictures 2–${images.length} above to attach them too.`
+      : images?.length === 2 ? ' Download picture 2 above to attach it too.' : '';
+    if (!win) {
+      setStatus({ ok: false, text: `Your browser stopped WhatsApp from opening${pictureCopied.current ? ' (the picture is copied)' : ''}. Please press the button again.` });
+    } else if (pictureCopied.current) {
+      setStatus({ ok: true, text: `The ${images.length > 1 ? 'first picture' : 'picture'} is copied. In WhatsApp, choose the chat, click in the message box and press ${pasteKey} to add it, then send.${others}` });
+    } else {
+      setStatus({ ok: true, text: `WhatsApp is opening with the message and link. Download the ${picturesWord} above and attach ${images?.length > 1 ? 'them' : 'it'} in the chat.` });
     }
   };
 
@@ -1052,17 +1091,19 @@ export function ShareFaresBar({ items, search, onClear, customerToken, apiBase =
                 ⬇ Download {images.length > 1 ? `picture ${i + 1}` : 'image'}
               </a>
             ))}
-            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ ...btn, background: '#25d366', color: '#ffffff' }}>
-              <img src={whatsappIcon} alt="" style={{ width: '16px', height: '16px' }} /> Open WhatsApp
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={openWhatsApp} style={{ ...btn, background: '#25d366', color: '#ffffff' }}>
+              <img src={whatsappIcon} alt="" style={{ width: '16px', height: '16px' }} /> {canCopyPicture ? 'Copy picture & open WhatsApp' : 'Open WhatsApp'}
             </a>
             {canShareFiles && (
               <button type="button" onClick={shareFiles} style={{ ...btn, background: '#f1f5f9', color: '#1e293b' }}>Share with an app…</button>
             )}
           </div>
           <div style={small}>
-            {images?.length
-              ? <>Download the {picturesWord}, then open WhatsApp — the message with the link is filled in. Attach the downloaded {picturesWord} in the chat and send.</>
-              : <>Open WhatsApp — the message with the link is filled in.</>}
+            {canCopyPicture
+              ? <>WhatsApp's chat link carries text only, so the {images.length > 1 ? 'first picture is' : 'picture is'} copied for you. In WhatsApp, choose the chat — the message with the link is already filled in — click in the message box and press <strong>{pasteKey}</strong> to add the picture, then send.</>
+              : images?.length
+                ? <>Download the {picturesWord}, then open WhatsApp — the message with the link is filled in. Attach the downloaded {picturesWord} in the chat and send.</>
+                : <>Open WhatsApp — the message with the link is filled in.</>}
           </div>
         </div>
       )}
