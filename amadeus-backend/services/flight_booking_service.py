@@ -1130,14 +1130,31 @@ def _parse_pnr_reply(body_root) -> dict:
     # price_pnr()'s own "712"/total qualifier on the pricing reply). Lets the
     # final ticket receipt show fare/payment details without needing the
     # client to still have confirm_booking's pricing result in memory.
+    # 13/11/2026: a PNR has one TST per passenger type (e.g. ADT and CHD),
+    # and a TST's amount is per passenger, for every passenger it references
+    # (PT). The booking total is the sum over all TSTs - reading only the
+    # first TST gave the adult's fare alone for a family booking.
     total_fare, fare_currency = None, None
-    tst_data = _find_local(reply, "tstData")
-    fare_data = _find_local(tst_data, "fareData") if tst_data is not None else None
-    for mon in _find_all_local(fare_data, "monetaryInfo"):
-        if _text(mon, "qualifier") == "T":
-            total_fare = _text(mon, "amount")
-            fare_currency = _text(mon, "currencyCode")
-            break
+    grand, found = 0.0, False
+    for tst_data in _find_all_local(reply, "tstData"):
+        fare_data = _find_local(tst_data, "fareData")
+        amount = None
+        for mon in _find_all_local(fare_data, "monetaryInfo") if fare_data is not None else []:
+            if _text(mon, "qualifier") == "T":
+                amount = _text(mon, "amount")
+                fare_currency = fare_currency or _text(mon, "currencyCode")
+                break
+        try:
+            per_pax = float(amount) if amount else None
+        except ValueError:
+            per_pax = None
+        if per_pax is None:
+            continue
+        pax = sum(1 for ref in tst_data.iter() if _local(ref.tag) == "reference" and _text(ref, "qualifier") == "PT")
+        grand += per_pax * max(pax, 1)
+        found = True
+    if found:
+        total_fare = str(int(grand)) if grand == int(grand) else f"{grand:.2f}"
 
     return {
         "locator": locator,

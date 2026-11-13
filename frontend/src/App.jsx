@@ -2293,7 +2293,7 @@ export default function App() {
   useEffect(() => {
     // Loaded when the site opens and again at the review step, so the
     // payment choice is complete the moment the review step shows.
-    if (bookingStep && bookingStep !== 'review') return;
+    if (bookingStep && bookingStep !== 'review' && bookingStep !== 'amadeus_passenger') return;
     fetch(`${API_BASE}/payment-methods`).then(r => r.ok ? r.json() : null)
       .then(d => { if (d) { setPayMethods(d); if (!d.card && paymentMethod === 'card') setPaymentMethod(d.bank ? 'bank' : 'card'); } })
       .catch(() => {});
@@ -2316,6 +2316,9 @@ export default function App() {
   const [amadeusContactEmail, setAmadeusContactEmail] = useState('');
   const [amadeusContactPhone, setAmadeusContactPhone] = useState('');
   const amadeusBookingInFlightRef = useRef(false);
+  // The held booking (locator, AD-<PNR> reference, server price) between
+  // holding and paying.
+  const [amadeusHeld, setAmadeusHeld] = useState(null);
 
   // Check My Ticket Status — one field, PNR or ticket number, no GDS picker.
   // The backend figures out which GDS it belongs to (see /api/ticket-status)
@@ -2998,6 +3001,8 @@ export default function App() {
       })));
       setAmadeusContactEmail('');
       setAmadeusContactPhone('');
+      setAmadeusHeld(null);
+      setDataConfirmAgreed(false);
       setBookingError('');
       setBookingStep('amadeus_passenger');
       return;
@@ -3502,7 +3507,7 @@ export default function App() {
 
     setAmadeusFareRulesLoading(prev => ({ ...prev, [flight.offer_id]: true }));
     try {
-      const resp = await fetch(`${AMADEUS_API_BASE}/flights/fare-rules`, {
+      const resp = await fetch(`${API_BASE}/amadeus-fare-rules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3516,6 +3521,8 @@ export default function App() {
             marketingCarrier: s.marketingCarrier,
             flightNumber: s.flightNumber,
             bookingClass: s.bookingClass,
+            fareBasis: s.fareBasis,
+            ticketDesignator: s.ticketDesignator,
           })),
           paxCount: 1,
         }),
@@ -3537,100 +3544,12 @@ export default function App() {
     }
   };
 
-  // Passenger details are valid -- fetch the real Amadeus seat map for the
-  // first segment and show the existing seat-grid step (same seatMap/
-  // selectedSeats/activePassengerIdx state and renderSeat() Travelport
-  // already uses) before actually confirming the booking. `travelers` here
-  // (first_name/last_name, what the seats-step sidebar reads) is populated
-  // from amadeusTravelers (firstName/lastName) just for this display --
-  // amadeusTravelers stays the source of truth sent to confirm_booking.
-  const handleAmadeusContinueToSeats = async () => {
-    if (amadeusTravelers.some(t => !t.firstName.trim() || !t.lastName.trim())) {
-      setBookingError('Enter first and last name for every traveler.');
-      return;
-    }
-    if (amadeusTravelers.some(t => !t.dateOfBirth || !t.passportNumber.trim() || !t.passportExpiry || !t.passportIssueCountry)) {
-      setBookingError('Enter date of birth and passport details for every traveler.');
-      return;
-    }
-    if (!amadeusContactEmail.trim() || !amadeusContactPhone.trim()) {
-      setBookingError('Enter a contact email and phone number.');
-      return;
-    }
-    setBookingError('');
-    setTravelers(amadeusTravelers.map(t => ({ first_name: t.firstName.trim(), last_name: t.lastName.trim(), type: t.type })));
-    setSelectedSeats([]);
-    setActivePassengerIdx(0);
-    setAncillaries([]);
-    setSelectedAncillaries([]);
-
-    const segs = selectedFlight?.raw_offering?.segments;
-    const seg = segs?.[0];
-    if (!seg) {
-      handleConfirmAmadeusBooking();
-      return;
-    }
-
-    // Fetch ancillaries (extra baggage, meal preferences) alongside the seat
-    // map — same Service_StandaloneCatalogue data source either way, so one
-    // best-effort call covers the whole itinerary regardless of how many
-    // legs it has. A failure here must not block booking, same as the seat
-    // map fetch below.
-    let fetchedAncillaries = [];
-    try {
-      const ancResp = await fetch(`${AMADEUS_API_BASE}/flights/ancillaries`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ segments: segs }),
-      });
-      const ancResult = ancResp.ok ? await ancResp.json() : null;
-      fetchedAncillaries = ancResult?.ancillaries || [];
-      setAncillaries(fetchedAncillaries);
-    } catch (err) {
-      // best-effort — proceed without ancillaries
-    }
-
-    try {
-      const resp = await fetch(`${AMADEUS_API_BASE}/flights/seat-map`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          departureDate: seg.departureDate, departureTime: seg.departureTime,
-          arrivalDate: seg.arrivalDate, arrivalTime: seg.arrivalTime,
-          from: seg.from, to: seg.to,
-          marketingCarrier: seg.marketingCarrier, flightNumber: seg.flightNumber,
-          bookingClass: seg.bookingClass,
-          // Amadeus prices seats by the fare basis (12/11/2026).
-          fareBasis: seg.fareBasis, ticketDesignator: seg.ticketDesignator,
-        }),
-      });
-      const result = resp.ok ? await resp.json() : null;
-      if (!result || !result.available) {
-        // No seat map for this flight — go straight to Extras (if any),
-        // same as Travelport's own "no seat map available" fallback.
-        if (fetchedAncillaries.length > 0) {
-          setBookingStep('ancillaries');
-        } else {
-          handleConfirmAmadeusBooking();
-        }
-        return;
-      }
-      // Amadeus only ever supplies one segment's seat map here — out of
-      // scope for round-trip return-leg selection, which is Travelport-only
-      // per this change (see services/workbench_service.py).
-      setSeatMaps([result]);
-      setActiveSeatLeg(0);
-      setBookingStep('seats');
-    } catch (err) {
-      if (fetchedAncillaries.length > 0) {
-        setBookingStep('ancillaries');
-      } else {
-        handleConfirmAmadeusBooking();
-      }
-    }
-  };
-
-  // ── Amadeus ("AD") booking: confirm (sell+PNR+price+TST) → pay → ticket ──
+  // ── Amadeus ("AD") booking: hold → pay → ticket (13/11/2026) ─────────────
+  // Same order as Travelport fares. Our server books and holds the flights
+  // with the airline and works out the price (never the browser); the
+  // customer then pays by card, bank transfer or cash, and the ticket is only
+  // issued once the payment is confirmed. Seats and extras are not sold on
+  // these fares yet, so nothing is shown or charged for them.
   const handleConfirmAmadeusBooking = async () => {
     if (amadeusBookingInFlightRef.current) return;
     if (amadeusTravelers.some(t => !t.firstName.trim() || !t.lastName.trim())) {
@@ -3645,75 +3564,43 @@ export default function App() {
       setBookingError('Enter a contact email and phone number.');
       return;
     }
+    if (!dataConfirmAgreed) {
+      setBookingError('Please confirm the passenger details match the travel documents.');
+      return;
+    }
     amadeusBookingInFlightRef.current = true;
     setBookingStep('amadeus_processing');
     setBookingError('');
-
     try {
-      // Calls amadeus-backend DIRECTLY (not the ${API_BASE}/amadeus-bookings/confirm
-      // proxy on the Travelport backend) -- that proxy validates the request body
-      // against its own AmadeusBookingTraveler Pydantic model, which would silently
-      // strip the passport/document fields below since they aren't declared there,
-      // and that file isn't something this change touches.
-      const res = await fetchWithRetry(`${AMADEUS_API_BASE}/bookings/confirm`, {
+      const res = await fetchWithRetry(`${API_BASE}/amadeus-bookings/hold`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...signedInHeaders() },
         body: JSON.stringify({
           segments: selectedFlight.raw_offering.segments,
           travelers: amadeusTravelers.map(t => ({
             firstName: t.firstName.trim(), lastName: t.lastName.trim(), type: t.type,
-            dateOfBirth: t.dateOfBirth, gender: t.gender,
+            dateOfBirth: t.dateOfBirth, gender: t.gender || 'Male',
             passportNumber: t.passportNumber.trim(), passportExpiry: t.passportExpiry,
             passportIssueCountry: t.passportIssueCountry, nationality: t.nationality || t.passportIssueCountry,
           })),
           contactEmail: amadeusContactEmail.trim(),
           contactPhone: amadeusContactPhone.trim(),
-        })
+          quotedPrice: selectedFlight.price,
+          quotedCurrency: selectedFlight.currency,
+        }),
       });
-      const data = await handleApiResponse(res, 'Amadeus booking failed');
-      const locator = data.locator;
-      // Amadeus's own confirm response prices the PNR at ITS net fare (no
-      // markup applied there -- the admin's markup is applied only on the
-      // search-display side, in amadeus_aggregator.py). Charge the customer
-      // the marked-up price they actually saw and agreed to on the search
-      // results / passenger-details screen, not Amadeus's net amount.
-      // Ancillary extras (baggage/meals) are display-only on top of that —
-      // same fidelity as Travelport: not yet actually booked with Amadeus
-      // (no confirmed EMD-issuance operation for our account yet), just
-      // charged and shown on the receipt.
-      const ancillaryChargesAD = selectedAncillaries.reduce((acc, a) => acc + a.price, 0);
-      const pricing = { ...data.pricing, totalAmount: selectedFlight.price + ancillaryChargesAD, currency: selectedFlight.currency || data.pricing?.currency };
-
-      if (paymentMethod === 'card') {
-        // PayCorp redirects the browser away and back — selectedAncillaries
-        // (in-memory React state) won't survive that reload, so stash it
-        // here and read it back in the PayCorp-return effect below. Without
-        // this, a card-paying customer who bought extras would be charged
-        // the right total (pricing.totalAmount already includes it) but see
-        // a receipt missing the itemized ancillary charge after returning.
-        try {
-          sessionStorage.setItem(`ad_ancillaries_${locator}`, JSON.stringify(selectedAncillaries));
-        } catch (e) { /* best-effort */ }
-        const baseUrl = `${window.location.origin}${window.location.pathname}`;
-        const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: pricing.totalAmount,
-            currency: pricing.currency || 'LKR',
-            return_url: `${baseUrl}?locator=${locator}&src=AD`,
-            cancel_url: `${baseUrl}?locator=${locator}&src=AD&payment=cancelled`,
-            client_ref: locator,
-            comment: `George Steuart Travel - Amadeus ${locator}`
-          })
-        });
-        const payData = await handleApiResponse(payRes, 'Failed to start payment');
-        window.location.href = payData.payment_page_url;
+      const held = await handleApiResponse(res, 'We could not book this fare');
+      setAmadeusHeld(held);
+      reportJourneyStep('Booking held', { detail: `Held with the airline (${held.reference}) for ${held.currency} ${held.amount}` });
+      if (held.price_changed) {
+        // The airline's price differs from the one shown: the customer sees
+        // the new amount (also in the trip summary) and decides before
+        // anything is charged.
+        setSelectedFlight(f => (f ? { ...f, price: held.amount, currency: held.currency } : f));
+        setBookingStep('amadeus_pay');
         return;
       }
-
-      // Cash / Bank Transfer — attempt ticketing immediately.
-      await finishAmadeusTicketing(locator, pricing);
+      await payAmadeusBooking(held);
     } catch (err) {
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
@@ -3724,36 +3611,55 @@ export default function App() {
     }
   };
 
-  // Shared by the cash path above and the PayCorp-return effect below.
-  // Amadeus ticket issuance is currently blocked by an unresolved Amadeus
-  // office-authority gate (errorCode 2011 "ENTRY NOT AUTHORISED") — this is
-  // NOT treated as a failure: the PNR is real and confirmed either way, so
-  // this always lands on the amadeus_ticket screen, which shows "Issued" or
-  // "Ticketing pending" depending on whether Amadeus actually returned
-  // ticket numbers.
-  const finishAmadeusTicketing = async (locator, pricing) => {
-    const fallbackFlight = { ...selectedFlight, price: pricing?.totalAmount, currency: pricing?.currency };
-    try {
-      const issueRes = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${locator}/issue-ticket`, {
+  // Card: NDB's card page (the server fixes the amount from the held
+  // booking). Bank transfer / cash: the booking stays held until staff
+  // confirm the money in Admin > Bank & Cash Payments.
+  const payAmadeusBooking = async (held) => {
+    if (paymentMethod === 'bank' || paymentMethod === 'cash') {
+      const res = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${held.locator}/offline-start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...signedInHeaders() },
+        body: JSON.stringify({ method: paymentMethod }),
       });
-      const issueData = await handleApiResponse(issueRes, 'Ticket issuance failed');
-      setIssuedTicket(buildAmadeusIssuedTicket(issueData, {
-        paymentMethod, fallbackTravelers: amadeusTravelers, fallbackFlight,
-        contactEmail: amadeusContactEmail, contactPhone: amadeusContactPhone,
-        selectedAncillaries,
-      }));
-    } catch (err) {
-      // Swallow — the PNR is still confirmed; show it as ticketing-pending
-      // rather than surfacing a scary error for a known, expected outcome.
-      setIssuedTicket(buildAmadeusIssuedTicket({ locator, ticketNumbers: [], travelers: [], segments: [] }, {
-        paymentMethod, fallbackTravelers: amadeusTravelers, fallbackFlight,
-        contactEmail: amadeusContactEmail, contactPhone: amadeusContactPhone,
-        selectedAncillaries,
-      }));
+      const data = await handleApiResponse(res, 'Could not record the payment method');
+      const lead = amadeusTravelers[0] || {};
+      setOfflinePayment({ ...data, passenger: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(), email: amadeusContactEmail.trim() });
+      setBookingStep('offline_pending');
+      return;
     }
-    setBookingStep('ticket');
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    const payRes = await fetchWithRetry(`${API_BASE}/payments/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: held.amount,
+        currency: held.currency || 'LKR',
+        return_url: `${baseUrl}?locator=${held.locator}&src=AD`,
+        cancel_url: `${baseUrl}?locator=${held.locator}&src=AD&payment=cancelled`,
+        client_ref: held.reference,
+        comment: `Tick and Book - ${held.reference}`,
+      }),
+    });
+    const payData = await handleApiResponse(payRes, 'Failed to start payment');
+    window.location.href = payData.payment_page_url;
+  };
+
+  // "Continue to payment" on the price-changed step.
+  const continueAmadeusPayment = async () => {
+    if (!amadeusHeld || amadeusBookingInFlightRef.current) return;
+    amadeusBookingInFlightRef.current = true;
+    setBookingStep('amadeus_processing');
+    setBookingError('');
+    try {
+      await payAmadeusBooking(amadeusHeld);
+    } catch (err) {
+      const errMsg = err.message || String(err);
+      setBookingError(errMsg);
+      setBookingStep('amadeus_pay');
+      showNotification(errMsg, 'error');
+    } finally {
+      amadeusBookingInFlightRef.current = false;
+    }
   };
 
   // ── Check My Ticket Status ───────────────────────────────────────────────
@@ -8554,7 +8460,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                  bookingStep === 'options' ? 'Options' :
                  bookingStep === 'review' ? 'Review Your Booking' :
                  bookingStep === 'amadeus_passenger' ? 'Passenger & Payment Details' :
-                 bookingStep === 'amadeus_processing' ? 'Confirming with Amadeus...' :
+                 bookingStep === 'amadeus_processing' ? 'Confirming your booking...' :
+                 bookingStep === 'amadeus_pay' ? 'Price update' :
                  bookingStep === 'offline_pending' ? (offlinePayment?.method === 'cash' ? 'Pay in Cash' : 'Pay by Bank Transfer') :
                  bookingStep === 'addons_result' ? 'Seats & Extras — Airline Response' :
                  'Issuing Ticket...'}
@@ -8683,7 +8590,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 amadeus-backend/services/flight_booking_service.py's
                 add_document_elements. */}
             {bookingStep === 'amadeus_passenger' && (
-              <form className="booking-modal-form" onSubmit={e => { e.preventDefault(); handleAmadeusContinueToSeats(); }}>
+              <form className="booking-modal-form" onSubmit={e => { e.preventDefault(); handleConfirmAmadeusBooking(); }}>
                 {amadeusTravelers.map((t, idx) => {
                   const setField = (field, value) => setAmadeusTravelers(ts => ts.map((x, i) => i === idx ? { ...x, [field]: value } : x));
                   return (
@@ -8757,46 +8664,93 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                   );
                 })}
-                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label>Contact email</label>
-                    <input type="email" required value={amadeusContactEmail} onChange={e => setAmadeusContactEmail(e.target.value)} />
+                <div className="form-grid-2" style={{ marginBottom: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="ad-contact-email">Contact email *</label>
+                    <input id="ad-contact-email" type="email" className="form-input" required placeholder="you@example.com" value={amadeusContactEmail} onChange={e => setAmadeusContactEmail(e.target.value)} />
                   </div>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label>Contact phone</label>
-                    <input type="tel" required value={amadeusContactPhone} onChange={e => setAmadeusContactPhone(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Payment method</label>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400 }}>
-                      <input type="radio" name="amadeusPaymentMethod" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} /> Card (PayCorp)
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400 }}>
-                      <input type="radio" name="amadeusPaymentMethod" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} /> Cash / Bank Transfer
-                    </label>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="ad-contact-phone">Contact phone *</label>
+                    <input id="ad-contact-phone" type="tel" className="form-input" required placeholder="077 123 4567" value={amadeusContactPhone} onChange={e => setAmadeusContactPhone(e.target.value)} />
                   </div>
                 </div>
 
-                <div className="info-banner" style={{ fontSize: '0.78rem', marginBottom: '1rem' }}>
-                  This fare is sourced from Amadeus. The PNR is confirmed and ticketed live with Amadeus — your
-                  e-ticket number will appear on the confirmation screen once issued.
+                {(() => {
+                  // Same payment choice as Travelport fares (11/11/2026): card,
+                  // bank transfer / deposit, cash - each switched on or off in
+                  // Admin > Providers & Modules > Payment Methods.
+                  const options = [
+                    payMethods.card && { key: 'card', label: 'Card', note: "Pay now on NDB Bank's secure card page; your ticket is issued straight away" },
+                    payMethods.bank && { key: 'bank', label: 'Bank transfer / deposit', note: 'Pay at the bank using your booking reference; ticket issued and emailed when we confirm your payment' },
+                    payMethods.cash && { key: 'cash', label: adminToken ? 'Cash (at the counter)' : 'Cash at a Tick and Book office',
+                      note: adminToken ? 'Cash received at the counter; ticket issued after you confirm it in Admin' : 'Pay in cash at our office using your booking reference; ticket issued and emailed when we receive it' },
+                  ].filter(Boolean);
+                  if (!options.length) return null;
+                  if (!options.some(o => o.key === paymentMethod)) setTimeout(() => setPaymentMethod(options[0].key), 0);
+                  return (
+                    <div className="pay-methods">
+                      <div className="pay-methods-title">How would you like to pay?</div>
+                      {options.map(o => (
+                        <label key={o.key} className={`pay-method${paymentMethod === o.key ? ' on' : ''}`}>
+                          <input type="radio" name="adPaymentMethod" checked={paymentMethod === o.key} onChange={() => setPaymentMethod(o.key)} />
+                          <span><strong>{o.label}</strong><small>{o.note}</small></span>
+                        </label>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                <div style={{ fontSize: '0.78rem', color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.6rem 0.9rem', marginBottom: '0.75rem' }}>
+                  {paymentMethod === 'bank'
+                    ? <>🏦 Your booking is confirmed with the airline first and held for you. You then pay by bank transfer or deposit using your booking reference. Your ticket is issued and emailed as soon as our team confirms your payment has arrived.</>
+                    : paymentMethod === 'cash'
+                      ? (adminToken ? <>💵 The booking is confirmed with the airline first and held. Record the cash received in Admin → Bank &amp; Cash Payments to issue the ticket.</>
+                        : <>💵 Your booking is confirmed with the airline first and held for you. Pay in cash at a Tick and Book office using your booking reference; your ticket is issued and emailed as soon as we receive it.</>)
+                      : <>💳 Your booking is confirmed with the airline first, then you pay on NDB Bank's secure card page. Your e-ticket is issued as soon as the payment is confirmed.</>}
+                  {' '}Seat selection and extra baggage aren't available for this fare.
                 </div>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
+                  <input type="checkbox" checked={dataConfirmAgreed} onChange={e => setDataConfirmAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
+                  <span>I confirm that all passenger details entered (names, passport information, dates of birth) are accurate and match my travel documents exactly. I understand that incorrect information may result in denied boarding, additional airline fees, or ticket cancellation with no refund.</span>
+                </label>
 
                 <div className="modal-actions">
                   <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">Continue to Seat Selection →</button>
+                  <button type="submit" className="btn btn-primary" disabled={!dataConfirmAgreed}>
+                    {paymentMethod === 'card' ? 'Confirm Booking → Pay by Card' : paymentMethod === 'bank' ? 'Confirm Booking → Pay by Bank Transfer' : 'Confirm Booking → Pay in Cash'}
+                  </button>
                 </div>
               </form>
             )}
 
-            {bookingStep === 'amadeus_processing' && (
-              <div className="booking-processing" style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
-                <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
-                <p>Selling the fare and creating your PNR with Amadeus…</p>
+            {bookingStep === 'amadeus_pay' && amadeusHeld && (
+              <div className="booking-modal-form">
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '6px', padding: '0.9rem 1rem', marginBottom: '1rem' }}>
+                  <strong>The airline's price for this fare has changed.</strong>
+                  <div style={{ marginTop: '0.4rem' }}>
+                    Your seats are held (booking reference <strong>{amadeusHeld.locator}</strong>). The price is now{' '}
+                    <strong>{amadeusHeld.currency} {Number(amadeusHeld.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                    {amadeusHeld.quoted_price != null && <> (shown before: {selectedFlight.currency} {Number(amadeusHeld.quoted_price).toLocaleString(undefined, { minimumFractionDigits: 2 })})</>}.
+                    Nothing has been charged.
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={closeBookingFlow}>Don't book</button>
+                  <button type="button" className="btn btn-primary" onClick={continueAmadeusPayment}>
+                    Pay {amadeusHeld.currency} {Number(amadeusHeld.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {paymentMethod === 'card' ? 'by Card' : paymentMethod === 'bank' ? 'by Bank Transfer' : 'in Cash'} →
+                  </button>
+                </div>
               </div>
+            )}
+
+            {bookingStep === 'amadeus_processing' && (
+              <BookingWaitLoader
+                icon="ticket"
+                title="Confirming your booking"
+                subtitle="We're securing your seats with the airline. This can take up to a minute — please don't close or refresh this page."
+                steps={['Checking your fare', 'Reserving your seats', 'Preparing secure payment']}
+              />
             )}
 
             {/* STEP: Passenger Details Form */}
@@ -10643,7 +10597,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
                     <strong>Booking Status:</strong> <span style={{ color: issuedTicket.status === 'Ticketed' ? '#0f766e' : '#b45309', fontWeight: '700' }}>{issuedTicket.status === 'Ticketed' ? 'ISSUED / CONFIRMED' : 'RESERVATION ON HOLD'}</span><br />
                     <strong>Date of Issue:</strong> {fmtDate(issuedTicket.booking_date || new Date())}<br />
-                    <strong>Issuing Agent:</strong> Tick and Book via Travelport
+                    <strong>Issuing Agent:</strong> Tick and Book{issuedTicket.source === 'AD' ? '' : ' via Travelport'}
                   </div>
                 </div>
               </div>
@@ -10747,7 +10701,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               {/* This booking's fare conditions, live from Travelport (fromreservation) */}
               {/* Seats and extras are added after ticketing, from the
                   customer's account (paid once the airline confirms). */}
-              {issuedTicket.locator_code && /ticketed/i.test(issuedTicket.status || '') && (
+              {issuedTicket.locator_code && issuedTicket.source !== 'AD' && /ticketed/i.test(issuedTicket.status || '') && (
                 <div className="no-print" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', border: '1px solid #bfdbfe', borderRadius: '8px', background: '#eff6ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <div style={{ fontSize: '0.82rem', color: '#1e3a8a', lineHeight: 1.45 }}>
                     <strong>Want to choose a seat or add extra baggage or a meal?</strong><br />
@@ -10759,7 +10713,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </button>
                 </div>
               )}
-              {issuedTicket.locator_code && (
+              {issuedTicket.locator_code && issuedTicket.source !== 'AD' && (
                 <div className="no-print" style={{ marginBottom: '1.5rem' }}>
                   <FareRulesPanel apiBase={API_BASE} locator={issuedTicket.locator_code} title="Fare rules for this booking" />
                 </div>
@@ -11074,7 +11028,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         );
                       })() : (
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
-                          <span>Flight Fare (from Travelport GDS):</span>
+                          <span>{issuedTicket.source === 'AD' ? 'Flight Fare:' : 'Flight Fare (from Travelport GDS):'}</span>
                           <span>{issuedTicket.currency} {((issuedTicket.total_fare || 0) - (issuedTicket.seat_charge || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                         </div>
                       )}
@@ -11168,7 +11122,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
               {/* Live verification footer */}
               <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.6rem', borderTop: '1px dashed #e2e8f0', marginTop: '1.5rem', paddingTop: '0.75rem' }}>
-                Secure Live Flight Booking powered by Travelport TripServices v11 API. © {new Date().getFullYear()} Tick and Book. All rights reserved.
+                {issuedTicket.source === 'AD' ? 'Secure Live Flight Booking.' : 'Secure Live Flight Booking powered by Travelport TripServices v11 API.'} © {new Date().getFullYear()} Tick and Book. All rights reserved.
               </div>
 
             </div>

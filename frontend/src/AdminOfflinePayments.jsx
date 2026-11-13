@@ -6,6 +6,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { fmtDateTime } from './dateFormat.js';
 import IssuedTicketPopup from './IssuedTicketPopup.jsx';
 
+// Amadeus bookings are paid under the reference AD-<Amadeus PNR> (13/11/2026).
+const isAmadeus = (p) => String(p?.locator_code || '').toUpperCase().startsWith('AD-');
+
 const money = (a, c) => (a || a === 0 ? `${c || ''} ${Number(a).toLocaleString(undefined, { minimumFractionDigits: 2 })}`.trim() : '—');
 const STATUS = { awaiting: ['Awaiting payment', 'warn'], confirming: ['Issuing ticket…', 'warn'], ticketed: ['Ticketed', 'ok'],
   failed: ['Not ticketed', 'bad'], cancelled: ['Cancelled', 'muted'] };
@@ -58,8 +61,18 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
     try {
       const d = await api(`/offline-payments/${p.id}/confirm`, { method: 'POST', body: JSON.stringify({
         received_amount: Number(form.received_amount), bank_reference: form.bank_reference || null, note: form.note || null }) });
-      setMsg(`${p.locator_code}: ticket ${d.ticket_number || ''} issued.`);
       setOpen(null); loadPayments();
+      if (isAmadeus(p)) {
+        // Amadeus booking (13/11/2026): the pop-up below checks Travelport
+        // bookings only, so the issued ticket number(s) are shown here.
+        const nums = (d.ticket_numbers && d.ticket_numbers.length ? d.ticket_numbers : [d.ticket_number]).filter(Boolean);
+        setMsg(d.already_issued
+          ? `${p.locator_code}: this booking was already ticketed (${nums.join(', ')}) - check how the customer paid before keeping this payment.`
+          : `${p.locator_code}: Amadeus ticket${nums.length > 1 ? 's' : ''} ${nums.join(', ')} issued.`);
+        setBusy('');
+        return;
+      }
+      setMsg(`${p.locator_code}: ticket ${d.ticket_number || ''} issued.`);
       // Show the ticket straight away so staff can see it was issued properly and share it.
       const fresh = await api('/offline-payments').then(x => (x.payments || []).find(r => r.id === p.id)).catch(() => null);
       setView({ payment: fresh || { ...p, status: 'ticketed', ticket_number: d.ticket_number,
@@ -139,7 +152,9 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
                 const [label, cls] = STATUS[p.status] || [p.status, 'muted'];
                 return (
                   <tr key={p.id}>
-                    <td><strong>{p.locator_code}</strong><div className="adm-sub">{fmtDateTime(p.created_at)}</div></td>
+                    <td><strong>{p.locator_code}</strong>
+                      {isAmadeus(p) && <div className="adm-sub">Amadeus booking {p.locator_code.slice(3)}</div>}
+                      <div className="adm-sub">{fmtDateTime(p.created_at)}</div></td>
                     <td>{p.method === 'cash' ? 'Cash' : 'Bank transfer'}{p.started_by && <div className="adm-sub">by {p.started_by}</div>}</td>
                     <td>{p.customer_name || '—'}{p.customer_email && <div className="adm-sub">{p.customer_email}</div>}</td>
                     <td className="mono nowrap">{money(p.amount, p.currency)}
@@ -157,7 +172,7 @@ export default function AdminOfflinePayments({ API_BASE, adminToken, onSessionEx
                           <button className="btn btn-secondary btn-sm" disabled={!!busy} onClick={() => cancel(p)}>Cancel</button>
                         </div>
                       )}
-                      {(p.status === 'ticketed' || p.status === 'failed') && (
+                      {(p.status === 'ticketed' || p.status === 'failed') && !isAmadeus(p) && (
                         <button className="btn btn-secondary btn-sm" onClick={() => setView({ payment: p, justIssued: false })}>
                           {p.status === 'ticketed' ? 'View ticket & share' : 'Check booking'}</button>
                       )}
