@@ -34,7 +34,11 @@ const travelerName = (t) => cleanPassengerName(t.confirmed_name || t.full_name |
 export default function BookingDetailView({ booking: b, liveStatus, onBack, onViewTicket, onRequestCancellation, onLiveStatus }) {
   const [adManageNote, setAdManageNote] = useState(false);
   const status = liveStatus?.checked ? liveStatus.status : b.status;
-  const cancelled = CANCELLED.includes(status);
+  // Paid but the airline issued no ticket (Amadeus): a full refund request was
+  // filed automatically. Shown with that request's status - nothing to manage.
+  const notTicketed = !!b.not_ticketed;
+  const refund = b.refund_request || null;
+  const cancelled = CANCELLED.includes(status) || notTicketed;
   const legs = legsOf(b);
   const travelers = Array.isArray(b.travelers) && b.travelers.length ? b.travelers : [{ full_name: b.passenger_name, passenger_type: 'ADT' }];
   // ticket_numbers is saved as [{passenger_type, number}] in passenger order.
@@ -66,6 +70,21 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           <div><div style={label}>Baggage</div>{b.baggage_allowance || '—'}</div>
           <div><div style={label}>Payment</div>{b.payment_method || '—'}</div>
         </div>
+        {notTicketed ? (
+          <div role="status" style={{ marginTop: '0.8rem', padding: '0.7rem 0.9rem', borderRadius: '8px', fontSize: '0.85rem',
+                                      background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.45)' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>No ticket was issued for this booking</div>
+            <div>The airline did not issue the ticket, so this booking can't be used to travel.
+              {refund ? ` A full refund of ${money(b.currency, b.total_fare)} was requested automatically on ${dt(refund.requested_at)}.` : ''}</div>
+            {refund && (
+              <div style={{ marginTop: '0.35rem' }}>
+                <span style={label}>Refund</span>{' '}
+                <strong>{refund.status === 'resolved' ? `Refunded${refund.reviewed_at ? ` on ${dt(refund.reviewed_at)}` : ''}`
+                  : refund.status === 'pending' ? 'In progress' : `Closed${refund.reviewed_at ? ` on ${dt(refund.reviewed_at)}` : ''}`}</strong>
+              </div>
+            )}
+          </div>
+        ) : (
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.8rem', alignItems: 'center' }}>
           <button className="btn btn-secondary btn-sm" onClick={() => onViewTicket(b)}>📋 View / Print Ticket</button>
           {!cancelled && onRequestCancellation && (
@@ -87,6 +106,7 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
             </div>
           )}
         </div>
+        )}
       </section>
 
       <section className="glass-panel" style={panel}>
@@ -110,7 +130,7 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           {travelers.map((t, i) => (
             <div key={i} style={line}>
               <span><strong>{travelerName(t)}</strong> <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{t.passenger_type || 'ADT'}</span></span>
-              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem' }}>{tickets[i] || (i === 0 && tickets.length === 0 ? 'Not ticketed yet' : '')}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem' }}>{tickets[i] || (i === 0 && tickets.length === 0 ? (notTicketed ? 'Not ticketed' : 'Not ticketed yet') : '')}</span>
             </div>
           ))}
           {Array.isArray(b.emd_numbers) && b.emd_numbers.length > 0 && (
@@ -129,7 +149,7 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
             {!!fb.total_fees && <div style={line}><span>Fees</span><span>{money(b.currency, fb.total_fees)}</span></div>}
           </>}
           {!!b.seat_charge && <div style={line}><span>Seats & extras</span><span>{money(b.currency, b.seat_charge)}</span></div>}
-          <div style={{ ...line, borderBottom: 'none', fontWeight: 800 }}><span>{b.ticket_number ? 'Total paid' : 'Total'}</span><span>{money(b.currency, b.total_fare)}</span></div>
+          <div style={{ ...line, borderBottom: 'none', fontWeight: 800 }}><span>{b.ticket_number || notTicketed ? 'Total paid' : 'Total'}</span><span>{money(b.currency, b.total_fare)}</span></div>
           {b.refund_amount !== null && b.refund_amount !== undefined && (
             <div style={{ ...line, borderBottom: 'none' }}><span>{b.status === 'Voided' ? 'Voided value' : 'Refund'}</span><span>{money(b.refund_currency, b.refund_amount)}</span></div>
           )}

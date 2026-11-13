@@ -5,7 +5,7 @@
 // under ".loy" (Tick and Book palette).
 import { useMemo, useState } from 'react';
 import { fmtDate, fmtDateTime } from './dateFormat.js';
-import { routeOf, isUpcoming, CANCELLED } from './BookingLineList.jsx';
+import { routeOf, isUpcoming, CANCELLED, refundNote } from './BookingLineList.jsx';
 import { cleanPassengerName } from './BookingCard.jsx';
 import { IconPlane, IconInfo } from './WizardIcons.jsx';
 
@@ -230,7 +230,7 @@ export default function LoyaltyPage({ loyalty, bookings, loadingBookings, liveSt
             {bookings.map(b => {
               const live = liveStatuses?.[b.locator_code];
               const status = live?.checked ? live.status : b.status;
-              const cancelled = CANCELLED.includes(status);
+              const cancelled = CANCELLED.includes(status) || !!b.not_ticketed;
               const upcoming = isUpcoming(b);
               const req = (cancellationRequests || []).find(r => r.booking_locator === b.locator_code && r.status !== 'rejected');
               const earned = pointsBy[b.locator_code];
@@ -248,11 +248,12 @@ export default function LoyaltyPage({ loyalty, bookings, loadingBookings, liveSt
                   <span className="loy-bk-fare r"><strong>{b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
                   <span className="loy-bk-pts r">
                     {earned ? <b className={earned > 0 ? 'plus' : 'minus'}>{earned > 0 ? '+' : ''}{earned.toLocaleString()} pts</b>
-                      : <small>{b.ticket_number ? '0 pts' : 'After ticketing'}</small>}
+                      : <small>{b.ticket_number ? '0 pts' : b.not_ticketed ? '—' : 'After ticketing'}</small>}
                   </span>
                   <span className="loy-bk-status">
-                    <span className={`mmb-chip ${tone}`}>{status}</span>
-                    {live?.checked && <small>✓ Live {fmtDateTime(live.retrieved_at)}</small>}
+                    <span className={`mmb-chip ${tone}`}>{b.not_ticketed ? 'Not ticketed' : status}</span>
+                    {b.not_ticketed ? <small>{refundNote(b)}</small>
+                      : live?.checked && <small>✓ Live {fmtDateTime(live.retrieved_at)}</small>}
                   </span>
                   <span className="loy-bk-actions" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
                     {upcoming && !cancelled ? (
@@ -261,7 +262,7 @@ export default function LoyaltyPage({ loyalty, bookings, loadingBookings, liveSt
                         {req ? <span className="loy-req">Cancellation {req.status}</span>
                           : <button type="button" className="loy-act ghost" onClick={() => onCancel?.(b)}>Cancel request</button>}
                       </>
-                    ) : <small>{cancelled ? 'Cancelled' : 'Travelled'}</small>}
+                    ) : <small>{b.not_ticketed ? 'Not ticketed' : cancelled ? 'Cancelled' : 'Travelled'}</small>}
                   </span>
                 </div>
               );

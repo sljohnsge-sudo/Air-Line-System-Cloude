@@ -1708,11 +1708,20 @@ _AD_LIST_STATUS = {"held": "Confirmed", "ticketing": "Confirmed", "ticketed": "T
                    "failed": "Not ticketed - refund requested", "cancelled": "Cancelled"}
 
 
-def _ad_my_booking(row: dict) -> dict:
+# Paid but the airline issued no ticket: shown with its refund request
+# (filed automatically), never as a trip to manage.
+_AD_REFUND_STATUS = {"pending": "Not ticketed - refund in progress", "resolved": "Not ticketed - refunded"}
+
+
+def _ad_my_booking(row: dict, refund: dict | None = None) -> dict:
     """One Amadeus booking in the shape My Bookings shows for Travelport
     bookings (no passport numbers). Flights from the itinerary saved at
     booking; status from our record (the list then checks it live)."""
     it = row.get("itinerary") or {}
+    not_ticketed = row.get("status") == "failed"
+    status = _AD_LIST_STATUS.get(row.get("status"), row.get("status"))
+    if not_ticketed:
+        status = _AD_REFUND_STATUS.get((refund or {}).get("status"), "Not ticketed")
     route = (row.get("route") or "").split("-")
     tickets = row.get("ticket_list") or []
     return {
@@ -1732,7 +1741,9 @@ def _ad_my_booking(row: dict) -> dict:
         "passenger_name": row.get("lead_name"), "email": row.get("email"),
         "travelers": row.get("travelers") or [],
         "total_fare": row.get("amount"), "currency": row.get("currency"),
-        "status": _AD_LIST_STATUS.get(row.get("status"), row.get("status")),
+        "status": status,
+        "not_ticketed": not_ticketed,
+        "refund_request": refund if not_ticketed else None,
         "payment_method": row.get("payment_method"),
         "booking_date": row.get("created_at"),
     }
@@ -6041,7 +6052,9 @@ def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
     # Amadeus bookings too (14/11/2026), newest first with the rest.
     try:
         customer = database.get_customer_by_id(current["customer_id"]) or {}
-        ad_rows = [_ad_my_booking(r) for r in ad_bookings.for_customer(current["customer_id"], customer.get("email"))]
+        ad_list = ad_bookings.for_customer(current["customer_id"], customer.get("email"))
+        refunds = ad_bookings.refund_requests([r["locator"] for r in ad_list if r.get("status") == "failed"])
+        ad_rows = [_ad_my_booking(r, refunds.get(r["locator"])) for r in ad_list]
     except Exception as e:
         logger.warning(f"My Bookings: Amadeus bookings not loaded for customer {current['customer_id']}: {e}")
         ad_rows = []

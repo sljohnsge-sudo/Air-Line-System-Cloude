@@ -183,6 +183,25 @@ def for_customer(customer_id: int, email: str | None) -> list:
     return [_clean(r) for r in rows]
 
 
+def refund_requests(locators: list[str]) -> dict:
+    """The latest refund request (cancellation_requests, reference
+    AD-<PNR>) per Amadeus booking - e.g. the automatic full-refund request
+    filed when a customer paid but the airline issued no ticket."""
+    refs = [REF_PREFIX + loc.upper() for loc in locators if loc]
+    if not refs:
+        return {}
+    rows = _q(f"SELECT booking_locator, status, requested_at, reviewed_at FROM cancellation_requests "
+              f"WHERE booking_locator IN ({', '.join(['%s'] * len(refs))}) ORDER BY id DESC", tuple(refs))
+    out: dict = {}
+    for r in rows:
+        loc = r["booking_locator"][len(REF_PREFIX):]
+        if loc not in out:
+            out[loc] = {"status": r["status"],
+                        **{k: (r[k].isoformat(sep=" ") if hasattr(r[k], "isoformat") else r[k])
+                           for k in ("requested_at", "reviewed_at")}}
+    return out
+
+
 def set_erp(locator: str, **fields) -> None:
     """ERP push progress / result on the booking (quotation, sales order,
     invoice names, or the error)."""

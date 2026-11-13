@@ -7,6 +7,11 @@ import { fmtDateTime } from './dateFormat.js';
 
 export const CANCELLED = ['Cancelled', 'Voided', 'Refunded', 'Airline Cancelled'];
 
+// Paid but not ticketed (Amadeus): the refund request's state, for the small
+// line under the "Not ticketed" badge.
+export const refundNote = (b) => (b.refund_request?.status === 'resolved' ? 'Refunded'
+  : b.refund_request?.status === 'pending' ? 'Refund in progress' : '');
+
 // A round trip is saved as CMB → CMB; its legs give the real destination.
 export const routeOf = (b) => {
   const legs = Array.isArray(b.legs) ? b.legs : [];
@@ -46,7 +51,8 @@ export default function BookingLineList({ bookings, liveStatuses = {}, refreshin
       {bookings.map(b => {
         const live = liveStatuses[b.locator_code];
         const status = live?.checked ? live.status : b.status;
-        const cancelled = CANCELLED.includes(status);
+        // Paid but not ticketed (Amadeus): shown like a closed booking.
+        const cancelled = CANCELLED.includes(status) || !!b.not_ticketed;
         const open = () => onOpen(b);
         return (
           <div key={b.id} role="button" tabIndex={0}
@@ -64,9 +70,10 @@ export default function BookingLineList({ bookings, liveStatuses = {}, refreshin
             <span className="bl-pax">{cleanPassengerName(b.passenger_name)}</span>
             <span className="bl-fare"><strong>{b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
             <span className="bl-status">
-              <span className={`pass-status-badge ${status?.toLowerCase()}`}>{status}</span>
+              <span className={`pass-status-badge ${b.not_ticketed ? 'cancelled' : status?.toLowerCase()}`}>{b.not_ticketed ? 'Not ticketed' : status}</span>
               <small>
-                {live?.checked ? <span title={b.source === 'AD' ? 'Checked live with the airline' : 'Checked live with Travelport and the airline'}>✓ Live {time(live.retrieved_at)}</span>
+                {b.not_ticketed ? refundNote(b)
+                  : live?.checked ? <span title={b.source === 'AD' ? 'Checked live with the airline' : 'Checked live with Travelport and the airline'}>✓ Live {time(live.retrieved_at)}</span>
                   : live?.missing ? <span style={{ color: '#b45309', fontWeight: 700 }} title="Travelport no longer holds this booking — please contact us">⚠ Not on Travelport</span>
                   : live ? <span title={live.error}>Couldn't check live</span>
                   : refreshing && isUpcoming(b) && !CANCELLED.includes(b.status) ? 'Checking…' : ''}
