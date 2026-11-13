@@ -6304,6 +6304,17 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
         try:
             live = manage_booking_service.lookup(request.query, request.last_name)
         except manage_booking_service.NotFound as e:
+            # This page reads Travelport bookings. An Amadeus booking does
+            # exist — say where to see it rather than "couldn't find" (13/11/2026).
+            q = (request.query or "").strip().upper()
+            try:
+                ad_row = ad_bookings.get(q) if re.fullmatch(r"[A-Z0-9]{5,8}", q) else None
+            except Exception:
+                ad_row = None
+            if ad_row:
+                raise HTTPException(status_code=404, detail=(
+                    f"Booking {q} is in your account under My Bookings — open it there to see the booking and "
+                    f"ticket. Changes to this booking can't be made online yet."))
             raise HTTPException(status_code=404, detail=str(e) or LOOKUP_NOT_FOUND)
         except (manage_booking_service.Unavailable, services.CancelError) as e:
             logger.warning(f"Booking lookup {request.query}: airline system unavailable — {e} (TraceId {trace_id})")

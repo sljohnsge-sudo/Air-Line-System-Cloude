@@ -114,6 +114,14 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
   const openBookingDetail = (b) => { setOpenLocator(b.locator_code); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const closeBooking = () => setOpenLocator(null);
   const openBookingStatus = (b) => {
+    // Amadeus bookings (13/11/2026): Booking Status reads Travelport only, so
+    // an Amadeus PNR came back "We couldn't find a booking with that
+    // reference". Their own details view reads the live Amadeus booking.
+    if (b.source === 'AD') {
+      setActiveSection('bookings');
+      openBookingDetail(b);
+      return;
+    }
     const t = (Array.isArray(b.travelers) && b.travelers[0]) || {};
     const lastName = t.last_name || t.surname || (b.passenger_name || '').trim().split(/\s+/).pop() || '';
     setStatusPrefill({ query: b.locator_code, lastName, key: Date.now() });
