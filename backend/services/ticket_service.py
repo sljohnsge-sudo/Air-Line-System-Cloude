@@ -169,16 +169,33 @@ def pre_payment_fare_check(locator_code: str, fare_source: str | None = "GDS") -
             if flights:
                 seq += 1
                 criteria.append({"@type": "ProductCriteriaAir", "sequence": seq, "SpecificFlightCriteria": flights})
-    pax: dict = {}
+    # The booking's own passengers and their real ages on the first flight
+    # (13/11/2026: was a made-up 25 / 20 / 10 / 1 per type). Adults go
+    # without an age, as Travelport recommends; nothing is assumed.
+    from services.search_service import passenger_criteria_for
+    first_day = next((c["SpecificFlightCriteria"][0].get("departureDate") for c in criteria
+                      if c.get("SpecificFlightCriteria")), None)
+    counts = {"ADT": 0, "CNN": 0, "INF": 0, "STU": 0}
+    ages = {"CNN": [], "INF": [], "STU": []}
     for t in res.get("Traveler") or []:
-        ptc = t.get("passengerTypeCode") or "ADT"
-        pax[ptc] = pax.get(ptc, 0) + 1
-    age = {"ADT": 25, "STU": 20, "INF": 1, "CNN": 10}
+        ptc = (t.get("passengerTypeCode") or "").upper()
+        if ptc not in counts:
+            return None  # an unexpected passenger type: no check rather than a guessed one
+        counts[ptc] += 1
+        if ptc in ages:
+            try:
+                b = datetime.strptime((t.get("birthDate") or "")[:10], "%Y-%m-%d").date()
+                d = datetime.strptime((first_day or "")[:10], "%Y-%m-%d").date()
+            except ValueError:
+                return None  # no readable birth date: skip this check rather than guess an age
+            ages[ptc].append(d.year - b.year - ((d.month, d.day) < (b.month, b.day)))
+    if not any(counts.values()):
+        return None
     payload = {"@type": "OfferQueryBuildFromProducts", "validateInventoryInd": False,
                "BuildFromProductsRequest": {"@type": "BuildFromProductsRequestAir", "ProductCriteriaAir": criteria,
-                                            "PassengerCriteria": [{"@type": "PassengerCriteria", "number": n,
-                                                                   "age": age.get(p, 25), "passengerTypeCode": p}
-                                                                  for p, n in (pax or {"ADT": 1}).items()]}}
+                                            "PassengerCriteria": passenger_criteria_for(
+                                                counts["ADT"], counts["CNN"], counts["INF"], counts["STU"],
+                                                ages["CNN"], ages["INF"], ages["STU"])}}
     try:
         result = _api_post(TravelportEndpoints.AIRPRICE_FULL_PAYLOAD, payload)
     except httpx.HTTPStatusError as e:

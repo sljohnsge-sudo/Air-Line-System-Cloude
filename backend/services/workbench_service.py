@@ -456,42 +456,62 @@ def _build_specific_flight_criteria(segments: list, cabins: list | None = None, 
     return criteria
 
 
-def _extract_passenger_criteria_from_offering(raw_offering: dict) -> list:
-    """
-    Derive PassengerCriteria (passenger type + count) from the priced offer's
-    own PriceBreakdown — the full-payload AddOffer request requires passenger
-    info, but travelers (names/passports) aren't collected until STEP 6, so we
-    reconstruct just the type/count/age from what was already priced at search
-    time. Ordered Adult -> Infant -> Child per Travelport GDS certification.
-    """
-    pax_by_type = {}
+def _ages_on(date_of_birth: str, day: str) -> int | None:
+    """Whole years on `day` (YYYY-MM-DD) for a YYYY-MM-DD birth date."""
     try:
-        for pbo in raw_offering.get("ProductBrandOptions", []):
-            for bo in pbo.get("ProductBrandOffering", []):
-                for pb in bo.get("BestCombinablePrice", {}).get("PriceBreakdown", []):
-                    ptc = pb.get("requestedPassengerType")
-                    qty = int(pb.get("quantity", 1))
-                    if ptc:
-                        pax_by_type[ptc] = max(pax_by_type.get(ptc, 0), qty)
-    except Exception:
-        pass
-    if not pax_by_type:
-        pax_by_type = {"ADT": 1}
-
-    age_map = {"ADT": 25, "STU": 20, "INF": 1, "CNN": 10}
-    passenger_type_order = {"ADT": 0, "STU": 1, "INF": 2, "CNN": 3}
-    return [
-        {
-            "@type": "PassengerCriteria",
-            "number": pax_by_type[ptc],
-            "age": age_map.get(ptc, 25),
-            "passengerTypeCode": ptc
-        }
-        for ptc in sorted(pax_by_type.keys(), key=lambda t: passenger_type_order.get(t, 99))
-    ]
+        b = datetime.strptime((date_of_birth or "")[:10], "%Y-%m-%d").date()
+        d = datetime.strptime((day or "")[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    return d.year - b.year - ((d.month, d.day) < (b.month, b.day))
 
 
-def _build_full_payload_offer(leg_offerings: list) -> dict:
+def _extract_passenger_criteria_from_offering(raw_offering: dict, travelers: list | None = None) -> list:
+    """
+    PassengerCriteria for the full-payload AirPrice / AddOffer, from the
+    PASSENGERS THEMSELVES (13/11/2026): their type and their real age on the
+    first flight's date, worked out from the date of birth they entered.
+    Travelport (PassengerCriteria.age, spec 11.37.3): send age only with
+    PTCs that need it for pricing — children (CNN) with their age, INF 0 or
+    1, none for adults. One PassengerCriteria per PTC and age, ordered
+    Adult -> Infant -> Child as Travelport GDS certification asks.
+
+    Before this a made-up age went with every type (adult 25, student 20,
+    child 10, infant 1). Without the passengers' details nothing is
+    assumed: a child, infant or student without an age raises ValueError.
+    """
+    from services.search_service import passenger_criteria_for
+    segs = raw_offering.get("segments") or []
+    first_day = ((segs[0] if segs else {}).get("departure_time") or "")[:10]
+    counts = {"ADT": 0, "CNN": 0, "INF": 0, "STU": 0}
+    ages = {"CNN": [], "INF": [], "STU": []}
+    for t in travelers or []:
+        ptc = (t.get("passenger_type") or "ADT").upper()
+        counts[ptc] = counts.get(ptc, 0) + 1
+        if ptc in ages:
+            age = _ages_on(t.get("date_of_birth"), first_day)
+            if age is None:
+                raise ValueError("A child, infant or student has no date of birth — their age can't be sent to Travelport")
+            ages[ptc].append(age)
+    if not travelers:
+        # Only the priced offer is known: adults can go without an age,
+        # anyone else needs one that isn't there.
+        try:
+            for pbo in raw_offering.get("ProductBrandOptions", []):
+                for bo in pbo.get("ProductBrandOffering", []):
+                    for pb in bo.get("BestCombinablePrice", {}).get("PriceBreakdown", []):
+                        ptc = pb.get("requestedPassengerType")
+                        if ptc:
+                            counts[ptc] = max(counts.get(ptc, 0), int(pb.get("quantity", 1)))
+        except Exception:
+            pass
+        if not any(counts.values()):
+            raise ValueError("No passengers are known for this price request")
+    return passenger_criteria_for(counts.get("ADT", 0), counts.get("CNN", 0), counts.get("INF", 0),
+                                  counts.get("STU", 0), ages["CNN"], ages["INF"], ages["STU"])
+
+
+def _build_full_payload_offer(leg_offerings: list, travelers: list | None = None) -> dict:
     """
     Build the OfferQueryBuildFromProducts (full payload) request body for the
     given leg(s) — Travelport GDS certification guidance for GDS carrier
@@ -522,7 +542,7 @@ def _build_full_payload_offer(leg_offerings: list) -> dict:
     request_air = {
         "@type": "BuildFromProductsRequestAir",
         "ProductCriteriaAir": product_criteria,
-        "PassengerCriteria": _extract_passenger_criteria_from_offering(leg_offerings[0])
+        "PassengerCriteria": _extract_passenger_criteria_from_offering(leg_offerings[0], travelers)
     }
 
     # Pricing modifier pins the request to the exact fare brand the user selected
@@ -593,12 +613,12 @@ def charge_for_priced_fare(priced: dict, quoted_price: float | None = None,
     return expected, currency
 
 
-def confirm_price(raw_offering: dict) -> str:
+def confirm_price(raw_offering: dict, travelers: list | None = None) -> str:
     """AirPrice, returning only the identifier for Add Offer. See confirm_price_details."""
-    return confirm_price_details(raw_offering)["identifier"]
+    return confirm_price_details(raw_offering, travelers)["identifier"]
 
 
-def confirm_price_details(raw_offering: dict) -> dict:
+def confirm_price_details(raw_offering: dict, travelers: list | None = None) -> dict:
     """
     STEP 3b: Confirm pricing via AirPrice, called for every content source
     (GDS and NDC) — see run_booking_flow's docstring. Serves Travelport
@@ -633,7 +653,7 @@ def confirm_price_details(raw_offering: dict) -> dict:
     has_segments = all(leg.get("segments") for leg in leg_offerings)
 
     if is_gds and has_segments:
-        payload = _build_full_payload_offer(leg_offerings)
+        payload = _build_full_payload_offer(leg_offerings, travelers)
         url = TravelportEndpoints.AIRPRICE_FULL_PAYLOAD
         logger.info("Confirming price via AirPrice (GDS offer, full payload)...")
     else:
@@ -730,7 +750,8 @@ def _build_reference_payload_offer(leg_offerings: list) -> dict:
     }
 
 
-def add_offer_to_workbench(workbench_id: str, raw_offering: dict, force_reference_payload: bool = False) -> dict:
+def add_offer_to_workbench(workbench_id: str, raw_offering: dict, force_reference_payload: bool = False,
+                           travelers: list | None = None) -> dict:
     """
     STEP 5: Add the selected flight offer(s) to the workbench.
 
@@ -771,7 +792,7 @@ def add_offer_to_workbench(workbench_id: str, raw_offering: dict, force_referenc
         # were ticketed as GDS fares that didn't match what the customer
         # paid (JJ2D6X: NDC priced LKR 105,778, GDS ticket LKR 228,110).
         # NDC content therefore always uses the reference payload below.
-        payload = _build_full_payload_offer(leg_offerings)
+        payload = _build_full_payload_offer(leg_offerings, travelers)
         url = TravelportEndpoints.add_offer_to_workbench_full_payload(workbench_id)
         # GDS full payload is the proven path — a real failure here must surface.
         result = _api_post(url, payload, session_id=workbench_id)
@@ -1528,7 +1549,7 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
         #     without re-testing live first.
         leg_offerings = _get_leg_offerings(raw_offering)
         is_gds = all(leg.get("fare_source") == "GDS" for leg in leg_offerings)
-        priced = confirm_price_details(raw_offering)
+        priced = confirm_price_details(raw_offering, travelers)
         priced_transaction_id = priced["identifier"]
         # The fare to charge comes from AirPrice, not the browser — and an
         # under-quote is refused here, before any workbench or PNR exists.
@@ -1553,7 +1574,8 @@ def run_booking_flow(raw_offering: dict, travelers: list, max_retries: int = 3, 
                 logger.info(f"[Flow attempt {attempt}/{max_retries}] Workbench: {workbench_id}")
 
                 # STEP 5
-                add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=force_reference_payload)
+                add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=force_reference_payload,
+                                       travelers=travelers)
                 # STEP 5b — the fare on the workbench is the one priced and
                 # charged (no PNR exists yet, so a mismatch costs nothing).
                 check_workbench_fare(workbench_id, is_gds, priced)
@@ -1695,14 +1717,14 @@ def run_instant_pay_flow(raw_offering: dict, travelers: list, max_attempts: int 
     last_error = "unknown error"
 
     with flow_trace_id():
-        confirm_price(raw_offering)
+        confirm_price(raw_offering, travelers)
         for attempt in range(1, max_attempts + 1):
             workbench_id = create_workbench()
             logger.info(f"[Instant Pay {attempt}/{max_attempts}] Workbench: {workbench_id}")
             held_locator = None
             committing = False
             try:
-                add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=True)
+                add_offer_to_workbench(workbench_id, raw_offering, force_reference_payload=True, travelers=travelers)
                 add_travelers_to_workbench(workbench_id, ordered, is_gds=False)
 
                 wb = get_workbench_details(workbench_id)

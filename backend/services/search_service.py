@@ -183,6 +183,27 @@ def search_flights(*args, **kwargs) -> dict:
             _IN_FLIGHT.pop(key, None)
 
 
+
+def passenger_criteria_for(adult_count: int, child_count: int, infant_count: int, student_count: int,
+                           child_ages=None, infant_ages=None, student_ages=None) -> list:
+    """Travelport PassengerCriteria from the customer's own passenger counts
+    and ages (13/11/2026). Raises ValueError when a child, infant or student
+    has no age — Travelport recommends against CNN without age, and nothing
+    is assumed."""
+    out = []
+    if adult_count > 0:
+        out.append({"@type": "PassengerCriteria", "number": adult_count, "passengerTypeCode": "ADT"})
+    for ptc, count, ages in (("INF", infant_count, infant_ages), ("CNN", child_count, child_ages),
+                             ("STU", student_count, student_ages)):
+        if count <= 0:
+            continue
+        ages = [int(a) for a in (ages or [])]
+        if len(ages) != count:
+            raise ValueError(f"The age of every {'infant' if ptc == 'INF' else 'child' if ptc == 'CNN' else 'student'} is needed")
+        for age in sorted(set(ages)):
+            out.append({"@type": "PassengerCriteria", "number": ages.count(age), "age": age, "passengerTypeCode": ptc})
+    return out
+
 def _search_flights_live(
     origin: Optional[str] = None,
     destination: Optional[str] = None,
@@ -194,7 +215,10 @@ def _search_flights_live(
     cabin_preference: Optional[str] = None,
     legs: Optional[list] = None,
     content_source: Optional[str] = None,
-    max_upsells: Optional[int] = None
+    max_upsells: Optional[int] = None,
+    child_ages: Optional[list] = None,
+    infant_ages: Optional[list] = None,
+    student_ages: Optional[list] = None,
 ) -> dict:
     """
     STEP 2: Search for available flights from Travelport.
@@ -234,35 +258,13 @@ def _search_flights_live(
                     f"Adults={adult_count}, Children={child_count}, Infants={infant_count}, Students={student_count}")
 
     # ── Passenger Criteria (array format per Travelport v11 spec) ─────────────
-    passenger_criteria = []
-    if adult_count > 0:
-        passenger_criteria.append({
-            "@type": "PassengerCriteria",
-            "number": adult_count,
-            "age": 25,
-            "passengerTypeCode": "ADT"
-        })
-    if infant_count > 0:
-        passenger_criteria.append({
-            "@type": "PassengerCriteria",
-            "number": infant_count,
-            "age": 1,
-            "passengerTypeCode": "INF"
-        })
-    if child_count > 0:
-        passenger_criteria.append({
-            "@type": "PassengerCriteria",
-            "number": child_count,
-            "age": 10,
-            "passengerTypeCode": "CNN"
-        })
-    if student_count > 0:
-        passenger_criteria.append({
-            "@type": "PassengerCriteria",
-            "number": student_count,
-            "age": 20,
-            "passengerTypeCode": "STU"
-        })
+    # 13/11/2026: real ages only. Travelport (PassengerCriteria.age, spec
+    # 11.37.3): "send age only with PTCs that require age for pricing";
+    # children as CNN WITH their age; INF age 0 or 1. Adults get no age (we
+    # used to send a made-up 25, and 10 / 1 / 20 for every child, infant
+    # and student). One PassengerCriteria per PTC and age.
+    passenger_criteria = passenger_criteria_for(adult_count, child_count, infant_count, student_count,
+                                                child_ages, infant_ages, student_ages)
 
     # ── SearchCriteriaFlight (per Travelport v11 spec) ─────────────────────────
     search_criteria_flight = []

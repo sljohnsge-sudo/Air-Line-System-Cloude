@@ -1306,6 +1306,40 @@ function SegmentTimeline({ segments, terminalConnections = [] }) {
 // an enrollment certificate from the traveler's educational institution,
 // checked at ticketing/check-in. This translates that into a plain-language
 // heads-up so customers know what to bring before they commit to the fare.
+// Age of each child, infant and student (13/11/2026). Travelport prices
+// children and infants by age ("send the age of the child with CNN"; "the
+// age for INF must be 0 or 1"), so the customer gives each one; nothing is
+// assumed (the search used to send a made-up 10 for every child).
+function PassengerAgesPicker({ childAges, setChildAges, infantAges, setInfantAges, studentAges, setStudentAges }) {
+  const groups = [
+    { key: 'child', label: 'Child', ages: childAges, set: setChildAges, options: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+    { key: 'infant', label: 'Infant', ages: infantAges, set: setInfantAges, options: [0, 1], names: { 0: 'Under 1', 1: '1 year' } },
+    { key: 'student', label: 'Student', ages: studentAges, set: setStudentAges,
+      options: Array.from({ length: 88 }, (_, i) => i + 12) },
+  ].filter(g => g.ages.length > 0);
+  if (!groups.length) return null;
+  return (
+    <div style={{ display: 'grid', gap: '0.5rem', padding: '0.6rem 0', borderBottom: '1.5px solid #e2e8f0' }}>
+      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569' }}>Age on the day of travel <span style={{ color: '#ef4444' }}>*</span></div>
+      {groups.map(g => (
+        <div key={g.key} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+          {g.ages.map((age, i) => (
+            <select key={i} aria-label={`${g.label} ${i + 1} age`} value={age === '' || age === null || age === undefined ? '' : String(age)}
+                    onChange={e => { const v = e.target.value; g.set(prev => prev.map((a, j) => (j === i ? (v === '' ? '' : Number(v)) : a))); }}
+                    style={{ padding: '0.35rem 0.4rem', borderRadius: '6px', fontSize: '0.8rem',
+                             border: `1.5px solid ${age === '' ? '#f59e0b' : '#cbd5e1'}`, background: 'white', color: '#1e293b' }}>
+              <option value="">{g.label} {i + 1}: age?</option>
+              {g.options.map(o => <option key={o} value={o}>{g.label} {i + 1}: {(g.names && g.names[o]) || `${o} yrs`}</option>)}
+            </select>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const resizeAges = (ages, n) => (ages || []).slice(0, n).concat(Array(Math.max(0, n - (ages || []).length)).fill(''));
+
 function StudentFareNotice() {
   return (
     <div style={{
@@ -2036,6 +2070,12 @@ export default function App() {
   const [childCount, setChildCount] = useState(() => Number(initialResultsPayload?.children) || 0);
   const [infantCount, setInfantCount] = useState(() => Number(initialResultsPayload?.infants) || 0);
   const [studentCount, setStudentCount] = useState(() => Number(initialResultsPayload?.students) || 0);
+  const [childAges, setChildAges] = useState(() => resizeAges(initialResultsPayload?.childAges, Number(initialResultsPayload?.children) || 0));
+  const [infantAges, setInfantAges] = useState(() => resizeAges(initialResultsPayload?.infantAges, Number(initialResultsPayload?.infants) || 0));
+  const [studentAges, setStudentAges] = useState(() => resizeAges(initialResultsPayload?.studentAges, Number(initialResultsPayload?.students) || 0));
+  useEffect(() => { setChildAges(a => (a.length === childCount ? a : resizeAges(a, childCount))); }, [childCount]);
+  useEffect(() => { setInfantAges(a => (a.length === infantCount ? a : resizeAges(a, infantCount))); }, [infantCount]);
+  useEffect(() => { setStudentAges(a => (a.length === studentCount ? a : resizeAges(a, studentCount))); }, [studentCount]);
   const [cabinPref, setCabinPref] = useState(() => initialResultsPayload?.cabin || 'All');
   const [showTravelersPopover, setShowTravelersPopover] = useState(false);
   const [showCabinPopover, setShowCabinPopover] = useState(false);
@@ -2581,6 +2621,7 @@ export default function App() {
         returnDate: searchType === 'roundtrip' ? returnDate : null,
         type: searchType, adults: adultCount, children: childCount,
         infants: infantCount, students: studentCount, cabin: cabinPref,
+        childAges, infantAges, studentAges,
       };
       const token = encryptForUrl(JSON.stringify(payload));
       return { path: token ? `/results/${token}` : '/results', search: '' };
@@ -2686,9 +2727,15 @@ export default function App() {
         if (payload.children) setChildCount(Number(payload.children) || 0);
         if (payload.infants) setInfantCount(Number(payload.infants) || 0);
         if (payload.students) setStudentCount(Number(payload.students) || 0);
+        if (Array.isArray(payload.childAges)) setChildAges(payload.childAges);
+        if (Array.isArray(payload.infantAges)) setInfantAges(payload.infantAges);
+        if (Array.isArray(payload.studentAges)) setStudentAges(payload.studentAges);
         if (payload.cabin) setCabinPref(payload.cabin);
         if (payload.shared) setSharedFlightKeys(payload.shared);
-        handleSearch(null, { origin, destination, date, type: payload.type === 'roundtrip' ? 'roundtrip' : null, returnDate: payload.returnDate || null });
+        handleSearch(null, { origin, destination, date, type: payload.type === 'roundtrip' ? 'roundtrip' : null, returnDate: payload.returnDate || null,
+          childAges: resizeAges(payload.childAges, Number(payload.children) || 0),
+          infantAges: resizeAges(payload.infantAges, Number(payload.infants) || 0),
+          studentAges: resizeAges(payload.studentAges, Number(payload.students) || 0) });
       }
     } else if (path.startsWith('/booking/')) {
       const token = path.split('/')[2] || '';
@@ -2742,6 +2789,14 @@ export default function App() {
     // The departure/return date fields are the custom MiniCalendar popovers
     // now, not native <input type="date" required> — so that validation has
     // to happen here instead of the browser doing it for free.
+    const searchChildAges = overrides.childAges || childAges;
+    const searchInfantAges = overrides.infantAges || infantAges;
+    const searchStudentAges = overrides.studentAges || studentAges;
+    if ([...searchChildAges, ...searchInfantAges, ...searchStudentAges].some(a => a === '' || a === null || a === undefined)) {
+      showNotification('Please choose the age of every child, infant and student (under Travellers).', 'error');
+      setShowTravelersPopover(true);
+      return;
+    }
     if (searchType !== 'multicity' && !overrides.date) {
       if (!searchDate) {
         showNotification('Please select a departure date.', 'error');
@@ -2803,6 +2858,9 @@ export default function App() {
         child_count: childCount,
         infant_count: infantCount,
         student_count: studentCount,
+        child_ages: searchChildAges.map(Number),
+        infant_ages: searchInfantAges.map(Number),
+        student_ages: searchStudentAges.map(Number),
         cabin_preference: cabinPref === 'All' ? null : (cabinPref || null)
       };
       lastSearchBodyRef.current = searchBody;
@@ -4653,6 +4711,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           </div>
                         </div>
 
+                        <PassengerAgesPicker childAges={childAges} setChildAges={setChildAges} infantAges={infantAges}
+                          setInfantAges={setInfantAges} studentAges={studentAges} setStudentAges={setStudentAges} />
                         {studentCount > 0 && <StudentFareNotice />}
 
                         {/* Done button — advances straight to Cabin Class, same reduce-clicks flow as the date pickers above */}
@@ -5634,6 +5694,8 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                           </div>
                         </div>
 
+                        <PassengerAgesPicker childAges={childAges} setChildAges={setChildAges} infantAges={infantAges}
+                          setInfantAges={setInfantAges} studentAges={studentAges} setStudentAges={setStudentAges} />
                         {studentCount > 0 && <StudentFareNotice />}
 
                         {/* Cabin buttons */}
@@ -5996,6 +6058,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                       returnDate: searchType === 'roundtrip' ? returnDate : null,
                       type: searchType, adults: adultCount, children: childCount,
                       infants: infantCount, students: studentCount, cabin: cabinPref,
+        childAges, infantAges, studentAges,
                     }}
                     onClear={() => setShareFares({})}
                     customerToken={customerToken} apiBase={API_BASE} onSignIn={askSignInToShare}

@@ -397,7 +397,23 @@ class FlightSearchRequest(BaseModel):
     child_count: int = Field(default=0, ge=0, le=8)
     infant_count: int = Field(default=0, ge=0, le=8)
     student_count: int = Field(default=0, ge=0, le=9, description="passengerTypeCode STU — Travelport-only, requires a carrier that files student fares to see a discount")
+    # 13/11/2026: each child's, infant's and student's age as the customer
+    # gave it (Travelport prices children and infants by age). One per person.
+    child_ages: List[int] = Field(default_factory=list, description="Age of each child, 2-11")
+    infant_ages: List[int] = Field(default_factory=list, description="Age of each infant, 0 or 1")
+    student_ages: List[int] = Field(default_factory=list, description="Age of each student")
     cabin_preference: Optional[str] = Field(default=None, description="Economy|Business|First")
+
+    @model_validator(mode="after")
+    def _ages_match_counts(self):
+        for name, count, ages, lo, hi in (("child", self.child_count, self.child_ages, 2, 11),
+                                          ("infant", self.infant_count, self.infant_ages, 0, 1),
+                                          ("student", self.student_count, self.student_ages, 12, 99)):
+            if len(ages) != count:
+                raise ValueError(f"Please give the age of every {name} ({count} needed).")
+            if any(a < lo or a > hi for a in ages):
+                raise ValueError(f"A {name}'s age must be {lo} to {hi}.")
+        return self
     content_source: Optional[str] = Field(default=None, description="Per-request override: 'GDS' or 'NDC' — defaults to server config when omitted")
 
 
@@ -1067,6 +1083,9 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
                 legs=legs,
                 content_source=request.content_source,
                 max_upsells=0 if kind == "nearby" else None,
+                child_ages=request.child_ages,
+                infant_ages=request.infant_ages,
+                student_ages=request.student_ages,
             )
             tp_messages.extend(_travelport_result_messages(raw))
             last_offers = [o for o in services.parse_flight_offers(
@@ -2211,7 +2230,8 @@ def initiate_booking(request: BookingInitiateRequest):
         workbench_id = services.create_workbench()
 
         # STEP 5: Add offer to workbench
-        add_result = services.add_offer_to_workbench(workbench_id, raw_offering)
+        add_result = services.add_offer_to_workbench(
+            workbench_id, raw_offering, travelers=[t.model_dump() for t in request.travelers])
 
         # Extract offer_id from add offer result
         offer_id = None
@@ -3167,7 +3187,8 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
         # send the payment amount itself and nothing checked it.
         trace_token = services.start_flow_trace_id()
         try:
-            priced = services.workbench_service.confirm_price_details(request.raw_offering)
+            priced = services.workbench_service.confirm_price_details(
+                request.raw_offering, [t.model_dump() for t in request.travelers])
             amount, currency = services.workbench_service.charge_for_priced_fare(
                 priced, request.quoted_price, _quoted_currency(request.raw_offering),
                 len(request.travelers or []))
