@@ -292,6 +292,10 @@ ENDPOINT_STEPS = [
     (re.compile(r"^/api/payments/init$"), "Payment page opened"),
     (re.compile(r"^/api/bookings/[A-Za-z0-9]+/issue-ticket$"), "Payment & ticketing"),
     (re.compile(r"^/api/ndc/instant-pay/complete$"), "Payment & ticketing"),
+    # Amadeus fares (13/11/2026): they were not recorded at all.
+    (re.compile(r"^/api/amadeus-bookings/hold$"), "Booking created (PNR)"),
+    (re.compile(r"^/api/amadeus-bookings/[A-Za-z0-9]+/offline-start$"), "Bank / cash payment started"),
+    (re.compile(r"^/api/amadeus-bookings/[A-Za-z0-9]+/pay-ticket$"), "Payment & ticketing"),
 ]
 
 

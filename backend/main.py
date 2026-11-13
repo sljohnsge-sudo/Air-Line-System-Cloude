@@ -1540,6 +1540,8 @@ def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> di
 
     def paid_not_ticketed(reason: str) -> HTTPException:
         logger.error(f"{ref}: paid ({method} {payment_ref}) but not ticketed - {reason}")
+        insights.mark("Ticket issued", "fail", f"Amadeus {loc}: paid ({method}) but not ticketed - refund requested",
+                      raw_error=reason)
         _auto_refund_request(ref, customer_id=row.get("customer_id"), name=row.get("lead_name"), email=row.get("email"),
                              phone=row.get("phone"), travel_date=row.get("travel_date"), amount=row["amount"],
                              currency=row["currency"], reason=reason, payment_ref=payment_ref)
@@ -1588,6 +1590,7 @@ def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> di
 
     ad_bookings.finish(loc, "ticketed", payment_method=method, payment_ref=payment_ref, ticket_numbers=numbers)
     logger.info(f"{ref}: paid ({method} {payment_ref}) - ticket(s) {numbers}")
+    insights.mark("Ticket issued", "pass", f"Amadeus {loc}: ticket(s) {', '.join(numbers)} ({method})")
     _amadeus_after_ticket(row)
     # The customer's e-ticket email (13/11/2026) - once per ticket number,
     # in the background; never holds up or undoes the ticket.
@@ -1871,6 +1874,8 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
     # audit: it used to count only at 1 unit or more).
     price_changed = quoted is not None and (abs(float(quoted) - amount) >= 0.005
                                             or (request.quotedCurrency or currency).upper() != currency)
+    insights.mark("Booking held", "pass", f"Amadeus PNR {loc} held for {currency} {amount:,.2f}"
+                  + (f" (search price {request.quotedCurrency} {quoted})" if price_changed else ""))
     logger.info(f"Amadeus {loc} held for {currency} {amount} (net {net}, {tickets} ticket(s))"
                 + (f" - price changed from {request.quotedCurrency} {quoted}" if price_changed else ""))
     return {"locator": loc, "reference": ad_bookings.REF_PREFIX + loc, "amount": row["amount"], "currency": currency,
@@ -1923,12 +1928,16 @@ def amadeus_offline_start(locator: str, request: AmadeusOfflineStartRequest,
         # hold hours are only the longest we allow.
         cutoff = _ad_airline_cutoff(view)
         if cutoff:
-            hours_left = int((cutoff - datetime.now(_AD_OFFICE_TZ)).total_seconds() // 3600)
-            if hours_left < 1:
+            # 13/11/2026 live (72ZQB9 / 72ZLNJ): a 1-hour minimum of our own
+            # refused bank AND counter cash whenever the airline gave only an
+            # hour (UL near departure), and the customer then booked again.
+            # Now the airline's own time decides: allowed until it, and the
+            # pay-by is that exact time at the latest.
+            hours_left = (cutoff - datetime.now(_AD_OFFICE_TZ)).total_seconds() / 3600
+            if hours_left <= 0:
                 raise HTTPException(status_code=409, detail=(
                     f"The airline cancels this booking unless it is ticketed by {cutoff.strftime('%d/%m/%Y %H:%M')} "
-                    f"(Sri Lanka time), which is too soon for a {offline_payments.METHOD_LABEL[method].lower()} payment. "
-                    "Please pay by card. Nothing has been charged."))
+                    "(Sri Lanka time), and that time has passed. Nothing has been charged - please search again."))
             hold_hours = min(hold_hours, hours_left)
     is_staff = bool(principal and principal.get("role") == "admin")
     p = existing or offline_payments.start(

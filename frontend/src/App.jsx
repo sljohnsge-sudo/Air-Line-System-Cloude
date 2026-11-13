@@ -2357,6 +2357,7 @@ export default function App() {
   // The held booking (locator, AD-<PNR> reference, server price) between
   // holding and paying.
   const [amadeusHeld, setAmadeusHeld] = useState(null);
+  const amadeusHeldKeyRef = useRef(null);  // the fare + passengers the held booking is for
   // Amadeus fares: which greyed-out detail field the customer tried (13/11/2026:
   // special requests are never greyed out from other bookings' answers - the
   // airline's answer for THIS booking is shown before payment).
@@ -3695,6 +3696,15 @@ export default function App() {
       setBookingError('Please confirm the passenger details match the travel documents.');
       return;
     }
+    // Already held for this fare and these passengers (e.g. the payment step
+    // failed and the customer tries again, maybe with another method): pay
+    // that booking - the server checks it is still payable - instead of
+    // holding new seats (13/11/2026 live: 3 PNRs for one customer).
+    const heldKey = JSON.stringify([selectedFlight?.raw_offering?.segments, travelers]);
+    if (amadeusHeld && amadeusHeldKeyRef.current === heldKey) {
+      await continueAmadeusPayment(amadeusHeld);
+      return;
+    }
     amadeusBookingInFlightRef.current = true;
     setBookingStep('processing');
     setBookingError('');
@@ -3725,6 +3735,7 @@ export default function App() {
       });
       const held = await handleApiResponse(res, 'We could not book this fare');
       setAmadeusHeld(held);
+      amadeusHeldKeyRef.current = heldKey;
       if (held.fare_families && held.fare_families.length) {
         setSelectedFlight(f => (f ? { ...f, fare_family: held.fare_families.join(' / ') } : f));
       }
@@ -3750,7 +3761,16 @@ export default function App() {
         });
         return;
       }
-      await payAmadeusBooking(held);
+      try {
+        await payAmadeusBooking(held);
+      } catch (payErr) {
+        // Held, but the payment step failed: the booking stays held, and
+        // trying again pays this same booking.
+        const errMsg = `${payErr.message || String(payErr)} (Booking ${held.locator} - trying again continues with this booking.)`;
+        setBookingError(errMsg);
+        setBookingStep('review');
+        showNotification(errMsg, 'error');
+      }
     } catch (err) {
       const errMsg = err.message || String(err);
       setBookingError(errMsg);
@@ -3804,7 +3824,8 @@ export default function App() {
     try {
       await payAmadeusBooking(held);
     } catch (err) {
-      const errMsg = err.message || String(err);
+      // The booking stays held: trying again pays this same booking.
+      const errMsg = `${err.message || String(err)} (Booking ${held.locator} - trying again continues with this booking.)`;
       setBookingError(errMsg);
       setBookingStep('review');
       showNotification(errMsg, 'error');
