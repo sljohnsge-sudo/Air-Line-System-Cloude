@@ -67,6 +67,7 @@ from services import live_booking_service
 from services import manage_booking_service
 from services import addon_billing
 from services import customer_notify
+from services import eticket_email
 from services import addon_deadlines
 from services import ticketing_exceptions
 from services import payment_reconciliation
@@ -1558,6 +1559,7 @@ def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> di
         already = _ad_ticket_numbers(view)
         if already:
             ad_bookings.finish(loc, "ticketed", payment_method=method, payment_ref=payment_ref, ticket_numbers=already)
+            eticket_email.send_amadeus_eticket(loc)  # once per ticket number - skipped if already emailed
             return {"success": True, "already_issued": True, "locator": loc, "ticketNumbers": already,
                     "totalFare": row["amount"], "currency": row["currency"]}
         if not _ad_flights_confirmed(view):
@@ -1586,6 +1588,9 @@ def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> di
     ad_bookings.finish(loc, "ticketed", payment_method=method, payment_ref=payment_ref, ticket_numbers=numbers)
     logger.info(f"{ref}: paid ({method} {payment_ref}) - ticket(s) {numbers}")
     _amadeus_after_ticket(row)
+    # The customer's e-ticket email (13/11/2026) - once per ticket number,
+    # in the background; never holds up or undoes the ticket.
+    eticket_email.send_amadeus_eticket(loc)
     return {"success": True, **(issue or {}), "locator": loc, "ticketNumbers": numbers,
             # what the customer paid (Amadeus's own figure has no markup)
             "totalFare": row["amount"], "currency": row["currency"]}
@@ -3186,6 +3191,10 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
     # and a slow ERP can never delay it.
     _push_booking_to_erp_background(locator_code, saved)
 
+    # The customer's e-ticket email (13/11/2026) - once per ticket number,
+    # in the background; never holds up or undoes the ticket.
+    eticket_email.send_travelport_eticket(locator_code)
+
     return {
         "success": True,
         "ticket": ticket,
@@ -3612,6 +3621,8 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
     except Exception as e:
         logger.warning(f"Could not record PNR {result.get('locator_code')} on payment {request.reqid}: {e}")
     result["payment_txn_reference"] = payment_result.get("txn_reference")
+    # The customer's e-ticket email (13/11/2026) - once per ticket number.
+    eticket_email.send_travelport_eticket(result.get("locator_code"))
     return result
 
 
@@ -5253,7 +5264,10 @@ def admin_go_live_checks(_admin: dict = Depends(auth.get_current_admin)):
 
 @app.get("/api/admin/provider-settings")
 def admin_get_provider_settings(_admin: dict = Depends(auth.get_current_admin)):
-    return database.get_provider_settings()
+    # Whether e-ticket emails can actually go out (yes / no only, never the values).
+    return {**database.get_provider_settings(),
+            "email_login_set": eticket_email.email_login_set(),
+            "public_site_url_set": bool(eticket_email.site_url())}
 
 
 @app.put("/api/admin/provider-settings")
@@ -5262,11 +5276,13 @@ def admin_put_provider_settings(body: ProviderSettingsRequest, _admin: dict = De
         # The void/refund switch is super-admin only (Go-live controls); an
         # ordinary admin saving this page keeps its current value.
         body.ticketed_cancel_enabled = bool(database.get_provider_settings().get("ticketed_cancel_enabled", False))
-    return database.update_provider_settings(
+    saved = database.update_provider_settings(
         body.search_mode, body.hotels_enabled, body.visa_enabled, body.packages_enabled,
         body.ticketed_cancel_enabled, body.extras_pay_hours, body.extras_pay_before_departure_hours,
         body.notify_email_enabled, body.notify_sms_enabled, body.extras_reminder_hours,
     )
+    return {**saved, "email_login_set": eticket_email.email_login_set(),
+            "public_site_url_set": bool(eticket_email.site_url())}
 
 
 class GoLiveSwitchesRequest(BaseModel):

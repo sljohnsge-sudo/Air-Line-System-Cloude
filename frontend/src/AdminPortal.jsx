@@ -2170,10 +2170,22 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
 
         <h3 className="results-heading" style={{ marginTop: '2rem' }}>Customer Notifications</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1.25rem' }}>
-          Automatic messages to the customer about seats/extras: payment due (with the deadline), the reminder above,
+          Automatic messages to the customer: the e-ticket email right after a ticket is issued (Travelport and Amadeus,
+          once per ticket number), and about seats/extras: payment due (with the deadline), the reminder above,
           removed because unpaid, paid (EMD issued), and refused by the airline. Each goes once. Email needs SMTP_USER /
           SMTP_PASSWORD and SMS needs an SMS gateway (SMS_PROVIDER…) in the backend .env; until then they are recorded but not sent.
         </p>
+        {!providerSettingsLoading && providerSettings && providerSettings.email_login_set === false && (
+          <div role="alert" style={{ maxWidth: '640px', marginBottom: '0.9rem', padding: '0.7rem 1rem', borderRadius: '8px', border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', fontSize: '0.85rem', fontWeight: 700 }}>
+            E-ticket emails are not being sent: email login not set (SMTP_USER / SMTP_PASSWORD in the backend .env).
+            <div style={{ fontWeight: 400, marginTop: '0.2rem' }}>Tickets are still issued as normal. Each ticket issued meanwhile is logged as "not sent" and is not emailed later on its own — staff can share it from the booking.</div>
+          </div>
+        )}
+        {!providerSettingsLoading && providerSettings && providerSettings.public_site_url_set === false && (
+          <div role="status" style={{ maxWidth: '640px', marginBottom: '0.9rem', padding: '0.7rem 1rem', borderRadius: '8px', border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e', fontSize: '0.85rem' }}>
+            The website address (PUBLIC_SITE_URL in the backend .env) is not set, so e-ticket emails leave out the My Bookings and Check My Ticket Status links.
+          </div>
+        )}
         {!providerSettingsLoading && providerSettings && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxWidth: '520px' }}>
             {[
