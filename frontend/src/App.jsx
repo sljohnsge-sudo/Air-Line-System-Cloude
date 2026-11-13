@@ -2317,6 +2317,34 @@ export default function App() {
   // The held booking (locator, AD-<PNR> reference, server price) between
   // holding and paying.
   const [amadeusHeld, setAmadeusHeld] = useState(null);
+  // Amadeus special requests (14/11/2026): codes the airline(s) on the chosen
+  // Amadeus fare have refused (real answers our server keeps from bookings),
+  // shown greyed out; and which greyed-out detail field the customer tried.
+  const [adNotProvided, setAdNotProvided] = useState([]);
+  const [adFieldMsg, setAdFieldMsg] = useState('');
+  useEffect(() => {
+    setAdFieldMsg('');
+    if (selectedFlight?.source !== 'AD') { setAdNotProvided([]); return; }
+    const carriers = [...new Set((selectedFlight.raw_offering?.segments || []).map(sg => sg.marketingCarrier).filter(Boolean))];
+    if (!carriers.length) return;
+    fetch(`${API_BASE}/amadeus-special-requests/availability?carriers=${encodeURIComponent(carriers.join(','))}`)
+      .then(r => (r.ok ? r.json() : null)).then(d => setAdNotProvided((d && d.not_provided) || [])).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFlight?.offer_id, selectedFlight?.source]);
+  const AD_FIELD_LABEL = {
+    birth_place: 'Place of birth', document_issue_date: 'Document issue date',
+    issued_for_geo_political_area: 'Document valid for (country)', phone_extension: 'Phone extension',
+    phone_area_city_code: 'Phone area/city code', phone_city_code: 'Phone GDS city code',
+  };
+  // Detail fields Amadeus doesn't send (only the address goes, as SSR DOCA):
+  // greyed out on Amadeus fares, and trying them says so.
+  const adNotProvidedField = (field) => (selectedFlight?.source !== 'AD' ? {} : {
+    readOnly: true, 'aria-disabled': true, title: 'Not provided by the airline for this flight',
+    style: { background: '#f1f5f9', color: '#94a3b8', cursor: 'not-allowed' },
+    onMouseDown: (e) => { e.preventDefault(); setAdFieldMsg(AD_FIELD_LABEL[field] || field); },
+    onFocus: () => setAdFieldMsg(AD_FIELD_LABEL[field] || field),
+    onKeyDown: (e) => { if (e.key !== 'Tab') e.preventDefault(); },
+  });
 
   // Check My Ticket Status — one field, PNR or ticket number, no GDS picker.
   // The backend figures out which GDS it belongs to (see /api/ticket-status)
@@ -2385,7 +2413,8 @@ export default function App() {
   // A fare that can't take a special-meal request (e.g. "Meals: Not Offered",
   // or after the fare re-check switched fares) never sends one picked earlier.
   useEffect(() => {
-    if (!selectedFlight || ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes).meals) return;
+    // Amadeus fares: meal requests go to the airline, which answers per request.
+    if (!selectedFlight || selectedFlight.source === 'AD' || ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes).meals) return;
     setTravelers(prev => (prev.some(t => t.meal_code) ? prev.map(t => (t.meal_code ? { ...t, meal_code: null } : t)) : prev));
   }, [selectedFlight]);
 
@@ -2949,6 +2978,23 @@ export default function App() {
     else handlePassengerNext({ preventDefault() {} });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFlight]);
+
+  // One line per special request and flight, with the airline's answer.
+  const renderAdRequests = (list) => {
+    const labelOf = (code) => ([...MEAL_OPTIONS, ...WHEELCHAIR_OPTIONS].find(([c]) => c === code) || [code, code])[1];
+    const stateText = { confirmed: 'Confirmed by the airline', requested: 'Requested — the airline confirms later',
+                        refused: 'This is not provided by the airline for this flight' };
+    return (
+      <ul style={{ textAlign: 'left', margin: '0.5rem 0 0.75rem', paddingLeft: '1.1rem', fontSize: '0.85rem' }}>
+        {(list || []).map((r, i) => (
+          <li key={i} style={{ marginBottom: '0.25rem', color: r.state === 'refused' ? '#9a3412' : r.state === 'confirmed' ? '#166534' : '#334155' }}>
+            {r.passenger ? `${r.passenger}: ` : ''}{labelOf(r.code)} ({r.code}){r.flight ? ` on ${r.flight}` : r.carrier ? ` (${r.carrier})` : ''} — {stateText[r.state] || r.state}
+            {r.note && <div style={{ fontSize: '0.78rem', color: '#475569' }}>Airline note: {r.note}</div>}
+          </li>
+        ))}
+      </ul>
+    );
+  };
 
   const chooseAnotherFlight = () => {
     if (fareRecheck?.fresh) setFlights(fareRecheck.fresh);
@@ -3566,6 +3612,10 @@ export default function App() {
             dateOfBirth: t.date_of_birth, gender: t.gender || 'Male',
             passportNumber: (t.passport_number || '').trim(), passportExpiry: t.passport_expiry,
             passportIssueCountry: t.passport_issue_country, nationality: t.nationality || t.passport_issue_country,
+            mealCode: t.meal_code || null, wheelchair: t.wheelchair || null,
+            addressStreet: (t.address_street || '').trim() || null, addressCity: (t.address_city || '').trim() || null,
+            addressState: (t.address_state_value || t.address_state_name || '').trim() || null,
+            addressCountry: (t.address_country || '').trim() || null, addressPostalCode: (t.address_postal_code || '').trim() || null,
           })),
           contactEmail: (lead.email || '').trim(),
           contactPhone: (lead.phone || '').trim(),
@@ -3576,12 +3626,21 @@ export default function App() {
       const held = await handleApiResponse(res, 'We could not book this fare');
       setAmadeusHeld(held);
       reportJourneyStep('Booking held', { detail: `Held with the airline (${held.reference}) for ${held.currency} ${held.amount}` });
+      // Special requests the airline refused, or hasn't answered yet: shown
+      // before payment (free of charge; the booking goes on without a refused one).
+      const adRequests = (held.special_requests || []).filter(r => r.kind !== 'address');
+      const adNotable = adRequests.some(r => r.state === 'refused' || r.state === 'requested');
+      if (!held.price_changed && adNotable) {
+        setBookingStep('review');
+        setFareRecheck({ state: 'adssr', adHeld: held, adRequests });
+        return;
+      }
       if (held.price_changed) {
         // The airline's price differs from the one shown: the same fare
         // notice as Travelport fares, before anything is charged.
         setBookingStep('review');
         setFareRecheck({
-          state: 'changed', adHeld: held,
+          state: 'changed', adHeld: held, adRequests: adNotable ? adRequests : null,
           fare: { price: held.amount, currency: held.currency, cabin_class: selectedFlight.cabin_class, brand_name: selectedFlight.fare_family || null },
           oldPrice: selectedFlight.price, oldCurrency: selectedFlight.currency, oldFamily: null,
           airlinePriced: held.currency === selectedFlight.currency && held.amount > selectedFlight.price,
@@ -8783,29 +8842,39 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 {/* Amadeus fares (14/11/2026): these extra document / address
                     fields and special requests aren't sent to Amadeus yet, so
                     they are not asked for. */}
-                {selectedFlight.source !== 'AD' && (
+                {(
                 <button type="button" className="pax-more" onClick={() => setShowExtraTravelerFields(v => !v)}>
                   <Ico.IconChevronDown size={18} style={{ transform: showExtraTravelerFields ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
                   Additional Document &amp; Contact Details (optional)
                 </button>
                 )}
 
-                {selectedFlight.source !== 'AD' && showExtraTravelerFields && (
+                {showExtraTravelerFields && (
                   <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '1rem', marginBottom: '1rem' }}>
+                    {selectedFlight.source === 'AD' && (
+                      <div className="pax-note" style={{ marginBottom: '0.75rem' }}>
+                        <Ico.IconInfo size={14} />For this flight the airline takes your home address. The greyed-out details are not provided by the airline.
+                      </div>
+                    )}
+                    {selectedFlight.source === 'AD' && adFieldMsg && (
+                      <div className="pax-note" role="alert" style={{ marginBottom: '0.75rem', color: '#9a3412' }}>
+                        <Ico.IconInfo size={14} />{adFieldMsg}: this is not provided by the airline for this flight.
+                      </div>
+                    )}
                     <div className="form-grid-2">
                       <div className="form-group">
                         <label className="form-label">Place of Birth</label>
-                        <input type="text" className="form-input" placeholder="Colombo" value={travelers[activePassengerIdx]?.birth_place || ''} onChange={e => handleTravelerChange('birth_place', e.target.value)} />
+                        <input type="text" className="form-input" placeholder="Colombo" value={travelers[activePassengerIdx]?.birth_place || ''} {...adNotProvidedField('birth_place')} onChange={e => handleTravelerChange('birth_place', e.target.value)} />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Document Issue Date</label>
-                        <input type="date" className="form-input" value={travelers[activePassengerIdx]?.document_issue_date || ''} onChange={e => handleTravelerChange('document_issue_date', e.target.value)} />
+                        <input type="date" className="form-input" value={travelers[activePassengerIdx]?.document_issue_date || ''} {...adNotProvidedField('document_issue_date')} onChange={e => handleTravelerChange('document_issue_date', e.target.value)} />
                       </div>
                     </div>
                     <div className="form-grid-2">
                       <div className="form-group">
                         <label className="form-label">Document Valid For (Country)</label>
-                        <select className="form-select" value={travelers[activePassengerIdx]?.issued_for_geo_political_area || ''} onChange={e => handleTravelerChange('issued_for_geo_political_area', e.target.value)}>
+                        <select className="form-select" value={travelers[activePassengerIdx]?.issued_for_geo_political_area || ''} {...adNotProvidedField('issued_for_geo_political_area')} onChange={e => handleTravelerChange('issued_for_geo_political_area', e.target.value)}>
                           <option value="">-- Select country --</option>
                           {COUNTRIES.map(c => (
                             <option key={c.code} value={c.code}>{c.name}</option>
@@ -8814,17 +8883,17 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                       </div>
                       <div className="form-group">
                         <label className="form-label">Phone Extension</label>
-                        <input type="text" className="form-input" placeholder="123" value={travelers[activePassengerIdx]?.phone_extension || ''} onChange={e => handleTravelerChange('phone_extension', e.target.value)} />
+                        <input type="text" className="form-input" placeholder="123" value={travelers[activePassengerIdx]?.phone_extension || ''} {...adNotProvidedField('phone_extension')} onChange={e => handleTravelerChange('phone_extension', e.target.value)} />
                       </div>
                     </div>
                     <div className="form-grid-2">
                       <div className="form-group">
                         <label className="form-label">Phone Area/City Code</label>
-                        <input type="text" className="form-input" placeholder="11" value={travelers[activePassengerIdx]?.phone_area_city_code || ''} onChange={e => handleTravelerChange('phone_area_city_code', e.target.value)} />
+                        <input type="text" className="form-input" placeholder="11" value={travelers[activePassengerIdx]?.phone_area_city_code || ''} {...adNotProvidedField('phone_area_city_code')} onChange={e => handleTravelerChange('phone_area_city_code', e.target.value)} />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Phone GDS City Code</label>
-                        <input type="text" className="form-input" placeholder="CMB" maxLength={3} value={travelers[activePassengerIdx]?.phone_city_code || ''} onChange={e => handleTravelerChange('phone_city_code', e.target.value.toUpperCase())} />
+                        <input type="text" className="form-input" placeholder="CMB" maxLength={3} value={travelers[activePassengerIdx]?.phone_city_code || ''} {...adNotProvidedField('phone_city_code')} onChange={e => handleTravelerChange('phone_city_code', e.target.value.toUpperCase())} />
                       </div>
                     </div>
 
@@ -8862,7 +8931,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                 )}
 
-                {selectedFlight.source !== 'AD' && (
+                {(
                 <button type="button" className="pax-more" onClick={() => setShowSpecialRequest(v => !v)}>
                   <Ico.IconChevronDown size={18} style={{ transform: showSpecialRequest ? 'none' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
                   Special Request (optional)
@@ -8870,8 +8939,14 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 )}
 
                 {/* Special assistance — sent to the airline as SSRs with the booking */}
-                {selectedFlight.source !== 'AD' && showSpecialRequest && (() => {
-                    const support = ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes);
+                {showSpecialRequest && (() => {
+                    // Amadeus fares (14/11/2026): every option is shown; one the
+                    // airline has refused for this flight's airline(s) is greyed out.
+                    const isAD = selectedFlight.source === 'AD';
+                    const support = isAD
+                      ? { meals: true, wheelchair: true, note: null }
+                      : ssrSupport(selectedFlight.raw_offering, selectedFlight.brand_attributes);
+                    const off = (code) => isAD && adNotProvided.includes(code);
                     const t = travelers[activePassengerIdx] || {};
                     return (
                       <div className="pax-optional-box">
@@ -8882,7 +8957,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               <Ico.IconMeal size={16} className="pax-control-icon" />
                               <select className="form-select" disabled={!support.meals} value={t.meal_code || ''} onChange={e => handleTravelerChange('meal_code', e.target.value || null)}>
                                 <option value="">{support.mealsNotServed ? 'No meal service on this fare' : 'No special meal'}</option>
-                                {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                                {MEAL_OPTIONS.map(([code, name]) => <option key={code} value={code} disabled={off(code)}>{name} ({code}){off(code) ? ' — not provided by the airline' : ''}</option>)}
                               </select>
                             </div>
                           </div>
@@ -8892,7 +8967,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                               <Ico.IconWheelchair size={16} className="pax-control-icon" />
                               <select className="form-select" disabled={!support.wheelchair} value={t.wheelchair || ''} onChange={e => handleTravelerChange('wheelchair', e.target.value || null)}>
                                 <option value="">Not needed</option>
-                                {WHEELCHAIR_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                                {WHEELCHAIR_OPTIONS.map(([code, name]) => <option key={code} value={code} disabled={off(code)}>{name} ({code}){off(code) ? ' — not provided by the airline' : ''}</option>)}
                               </select>
                             </div>
                           </div>
@@ -8900,7 +8975,12 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                         <div className="pax-note">
                           <Ico.IconInfo size={14} />{support.note || 'Free of charge — sent to the airline with your booking. The airline confirms each request.'}
                         </div>
-                        {t.wheelchair && (
+                        {isAD && [...MEAL_OPTIONS, ...WHEELCHAIR_OPTIONS].some(([code]) => off(code)) && (
+                          <div className="pax-note" style={{ color: '#9a3412' }}>
+                            <Ico.IconInfo size={14} />Greyed-out options are not provided by the airline for this flight.
+                          </div>
+                        )}
+                        {!isAD && t.wheelchair && (
                           <div className="pax-note" style={{ color: '#1e3a8a' }}>
                             <Ico.IconWheelchair size={14} />{wheelchairCondition(selectedFlight.raw_offering, t.wheelchair)}
                           </div>
@@ -11111,6 +11191,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     {fare.brand_name || fare.cabin_class}{oldFamily && fare.brand_name && fare.brand_name !== oldFamily ? ` (was ${oldFamily})` : ''}
                     {sameCur && diff > 0 ? ` · ${fare.currency} ${diff.toLocaleString()} more` : ''}
                   </p>
+                  {fareRecheck.adRequests && renderAdRequests(fareRecheck.adRequests)}
                   <div className="fare-recheck-actions">
                     <button className="btn btn-primary" onClick={continueWithNewFare}>Continue with this fare</button>
                     <button className="btn btn-secondary" onClick={chooseAnotherFlight}>Choose another flight</button>
@@ -11118,6 +11199,18 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 </>
               );
             })()}
+            {fareRecheck.state === 'adssr' && (
+              <>
+                <h3>Your special requests</h3>
+                <p>Your seats are held. Here is what the airline answered:</p>
+                {renderAdRequests(fareRecheck.adRequests)}
+                <p className="fare-recheck-note">Special requests are free of charge. Your booking continues without any the airline doesn't provide.</p>
+                <div className="fare-recheck-actions">
+                  <button className="btn btn-primary" onClick={continueWithNewFare}>Continue to payment</button>
+                  <button className="btn btn-secondary" onClick={chooseAnotherFlight}>Choose another flight</button>
+                </div>
+              </>
+            )}
             {fareRecheck.state === 'schedule' && (
               <>
                 <h3>The airline has changed this flight's schedule</h3>

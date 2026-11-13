@@ -1274,6 +1274,7 @@ async def amadeus_booking_issue_ticket(locator: str, _admin: dict = Depends(auth
 # Paid seats and extras are not sold on Amadeus fares yet.
 
 from services import amadeus_customer_bookings as ad_bookings
+from services import amadeus_ssr_outcomes as ad_ssr
 from services.amadeus_aggregator import customer_price as amadeus_customer_price
 from services.pricing_service import get_settings as _markup_settings
 
@@ -1282,6 +1283,8 @@ _AD_SEGMENT_KEYS = ("departureDate", "departureTime", "arrivalDate", "arrivalTim
                     "marketingCarrier", "flightNumber", "bookingClass", "fareBasis", "ticketDesignator", "leg")
 _AD_SEGMENT_REQUIRED = _AD_SEGMENT_KEYS[:9]
 _AD_TYPE_PTC = {"adult": "ADT", "child": "CNN", "infant": "INF"}
+_AD_MEAL_CODES = {"AVML", "BBML", "BLML", "CHML", "DBML", "FPML", "GFML", "HNML", "KSML", "LCML", "LFML",
+                  "LSML", "MOML", "NLML", "NOML", "RVML", "SFML", "VGML", "VJML", "VLML", "VOML"}
 _AD_NOT_BOOKED = ("The airline could not confirm these seats just now, so nothing has been booked or charged. "
                   "Please choose another flight or try again in a few minutes.")
 _AD_CHECK_FAILED = ("We couldn't check your booking with the airline just now. No payment has been taken - "
@@ -1298,6 +1301,14 @@ class AmadeusHoldTraveler(BaseModel):
     passportExpiry: str
     passportIssueCountry: str = Field(..., min_length=2, max_length=3)
     nationality: Optional[str] = Field(None, max_length=3)
+    # 14/11/2026: special requests and the home address (SSR DOCA).
+    mealCode: Optional[str] = Field(None, max_length=4)
+    wheelchair: Optional[Literal["WCHR", "WCHS", "WCHC"]] = None
+    addressStreet: Optional[str] = Field(None, max_length=80)
+    addressCity: Optional[str] = Field(None, max_length=40)
+    addressState: Optional[str] = Field(None, max_length=40)
+    addressCountry: Optional[str] = Field(None, max_length=3)
+    addressPostalCode: Optional[str] = Field(None, max_length=17)
 
 
 class AmadeusHoldRequest(BaseModel):
@@ -1518,6 +1529,9 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
             raise HTTPException(status_code=422, detail="This fare's flight details are incomplete. Please search again.")
         segments.append(seg)
     _check_amadeus_travelers(request.travelers, segments)
+    for t in request.travelers:
+        if t.mealCode and t.mealCode.upper() not in _AD_MEAL_CODES:
+            raise HTTPException(status_code=422, detail="Please choose a special meal from the list.")
     travelers = [{**t.model_dump(), "firstName": t.firstName.strip(), "lastName": t.lastName.strip(),
                   "passportNumber": t.passportNumber.strip().upper(),
                   "nationality": t.nationality or t.passportIssueCountry} for t in request.travelers]
@@ -1554,13 +1568,38 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
         flights=" ".join(s["marketingCarrier"] + s["flightNumber"] for s in segments),
         airline_code=segments[0]["marketingCarrier"],
         booked_by=f"admin #{principal.get('admin_id')}" if is_staff else None)
+    # Special requests: what the airline answered, kept per airline (greys
+    # out what it refuses next time) and shown to the customer before paying.
+    special_requests = []
+    try:
+        answers = held.get("specialRequests") or []
+        ad_ssr.record(answers, loc, held.get("amadeusSystem") or "TEST")
+        names = [f"{t['firstName']} {t['lastName']}".upper() for t in travelers]
+        special_requests = [{**a, "passenger": names[a["traveler_index"]] if (a.get("traveler_index") or 0) < len(names) else None}
+                            for a in answers]
+    except Exception as e:
+        logger.warning(f"Amadeus {loc}: special request answers not recorded: {e}")
     quoted = request.quotedPrice
     price_changed = quoted is not None and (abs(float(quoted) - amount) >= 1
                                             or (request.quotedCurrency or currency).upper() != currency)
     logger.info(f"Amadeus {loc} held for {currency} {amount} (net {net}, {tickets} ticket(s))"
                 + (f" - price changed from {request.quotedCurrency} {quoted}" if price_changed else ""))
     return {"locator": loc, "reference": ad_bookings.REF_PREFIX + loc, "amount": row["amount"], "currency": currency,
-            "quoted_price": quoted, "price_changed": price_changed, "payment_methods": offline_payments.public_settings()}
+            "quoted_price": quoted, "price_changed": price_changed, "payment_methods": offline_payments.public_settings(),
+            "special_requests": special_requests}
+
+
+@app.get("/api/amadeus-special-requests/availability")
+def amadeus_special_request_availability(carriers: str = Query(..., max_length=40)):
+    """Special request codes not provided by the airline(s) of an Amadeus
+    fare - their last real answer was a refusal. The passenger form greys
+    these out. Only on the Amadeus system the website uses now (TEST)."""
+    codes = [c.strip().upper() for c in carriers.split(",") if re.fullmatch(r"[A-Za-z0-9]{2}", c.strip())]
+    try:
+        return {"not_provided": ad_ssr.not_provided(codes, os.getenv("AMADEUS_SYSTEM", "TEST").upper())}
+    except Exception as e:
+        logger.warning(f"Special request availability not read: {e}")
+        return {"not_provided": []}
 
 
 @app.post("/api/amadeus-bookings/{locator}/pay-ticket")

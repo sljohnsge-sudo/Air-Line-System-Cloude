@@ -701,6 +701,145 @@ def _contact_ssr_xml(ssr_type: str, text: str) -> str:
       </dataElementsIndiv>"""
 
 
+# ── Special requests and address (14/11/2026) ────────────────────────────
+# Special meal (MEAL codes) and wheelchair (WCHR / WCHS / WCHC) as SSRs to
+# each airline on the booking, per passenger, requested with status NN; the
+# airline answers HK/KK (confirmed), UN/NO/UC/... (refused) or leaves NN
+# (still to answer). The passenger's address as SSR DOCA (R = residence) to
+# every airline. Each is added on its own, so one refused request never
+# stops the booking; what the airline answers is read back after End
+# Transact (special_request_outcomes).
+
+SPECIAL_MEAL_CODES = {"AVML", "BBML", "BLML", "CHML", "DBML", "FPML", "GFML", "HNML", "KSML", "LCML",
+                      "LFML", "LSML", "MOML", "NLML", "NOML", "RVML", "SFML", "VGML", "VJML", "VLML", "VOML"}
+WHEELCHAIR_CODES = {"WCHR", "WCHS", "WCHC"}
+_SSR_CONFIRMED = {"HK", "KK", "KD", "HS", "TK", "RR"}
+_SSR_REFUSED = {"UN", "NO", "UC", "UU", "HX", "US", "XX", "XK", "DL", "NA", "UNKNOWN"}
+
+
+def ssr_state(status: str | None) -> str:
+    """confirmed / refused / requested (the airline hasn't answered yet)."""
+    st = (status or "").upper()
+    if st in _SSR_CONFIRMED:
+        return "confirmed"
+    if st in _SSR_REFUSED:
+        return "refused"
+    return "requested"
+
+
+def _special_ssr_xml(code: str, pax_ref: str, carrier: str, status: str = "NN", freetext: str | None = None) -> str:
+    text = f"<freetext>{escape(freetext)}</freetext>" if freetext else ""
+    return f"""<dataElementsIndiv>
+        <elementManagementData><segmentName>SSR</segmentName></elementManagementData>
+        <serviceRequest>
+          <ssr>
+            <type>{escape(code)}</type>
+            <status>{escape(status)}</status>
+            <quantity>1</quantity>
+            <companyId>{escape(carrier)}</companyId>
+            {text}
+          </ssr>
+        </serviceRequest>
+        <referenceForDataElement><reference><qualifier>PT</qualifier><number>{escape(pax_ref)}</number></reference></referenceForDataElement>
+      </dataElementsIndiv>"""
+
+
+def _doca_text(t: dict) -> str | None:
+    """IATA SSR DOCA residence address: R/<country>/<street>/<city>/<state>/<postal code>."""
+    if not (t.get("addressStreet") and t.get("addressCity") and t.get("addressCountry")):
+        return None
+    clean = lambda v: re.sub(r"[^A-Z0-9 .\-]", " ", str(v or "").upper()).strip()
+    return "R/" + "/".join(clean(t.get(k)) for k in
+                           ("addressCountry", "addressStreet", "addressCity", "addressState", "addressPostalCode"))
+
+
+def _reply_errors(body_root) -> list[str]:
+    reply = _find_local(body_root, "PNR_Reply")
+    out = []
+    for el in reply.iter() if reply is not None else []:
+        if _local(el.tag) in ("generalErrorInfo", "elementErrorInformation", "errorGroup", "applicationError"):
+            cat = next((c.text for c in el.iter() if _local(c.tag) == "errorCategory" and c.text), "")
+            if cat.upper().startswith("W"):
+                continue
+            code = next((c.text for c in el.iter() if _local(c.tag) in ("errorCode", "error") and c.text), "")
+            text = " ".join(t.text.strip() for t in el.iter()
+                            if _local(t.tag) in ("freeText", "freetext", "text") and t.text and t.text.strip())
+            out.append(f"{code} {text}".strip() or "refused")
+    return list(dict.fromkeys(out))
+
+
+
+def _ws_endpoint() -> str:
+    from services import amadeus_soap_client
+    return getattr(amadeus_soap_client, "AMADEUS_WS_ENDPOINT", "") or ""
+
+async def add_special_requests(session: AmadeusSession, travelers: list[dict], pax_refs: list[str],
+                               carriers: list[str]) -> list[dict]:
+    """Adds each passenger's special meal, wheelchair and address. Returns one
+    item per request: {traveler_index, pax_ref, code, kind, carrier, added,
+    error}. A request Amadeus or the airline refuses at once is returned with
+    added=False and the reason; the booking goes on without it."""
+    carriers = list(dict.fromkeys(c for c in carriers if c))
+    items = []
+    for i, (t, ref) in enumerate(zip(travelers, pax_refs)):
+        meal = (t.get("mealCode") or "").upper()
+        if meal in SPECIAL_MEAL_CODES:
+            items += [{"traveler_index": i, "pax_ref": ref, "code": meal, "kind": "meal", "carrier": c} for c in carriers]
+        chair = (t.get("wheelchair") or "").upper()
+        if chair in WHEELCHAIR_CODES:
+            items += [{"traveler_index": i, "pax_ref": ref, "code": chair, "kind": "wheelchair", "carrier": c} for c in carriers]
+        doca = _doca_text(t)
+        if doca:
+            items.append({"traveler_index": i, "pax_ref": ref, "code": "DOCA", "kind": "address", "carrier": "YY", "text": doca})
+    for it in items:
+        xml = (_special_ssr_xml("DOCA", it["pax_ref"], "YY", status="HK", freetext=it["text"]) if it["kind"] == "address"
+               else _special_ssr_xml(it["code"], it["pax_ref"], it["carrier"]))
+        body = f"""<PNR_AddMultiElements xmlns="{NS['pnr']}">
+      <reservationInfo><reservation/></reservationInfo>
+      <pnrActions><optionCode>0</optionCode></pnrActions>
+      <dataElementsMaster>
+        <marker1/>
+        {xml}
+      </dataElementsMaster>
+    </PNR_AddMultiElements>"""
+        try:
+            root = await call(operation="PNR_AddMultiElements", soap_action="http://webservices.amadeus.com/PNRADD_22_1_1A",
+                              body_xml=body, log_prefix=f"11c_pnr_add_{it['code'].lower()}", session=session, stateful=True)
+            errors = _reply_errors(root)
+        except AmadeusSoapError as e:
+            errors = [e.message]
+        it["added"] = not errors
+        it["error"] = "; ".join(errors)[:300] if errors else None
+        it.pop("text", None)
+    return items
+
+
+def special_request_outcomes(sent: list[dict], pnr: dict) -> list[dict]:
+    """What the airline answered for each request, from the PNR read after
+    End Transact: one line per request and flight where the PNR has it,
+    with the airline's status code and confirmed / requested / refused."""
+    in_pnr = pnr.get("specialRequests") or []
+    flights = {s.get("segmentRef"): s.get("flight_number") for s in pnr.get("segments") or []}
+    out = []
+    for it in sent:
+        base = {k: it.get(k) for k in ("traveler_index", "code", "kind", "carrier")}
+        if not it.get("added"):
+            out.append({**base, "flight": None, "status": None, "state": "refused", "reason": it.get("error")})
+            continue
+        if it["kind"] == "address":
+            out.append({**base, "flight": None, "status": "HK", "state": "sent", "reason": None})
+            continue
+        found = [r for r in in_pnr if r.get("code") == it["code"] and r.get("paxRef") == it["pax_ref"]
+                 and (r.get("carrier") in (it["carrier"], None))]
+        if not found:
+            out.append({**base, "flight": None, "status": None, "state": "refused",
+                        "reason": "not on the booking after it was saved"})
+        for r in found:
+            out.append({**base, "flight": flights.get(r.get("segmentRef")), "status": r.get("status"),
+                        "state": ssr_state(r.get("status")), "reason": None, "note": r.get("note")})
+    return out
+
+
 async def add_document_elements(session: AmadeusSession, travelers: list[dict], pax_refs: list[str], carriers: list[str] | str,
                                 email: str | None = None, phone: str | None = None):
     """One PNR_AddMultiElements call carrying, as in Amadeus's sample step 5:
@@ -962,14 +1101,30 @@ async def confirm_booking(segments: list[dict], travelers: list[dict], email: st
     await sell_segments(session, segments, total_pax)
     pax_refs = await add_travellers_and_contact(session, travelers, email, phone)
     await add_document_elements(session, travelers, pax_refs, [s["marketingCarrier"] for s in segments], email, phone)
+    sent_requests = await add_special_requests(session, travelers, pax_refs, [s["marketingCarrier"] for s in segments])
     pricing = await price_pnr(session)
     await create_tst(session, pricing["tstReferences"])
     locator = await end_transact(session, received_from=travelers[0]["lastName"].upper(), end_session=True)
+
+    special_requests = []
+    if sent_requests:
+        try:
+            special_requests = special_request_outcomes(sent_requests, await get_booking_status(locator))
+        except AmadeusSoapError as e:
+            # The booking is saved; the answers can be read again later.
+            special_requests = [{**{k: it.get(k) for k in ("traveler_index", "code", "kind", "carrier")},
+                                 "flight": None, "status": None,
+                                 "state": "requested" if it.get("added") else "refused",
+                                 "reason": it.get("error") or f"could not read the answer yet: {e.message}"}
+                                for it in sent_requests]
 
     return {
         "locator": locator,
         "pricing": pricing,
         "quote": quote,
+        "specialRequests": special_requests,
+        # Which Amadeus system answered (test answers may differ from live).
+        "amadeusSystem": "TEST" if ".test." in (_ws_endpoint() or "").lower() else "LIVE",
     }
 
 
@@ -1083,7 +1238,9 @@ def _parse_pnr_reply(body_root) -> dict:
         prod_details = _find_local(tp, "productDetails") if tp is not None else None
         related = _find_local(it, "relatedProduct")
         airline_locator = _find_deep(it, "itineraryReservationInfo", "reservation", "controlNumber")
+        seg_ref = _find_deep(it, "elementManagementItinerary", "reference")
         segments.append({
+            "segmentRef": _text(seg_ref, "number") if seg_ref is not None else None,
             "departure_time": _to_iso(_text(product, "depDate"), _text(product, "depTime")),
             "arrival_time": _to_iso(_text(product, "arrDate"), _text(product, "arrTime")),
             "departure_airport": _text(board, "cityCode"),
@@ -1097,10 +1254,27 @@ def _parse_pnr_reply(body_root) -> dict:
 
     ticket_numbers: list[str] = []
     ticketing_status = None
+    special_requests: list[dict] = []
     dem = _find_local(reply, "dataElementsMaster")
     for dei in _find_all_local(dem, "dataElementsIndiv"):
         emd = _find_local(dei, "elementManagementData")
         seg_name = _text(emd, "segmentName") if emd is not None else None
+        # 14/11/2026: special meal / wheelchair requests and the airline's
+        # answer (status), per passenger (PT) and flight (ST).
+        if seg_name == "SSR":
+            ssr = _find_deep(dei, "serviceRequest", "ssr")
+            code = (_text(ssr, "type") or "").upper() if ssr is not None else ""
+            if code in SPECIAL_MEAL_CODES or code in WHEELCHAIR_CODES:
+                refs = [(_text(r, "qualifier"), _text(r, "number")) for r in dei.iter()
+                        if _local(r.tag) == "reference" and _text(r, "qualifier") in ("PT", "ST")]
+                special_requests.append({
+                    "code": code, "status": _text(ssr, "status"), "carrier": _text(ssr, "companyId"),
+                    # The airline's own note on the request, e.g. a form it needs.
+                    "note": " ".join(t.text.strip() for t in ssr.iter()
+                                     if _local(t.tag) in ("freeText", "freetext") and t.text and t.text.strip()) or None,
+                    "paxRef": next((n for q, n in refs if q == "PT"), None),
+                    "segmentRef": next((n for q, n in refs if q == "ST"), None),
+                })
         if seg_name == "TK":
             ticket = _find_deep(dei, "ticketElement", "ticket")
             if ticket is not None:
@@ -1164,6 +1338,7 @@ def _parse_pnr_reply(body_root) -> dict:
         "ticketNumbers": ticket_numbers,
         "totalFare": total_fare,
         "currency": fare_currency,
+        "specialRequests": special_requests,
         "email": email,
         "phone": phone,
     }

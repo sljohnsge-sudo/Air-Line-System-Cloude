@@ -169,6 +169,15 @@ class Traveler(BaseModel):
     passportExpiry: Optional[str] = None  # ISO YYYY-MM-DD
     passportIssueCountry: Optional[str] = None  # ISO 2-letter country code
     nationality: Optional[str] = None  # ISO 2-letter country code
+    # 14/11/2026: special requests (SSRs to each airline, the airline answers)
+    # and the residence address (SSR DOCA). All optional.
+    mealCode: Optional[str] = Field(None, max_length=4)
+    wheelchair: Optional[str] = Field(None, max_length=4)
+    addressStreet: Optional[str] = Field(None, max_length=80)
+    addressCity: Optional[str] = Field(None, max_length=40)
+    addressState: Optional[str] = Field(None, max_length=40)
+    addressCountry: Optional[str] = Field(None, max_length=3)
+    addressPostalCode: Optional[str] = Field(None, max_length=17)
 
 
 class BookingConfirmRequest(BaseModel):
