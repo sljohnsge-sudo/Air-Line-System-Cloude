@@ -165,6 +165,8 @@ def _view(body_root) -> dict:
                       for t in pnr.get("travelers", [])],
         "segments": pnr.get("segments", []),
         "documents": docs,
+        # The airline's own ticketing deadline / cancellation time (OPW / OPC).
+        "airline_deadlines": pnr.get("airlineDeadlines") or [],
         "has_itinerary": bool(live),
         "valid_documents": len(valid),
         "valid_tickets": len(valid_tickets),

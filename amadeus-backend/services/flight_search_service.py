@@ -46,25 +46,31 @@ def _itinerary_xml(seg_ref: int, origin: str, destination: str, dep_date: date) 
 
 
 def _pax_xml(adults: int, children: int, infants: int) -> tuple[str, int]:
-    # Infants are deliberately excluded from the search paxReference: Amadeus
-    # Fare_MasterPricerTravelBoardSearch rejects "INF" as a requested
-    # passenger type (confirmed live -- errorCode 955 "Invalid passenger
-    # type code"). Infants aren't priced/seated in Master Pricer search;
-    # they're added at the PNR stage instead (see flight_booking_service).
+    """Passengers exactly as Amadeus's sample search sends them (13/11/2026
+    audit): ADT, then CH for children (we sent "CHD", which Amadeus priced as
+    an adult fare), then each infant as INF on an adult's ref with
+    infantIndicator 1 (infants used to be left out, so their fare was missing
+    from the price). The seat count (PX) is adults + children - an infant
+    sits on an adult's lap."""
+    if infants > adults:
+        raise AmadeusSoapError("Each infant must travel with an adult.", status_code=422)
     blocks = []
     ref = 1
-    refs_by_type = {}
-    for ptc, count in (("ADT", adults), ("CHD", children)):
+    adult_refs = []
+    for ptc, count in (("ADT", adults), ("CH", children)):
         if count <= 0:
             continue
         travellers = ""
-        refs = []
         for _ in range(count):
             travellers += f"<traveller><ref>{ref}</ref></traveller>"
-            refs.append(ref)
+            if ptc == "ADT":
+                adult_refs.append(ref)
             ref += 1
-        refs_by_type[ptc] = refs
         blocks.append(f"<paxReference><ptc>{ptc}</ptc>{travellers}</paxReference>")
+    if infants > 0:
+        travellers = "".join(f"<traveller><ref>{adult_refs[i]}</ref><infantIndicator>1</infantIndicator></traveller>"
+                             for i in range(infants))
+        blocks.append(f"<paxReference><ptc>INF</ptc>{travellers}</paxReference>")
     return "".join(blocks), ref - 1
 
 
@@ -218,8 +224,10 @@ def _parse_baggage_by_fare_ref(reply: ET.Element) -> dict[str, list[dict]]:
                     if item_num and f_ref:
                         item_to_fref[item_num] = f_ref
 
+    # 13/11/2026 audit: freeBagAllowanceGrp is the fare's free baggage;
+    # quantityCode N = number of pieces, W = weight (unitQualifier K = kg).
+    # Pieces used to be labelled carry-on. Any other code is shown as it came.
     checked_by_fref: dict[str, list[str]] = {}
-    carryon_by_fref: dict[str, list[str]] = {}
     for bag in _find_all_local(sfg, "freeBagAllowanceGrp"):
         info = _find_local(bag, "freeBagAllownceInfo")
         details = _find_local(info, "baggageDetails") if info is not None else None
@@ -234,18 +242,16 @@ def _parse_baggage_by_fare_ref(reply: ET.Element) -> dict[str, list[dict]]:
         if not f_ref or not free_allowance:
             continue
         if quantity_code == "N":
-            carryon_by_fref.setdefault(f_ref, []).append(f"{free_allowance} pc" + ("s" if free_allowance != "1" else ""))
+            text = f"{free_allowance} piece" + ("s" if free_allowance != "1" else "")
         elif quantity_code == "W" and unit_qualifier == "K":
-            checked_by_fref.setdefault(f_ref, []).append(f"{free_allowance} kg")
+            text = f"{free_allowance} kg"
+        else:
+            text = " ".join(v for v in (free_allowance, quantity_code, unit_qualifier) if v)
+        checked_by_fref.setdefault(f_ref, []).append(text)
 
     result: dict[str, list[dict]] = {}
-    for f_ref in set(list(checked_by_fref) + list(carryon_by_fref)):
-        entries = []
-        if f_ref in checked_by_fref:
-            entries.append({"type": "Checked Baggage", "allowance": " / ".join(checked_by_fref[f_ref])})
-        if f_ref in carryon_by_fref:
-            entries.append({"type": "Carry-on Baggage", "allowance": " / ".join(carryon_by_fref[f_ref])})
-        result[f_ref] = entries
+    for f_ref, texts in checked_by_fref.items():
+        result[f_ref] = [{"type": "Checked Baggage", "allowance": " / ".join(texts)}]
     return result
 
 
@@ -331,6 +337,14 @@ def _parse_reply(reply: ET.Element) -> dict:
         # passenger types for the same leg.
         fares_by_leg: dict[str, list[dict]] = {}
         pax_fare_product = _find_local(rec, "paxFareProduct")  # first = adult fare
+        # The fare's validating carrier, as Amadeus gives it on the
+        # recommendation (paxFareDetail/codeShareDetails, qualifier V).
+        validating = None
+        pfd = _find_local(pax_fare_product, "paxFareDetail") if pax_fare_product is not None else None
+        for csd in _find_all_local(pfd, "codeShareDetails") if pfd is not None else []:
+            if _text(csd, "transportStageQualifier") == "V":
+                validating = _text(csd, "company")
+                break
         if pax_fare_product is not None:
             for fd in _find_all_local(pax_fare_product, "fareDetails"):
                 seg_ref_el = _find_local(fd, "segmentRef")
@@ -379,6 +393,7 @@ def _parse_reply(reply: ET.Element) -> dict:
             seg["leg"] = leg_number
             seg["cabin"] = fare.get("cabin")
             seg["seatsAvailable"] = fare.get("seatsAvailable")
+            seg["validatingCarrier"] = validating
         if incomplete:
             logger.warning(f"Search: recommendation skipped - a flight has no booking class of its own "
                            f"({[s.get('marketingCarrier', '') + str(s.get('flightNumber', '')) for s in segments]})")

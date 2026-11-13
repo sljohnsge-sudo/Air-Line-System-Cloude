@@ -19,6 +19,7 @@ booking class, TST reference).
 """
 
 import re
+from datetime import datetime
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
@@ -363,13 +364,12 @@ def _parse_informative_reply(reply) -> dict:
 
 async def informative_pricing(session: AmadeusSession, segments: list[dict], travelers: list[dict], end_session: bool = True,
                               currency: str | None = None) -> dict:
-    """The sample names the validating carrier (VC). That's right when one
-    airline flies the whole trip; on a mixed-airline trip (UL + LH ...) a
-    wrong guess gives errorCode 911 "NO FARE FOR BOOKING CODE", so there
-    Amadeus picks it -- and a single-airline quote that fails is retried
-    once without VC too."""
-    carriers = list(dict.fromkeys(s["marketingCarrier"] for s in segments))
-    attempts = [carriers[0], None] if len(carriers) == 1 else [None]
+    """The sample names the validating carrier (VC). 13/11/2026 audit: it is
+    the one Amadeus gave for this fare in the search
+    (paxFareDetail/codeShareDetails V) - never guessed from the first
+    airline; without it, Amadeus picks."""
+    vcs = list(dict.fromkeys(s.get("validatingCarrier") for s in segments if s.get("validatingCarrier")))
+    attempts = [vcs[0] if len(vcs) == 1 else None]
     result: dict = {"ok": False, "error": "not priced"}
     for i, vc in enumerate(attempts):
         last = i == len(attempts) - 1
@@ -397,53 +397,75 @@ async def informative_pricing(session: AmadeusSession, segments: list[dict], tra
 _PTC_MAP = {"adult": "ADT", "child": "CHD", "infant": "INF"}
 
 
-def _traveller_blocks(travelers: list[dict]) -> str:
-    """Build one NM travellerInfo block per traveler, adult/child/infant alike.
+def _name_groups(travelers: list[dict]) -> list[tuple[int, int | None]]:
+    """The name elements in the order they are sent: each adult with the
+    infant on their lap (the n-th infant with the n-th adult, as entered),
+    then each child. An infant has no name element (and no seat) of its own
+    (Amadeus's sample SB and the PNR_AddMultiElements XSD: infantIndicator 3)."""
+    kinds = [(t.get("type") or "").lower() for t in travelers]
+    if any(k not in _PTC_MAP for k in kinds):
+        raise AmadeusSoapError("Each passenger needs a type (adult, child or infant).", status_code=422)
+    adults = [i for i, k in enumerate(kinds) if k == "adult"]
+    infants = [i for i, k in enumerate(kinds) if k == "infant"]
+    children = [i for i, k in enumerate(kinds) if k == "child"]
+    if len(infants) > len(adults):
+        raise AmadeusSoapError("Each infant must travel with an adult.", status_code=422)
+    return [(a, infants[n] if n < len(infants) else None) for n, a in enumerate(adults)] + [(c, None) for c in children]
 
-    A nested infantInformation block (infant declared inside the carrying
-    adult's own passengerData, not as its own travellerInfo) was tried first
-    -- Amadeus rejected it outright as a schema sequence error ("Unknown item
-    found or found at the wrong position", see logs/amadeus
-    20261005_112939_368618.11_pnr_add_travellers_RS.xml). A plain, independent
-    NM block per traveler (same shape already proven for ADT/CHD) is accepted
-    instead; the infant still doesn't occupy a sold seat -- that's handled by
-    excluding infants from confirm_booking's segment-sell quantity, not by
-    anything structural here.
-    """
+
+def _first_name(t: dict) -> str:
+    """First name, then the title the customer chose (Amadeus's sample SB:
+    "Raja Mr"; XSD: "Traveler First Name + title"). No title is made up."""
+    return (t["firstName"].strip() + (" " + t["title"] if t.get("title") else "")).upper()
+
+
+def _traveller_blocks(travelers: list[dict]) -> str:
+    """One NM travellerInfo per adult (with their lap infant inside, as a
+    second passengerData) and per child - exactly the shape of Amadeus's
+    sample SB step 5. Dates of birth go on children and infants (qualifier
+    706), as in the sample.
+
+    History: an infant used to be sent as its own name element with its own
+    seat - Amadeus then priced and ticketed it as an extra passenger (Scenario
+    1: 4 tickets for 3 people)."""
     blocks = ""
-    for t in travelers:
-        ptc = _PTC_MAP.get((t.get("type") or "adult").lower(), "ADT")
-        # dateOfBirth was tried as a child of <passenger> (same position as
-        # <type>) to fix errorCode 11228 "ENTRY NOT ALLOWED IN NHP
-        # CONDITIONS" on infant pricing -- rejected outright, same class of
-        # schema sequence error as the infantInformation attempt above
-        # ("Unknown item found or found at the wrong position" for Composite
-        # "passenger"). The correct element/position for DOB on this WSAP is
-        # still unconfirmed; left out rather than guessing a third time.
+    for n, (idx, inf) in enumerate(_name_groups(travelers), start=1):
+        t = travelers[idx]
+        ptc = _PTC_MAP[t["type"].lower()]
+        infant_flag = "<infantIndicator>3</infantIndicator>" if inf is not None else ""
+        infant_xml = ""
+        if inf is not None:
+            i = travelers[inf]
+            infant_xml = f"""<passengerData>
+          <travellerInformation>
+            <traveller><surname>{escape(i['lastName'].upper())}</surname><quantity>1</quantity></traveller>
+            <passenger><firstName>{escape(_first_name(i))}</firstName><type>INF</type><infantIndicator>3</infantIndicator></passenger>
+          </travellerInformation>{_dob_xml(i.get('dateOfBirth'))}
+        </passengerData>"""
         blocks += f"""<travellerInfo>
         <elementManagementPassenger>
-          <reference><qualifier>PR</qualifier><number>0</number></reference>
+          <reference><qualifier>PR</qualifier><number>{n}</number></reference>
           <segmentName>NM</segmentName>
         </elementManagementPassenger>
         <passengerData>
           <travellerInformation>
             <traveller><surname>{escape(t['lastName'].upper())}</surname><quantity>1</quantity></traveller>
-            <passenger><firstName>{escape(t['firstName'].upper())}</firstName><type>{ptc}</type></passenger>
-          </travellerInformation>{_dob_xml(t.get('dateOfBirth'))}
+            <passenger><firstName>{escape(_first_name(t))}</firstName><type>{ptc}</type>{infant_flag}</passenger>
+          </travellerInformation>{_dob_xml(t.get('dateOfBirth')) if ptc == "CHD" else ""}
         </passengerData>
+        {infant_xml}
       </travellerInfo>"""
     return blocks
 
 
 def _dob_xml(dob: str | None) -> str:
     """Date of birth on the name element, positioned exactly as Amadeus's own
-    sample shows it (Booking-Flow_Ancillaries step 5): passengerData/
-    dateOfBirth/dateAndTimeDetails/date, DDMMMYY, a sibling AFTER
-    travellerInformation -- not inside <passenger> (that position is the
-    schema error noted above)."""
+    sample shows it (SB step 5): passengerData/dateOfBirth/dateAndTimeDetails
+    with qualifier 706 and the date DDMMMYY, a sibling AFTER
+    travellerInformation."""
     if not dob or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", dob):
         return ""
-    return f"<dateOfBirth><dateAndTimeDetails><date>{_ddmmmyy(dob)}</date></dateAndTimeDetails></dateOfBirth>"
+    return f"<dateOfBirth><dateAndTimeDetails><qualifier>706</qualifier><date>{_ddmmmyy(dob)}</date></dateAndTimeDetails></dateOfBirth>"
 
 
 # NOTE: a Form of Payment (FP) element was tested here (both cash "CA" and
@@ -486,22 +508,32 @@ def _contact_elements(email: str, phone: str) -> str:
     return elements
 
 
-_FOP_CASH_ELEMENT = """<dataElementsIndiv>
-        <elementManagementData><reference><qualifier>OT</qualifier><number>1</number></reference><segmentName>FP</segmentName></elementManagementData>
-        <formOfPayment><fop><identification>CA</identification></fop></formOfPayment>
-      </dataElementsIndiv>"""
-
-# A blanket 0%-commission (FM) element -- classic Amadeus terminal entry
-# "FM0.00". Some carriers inhibit ticketing entirely without ANY commission
-# element present on the PNR (confirmed live: errorCode 374 "CMC RJT - NEED
-# COMMISSION" on Air China, LOT Polish and Jetstar, all three fixed by adding
-# this). Confirmed safe on an already-working carrier too (SriLankan) before
-# making it unconditional -- 0% doesn't change what the customer pays, it
-# just satisfies carriers that require the element to exist at all.
-_COMMISSION_ELEMENT = """<dataElementsIndiv>
-        <elementManagementData><reference><qualifier>OT</qualifier><number>1</number></reference><segmentName>FM</segmentName></elementManagementData>
-        <commission><indicator>P</indicator><commissionInfo><percentage>0</percentage></commissionInfo></commission>
-      </dataElementsIndiv>"""
+# Form of payment: FOP_CreateFormOfPayment with CASH, as Amadeus's samples do
+# (SA step 6, SB step 5) - it replaced the FP element inside
+# PNR_AddMultiElements. Ticketing needs a form of payment (errorCode 315
+# "NEED FORM OF PAYMENT" without one); the customer pays us, so the PNR
+# records cash, as the samples do.
+async def create_form_of_payment(session: AmadeusSession) -> None:
+    body = f"""<FOP_CreateFormOfPayment xmlns="http://xml.amadeus.com/TFOPCQ_19_2_1A">
+      <transactionContext><transactionDetails><code>FP</code></transactionDetails></transactionContext>
+      <fopGroup>
+        <fopReference/>
+        <mopDescription>
+          <fopSequenceNumber><sequenceDetails><number>1</number></sequenceDetails></fopSequenceNumber>
+          <mopDetails><fopPNRDetails><fopDetails><fopCode>CASH</fopCode></fopDetails></fopPNRDetails></mopDetails>
+        </mopDescription>
+      </fopGroup>
+    </FOP_CreateFormOfPayment>"""
+    root = await call(operation="FOP_CreateFormOfPayment", soap_action="http://webservices.amadeus.com/TFOPCQ_19_2_1A",
+                      body_xml=body, log_prefix="11d_fop_create", session=session, stateful=True)
+    reply = _find_local(root, "FOP_CreateFormOfPaymentReply")
+    errors = []
+    for el in reply.iter() if reply is not None else []:
+        if _local(el.tag) in ("errorCode", "errorOrWarningCodeDetails") and (el.text or "").strip():
+            errors.append(el.text.strip())
+    texts = [el.text.strip() for el in (reply.iter() if reply is not None else []) if _local(el.tag) in ("freeText", "freetext") and el.text and el.text.strip()]
+    if errors:
+        raise AmadeusSoapError(f"Amadeus refused the form of payment: {' '.join(errors + texts)}", status_code=502)
 
 
 async def add_travellers_and_contact(session: AmadeusSession, travelers: list[dict], email: str, phone: str):
@@ -512,12 +544,6 @@ async def add_travellers_and_contact(session: AmadeusSession, travelers: list[di
       <dataElementsMaster>
         <marker1/>
         {_contact_elements(email, phone)}
-        {_FOP_CASH_ELEMENT}
-        {_COMMISSION_ELEMENT}
-        <dataElementsIndiv>
-          <elementManagementData><segmentName>TK</segmentName></elementManagementData>
-          <ticketElement><ticket><indicator>OK</indicator></ticket></ticketElement>
-        </dataElementsIndiv>
       </dataElementsMaster>
     </PNR_AddMultiElements>"""
 
@@ -562,14 +588,35 @@ async def add_travellers_and_contact(session: AmadeusSession, travelers: list[di
     # for that same passenger). A later call (e.g. the SSR DOCS element) that
     # needs to target one specific passenger needs this real number -- it
     # can't be known before this reply exists.
-    pax_refs = []
+    # One name element per adult (with their infant) and per child, in the
+    # order sent: each traveller gets that element's PT number - a lap infant
+    # gets its adult's (Amadeus links the infant's DOCS there, sample SB).
+    groups = _name_groups(travelers)
+    element_refs = []
     for ti in _find_all_local(reply, "travellerInfo"):
         emp = _find_local(ti, "elementManagementPassenger")
         ref = _find_local(emp, "reference") if emp is not None else None
         number = _text(ref, "number") if ref is not None else None
         if number:
-            pax_refs.append(number)
-    return pax_refs
+            element_refs.append(number)
+    if len(element_refs) != len(groups):
+        raise AmadeusSoapError(f"Amadeus returned {len(element_refs)} passenger(s) for {len(groups)} name element(s)",
+                               status_code=502)
+    pax_refs: list[str] = [""] * len(travelers)
+    for (idx, inf), number in zip(groups, element_refs):
+        pax_refs[idx] = number
+        if inf is not None:
+            pax_refs[inf] = number
+    # The flights' own references (ST tattoos) in the PNR, in order - pricing
+    # names them for the fare basis of each flight (sample SB).
+    seg_refs = []
+    odd = _find_local(reply, "originDestinationDetails")
+    for it in _find_all_local(odd, "itineraryInfo") if odd is not None else []:
+        emi = _find_local(it, "elementManagementItinerary")
+        ref = _find_local(emi, "reference") if emi is not None else None
+        if ref is not None and _text(ref, "number"):
+            seg_refs.append(_text(ref, "number"))
+    return pax_refs, seg_refs
 
 
 # IATA/Amadeus standard SSR DOCS free text: P/<issuing country>/<document
@@ -589,21 +636,42 @@ def _ddmmmyy(iso_date: str) -> str:
     return f"{d}{_MONTHS[int(m) - 1]}{y[2:]}"
 
 
-def _iso_from_ddmmmyy(s: str) -> str | None:
-    """'15JAN90' -> '1990-01-15' (reverse of _ddmmmyy, for reading an SSR
-    DOCS freetext back out of a retrieved PNR). Assumes a 2-digit year
-    before 70 is 20xx, matching this project's own near-future test dates."""
+def _iso_from_ddmmmyy(s: str, past: bool = False) -> str | None:
+    """'15JAN90' -> '1990-01-15' (reverse of _ddmmmyy, for an SSR DOCS free
+    text, which keeps a 2-digit year). 13/11/2026 audit: a birth date
+    (past=True) is in the past - 15JAN65 is 1965, not 2065; a passport expiry
+    is 20yy. The 4-digit birth date on the name element wins when there is one."""
     if not s or len(s) != 7:
         return None
     d, mon, yy = s[0:2], s[2:5].upper(), s[5:7]
-    if mon not in _MONTHS:
+    if mon not in _MONTHS or not yy.isdigit():
         return None
-    century = "20" if int(yy) < 70 else "19"
-    return f"{century}{yy}-{_MONTHS.index(mon) + 1:02d}-{d}"
+    year = 2000 + int(yy)
+    if past and year > datetime.now().year:
+        year -= 100
+    return f"{year}-{_MONTHS.index(mon) + 1:02d}-{d}"
+
+
+def _iso_from_ddmmyyyy(s: str | None) -> str | None:
+    """'04031985' -> '1985-03-04' (passengerData/dateOfBirth, qualifier 706)."""
+    return f"{s[4:8]}-{s[2:4]}-{s[0:2]}" if s and len(s) == 8 and s.isdigit() else None
+
+
+_DOCS_GENDER = {"M": "Male", "F": "Female", "MI": "Male", "FI": "Female"}
+
+
+def _docs_gender(traveler: dict) -> str:
+    """M / F as the customer entered; an infant's is MI / FI (the sample SB's
+    infant DOCS carries FI on the adult's element). Never defaulted."""
+    g = {"MALE": "M", "FEMALE": "F"}.get(str(traveler.get("gender") or "").upper())
+    if not g:
+        raise AmadeusSoapError(f"Passenger {traveler.get('firstName', '')} {traveler.get('lastName', '')}: gender is "
+                               "needed for the passport details.", status_code=422)
+    return g + ("I" if (traveler.get("type") or "").lower() == "infant" else "")
 
 
 def _docs_ssr_xml(traveler: dict, pax_ref: str, marketing_carrier: str) -> str:
-    gender = "M" if (traveler.get("gender") or "Male").upper().startswith("M") else "F"
+    gender = _docs_gender(traveler)
     freetext = (
         f"P/{traveler['passportIssueCountry']}/{traveler['passportNumber']}/"
         f"{traveler['nationality']}/{_ddmmmyy(traveler['dateOfBirth'])}/{gender}/"
@@ -653,28 +721,19 @@ def _foid_ssr_xml(traveler: dict, pax_ref: str, marketing_carrier: str) -> str:
       </dataElementsIndiv>"""
 
 
-# Calling code -> ISO country for the SSR CTCM "<number>/<country>" format.
-_CALLING_CODES = {"94": "LK", "91": "IN", "971": "AE", "974": "QA", "966": "SA", "965": "KW", "968": "OM",
-                  "973": "BH", "960": "MV", "977": "NP", "880": "BD", "92": "PK", "65": "SG", "60": "MY",
-                  "66": "TH", "86": "CN", "852": "HK", "81": "JP", "82": "KR", "61": "AU", "64": "NZ",
-                  "44": "GB", "49": "DE", "33": "FR", "39": "IT", "41": "CH", "31": "NL", "7": "RU",
-                  "90": "TR", "20": "EG", "27": "ZA", "1": "US"}
-
-
-def _ctcm_text(phone: str, fallback_country: str | None) -> str | None:
-    """'+94 77 000 0000' / '0770000000' -> '94770000000/LK' (IATA SSR CTCM:
-    full international number, then the phone's country). A Sri Lankan local
-    number (leading 0, 10 digits) is turned into its +94 form."""
-    digits = re.sub(r"\D", "", phone or "")
-    if not digits:
+def _ctcm_text(phone: str) -> str | None:
+    """'+94 77 000 0000' -> '94770000000': the mobile in international form,
+    country calling code first, without '+' (Amadeus's samples). Only a
+    number entered with its country code (+ or 00) is sent - no country is
+    assumed for a local number (13/11/2026 audit). The samples differ on a
+    '/<code>' after the number and Amadeus doesn't define it, so none is sent."""
+    raw = (phone or "").strip()
+    if not (raw.startswith("+") or raw.startswith("00")):
         return None
-    if digits.startswith("00"):
+    digits = re.sub(r"\D", "", raw)
+    if raw.startswith("00"):
         digits = digits[2:]
-    elif len(digits) == 10 and digits.startswith("0"):
-        digits = "94" + digits[1:]
-    country = next((c for k, c in sorted(_CALLING_CODES.items(), key=lambda kv: -len(kv[0])) if digits.startswith(k)), None)
-    country = country or (fallback_country or "").upper()[:2] or None
-    return f"{digits}/{country}" if country else digits
+    return digits if len(digits) >= 7 else None
 
 
 def _ctce_text(email: str) -> str | None:
@@ -788,6 +847,14 @@ async def add_special_requests(session: AmadeusSession, travelers: list[dict], p
     carriers = list(dict.fromkeys(c for c in carriers if c))
     items = []
     for i, (t, ref) in enumerate(zip(travelers, pax_refs)):
+        if (t.get("type") or "").lower() == "infant":
+            # A lap infant shares the adult's name element: a request sent on
+            # it would be the adult's. Reported as not sent - not as refused.
+            for kind, code in (("meal", t.get("mealCode")), ("wheelchair", t.get("wheelchair"))):
+                if _SSR_SSR_CODE.match((code or "").upper()):
+                    items.append({"traveler_index": i, "pax_ref": ref, "code": code.upper(), "kind": kind,
+                                  "carrier": None, "infant": True})
+            continue
         # The code the customer picked, as it is (a 4-letter SSR code).
         meal = (t.get("mealCode") or "").upper()
         if _SSR_SSR_CODE.match(meal):
@@ -799,6 +866,10 @@ async def add_special_requests(session: AmadeusSession, travelers: list[dict], p
         if doca:
             items.append({"traveler_index": i, "pax_ref": ref, "code": "DOCA", "kind": "address", "carrier": "YY", "text": doca})
     for it in items:
+        if it.pop("infant", False):
+            it["added"] = False
+            it["error"] = "requests for a lap infant can't be sent online yet"
+            continue
         xml = (_special_ssr_xml("DOCA", it["pax_ref"], "YY", status="HK", freetext=it["text"]) if it["kind"] == "address"
                else _special_ssr_xml(it["code"], it["pax_ref"], it["carrier"]))
         body = f"""<PNR_AddMultiElements xmlns="{NS['pnr']}">
@@ -867,9 +938,12 @@ async def add_document_elements(session: AmadeusSession, travelers: list[dict], 
         if t.get("passportNumber") and t.get("passportExpiry") and t.get("passportIssueCountry") and t.get("nationality") and t.get("dateOfBirth")
     ]
     blocks = "".join(_docs_ssr_xml(t, ref, "YY") for t, ref in eligible)
-    blocks += "".join(_foid_ssr_xml(t, ref, c) for t, ref in eligible for c in carriers)
+    # FOID per passenger and airline, as the sample SA sends it - not for a lap
+    # infant (it shares the adult's element; no sample shows an infant FOID).
+    blocks += "".join(_foid_ssr_xml(t, ref, c) for t, ref in eligible if (t.get("type") or "").lower() != "infant"
+                      for c in carriers)
     ctce = _ctce_text(email)
-    ctcm = _ctcm_text(phone, (travelers[0].get("nationality") if travelers else None))
+    ctcm = _ctcm_text(phone)
     if ctce:
         blocks += _contact_ssr_xml("CTCE", ctce)
     if ctcm:
@@ -911,13 +985,30 @@ def _extract_locator(body_root) -> str | None:
     return None
 
 
-async def end_transact(session: AmadeusSession, received_from: str, end_session: bool = False) -> str:
-    """Finalizes (End Transact, optionCode 11) and returns the PNR locator."""
+async def end_transact(session: AmadeusSession, received_from: str, end_session: bool = False,
+                       last_ticketing: dict | None = None) -> str:
+    """Finalizes (End Transact, optionCode 11) and returns the PNR locator.
+
+    As Amadeus's sample SA step 9: the commission element (FM 0%) and the
+    ticketing arrangement TK XL at the date (and time, when given) of the
+    fare's last ticketing date from pricing (lastTktDate LT) go with the
+    commit. It used to be TK OK ("ticketing OK") at hold, before payment."""
+    if not (last_ticketing and last_ticketing.get("date")):
+        raise AmadeusSoapError("Amadeus pricing gave no last ticketing date, so the booking can't be held", status_code=502)
+    tk_time = f"<time>{last_ticketing['time']}</time>" if last_ticketing.get("time") else ""
     body = f"""<PNR_AddMultiElements xmlns="{NS['pnr']}">
       <reservationInfo><reservation/></reservationInfo>
       <pnrActions><optionCode>11</optionCode></pnrActions>
       <dataElementsMaster>
         <marker1/>
+        <dataElementsIndiv>
+          <elementManagementData><reference><qualifier>OT</qualifier><number>1</number></reference><segmentName>FM</segmentName></elementManagementData>
+          <commission><commissionInfo><percentage>0</percentage></commissionInfo></commission>
+        </dataElementsIndiv>
+        <dataElementsIndiv>
+          <elementManagementData><reference><qualifier>OT</qualifier><number>2</number></reference><segmentName>TK</segmentName></elementManagementData>
+          <ticketElement><ticket><indicator>XL</indicator><date>{last_ticketing['date']}</date>{tk_time}</ticket></ticketElement>
+        </dataElementsIndiv>
         <dataElementsIndiv>
           <elementManagementData><reference><qualifier>OT</qualifier><number>3</number></reference><segmentName>RF</segmentName></elementManagementData>
           <freetextData>
@@ -945,17 +1036,45 @@ async def end_transact(session: AmadeusSession, received_from: str, end_session:
 
 # ── Step 3: Fare_PricePNRWithBookingClass ───────────────────────────────
 
-async def price_pnr(session: AmadeusSession) -> dict:
+def _pricing_options(segments: list[dict], seg_refs: list[str]) -> str:
+    """As the searched fare (13/11/2026 audit): fare types RP (published) and
+    RU (unifares) - the sample SB's - the validating carrier Amadeus gave in
+    the search (VC, sample SA), and FBA: each flight's fare basis from the
+    search on that flight's reference (sample SB), so the PNR is priced at
+    the fare the customer chose, not at whatever fare Amadeus finds first."""
+    opts = ["<pricingOptionGroup><pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey></pricingOptionGroup>",
+            "<pricingOptionGroup><pricingOptionKey><pricingOptionKey>RU</pricingOptionKey></pricingOptionKey></pricingOptionGroup>"]
+    vcs = list(dict.fromkeys(s.get("validatingCarrier") for s in segments if s.get("validatingCarrier")))
+    if len(vcs) == 1:
+        opts.append(f"""<pricingOptionGroup><pricingOptionKey><pricingOptionKey>VC</pricingOptionKey></pricingOptionKey>
+        <carrierInformation><companyIdentification><otherCompany>{escape(vcs[0])}</otherCompany></companyIdentification></carrierInformation></pricingOptionGroup>""")
+    if len(seg_refs) != len(segments):
+        raise AmadeusSoapError("The booking's flights don't match the fare's flights", status_code=502)
+    by_basis: dict[str, list[str]] = {}
+    for seg, ref in zip(segments, seg_refs):
+        if not seg.get("fareBasis"):
+            raise AmadeusSoapError(f"No fare basis from the search for {seg.get('marketingCarrier')}{seg.get('flightNumber')}",
+                                   status_code=422)
+        by_basis.setdefault(seg["fareBasis"], []).append(ref)
+    for basis, refs in by_basis.items():
+        ref_xml = "".join(f"<referenceDetails><type>S</type><value>{escape(r)}</value></referenceDetails>" for r in refs)
+        opts.append(f"""<pricingOptionGroup><pricingOptionKey><pricingOptionKey>FBA</pricingOptionKey></pricingOptionKey>
+        <optionDetail><criteriaDetails><attributeType>{escape(basis)}</attributeType></criteriaDetails></optionDetail>
+        <paxSegTstReference>{ref_xml}</paxSegTstReference></pricingOptionGroup>""")
+    return "\n      ".join(opts)
+
+
+async def price_pnr(session: AmadeusSession, segments: list[dict] | None = None, seg_refs: list[str] | None = None) -> dict:
     # "NHP" as a pricingOptionKey override was tried first for errorCode
     # 11228 "ENTRY NOT ALLOWED IN NHP CONDITIONS" (infant on the PNR) --
     # Amadeus rejected it outright as errorCode 572 "INVALID OPTION: NHP",
     # confirming NHP isn't a valid override key here at all. The real fix is
     # a date of birth on the infant/child traveler (see _traveller_blocks) --
     # RP auto-pricing can't validate an age-based discount fare without one.
+    options = (_pricing_options(segments, seg_refs) if segments is not None
+               else "<pricingOptionGroup><pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey></pricingOptionGroup>")
     body = f"""<Fare_PricePNRWithBookingClass xmlns="{NS['price']}">
-      <pricingOptionGroup>
-        <pricingOptionKey><pricingOptionKey>RP</pricingOptionKey></pricingOptionKey>
-      </pricingOptionGroup>
+      {options}
     </Fare_PricePNRWithBookingClass>"""
 
     body_root = await call(
@@ -983,6 +1102,7 @@ async def price_pnr(session: AmadeusSession) -> dict:
 
     tst_refs: list[str] = []
     seen_pax_refs: set[str] = set()
+    last_ticketing: dict | None = None
     validating_carrier_text = None
     total_amount = 0.0
     currency = None
@@ -1000,8 +1120,11 @@ async def price_pnr(session: AmadeusSession) -> dict:
         # first fareList per unique paxSegReference refNumber is kept; this
         # still keeps one fareList per DISTINCT passenger type (ADT+CHD etc,
         # which get different refNumbers -- see the note above this loop).
-        pax_ref_num_el = _find_deep(fare_list, "paxSegReference", "refDetails", "refNumber")
-        pax_ref_num = pax_ref_num_el.text if pax_ref_num_el is not None else None
+        first_ref = _find_deep(fare_list, "paxSegReference", "refDetails")
+        # The key is qualifier + number: a lap infant's fare (PI n) has its
+        # adult's number (PA n) and is a fare of its own, not a duplicate.
+        pax_ref_num = (f"{_text(first_ref, 'refQualifier')}{_text(first_ref, 'refNumber')}"
+                       if first_ref is not None and _text(first_ref, "refNumber") else None)
         # 13/11/2026: one fareList covers every passenger of the same type
         # (2 adults -> refDetails PA 2 and PA 3) and its amount is PER
         # passenger - counted once, a 2-adult hold was priced as 1 adult and
@@ -1014,6 +1137,16 @@ async def price_pnr(session: AmadeusSession) -> dict:
             seen_pax_refs.add(pax_ref_num)
 
         fare_ref_el = _find_local(fare_list, "fareReference")
+        if last_ticketing is None:
+            lt = _find_local(fare_list, "lastTktDate")
+            dt = _find_local(lt, "dateTime") if lt is not None and _text(lt, "businessSemantic") == "LT" else None
+            if dt is not None and _text(dt, "year") and _text(dt, "month") and _text(dt, "day"):
+                last_ticketing = {
+                    "date": f"{int(_text(dt, 'day')):02d}{int(_text(dt, 'month')):02d}{_text(dt, 'year')[-2:]}",
+                    "time": (f"{int(_text(dt, 'hour')):02d}{int(_text(dt, 'minutes') or 0):02d}" if _text(dt, "hour") else None),
+                    "iso": f"{_text(dt, 'year')}-{int(_text(dt, 'month')):02d}-{int(_text(dt, 'day')):02d}"
+                           + (f"T{int(_text(dt, 'hour')):02d}:{int(_text(dt, 'minutes') or 0):02d}" if _text(dt, "hour") else ""),
+                }
         tst_refs.append(_text(fare_ref_el, "uniqueReference", default=str(idx + 1)))
 
         if validating_carrier_text is None:
@@ -1041,6 +1174,8 @@ async def price_pnr(session: AmadeusSession) -> dict:
         "validatingCarrier": validating_carrier_text,
         "totalAmount": str(total_amount) if total_amount else None,
         "currency": currency,
+        # The fare's last ticketing date (lastTktDate LT) - TK XL at commit.
+        "lastTicketing": last_ticketing,
     }
 
 
@@ -1090,15 +1225,11 @@ async def confirm_booking(segments: list[dict], travelers: list[dict], email: st
     no TST yet) vs .14_ticket_create_tst_RS.xml (TST created afterward, in a
     session that then just closed) for the live reproduction of this bug.
     """
-    # Infants don't occupy a physical seat, but Amadeus's own pricing
-    # validation still wants segment-sell quantity to equal the PNR's total
-    # NM name-element count (ADT+CHD+INF) -- excluding the infant here
-    # triggered errorCode 11228 "ENTRY NOT ALLOWED IN NHP CONDITIONS" at
-    # Fare_PricePNRWithBookingClass (confirmed against Amadeus's own Service
-    # Hub guidance: NHP = "number of seats booked does not equal the number
-    # of passengers booked", fixed by making them match -- not by an XML
-    # structure change). So every traveler, infant included, counts here.
-    total_pax = len(travelers) or 1
+    # Seats sold = name elements = adults + children: a lap infant rides on
+    # its adult's name element (sample SB sells 2 seats for ADT+CHD+INF). The
+    # old NHP error (11228) came from infants sent as name elements of their
+    # own - each then also had a seat and its own adult-priced ticket.
+    seats = len(_name_groups(travelers)) or 1
 
     # Fare_InformativePricingWithoutPNR in its own fresh session, standalone,
     # BEFORE selling: quote first, only hold inventory (sell) if the customer
@@ -1113,31 +1244,44 @@ async def confirm_booking(segments: list[dict], travelers: list[dict], email: st
         quote = {"ok": False, "error": e.message}
 
     session = AmadeusSession()
-    await sell_segments(session, segments, total_pax)
-    pax_refs = await add_travellers_and_contact(session, travelers, email, phone)
+    # The order of Amadeus's sample SA: sell, names + contacts, documents
+    # (DOCS/FOID/CTCE/CTCM), special requests, form of payment, price, TST,
+    # then commit with FM and TK XL.
+    await sell_segments(session, segments, seats)
+    pax_refs, seg_refs = await add_travellers_and_contact(session, travelers, email, phone)
     await add_document_elements(session, travelers, pax_refs, [s["marketingCarrier"] for s in segments], email, phone)
     sent_requests = await add_special_requests(session, travelers, pax_refs, [s["marketingCarrier"] for s in segments])
-    pricing = await price_pnr(session)
+    await create_form_of_payment(session)
+    pricing = await price_pnr(session, segments, seg_refs)
     await create_tst(session, pricing["tstReferences"])
-    locator = await end_transact(session, received_from=travelers[0]["lastName"].upper(), end_session=True)
+    locator = await end_transact(session, received_from=travelers[0]["lastName"].upper(), end_session=True,
+                                 last_ticketing=pricing.get("lastTicketing"))
 
-    special_requests = []
-    if sent_requests:
-        try:
-            special_requests = special_request_outcomes(sent_requests, await get_booking_status(locator))
-        except AmadeusSoapError as e:
-            # The booking is saved; the answers can be read again later.
-            special_requests = [{**{k: it.get(k) for k in ("traveler_index", "code", "kind", "carrier")},
-                                 "flight": None, "status": None,
-                                 "state": "requested" if it.get("added") else "refused",
-                                 "reason": it.get("error") or f"could not read the answer yet: {e.message}"}
-                                for it in sent_requests]
+    # The saved booking, read back: the airline's answers and deadlines.
+    special_requests, deadlines = [], []
+    try:
+        saved = await get_booking_status(locator)
+        deadlines = saved.get("airlineDeadlines") or []
+        if sent_requests:
+            special_requests = special_request_outcomes(sent_requests, saved)
+    except AmadeusSoapError as e:
+        # The booking is saved; the answers can be read again later. Nothing
+        # is presented as an airline answer here.
+        special_requests = [{**{k: it.get(k) for k in ("traveler_index", "code", "kind", "carrier")},
+                             "flight": None, "status": None,
+                             "state": "not_sent" if not it.get("added") else "missing",
+                             "reason": it.get("error") or f"could not read the booking yet: {e.message}"}
+                            for it in sent_requests]
 
     return {
         "locator": locator,
         "pricing": pricing,
         "quote": quote,
         "specialRequests": special_requests,
+        # The airline's own ticketing deadline(s) on the booking (OPW/OPC),
+        # and the fare's last ticketing date - payment must come before both.
+        "airlineDeadlines": deadlines,
+        "lastTicketing": pricing.get("lastTicketing"),
         # Which Amadeus system answered (test answers may differ from live).
         "amadeusSystem": "TEST" if ".test." in (_ws_endpoint() or "").lower() else "LIVE",
     }
@@ -1185,23 +1329,30 @@ def _parse_pnr_reply(body_root) -> dict:
 
     travelers = []
     pax_ref_by_traveler: dict[str, dict] = {}
+    infant_by_ref: dict[str, dict] = {}
     for ti in _find_all_local(reply, "travellerInfo"):
-        pd = _find_local(ti, "passengerData")
-        tinfo = _find_local(pd, "travellerInformation") if pd is not None else None
-        traveller = _find_local(tinfo, "traveller") if tinfo is not None else None
-        passenger = _find_local(tinfo, "passenger") if tinfo is not None else None
-        if traveller is None and passenger is None:
-            continue
-        t = {
-            "lastName": _text(traveller, "surname") if traveller is not None else None,
-            "firstName": _text(passenger, "firstName") if passenger is not None else None,
-            "type": _text(passenger, "type") if passenger is not None else None,
-        }
-        travelers.append(t)
         emp = _find_local(ti, "elementManagementPassenger")
         pax_ref = _text(_find_local(emp, "reference"), "number") if emp is not None else None
-        if pax_ref:
-            pax_ref_by_traveler[pax_ref] = t
+        # Each passengerData: the passenger, then (second) a lap infant on it.
+        for n, pd in enumerate(_find_all_local(ti, "passengerData")):
+            tinfo = _find_local(pd, "travellerInformation")
+            traveller = _find_local(tinfo, "traveller") if tinfo is not None else None
+            passenger = _find_local(tinfo, "passenger") if tinfo is not None else None
+            if traveller is None and passenger is None:
+                continue
+            dob = _find_deep(pd, "dateOfBirth", "dateAndTimeDetails")
+            t = {
+                "lastName": _text(traveller, "surname") if traveller is not None else None,
+                "firstName": _text(passenger, "firstName") if passenger is not None else None,
+                "type": _text(passenger, "type") if passenger is not None else None,
+                "date_of_birth": _iso_from_ddmmyyyy(_text(dob, "date")) if dob is not None else None,
+            }
+            travelers.append(t)
+            if pax_ref:
+                if n == 0:
+                    pax_ref_by_traveler[pax_ref] = t
+                else:
+                    infant_by_ref[pax_ref] = t
 
     # Email/phone (AP) and passport/document data (SSR DOCS) aren't on the
     # NM travellerInfo blocks at all -- they're separate dataElementsIndiv
@@ -1231,15 +1382,17 @@ def _parse_pnr_reply(body_root) -> dict:
                 free = _text(ssr, "freetext") or _text(ssr, "freeText")
                 ref_for = _find_deep(dei, "referenceForDataElement", "reference")
                 pax_ref = _text(ref_for, "number") if ref_for is not None else None
-                target = pax_ref_by_traveler.get(pax_ref) if pax_ref else None
-                if free and target is not None:
-                    parts = free.split("/")
+                parts = free.split("/") if free else []
+                # An infant's DOCS (gender MI / FI) is on its adult's element.
+                infant_docs = len(parts) > 5 and parts[5].upper() in ("MI", "FI")
+                target = ((infant_by_ref if infant_docs else pax_ref_by_traveler).get(pax_ref)) if pax_ref else None
+                if target is not None:
                     if len(parts) >= 8 and parts[0] == "P":
                         target["passport_issue_country"] = parts[1]
                         target["passport_number"] = parts[2]
                         target["nationality"] = parts[3]
-                        target["date_of_birth"] = _iso_from_ddmmmyy(parts[4])
-                        target["gender"] = "Male" if parts[5] == "M" else "Female"
+                        target["date_of_birth"] = target.get("date_of_birth") or _iso_from_ddmmmyy(parts[4], past=True)
+                        target["gender"] = _DOCS_GENDER.get(parts[5].upper(), parts[5])
                         target["passport_expiry"] = _iso_from_ddmmmyy(parts[6])
 
     segments = []
@@ -1269,6 +1422,7 @@ def _parse_pnr_reply(body_root) -> dict:
 
     ticket_numbers: list[str] = []
     ticketing_status = None
+    deadlines: list[dict] = []
     special_requests: list[dict] = []
     dem = _find_local(reply, "dataElementsMaster")
     for dei in _find_all_local(dem, "dataElementsIndiv"):
@@ -1296,6 +1450,13 @@ def _parse_pnr_reply(body_root) -> dict:
             ticket = _find_deep(dei, "ticketElement", "ticket")
             if ticket is not None:
                 ticketing_status = _text(ticket, "indicator")
+        # The airline's own ticketing deadline and cancellation time (OPW /
+        # OPC option elements: "UL REQUIRES TICKET ON OR BEFORE 20NOV:1052 ...").
+        if seg_name in ("OPW", "OPC"):
+            oi = _find_deep(dei, "optionElement", "optionElementInfo")
+            if oi is not None:
+                deadlines.append({"kind": seg_name, "date": _text(oi, "date"), "time": _text(oi, "time"),
+                                  "category": _text(oi, "category"), "text": _text(oi, "freetext")})
         if seg_name in ("FA", "FO"):
             for el in dei.iter():
                 if _local(el.tag) in ("documentNumber", "ticketNumber") and el.text:
@@ -1351,7 +1512,10 @@ def _parse_pnr_reply(body_root) -> dict:
         "locator": locator,
         "travelers": travelers,
         "segments": segments,
-        "ticketingStatus": ticketing_status,
+        # The PNR's ticketing arrangement (TK: XL / OK ...) - not a ticket
+        # status; issued tickets are ticketNumbers (the FA lines).
+        "ticketElement": ticketing_status,
+        "airlineDeadlines": deadlines,
         "ticketNumbers": ticket_numbers,
         "totalFare": total_fare,
         "currency": fare_currency,
@@ -1422,7 +1586,7 @@ async def issue_ticket(locator: str) -> dict:
     return {
         "status": status.text if status is not None else None,
         "ticketNumbers": ticket_numbers,
-        "ticketingStatus": parsed.get("ticketingStatus"),
+        "ticketElement": parsed.get("ticketElement"),
         "locator": parsed.get("locator") or locator,
         "travelers": parsed.get("travelers") or [],
         "segments": parsed.get("segments") or [],

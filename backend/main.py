@@ -43,7 +43,7 @@ import os
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 import httpx
@@ -1308,7 +1308,8 @@ from services.pricing_service import get_settings as _markup_settings
 
 _AD_CONFIRMED = {"HK", "KK", "TK", "RR"}  # flight statuses the airline has confirmed
 _AD_SEGMENT_KEYS = ("departureDate", "departureTime", "arrivalDate", "arrivalTime", "from", "to",
-                    "marketingCarrier", "flightNumber", "bookingClass", "fareBasis", "ticketDesignator", "leg")
+                    "marketingCarrier", "flightNumber", "bookingClass", "fareBasis", "ticketDesignator", "leg",
+                    "validatingCarrier")
 _AD_SEGMENT_REQUIRED = _AD_SEGMENT_KEYS[:9]
 _AD_TYPE_PTC = {"adult": "ADT", "child": "CNN", "infant": "INF"}
 # Our own wording, never presented as the airline's answer (13/11/2026 audit):
@@ -1330,6 +1331,8 @@ def _ad_not_ticketed_message(reference: str) -> str:
 class AmadeusHoldTraveler(BaseModel):
     firstName: str = Field(..., min_length=1, max_length=60)
     lastName: str = Field(..., min_length=1, max_length=60)
+    # The title the customer chose on the passenger form (none is invented).
+    title: Optional[Literal["MR", "MRS", "MS", "MISS", "MSTR", "DR"]] = None
     # 13/11/2026 audit: type, gender and nationality are required - never
     # filled in by us (they go to the airline in the passport SSR).
     type: Optional[Literal["adult", "child", "infant"]] = None
@@ -1452,7 +1455,25 @@ def _ad_flights_confirmed(view: dict) -> bool:
         (s.get("status") or "").upper() in _AD_CONFIRMED for s in segs)
 
 
-def _amadeus_ready_to_pay(row: dict) -> None:
+_AD_OFFICE_TZ = timezone(timedelta(hours=5, minutes=30))  # the airline's OPC text: "CMB TIME ZONE"
+
+
+def _ad_airline_cutoff(view: dict):
+    """The airline's own cancellation time for an unticketed booking - the
+    earliest OPC element on it ("UL CANCELLATION DUE TO NO TICKET CMB TIME
+    ZONE", date DDMMYY + time HHMM) - or None when the booking has none."""
+    out = []
+    for d in view.get("airline_deadlines") or []:
+        if d.get("kind") == "OPC" and d.get("date") and len(d["date"]) == 6:
+            try:
+                out.append(datetime.strptime(d["date"] + (d.get("time") or "0000").zfill(4), "%d%m%y%H%M")
+                           .replace(tzinfo=_AD_OFFICE_TZ))
+            except ValueError:
+                continue
+    return min(out) if out else None
+
+
+def _amadeus_ready_to_pay(row: dict) -> dict:
     """Checked live, right before taking ANY payment (card, bank transfer,
     cash): never take money for flights the airline no longer holds, for a
     booking that is already ticketed, or at a price that has changed."""
@@ -1481,6 +1502,7 @@ def _amadeus_ready_to_pay(row: dict) -> None:
         raise HTTPException(status_code=409, detail="The fare on this booking is no longer the one you were shown, so we "
                                                     "can't take payment for it. Nothing has been charged - please search "
                                                     "again for the current price.")
+    return view
 
 
 def _amadeus_held_row(locator: str) -> dict:
@@ -1681,12 +1703,25 @@ def amadeus_offline_start(locator: str, request: AmadeusOfflineStartRequest,
     row = _amadeus_held_row(locator)
     ref = ad_bookings.REF_PREFIX + row["locator"]
     existing = offline_payments.open_for(ref)
+    hold_hours = settings["bank_hold_hours"]
     if not existing:
-        _amadeus_ready_to_pay(row)
+        view = _amadeus_ready_to_pay(row)
+        # 13/11/2026 audit: the time to pay is never later than the airline's
+        # own cancellation time for an unticketed booking (OPC) - the admin's
+        # hold hours are only the longest we allow.
+        cutoff = _ad_airline_cutoff(view)
+        if cutoff:
+            hours_left = int((cutoff - datetime.now(_AD_OFFICE_TZ)).total_seconds() // 3600)
+            if hours_left < 1:
+                raise HTTPException(status_code=409, detail=(
+                    f"The airline cancels this booking unless it is ticketed by {cutoff.strftime('%d/%m/%Y %H:%M')} "
+                    f"(Sri Lanka time), which is too soon for a {offline_payments.METHOD_LABEL[method].lower()} payment. "
+                    "Please pay by card. Nothing has been charged."))
+            hold_hours = min(hold_hours, hours_left)
     is_staff = bool(principal and principal.get("role") == "admin")
     p = existing or offline_payments.start(
         ref, method, row["amount"], row["currency"], row.get("lead_name"), row.get("email"),
-        f"admin #{principal.get('admin_id')}" if is_staff else None, settings["bank_hold_hours"])
+        f"admin #{principal.get('admin_id')}" if is_staff else None, hold_hours)
     ad_bookings.set_method(row["locator"], method)
     emailed = False
     if not existing and p.get("customer_email"):

@@ -3642,6 +3642,7 @@ export default function App() {
             bookingClass: s.bookingClass,
             fareBasis: s.fareBasis,
             ticketDesignator: s.ticketDesignator,
+            validatingCarrier: s.validatingCarrier,
           })),
           paxCount: 1,
         }),
@@ -3688,6 +3689,7 @@ export default function App() {
           segments: selectedFlight.raw_offering.segments,
           travelers: travelers.map(t => ({
             firstName: (t.first_name || '').trim(), lastName: (t.last_name || '').trim(),
+            title: t.title || null,
             type: AD_TYPE[t.passenger_type],
             dateOfBirth: t.date_of_birth, gender: t.gender,
             passportNumber: (t.passport_number || '').trim(), passportExpiry: t.passport_expiry,

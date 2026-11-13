@@ -153,12 +153,16 @@ async def get_seat_map(segment: dict) -> dict:
                 continue
             if col not in columns_seen:
                 columns_seen.append(col)
-            occupied = bool(_text(occ, "seatOccupation"))
-            price, currency = price_by_seat.get((row_number, col), (0, None))
+            # 13/11/2026 audit: Amadeus's material doesn't define the
+            # seatOccupation / seatCharacteristic codes, so they are passed on
+            # exactly as given - no "occupied", "Standard" or free price made
+            # up. (Every seat used to show occupied: any code, "F" included,
+            # was read as taken.) Not used on the website yet.
+            price, currency = price_by_seat.get((row_number, col), (None, None))
             seats.append({
                 "seat_number": f"{row_number}{col}",
-                "status": "occupied" if occupied else "available",
-                "type": "Standard",
+                "occupation_code": _text(occ, "seatOccupation"),
+                "characteristics": [c.text for c in _find_all_local(occ, "seatCharacteristic") if c.text],
                 "price": price,
                 "currency": currency,
             })

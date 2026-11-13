@@ -40,7 +40,7 @@ WSAP (see project notes) -- not implemented here, no mock data.
 
 import logging
 from datetime import date
-from typing import Optional, List
+from typing import Literal, Optional, List
 
 import os
 import secrets
@@ -151,6 +151,8 @@ class Segment(BaseModel):
     # fare basis (+ ticket designator), not the booking class.
     fareBasis: Optional[str] = None
     ticketDesignator: Optional[str] = None
+    # The fare's validating carrier as the search gave it (pricing VC option).
+    validatingCarrier: Optional[str] = Field(None, pattern=r"^[A-Z0-9]{2}$")
 
     model_config = {"populate_by_name": True}
 
@@ -158,7 +160,10 @@ class Segment(BaseModel):
 class Traveler(BaseModel):
     firstName: str
     lastName: str
-    type: str = "adult"  # adult | child | infant
+    # The title the customer chose (MR / MRS / MS / MISS / MSTR / DR) - sent
+    # only when given, never derived from gender.
+    title: Optional[str] = Field(None, pattern=r"^(MR|MRS|MS|MISS|MSTR|DR)$")
+    type: Literal["adult", "child", "infant"]  # required - never assumed (13/11/2026 audit)
     dateOfBirth: Optional[str] = None  # ISO YYYY-MM-DD
     gender: Optional[str] = None  # "Male" | "Female"
     # Passport/document fields -- all optional, all-or-nothing in practice
@@ -204,6 +209,7 @@ async def confirm_booking(request: BookingConfirmRequest):
             "bookingClass": s.bookingClass,
             "fareBasis": s.fareBasis,
             "ticketDesignator": s.ticketDesignator,
+            "validatingCarrier": s.validatingCarrier,
         }
         for s in request.segments
     ]
@@ -253,6 +259,7 @@ async def fare_rules(request: FareRulesRequest):
             "bookingClass": s.bookingClass,
             "fareBasis": s.fareBasis,
             "ticketDesignator": s.ticketDesignator,
+            "validatingCarrier": s.validatingCarrier,
         }
         for s in request.segments
     ]
@@ -302,6 +309,7 @@ async def ancillaries(request: AncillaryRequest):
             "bookingClass": s.bookingClass,
             "fareBasis": s.fareBasis,
             "ticketDesignator": s.ticketDesignator,
+            "validatingCarrier": s.validatingCarrier,
         }
         for s in request.segments
     ]
