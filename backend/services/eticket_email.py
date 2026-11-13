@@ -248,9 +248,14 @@ def _in_background(name: str, fn, *args) -> None:
 def travelport_facts(b: dict) -> tuple[list, str | None, dict]:
     """(ticket numbers, recipient, facts) from a saved Travelport booking."""
     travelers = [t for t in (b.get("travelers") or []) if isinstance(t, dict)]
-    tickets = [(t.get("number") if isinstance(t, dict) else t) for t in (b.get("ticket_numbers") or [])] \
-        or ([b["ticket_number"]] if b.get("ticket_number") else [])
-    ptypes = [(t.get("passenger_type") if isinstance(t, dict) else None) for t in (b.get("ticket_numbers") or [])]
+    entries = [t if isinstance(t, dict) else {"number": t} for t in (b.get("ticket_numbers") or [])]
+    # Each ticket goes to its own passenger when the booking read says which
+    # (traveler_index, from the ticket-number fix f6bbfe0a); else in order.
+    if entries and all(isinstance(e.get("traveler_index"), int) for e in entries):
+        by_index = {e["traveler_index"]: e for e in entries}
+        entries = [by_index.get(i, {}) for i in range(max(len(travelers), max(by_index) + 1))]
+    tickets = [e.get("number") for e in entries] or ([b["ticket_number"]] if b.get("ticket_number") else [])
+    ptypes = [e.get("passenger_type") for e in entries]
     passengers = []
     for i in range(max(len(travelers), len(tickets))):
         t = travelers[i] if i < len(travelers) else {}
