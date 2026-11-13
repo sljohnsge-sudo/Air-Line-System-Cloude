@@ -1081,14 +1081,23 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
         return last_offers
 
     tp_task = asyncio.to_thread(_search_travelport) if tp_enabled else None
-    # Amadeus is only wired for a plain one-way search right now.
+    # Amadeus: a plain one-way search, or (13/11/2026) a round trip -- two
+    # legs where the second flies back from the first leg's destination to
+    # its origin. Multi-city trips still go to Travelport only.
+    ad_route = None
+    if not legs and request.origin and request.destination and request.departure_date:
+        ad_route = (request.origin, request.destination, request.departure_date, None)
+    elif legs and len(legs) == 2 and all(l.get("origin") and l.get("destination") and l.get("departure_date") for l in legs) \
+            and legs[1]["origin"].upper() == legs[0]["destination"].upper() \
+            and legs[1]["destination"].upper() == legs[0]["origin"].upper():
+        ad_route = (legs[0]["origin"], legs[0]["destination"], legs[0]["departure_date"], legs[1]["departure_date"])
     ad_task = (
         services.search_amadeus_flights(
-            origin=request.origin.upper(), destination=request.destination.upper(),
-            departure_date=request.departure_date,
+            origin=ad_route[0].upper(), destination=ad_route[1].upper(),
+            departure_date=ad_route[2], return_date=ad_route[3],
             adult_count=request.adult_count, child_count=request.child_count, infant_count=request.infant_count,
         )
-        if (ad_enabled and not legs and request.origin and request.destination and request.departure_date)
+        if (ad_enabled and ad_route)
         else None
     )
 

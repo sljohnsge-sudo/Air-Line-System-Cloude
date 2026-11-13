@@ -41,11 +41,7 @@ def _to_iso(date_ddmmyy: str | None, time_hhmm: str | None) -> str:
     return f"20{yy}-{mm}-{dd}T{t[0:2]}:{t[2:4]}"
 
 
-def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict) -> dict | None:
-    segs = raw_offer.get("segments") or []
-    if not segs:
-        return None
-
+def _norm_segments(segs: list[dict]) -> list[dict]:
     norm_segs = []
     for s in segs:
         carrier_code = s.get("marketingCarrier") or ""
@@ -64,23 +60,17 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict) -> dict 
             "carrier_name": IATA_AIRLINE_NAMES.get(carrier_code, carrier_code),
             "flight_number": f"{carrier_code}{s.get('flightNumber', '')}",
         })
+    return norm_segs
 
+
+def _leg_fields(segs: list[dict]) -> dict:
+    """The flight fields of one leg (or of a whole one-way trip), in the same
+    shape as a Travelport one-way offer -- the results card draws a round
+    trip's legs with the same ItineraryRow as a one-way trip."""
+    norm_segs = _norm_segments(segs)
     first, last = norm_segs[0], norm_segs[-1]
     carrier_code = segs[0].get("marketingCarrier") or ""
-    try:
-        net_price = float(raw_offer.get("totalPrice") or 0)
-    except (TypeError, ValueError):
-        net_price = 0.0
-
-    # Admin-configurable markup (Admin Portal -> Pricing & Markup). Amadeus
-    # fares were never marked up at all before this -- 'shared' reuses
-    # Travelport's own ticket markup (category "ticket"), 'separate' uses
-    # its own amadeus_ticket_markup_* values (category "amadeus_ticket").
-    category = "amadeus_ticket" if pricing_settings.get("markup_scope") == "separate" else "ticket"
-    price, _scale = apply_markup(net_price, pricing_settings, category)
-
     return {
-        "offer_id": f"AD-{idx}",
         "source": "AD",
         "airline": IATA_AIRLINE_NAMES.get(carrier_code, carrier_code),
         "airline_code": carrier_code,
@@ -99,6 +89,45 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict) -> dict 
         "arrival_terminal": last["arrival_terminal"],
         "segments": norm_segs if len(norm_segs) > 1 else None,
         "fare_source": "GDS",
+    }
+
+
+def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_trip: bool = False) -> dict | None:
+    segs = raw_offer.get("segments") or []
+    if not segs:
+        return None
+
+    # 13/11/2026: a round trip comes back as one flat list of flights, each
+    # tagged with its leg (1 = outbound, 2 = return) by the Amadeus backend.
+    # It is shown as two legs, like a Travelport round trip, and booked as
+    # one PNR with every flight (raw_offering.segments keeps them all).
+    legs = None
+    if round_trip:
+        outbound = [s for s in segs if s.get("leg") == 1]
+        inbound = [s for s in segs if s.get("leg") == 2]
+        if not outbound or not inbound or len(outbound) + len(inbound) != len(segs):
+            return None  # can't tell the two legs apart -- never show half a trip
+        legs = [_leg_fields(outbound), _leg_fields(inbound)]
+        flight = dict(legs[0])
+    else:
+        flight = _leg_fields(segs)
+    try:
+        net_price = float(raw_offer.get("totalPrice") or 0)
+    except (TypeError, ValueError):
+        net_price = 0.0
+
+    # Admin-configurable markup (Admin Portal -> Pricing & Markup). Amadeus
+    # fares were never marked up at all before this -- 'shared' reuses
+    # Travelport's own ticket markup (category "ticket"), 'separate' uses
+    # its own amadeus_ticket_markup_* values (category "amadeus_ticket").
+    category = "amadeus_ticket" if pricing_settings.get("markup_scope") == "separate" else "ticket"
+    price, _scale = apply_markup(net_price, pricing_settings, category)
+
+    round_trip_fields = {"is_round_trip": True, "legs": legs} if legs else {}
+    return {
+        **flight,
+        **round_trip_fields,
+        "offer_id": f"AD-{idx}",
         "price": price,
         "currency": raw_offer.get("currency") or "LKR",
         "bookable": True,
@@ -130,14 +159,14 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict) -> dict 
 async def search_amadeus_flights(
     origin: str, destination: str, departure_date: str,
     adult_count: int = 1, child_count: int = 0, infant_count: int = 0,
-    max_results: int = 20,
+    max_results: int = 20, return_date: str | None = None,
 ) -> list[dict]:
-    """One-way search only (the Amadeus backend's flat segment list can't yet
-    be split back into outbound/return legs for round-trip display -- see the
-    note in flight_search_service._parse_reply on the Amadeus side). Raises
-    on any failure; the caller (main.py) turns that into an admin notification
-    rather than swallowing it, since a silent gap here means real fares are
-    missing from the comparison without anyone knowing."""
+    """One-way, or a round trip when return_date is given (13/11/2026: the
+    Amadeus backend now tags each flight with its leg, so the reply can be
+    split into outbound and return). Raises on any failure; the caller
+    (main.py) turns that into an admin notification rather than swallowing
+    it, since a silent gap here means real fares are missing from the
+    comparison without anyone knowing."""
     params = {
         "origin": origin,
         "destination": destination,
@@ -147,6 +176,8 @@ async def search_amadeus_flights(
         "infants": infant_count,
         "maxResults": max_results,
     }
+    if return_date:
+        params["returnDate"] = return_date
     async with httpx.AsyncClient(timeout=25) as client:
         resp = await client.get(f"{AMADEUS_BACKEND_URL}/api/flights/search", params=params)
         resp.raise_for_status()
@@ -154,5 +185,5 @@ async def search_amadeus_flights(
 
     pricing_settings = get_pricing_settings()
     offers = data.get("offers") or []
-    normalized = [_normalize_offer(o, i, pricing_settings) for i, o in enumerate(offers)]
+    normalized = [_normalize_offer(o, i, pricing_settings, round_trip=bool(return_date)) for i, o in enumerate(offers)]
     return [o for o in normalized if o is not None]

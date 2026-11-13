@@ -356,6 +356,10 @@ def _parse_reply(reply: ET.Element) -> dict:
             seg["bookingClass"] = fare.get("bookingClass")
             seg["fareBasis"] = fare.get("fareBasis")
             seg["ticketDesignator"] = fare.get("ticketDesignator")
+            # 13/11/2026: which requested leg (1 = outbound, 2 = return) this
+            # flight belongs to, so the website can show a round trip as two
+            # legs. Booking ignores it.
+            seg["leg"] = leg_number
 
         item_number_el = _find_local(rec, "itemNumber")
         rec_item_id = _text(_find_local(item_number_el, "itemNumberId"), "number") if item_number_el is not None else None
