@@ -74,7 +74,7 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           <div role="status" style={{ marginTop: '0.8rem', padding: '0.7rem 0.9rem', borderRadius: '8px', fontSize: '0.85rem',
                                       background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.45)' }}>
             <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>No ticket was issued for this booking</div>
-            <div>The airline did not issue the ticket, so this booking can't be used to travel.
+            <div>This booking has no ticket, so it can't be used to travel.
               {refund ? ` A full refund of ${money(b.currency, b.total_fare)} was requested automatically on ${dt(refund.requested_at)}.` : ''}</div>
             {refund && (
               <div style={{ marginTop: '0.35rem' }}>
