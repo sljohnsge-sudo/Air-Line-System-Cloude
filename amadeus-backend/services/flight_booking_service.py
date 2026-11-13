@@ -990,6 +990,12 @@ async def price_pnr(session: AmadeusSession) -> dict:
         # which get different refNumbers -- see the note above this loop).
         pax_ref_num_el = _find_deep(fare_list, "paxSegReference", "refDetails", "refNumber")
         pax_ref_num = pax_ref_num_el.text if pax_ref_num_el is not None else None
+        # 13/11/2026: one fareList covers every passenger of the same type
+        # (2 adults -> refDetails PA 2 and PA 3) and its amount is PER
+        # passenger - counted once, a 2-adult hold was priced as 1 adult and
+        # the payment check (the PNR's TSTs x passengers) then refused it.
+        pax_ref_el = _find_local(fare_list, "paxSegReference")
+        pax_count = max(1, len(_find_all_local(pax_ref_el, "refDetails"))) if pax_ref_el is not None else 1
         if pax_ref_num is not None:
             if pax_ref_num in seen_pax_refs:
                 continue
@@ -1017,7 +1023,7 @@ async def price_pnr(session: AmadeusSession) -> dict:
                     amount_currency = _text(sup, "fareCurrency")
                     break
         if amount is not None:
-            total_amount += float(amount)
+            total_amount += float(amount) * pax_count
             currency = currency or amount_currency
 
     return {
