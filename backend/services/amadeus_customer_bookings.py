@@ -165,13 +165,20 @@ def finish(locator: str, status: str, *, payment_method: str | None = None, paym
        write=True)
 
 
+def link_by_email(customer_id: int, email: str | None) -> int:
+    """Claims guest Amadeus bookings made with this account's email - the
+    same rule as Travelport bookings (database.link_guest_bookings_by_email),
+    run at the same places (sign-up, sign-in, email change)."""
+    if not (customer_id and email):
+        return 0
+    return _q("UPDATE amadeus_customer_bookings SET customer_id=%s WHERE customer_id IS NULL AND email=%s",
+              (customer_id, email), write=True) or 0
+
+
 def for_customer(customer_id: int, email: str | None) -> list:
-    """This customer's Amadeus bookings. Bookings made as a guest with the
-    account's email are claimed first - the same rule as Travelport bookings
-    (database.link_guest_bookings_by_email)."""
-    if email:
-        _q("UPDATE amadeus_customer_bookings SET customer_id=%s WHERE customer_id IS NULL AND email=%s",
-           (customer_id, email), write=True)
+    """This customer's Amadeus bookings (guest bookings with the account's
+    email are claimed first)."""
+    link_by_email(customer_id, email)
     rows = _q("SELECT * FROM amadeus_customer_bookings WHERE customer_id=%s ORDER BY id DESC", (customer_id,))
     return [_clean(r) for r in rows]
 

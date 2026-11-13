@@ -3,6 +3,7 @@
 // fare, seats and extras as booked). "Live status & manage booking" opens the
 // Booking Status page (BookingStatusPage) pre-filled for this booking. The
 // ticket and cancellation actions live here rather than on the list row.
+import { useState } from 'react';
 import { cleanPassengerName } from './BookingCard.jsx';
 import { fmtDateTime } from './dateFormat.js';
 
@@ -31,6 +32,7 @@ const legsOf = (b) => {
 const travelerName = (t) => cleanPassengerName(t.confirmed_name || t.full_name || `${t.first_name || t.given_name || ''} ${t.last_name || t.surname || ''}`);
 
 export default function BookingDetailView({ booking: b, liveStatus, onBack, onViewTicket, onRequestCancellation, onLiveStatus }) {
+  const [adManageNote, setAdManageNote] = useState(false);
   const status = liveStatus?.checked ? liveStatus.status : b.status;
   const cancelled = CANCELLED.includes(status);
   const legs = legsOf(b);
@@ -69,9 +71,20 @@ export default function BookingDetailView({ booking: b, liveStatus, onBack, onVi
           {!cancelled && onRequestCancellation && (
             <button className="btn btn-secondary btn-sm" onClick={() => onRequestCancellation(b)}>Request Cancellation</button>
           )}
-          {/* Manage booking (seats / extras after the ticket) is Travelport-only for now. */}
-          {b.source !== 'AD' && (
+          {/* Manage booking (seats / extras after the ticket) is Travelport-only for now:
+              on Amadeus bookings it is shown greyed out and says so. */}
+          {b.source !== 'AD' ? (
             <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => onLiveStatus(b)}>Live status & manage booking</button>
+          ) : (
+            <button type="button" className="btn btn-secondary btn-sm" aria-disabled="true"
+                    style={{ marginLeft: 'auto', opacity: 0.55, cursor: 'not-allowed' }}
+                    title="Seats and extras are not available for this booking yet"
+                    onClick={() => setAdManageNote(true)}>Seats &amp; extras</button>
+          )}
+          {b.source === 'AD' && adManageNote && (
+            <div role="alert" style={{ flexBasis: '100%', fontSize: '0.8rem', color: '#9a3412' }}>
+              Seats and extras are not available for this booking yet.
+            </div>
           )}
         </div>
       </section>

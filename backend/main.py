@@ -3700,11 +3700,39 @@ def _share_contacts_on_record(booking: dict) -> list:
     return out
 
 
+def _ad_link_by_email(customer_id, email) -> None:
+    """Amadeus guest bookings join the account too (14/11/2026) - best effort."""
+    try:
+        ad_bookings.link_by_email(customer_id, email)
+    except Exception as e:
+        logger.warning(f"Amadeus bookings not linked for customer {customer_id}: {e}")
+
+
+def _booking_for_share(locator_code: str) -> dict | None:
+    """The booking staff share: a Travelport booking, or (14/11/2026) an
+    Amadeus one by its PNR or AD-<PNR> - the same contacts-on-record rule."""
+    booking = database.get_booking_by_locator(locator_code)
+    if booking:
+        return booking
+    loc = locator_code[3:] if locator_code.startswith("AD-") else locator_code
+    if not re.fullmatch(r"[A-Z0-9]{5,8}", loc):
+        return None
+    try:
+        row = ad_bookings.get(loc)
+    except Exception as e:
+        logger.warning(f"Amadeus booking {loc} not read for sharing: {e}")
+        return None
+    if not row:
+        return None
+    return {**_ad_my_booking(row), "phone": row.get("phone"), "customer_id": row.get("customer_id"),
+            "passenger_email": row.get("email")}
+
+
 @app.get("/api/admin/bookings/{locator_code}/share-contacts")
 def share_ticket_contacts(locator_code: str, admin: dict = Depends(auth.get_current_admin)):
     """Contacts on record for the share pop-up - staff pick one, never type one."""
     locator_code = locator_code.upper().strip()
-    booking = database.get_booking_by_locator(locator_code)
+    booking = _booking_for_share(locator_code)
     if not booking:
         raise HTTPException(status_code=404, detail=f"No booking found for locator '{locator_code}'.")
     return {"locator_code": locator_code, "status": booking.get("status"), "passenger": booking.get("passenger_name"),
@@ -3718,7 +3746,7 @@ def share_ticket_with_customer(
     admin: dict = Depends(auth.get_current_admin),
 ):
     locator_code = locator_code.upper().strip()
-    booking = database.get_booking_by_locator(locator_code)
+    booking = _booking_for_share(locator_code)
     if not booking:
         raise HTTPException(status_code=404, detail=f"No booking found for locator '{locator_code}'.")
     if booking.get("status") != "Ticketed":
@@ -4996,6 +5024,7 @@ def admin_approve_email_change(request_id: int, body: EmailChangeReviewRequest, 
     database.rekey_loyalty_account(req["old_email"], req["new_email"])
     # Pick up any guest bookings already sitting under the new email.
     database.link_guest_bookings_by_email(req["customer_id"], req["new_email"])
+    _ad_link_by_email(req["customer_id"], req["new_email"])
     updated = database.resolve_email_change_request(request_id, "approved", admin["admin_id"], body.admin_note)
     return updated
 
@@ -5914,6 +5943,7 @@ def customer_register(request: CustomerRegisterRequest):
     customer = database.create_customer(request.email, password_hash, request.full_name, request.phone)
     # Pick up any guest bookings already made under this email before the account existed.
     database.link_guest_bookings_by_email(customer["id"], customer["email"])
+    _ad_link_by_email(customer["id"], customer["email"])
     hotel_database.link_guest_hotel_bookings_by_email(customer["id"], customer["email"])
     token = auth.create_access_token({
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
@@ -5931,6 +5961,7 @@ def customer_login(request: CustomerLoginRequest):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     # Pick up any guest bookings made under this email since the last login.
     database.link_guest_bookings_by_email(customer["id"], customer["email"])
+    _ad_link_by_email(customer["id"], customer["email"])
     hotel_database.link_guest_hotel_bookings_by_email(customer["id"], customer["email"])
     token = auth.create_access_token({
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
@@ -5992,6 +6023,7 @@ def customer_oauth_callback(provider: str, code: Optional[str] = None, state: Op
     # guest under this email, before this OAuth account existed, is picked
     # up right now instead of waiting for a future email/password login.
     database.link_guest_bookings_by_email(customer["id"], customer["email"])
+    _ad_link_by_email(customer["id"], customer["email"])
     hotel_database.link_guest_hotel_bookings_by_email(customer["id"], customer["email"])
 
     token = auth.create_access_token({
