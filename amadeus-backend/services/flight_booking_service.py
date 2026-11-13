@@ -432,11 +432,40 @@ def _traveller_blocks(travelers: list[dict]) -> str:
     for n, (idx, inf) in enumerate(_name_groups(travelers), start=1):
         t = travelers[idx]
         ptc = _PTC_MAP[t["type"].lower()]
-        infant_flag = "<infantIndicator>3</infantIndicator>" if inf is not None else ""
-        infant_xml = ""
-        if inf is not None:
+        surname = escape(t["lastName"].upper())
+        if inf is None:
+            pdata = f"""<passengerData>
+          <travellerInformation>
+            <traveller><surname>{surname}</surname><quantity>1</quantity></traveller>
+            <passenger><firstName>{escape(_first_name(t))}</firstName><type>{ptc}</type></passenger>
+          </travellerInformation>{_dob_xml(t.get('dateOfBirth')) if ptc == "CHD" else ""}
+        </passengerData>"""
+        else:
+            # A lap infant (PNR_AddMultiElements XSD, infantIndicator):
+            #   2 = same surname as the adult: the infant's given name is a
+            #       2nd <passenger> (type INF) in the adult's own
+            #       travellerInformation, quantity 2, and dateOfBirth is the
+            #       infant's ("Inf/Child date of birth");
+            #   3 = its own surname: a 2nd passengerData after the adult's
+            #       (Amadeus's sample SB).
             i = travelers[inf]
-            infant_xml = f"""<passengerData>
+            same = i["lastName"].strip().upper() == t["lastName"].strip().upper()
+            if same:
+                pdata = f"""<passengerData>
+          <travellerInformation>
+            <traveller><surname>{surname}</surname><quantity>2</quantity></traveller>
+            <passenger><firstName>{escape(_first_name(t))}</firstName><type>{ptc}</type><infantIndicator>2</infantIndicator></passenger>
+            <passenger><firstName>{escape(_first_name(i))}</firstName><type>INF</type></passenger>
+          </travellerInformation>{_dob_xml(i.get('dateOfBirth'))}
+        </passengerData>"""
+            else:
+                pdata = f"""<passengerData>
+          <travellerInformation>
+            <traveller><surname>{surname}</surname><quantity>1</quantity></traveller>
+            <passenger><firstName>{escape(_first_name(t))}</firstName><type>{ptc}</type><infantIndicator>3</infantIndicator></passenger>
+          </travellerInformation>
+        </passengerData>
+        <passengerData>
           <travellerInformation>
             <traveller><surname>{escape(i['lastName'].upper())}</surname><quantity>1</quantity></traveller>
             <passenger><firstName>{escape(_first_name(i))}</firstName><type>INF</type><infantIndicator>3</infantIndicator></passenger>
@@ -447,13 +476,7 @@ def _traveller_blocks(travelers: list[dict]) -> str:
           <reference><qualifier>PR</qualifier><number>{n}</number></reference>
           <segmentName>NM</segmentName>
         </elementManagementPassenger>
-        <passengerData>
-          <travellerInformation>
-            <traveller><surname>{escape(t['lastName'].upper())}</surname><quantity>1</quantity></traveller>
-            <passenger><firstName>{escape(_first_name(t))}</firstName><type>{ptc}</type>{infant_flag}</passenger>
-          </travellerInformation>{_dob_xml(t.get('dateOfBirth')) if ptc == "CHD" else ""}
-        </passengerData>
-        {infant_xml}
+        {pdata}
       </travellerInfo>"""
     return blocks
 
@@ -996,19 +1019,24 @@ async def end_transact(session: AmadeusSession, received_from: str, end_session:
     if not (last_ticketing and last_ticketing.get("date")):
         raise AmadeusSoapError("Amadeus pricing gave no last ticketing date, so the booking can't be held", status_code=502)
     tk_time = f"<time>{last_ticketing['time']}</time>" if last_ticketing.get("time") else ""
-    body = f"""<PNR_AddMultiElements xmlns="{NS['pnr']}">
+    fm = """<dataElementsIndiv>
+          <elementManagementData><reference><qualifier>OT</qualifier><number>1</number></reference><segmentName>FM</segmentName></elementManagementData>
+          <commission><commissionInfo><percentage>0</percentage></commissionInfo></commission>
+        </dataElementsIndiv>"""
+
+    tk = f"""<dataElementsIndiv>
+          <elementManagementData><reference><qualifier>OT</qualifier><number>2</number></reference><segmentName>TK</segmentName></elementManagementData>
+          <ticketElement><ticket><indicator>XL</indicator><date>{last_ticketing['date']}</date>{tk_time}</ticket></ticketElement>
+        </dataElementsIndiv>"""
+
+    def body(with_fm: bool, with_tk: bool) -> str:
+        return f"""<PNR_AddMultiElements xmlns="{NS['pnr']}">
       <reservationInfo><reservation/></reservationInfo>
       <pnrActions><optionCode>11</optionCode></pnrActions>
       <dataElementsMaster>
         <marker1/>
-        <dataElementsIndiv>
-          <elementManagementData><reference><qualifier>OT</qualifier><number>1</number></reference><segmentName>FM</segmentName></elementManagementData>
-          <commission><commissionInfo><percentage>0</percentage></commissionInfo></commission>
-        </dataElementsIndiv>
-        <dataElementsIndiv>
-          <elementManagementData><reference><qualifier>OT</qualifier><number>2</number></reference><segmentName>TK</segmentName></elementManagementData>
-          <ticketElement><ticket><indicator>XL</indicator><date>{last_ticketing['date']}</date>{tk_time}</ticket></ticketElement>
-        </dataElementsIndiv>
+        {fm if with_fm else ""}
+        {tk if with_tk else ""}
         <dataElementsIndiv>
           <elementManagementData><reference><qualifier>OT</qualifier><number>3</number></reference><segmentName>RF</segmentName></elementManagementData>
           <freetextData>
@@ -1019,18 +1047,31 @@ async def end_transact(session: AmadeusSession, received_from: str, end_session:
       </dataElementsMaster>
     </PNR_AddMultiElements>"""
 
-    body_root = await call(
-        operation="PNR_AddMultiElements",
-        soap_action="http://webservices.amadeus.com/PNRADD_22_1_1A",
-        body_xml=body,
-        log_prefix="12_pnr_end_transact",
-        session=session,
-        stateful=True,
-        end_session=end_session,
-    )
+    # A negotiated (CAT35) fare brings its own commission into the TST, and
+    # Amadeus refuses our FM with errorCode 3671 "FARE ELEMENT ALREADY EXISTS"
+    # (QR663, 13/11/2026). The elements it accepted (TK XL, RF) are already
+    # in the booking - sending TK again gives errorCode 4498 "COMBINATION OF
+    # ELEMENTS NOT ALLOWED" - so only in that case the commit is sent again
+    # with just the received-from line. The session stays open until then.
+    body_root = await call(operation="PNR_AddMultiElements", soap_action="http://webservices.amadeus.com/PNRADD_22_1_1A",
+                           body_xml=body(True, True), log_prefix="12_pnr_end_transact", session=session, stateful=True)
     locator = _extract_locator(body_root)
+    if not locator and {e.split(" ", 1)[0] for e in _reply_errors(body_root)} == {"3671"}:
+        body_root = await call(operation="PNR_AddMultiElements", soap_action="http://webservices.amadeus.com/PNRADD_22_1_1A",
+                               body_xml=body(False, False), log_prefix="12b_pnr_end_transact_no_fm", session=session,
+                               stateful=True)
+        locator = _extract_locator(body_root)
+    if end_session:
+        try:
+            await call(operation="Security_SignOut", soap_action="http://webservices.amadeus.com/VLSSOQ_04_1_1A",
+                       body_xml='<Security_SignOut xmlns="http://xml.amadeus.com/VLSSOQ_04_1_1A"/>',
+                       log_prefix="12c_signout", session=session, stateful=True, end_session=True)
+        except AmadeusSoapError:
+            pass
     if not locator:
-        raise AmadeusSoapError("PNR was not confirmed -- no record locator in Amadeus response", status_code=502)
+        errors = _reply_errors(body_root)
+        raise AmadeusSoapError("PNR was not confirmed -- no record locator in Amadeus response"
+                               + (f" ({'; '.join(errors)[:300]})" if errors else ""), status_code=502)
     return locator
 
 
@@ -1333,26 +1374,32 @@ def _parse_pnr_reply(body_root) -> dict:
     for ti in _find_all_local(reply, "travellerInfo"):
         emp = _find_local(ti, "elementManagementPassenger")
         pax_ref = _text(_find_local(emp, "reference"), "number") if emp is not None else None
-        # Each passengerData: the passenger, then (second) a lap infant on it.
+        # The passenger, and a lap infant on it: either a 2nd <passenger>
+        # type INF in the same travellerInformation (same surname; the
+        # dateOfBirth there is the infant's) or a 2nd passengerData.
         for n, pd in enumerate(_find_all_local(ti, "passengerData")):
             tinfo = _find_local(pd, "travellerInformation")
             traveller = _find_local(tinfo, "traveller") if tinfo is not None else None
-            passenger = _find_local(tinfo, "passenger") if tinfo is not None else None
-            if traveller is None and passenger is None:
+            passengers = _find_all_local(tinfo, "passenger") if tinfo is not None else []
+            if traveller is None and not passengers:
                 continue
-            dob = _find_deep(pd, "dateOfBirth", "dateAndTimeDetails")
-            t = {
-                "lastName": _text(traveller, "surname") if traveller is not None else None,
-                "firstName": _text(passenger, "firstName") if passenger is not None else None,
-                "type": _text(passenger, "type") if passenger is not None else None,
-                "date_of_birth": _iso_from_ddmmyyyy(_text(dob, "date")) if dob is not None else None,
-            }
-            travelers.append(t)
-            if pax_ref:
-                if n == 0:
-                    pax_ref_by_traveler[pax_ref] = t
-                else:
-                    infant_by_ref[pax_ref] = t
+            dob_el = _find_deep(pd, "dateOfBirth", "dateAndTimeDetails")
+            dob = _iso_from_ddmmyyyy(_text(dob_el, "date")) if dob_el is not None else None
+            for k, passenger in enumerate(passengers or [None]):
+                ptype = _text(passenger, "type") if passenger is not None else None
+                is_infant = (ptype or "").upper() == "INF"
+                t = {
+                    "lastName": _text(traveller, "surname") if traveller is not None else None,
+                    "firstName": _text(passenger, "firstName") if passenger is not None else None,
+                    "type": ptype,
+                    "date_of_birth": dob if (len(passengers) < 2 or is_infant) else None,
+                }
+                travelers.append(t)
+                if pax_ref:
+                    if is_infant:
+                        infant_by_ref[pax_ref] = t
+                    elif n == 0 and k == 0:
+                        pax_ref_by_traveler[pax_ref] = t
 
     # Email/phone (AP) and passport/document data (SSR DOCS) aren't on the
     # NM travellerInfo blocks at all -- they're separate dataElementsIndiv
