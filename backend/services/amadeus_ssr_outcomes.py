@@ -2,13 +2,15 @@
 What airlines answer to special requests on Amadeus bookings (14/11/2026).
 
 Every Amadeus booking with a special meal or wheelchair request records the
-airline's real answer here, per airline and request code: confirmed (HK/KK),
-requested (NN/HN - not answered yet) or refused (UN/NO/UC/..., or an error
-when it was added). The passenger form greys out a request that an airline
-on the chosen fare refused last time ("not provided by the airline"); a
-later confirmation for that airline and code makes it available again.
-Answers from the Amadeus TEST system are kept apart from live ones (system
-column) - test answers can differ from live.
+airline's answer here, per airline, flight and request code, for staff:
+confirmed / requested / refused from the airline's own status code in the
+booking, "not_sent" when it could not be added (an Amadeus or our error -
+not an airline answer), "missing" when it was not on the booking after it
+was saved, or "other" with the airline's code as it came.
+
+13/11/2026 audit: these answers are NOT used to grey options out for other
+bookings - each customer sees the airline's answer for their own booking.
+Answers from the Amadeus TEST system are kept apart from live ones (system).
 
 Own table, created on first use: amadeus_ssr_outcomes.
 """
@@ -58,7 +60,7 @@ def record(outcomes: list[dict], locator: str | None, system: str) -> None:
     """Keeps each meal / wheelchair answer (the address is not an airline
     yes/no, so it isn't kept)."""
     rows = [o for o in outcomes or [] if o.get("kind") in ("meal", "wheelchair") and o.get("carrier") and o.get("code")]
-    if not rows:
+    if not rows or not system:
         return
     _ensure_tables()
     conn = database.get_db_connection()
@@ -68,31 +70,10 @@ def record(outcomes: list[dict], locator: str | None, system: str) -> None:
             "INSERT INTO amadeus_ssr_outcomes (carrier, code, state, status, flight, reason, locator, system) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
             [(o["carrier"][:3], o["code"][:4], (o.get("state") or "")[:10], (o.get("status") or None),
-              (o.get("flight") or None), (o.get("reason") or "")[:300] or None, locator, (system or "TEST")[:4])
+              (o.get("flight") or None), (o.get("reason") or "")[:300] or None, locator, system[:4])
              for o in rows])
         conn.commit()
     finally:
         cur.close()
         conn.close()
 
-
-def not_provided(carriers: list[str], system: str) -> list[str]:
-    """Request codes the latest answer from any of these airlines refused
-    (on this Amadeus system). Codes nobody has asked for yet stay available."""
-    carriers = [c.upper()[:3] for c in carriers if c]
-    if not carriers:
-        return []
-    _ensure_tables()
-    conn = database.get_db_connection()
-    cur = conn.cursor(dictionary=True)
-    try:
-        marks = ",".join(["%s"] * len(carriers))
-        cur.execute(f"""SELECT o.carrier, o.code, o.state FROM amadeus_ssr_outcomes o
-                        JOIN (SELECT carrier, code, MAX(id) AS last_id FROM amadeus_ssr_outcomes
-                              WHERE system=%s AND carrier IN ({marks}) AND state IN ('confirmed','refused')
-                              GROUP BY carrier, code) l ON l.last_id = o.id""",
-                    (system, *carriers))
-        return sorted({r["code"] for r in cur.fetchall() if r["state"] == "refused"})
-    finally:
-        cur.close()
-        conn.close()

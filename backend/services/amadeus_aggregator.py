@@ -96,6 +96,8 @@ def _leg_fields(segs: list[dict]) -> dict:
 # website uses for Travelport fares (14/11/2026). Before this the booking
 # class letter (e.g. "O") was shown as the cabin.
 _CABIN_NAMES = {"M": "Economy", "Y": "Economy", "W": "Premium Economy", "C": "Business", "F": "First"}
+# The website's cabin choice -> Amadeus cabin code for the search.
+_CABIN_CODES = {"economy": "M", "premium economy": "W", "business": "C", "first": "F"}
 
 
 def _cabin_name(segs: list[dict]) -> str | None:
@@ -138,10 +140,15 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_tr
         flight = dict(legs[0])
     else:
         flight = _leg_fields(segs)
+    # 13/11/2026 audit: a fare without Amadeus's price or currency is not
+    # shown (it used to become 0 - sorted first - and "LKR").
     try:
-        net_price = float(raw_offer.get("totalPrice") or 0)
+        net_price = float(raw_offer.get("totalPrice"))
     except (TypeError, ValueError):
-        net_price = 0.0
+        return None
+    currency = str(raw_offer.get("currency") or "").upper()
+    if net_price <= 0 or not currency:
+        return None
 
     # Admin-configurable markup (Admin Portal -> Pricing & Markup). Amadeus
     # fares were never marked up at all before this -- 'shared' reuses
@@ -159,11 +166,11 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_tr
         **round_trip_fields,
         "offer_id": f"AD-{idx}",
         "price": price,
-        "currency": raw_offer.get("currency") or "LKR",
+        "currency": currency,
         "bookable": True,
         "fare_options": [{
             "price": price,
-            "currency": raw_offer.get("currency") or "LKR",
+            "currency": currency,
             # Real cabin name from Amadeus; no fare-family (brand) name until
             # Amadeus turns fare families on for this office.
             "cabin_class": _cabin_name(segs),
@@ -194,7 +201,7 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_tr
 async def search_amadeus_flights(
     origin: str, destination: str, departure_date: str,
     adult_count: int = 1, child_count: int = 0, infant_count: int = 0,
-    max_results: int = 20, return_date: str | None = None,
+    max_results: int = 20, return_date: str | None = None, cabin_preference: str | None = None,
 ) -> list[dict]:
     """One-way, or a round trip when return_date is given (13/11/2026: the
     Amadeus backend now tags each flight with its leg, so the reply can be
@@ -211,6 +218,13 @@ async def search_amadeus_flights(
         "infants": infant_count,
         "maxResults": max_results,
     }
+    # The customer's cabin choice, as Amadeus's cabin code (13/11/2026 audit:
+    # it used to be ignored, so Business searches showed economy fares).
+    if cabin_preference:
+        code = _CABIN_CODES.get(cabin_preference.strip().lower())
+        if not code:
+            raise ValueError(f"Amadeus search: unknown cabin {cabin_preference!r}")
+        params["cabin"] = code
     if return_date:
         params["returnDate"] = return_date
     async with httpx.AsyncClient(timeout=25) as client:

@@ -7,6 +7,9 @@ export default function AmadeusFareRulesBox({ flight, loading = false, compact =
   const change = flight?.change_policy;
   const cancel = flight?.cancel_policy;
   const has = !!(change || cancel);
+  // When the fare's rules can't be read, only its endorsement line may come
+  // back - shown as that, never as the change / cancellation policy.
+  const endorsement = !has ? flight?.endorsement : null;
 
   if (compact) {
     return (
@@ -30,6 +33,11 @@ export default function AmadeusFareRulesBox({ flight, loading = false, compact =
             <span>📄</span><span>{loading ? 'Loading fare rules…' : 'Fare rules are not available for this fare right now.'}</span>
           </div>
         )}
+        {!loading && endorsement && (
+          <div className="fc-line fc-wrap" style={{ color: '#64748b' }}>
+            <span>🏷️</span><span><strong>Endorsement:</strong> {endorsement}</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -41,11 +49,12 @@ export default function AmadeusFareRulesBox({ flight, loading = false, compact =
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.82rem', color: '#334155' }}>
           {change && <div><strong>Changes:</strong> {change}</div>}
           {cancel && <div><strong>Cancellations / refunds:</strong> {cancel}</div>}
-          <div style={{ fontSize: '0.72rem', color: '#64748b' }}>From the airline's filed fare rules for this fare. Amounts are in the currency the airline files them in.</div>
+          <div style={{ fontSize: '0.72rem', color: '#64748b' }}>From the airline's filed fare rules for the adult fare (Amadeus). Amounts are in the currency the airline files them in.</div>
         </div>
       ) : (
         <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-          {loading ? 'Loading the fare rules from the airline…' : 'Fare rules are not available for this fare right now.'}
+          {loading ? 'Loading the fare rules…' : 'Fare rules are not available for this fare right now.'}
+          {!loading && endorsement && <div style={{ marginTop: '0.35rem' }}><strong>Endorsement:</strong> {endorsement}</div>}
         </div>
       )}
     </div>

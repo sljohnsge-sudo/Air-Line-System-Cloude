@@ -9,11 +9,14 @@ Builds a one-way or round-trip search request and parses the reply into a
 flat list of priced flight offers.
 """
 
+import logging
 from datetime import date
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
 from services.amadeus_soap_client import call, AmadeusSoapError
+
+logger = logging.getLogger(__name__)
 
 FMPTBQ_NS = "http://xml.amadeus.com/FMPTBQ_24_6_1A"
 FMPTBR_NS = "http://xml.amadeus.com/FMPTBR_24_6_1A"
@@ -74,8 +77,13 @@ async def search_flights(
     children: int = 0,
     infants: int = 0,
     max_results: int = 20,
+    cabin: str | None = None,
 ) -> dict:
     pax_xml, total_pax = _pax_xml(adults, children, infants)
+    # The cabin the customer asked for (Amadeus cabin code, e.g. C = business),
+    # sent as the requested cabin - none when the customer chose none.
+    cabin_xml = (f"<travelFlightInfo><cabinId><cabinQualifier>RC</cabinQualifier><cabin>{escape(cabin)}</cabin>"
+                 f"</cabinId></travelFlightInfo>") if cabin else "<travelFlightInfo/>"
 
     itineraries = _itinerary_xml(1, origin, destination, departure_date)
     if return_date:
@@ -104,7 +112,7 @@ async def search_flights(
           </pricingTicketing>
         </pricingTickInfo>
       </fareOptions>
-      <travelFlightInfo/>
+      {cabin_xml}
       {itineraries}
     </Fare_MasterPricerTravelBoardSearch>"""
 
@@ -352,11 +360,16 @@ def _parse_reply(reply: ET.Element) -> dict:
         # first flight's class.) The fare basis (+ ticket designator) is what
         # Amadeus asks us to send for seat prices and extras.
         position_in_leg: dict[int, int] = {}
+        incomplete = False
         for seg, leg_number in zip(segments, seg_leg_numbers):
             idx = position_in_leg.get(leg_number, 0)
             position_in_leg[leg_number] = idx + 1
             fares = fares_by_leg.get(str(leg_number)) or []
-            fare = fares[idx] if idx < len(fares) else (fares[0] if fares else {})
+            # 13/11/2026 audit: a flight with no fare line of its own does NOT
+            # borrow the first flight's class / fare basis - the fare is dropped.
+            fare = fares[idx] if idx < len(fares) else {}
+            if not fare.get("bookingClass"):
+                incomplete = True
             seg["bookingClass"] = fare.get("bookingClass")
             seg["fareBasis"] = fare.get("fareBasis")
             seg["ticketDesignator"] = fare.get("ticketDesignator")
@@ -366,6 +379,10 @@ def _parse_reply(reply: ET.Element) -> dict:
             seg["leg"] = leg_number
             seg["cabin"] = fare.get("cabin")
             seg["seatsAvailable"] = fare.get("seatsAvailable")
+        if incomplete:
+            logger.warning(f"Search: recommendation skipped - a flight has no booking class of its own "
+                           f"({[s.get('marketingCarrier', '') + str(s.get('flightNumber', '')) for s in segments]})")
+            continue
 
         item_number_el = _find_local(rec, "itemNumber")
         rec_item_id = _text(_find_local(item_number_el, "itemNumberId"), "number") if item_number_el is not None else None

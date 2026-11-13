@@ -45,7 +45,7 @@ from typing import Optional, List
 import os
 import secrets
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
@@ -120,6 +120,7 @@ async def search_flights(
     children: int = 0,
     infants: int = 0,
     maxResults: int = 20,
+    cabin: Optional[str] = Query(None, pattern=r"^[YMWCF]$"),
 ):
     return await flight_search_service.search_flights(
         origin=origin,
@@ -130,6 +131,7 @@ async def search_flights(
         children=children,
         infants=infants,
         max_results=maxResults,
+        cabin=cabin,
     )
 
 

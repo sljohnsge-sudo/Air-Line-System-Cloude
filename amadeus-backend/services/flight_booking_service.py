@@ -710,21 +710,27 @@ def _contact_ssr_xml(ssr_type: str, text: str) -> str:
 # stops the booking; what the airline answers is read back after End
 # Transact (special_request_outcomes).
 
-SPECIAL_MEAL_CODES = {"AVML", "BBML", "BLML", "CHML", "DBML", "FPML", "GFML", "HNML", "KSML", "LCML",
-                      "LFML", "LSML", "MOML", "NLML", "NOML", "RVML", "SFML", "VGML", "VJML", "VLML", "VOML"}
-WHEELCHAIR_CODES = {"WCHR", "WCHS", "WCHC"}
+# IATA action/status codes as the airline returns them on an SSR (13/11/2026
+# audit: a code not listed here is shown as it came - "other" - never assumed).
 _SSR_CONFIRMED = {"HK", "KK", "KD", "HS", "TK", "RR"}
-_SSR_REFUSED = {"UN", "NO", "UC", "UU", "HX", "US", "XX", "XK", "DL", "NA", "UNKNOWN"}
+_SSR_REQUESTED = {"NN", "HN", "PN"}
+_SSR_REFUSED = {"UN", "NO", "UC", "UU", "HX", "US", "XX", "XK", "DL", "NA"}
+_SSR_SSR_CODE = re.compile(r"^[A-Z]{4}$")
+# SSRs that carry passport / contact data: their free text is never read back.
+_SSR_PERSONAL = ("DOCS", "DOCO", "DOCA", "FOID", "CTCE", "CTCM", "CTCR", "PCTC")
 
 
 def ssr_state(status: str | None) -> str:
-    """confirmed / refused / requested (the airline hasn't answered yet)."""
+    """confirmed / requested / refused from the airline's status code, or
+    "other" for a code not in those lists or no code at all."""
     st = (status or "").upper()
     if st in _SSR_CONFIRMED:
         return "confirmed"
+    if st in _SSR_REQUESTED:
+        return "requested"
     if st in _SSR_REFUSED:
         return "refused"
-    return "requested"
+    return "other"
 
 
 def _special_ssr_xml(code: str, pax_ref: str, carrier: str, status: str = "NN", freetext: str | None = None) -> str:
@@ -782,11 +788,12 @@ async def add_special_requests(session: AmadeusSession, travelers: list[dict], p
     carriers = list(dict.fromkeys(c for c in carriers if c))
     items = []
     for i, (t, ref) in enumerate(zip(travelers, pax_refs)):
+        # The code the customer picked, as it is (a 4-letter SSR code).
         meal = (t.get("mealCode") or "").upper()
-        if meal in SPECIAL_MEAL_CODES:
+        if _SSR_SSR_CODE.match(meal):
             items += [{"traveler_index": i, "pax_ref": ref, "code": meal, "kind": "meal", "carrier": c} for c in carriers]
         chair = (t.get("wheelchair") or "").upper()
-        if chair in WHEELCHAIR_CODES:
+        if _SSR_SSR_CODE.match(chair):
             items += [{"traveler_index": i, "pax_ref": ref, "code": chair, "kind": "wheelchair", "carrier": c} for c in carriers]
         doca = _doca_text(t)
         if doca:
@@ -817,22 +824,24 @@ async def add_special_requests(session: AmadeusSession, travelers: list[dict], p
 def special_request_outcomes(sent: list[dict], pnr: dict) -> list[dict]:
     """What the airline answered for each request, from the PNR read after
     End Transact: one line per request and flight where the PNR has it,
-    with the airline's status code and confirmed / requested / refused."""
+    with the airline's own status code (13/11/2026 audit):
+      not_sent  Amadeus refused to add it (its error text in reason) - this
+                is not an airline answer;
+      missing   not on the booking after it was saved;
+      confirmed / requested / refused / other  from the airline's code.
+    The address (DOCA) is read back the same way - never assumed."""
     in_pnr = pnr.get("specialRequests") or []
     flights = {s.get("segmentRef"): s.get("flight_number") for s in pnr.get("segments") or []}
     out = []
     for it in sent:
         base = {k: it.get(k) for k in ("traveler_index", "code", "kind", "carrier")}
         if not it.get("added"):
-            out.append({**base, "flight": None, "status": None, "state": "refused", "reason": it.get("error")})
-            continue
-        if it["kind"] == "address":
-            out.append({**base, "flight": None, "status": "HK", "state": "sent", "reason": None})
+            out.append({**base, "flight": None, "status": None, "state": "not_sent", "reason": it.get("error")})
             continue
         found = [r for r in in_pnr if r.get("code") == it["code"] and r.get("paxRef") == it["pax_ref"]
                  and (r.get("carrier") in (it["carrier"], None))]
         if not found:
-            out.append({**base, "flight": None, "status": None, "state": "refused",
+            out.append({**base, "flight": None, "status": None, "state": "missing",
                         "reason": "not on the booking after it was saved"})
         for r in found:
             out.append({**base, "flight": flights.get(r.get("segmentRef")), "status": r.get("status"),
@@ -1015,13 +1024,10 @@ async def price_pnr(session: AmadeusSession) -> dict:
                 amount = _text(sup, "fareAmount")
                 amount_currency = _text(sup, "fareCurrency")
                 break
-        if amount is None and fare_data is not None:
-            # fall back to base fare ("B") if no total ("712") qualifier present
-            for sup in _find_all_local(fare_data, "fareDataSupInformation"):
-                if _text(sup, "fareDataQualifier") == "B":
-                    amount = _text(sup, "fareAmount")
-                    amount_currency = _text(sup, "fareCurrency")
-                    break
+        # 13/11/2026 audit: only the total incl. taxes ("712") is a price; no
+        # fallback to the base fare without taxes - an unpriced fare is refused.
+        if amount is None:
+            raise AmadeusSoapError("Amadeus pricing gave no total (712) for a passenger", status_code=502)
         if amount is not None:
             total_amount += float(amount) * pax_count
             currency = currency or amount_currency
@@ -1265,19 +1271,21 @@ def _parse_pnr_reply(body_root) -> dict:
     for dei in _find_all_local(dem, "dataElementsIndiv"):
         emd = _find_local(dei, "elementManagementData")
         seg_name = _text(emd, "segmentName") if emd is not None else None
-        # 14/11/2026: special meal / wheelchair requests and the airline's
-        # answer (status), per passenger (PT) and flight (ST).
+        # Every SSR on the booking with the airline's answer (status), per
+        # passenger (PT) and flight (ST) - matched later to what we sent.
+        # Passport / contact SSRs keep their status only, never their text.
         if seg_name == "SSR":
             ssr = _find_deep(dei, "serviceRequest", "ssr")
             code = (_text(ssr, "type") or "").upper() if ssr is not None else ""
-            if code in SPECIAL_MEAL_CODES or code in WHEELCHAIR_CODES:
+            if code:
                 refs = [(_text(r, "qualifier"), _text(r, "number")) for r in dei.iter()
                         if _local(r.tag) == "reference" and _text(r, "qualifier") in ("PT", "ST")]
                 special_requests.append({
                     "code": code, "status": _text(ssr, "status"), "carrier": _text(ssr, "companyId"),
                     # The airline's own note on the request, e.g. a form it needs.
-                    "note": " ".join(t.text.strip() for t in ssr.iter()
-                                     if _local(t.tag) in ("freeText", "freetext") and t.text and t.text.strip()) or None,
+                    "note": None if code in _SSR_PERSONAL else (" ".join(
+                        t.text.strip() for t in ssr.iter()
+                        if _local(t.tag) in ("freeText", "freetext") and t.text and t.text.strip()) or None),
                     "paxRef": next((n for q, n in refs if q == "PT"), None),
                     "segmentRef": next((n for q, n in refs if q == "ST"), None),
                 })

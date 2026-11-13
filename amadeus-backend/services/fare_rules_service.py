@@ -112,11 +112,6 @@ def _section(lines: list[str], start: str, stop: tuple[str, ...]) -> list[str]:
     return out
 
 
-def _summary(lines: list[str], limit: int = 240) -> str | None:
-    text = " ".join(lines).strip()
-    if not text:
-        return None
-    return text if len(text) <= limit else text[:limit].rsplit(" ", 1)[0] + " …"
 
 
 async def _rules_via_check_rules(segments: list[dict], travelers: list[dict]) -> dict | None:
@@ -129,27 +124,46 @@ async def _rules_via_check_rules(segments: list[dict], travelers: list[dict]) ->
     if not quote.get("ok"):
         await _sign_out(session)
         return None
-    fcs = (quote["groups"][0].get("fare_components") if quote.get("groups") else None) or ["1"]
-    rules: dict[str, list[str]] = {}
+    fcs = quote["groups"][0].get("fare_components") if quote.get("groups") else None
+    if not fcs:
+        await _sign_out(session)
+        return None
+    # 13/11/2026 audit: the rules of each fare component are kept apart (a
+    # connection or round trip can have different rules per fare), in full,
+    # and a policy is only what the airline's CHANGES / CANCELLATIONS section
+    # says - never the whole text standing in for it.
+    components = []
     try:
         for i, fc in enumerate(fcs):
             part = await _check_rules(session, fc, end_session=(i == len(fcs) - 1))
-            for k, v in part.items():
-                rules.setdefault(k, []).extend(v)
+            pe = part.get("PE") or []
+            heads = ("CHANGES", "CANCELLATIONS", "CANCELLATION", "REFUND", "REFUNDS")
+            changes = _section(pe, "CHANGES", heads[1:])
+            cancels = _section(pe, "CANCELLATIONS", ("CHANGES",)) or _section(pe, "CANCELLATION", ("CHANGES",))
+            components.append({
+                "fare_component": fc,
+                "change_policy": " ".join(changes) or None,
+                "cancel_policy": " ".join(cancels) or None,
+                "rules": {k: [" ".join(l.split()) for l in v if l.strip() and not _SKIP.match(l)] for k, v in part.items()},
+            })
     except AmadeusSoapError:
         await _sign_out(session)
         return None
-    pe = rules.get("PE") or []
-    if not pe:
+    if not any(c["rules"].get("PE") for c in components):
         return None
-    heads = ("CHANGES", "CANCELLATIONS", "CANCELLATION", "REFUND", "REFUNDS")
-    changes = _section(pe, "CHANGES", heads[1:])
-    cancels = _section(pe, "CANCELLATIONS", ("CHANGES",)) or _section(pe, "CANCELLATION", ("CHANGES",))
-    clean = [" ".join(l.split()) for l in pe if l.strip() and not _SKIP.match(l)]
+
+    def joined(key: str) -> str | None:
+        texts = [c[key] for c in components if c[key]]
+        if not texts:
+            return None
+        if len(components) == 1:
+            return texts[0]
+        return " | ".join(f"Fare {n}: {c[key]}" for n, c in enumerate(components, 1) if c[key])
+
     return {
-        "change_policy": _summary(changes) or _summary(clean),
-        "cancel_policy": _summary(cancels) or _summary(clean),
-        "fare_rules": {k: [" ".join(l.split()) for l in v if l.strip() and not _SKIP.match(l)] for k, v in rules.items()},
+        "change_policy": joined("change_policy"),
+        "cancel_policy": joined("cancel_policy"),
+        "components": components,
         "fare_basis": [s.get("fareBasis") for s in quote["groups"][0]["segments"]],
         "quoted_total": quote.get("total"),
         "currency": quote.get("currency"),
@@ -158,9 +172,10 @@ async def _rules_via_check_rules(segments: list[dict], travelers: list[dict]) ->
 
 
 async def _rules_via_endorsement(segments: list[dict], total_pax: int) -> dict:
-    """The earlier workaround: sell + price without a PNR and read the
-    endorsement line (otherPricingInfo END). Only used if the quote/rules
-    calls above fail."""
+    """When the quote / rules calls above fail: sell + price without a PNR and
+    read the fare's endorsement line (otherPricingInfo END). 13/11/2026 audit:
+    it is returned as the endorsement only - never as the change or cancel
+    policy (e.g. "NON END/CHANGE FEE MAY APPLY" is not the fare's rules)."""
     session = AmadeusSession()
     await sell_segments(session, segments, total_pax)
     price_body = f"""<Fare_PricePNRWithBookingClass xmlns="{BOOKING_NS['price']}">
@@ -178,8 +193,8 @@ async def _rules_via_endorsement(segments: list[dict], total_pax: int) -> dict:
                 desc = _text(attr, "attributeDescription")
                 if desc and desc not in rule_texts:
                     rule_texts.append(desc)
-    policy_text = " / ".join(rule_texts) if rule_texts else None
-    return {"change_policy": policy_text, "cancel_policy": policy_text, "source": "endorsement"}
+    return {"change_policy": None, "cancel_policy": None, "endorsement": " / ".join(rule_texts) or None,
+            "source": "endorsement"}
 
 
 async def get_fare_rules(segments: list[dict], total_pax: int = 1) -> dict:

@@ -93,10 +93,12 @@ def save_booking(order_id: str, origin: str, destination: str, departure_date: s
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
+        # 13/11/2026 audit: a new booking is held, not ticketed - it was
+        # stored with the column default "confirmed".
         """INSERT INTO bookings
            (order_id, origin, destination, departure_date, return_date,
-            passenger_name, passenger_email, raw_offer, raw_order)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            passenger_name, passenger_email, raw_offer, raw_order, status)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'held')""",
         (order_id, origin, destination, departure_date, return_date,
          passenger_name, passenger_email, json.dumps(raw_offer), json.dumps(raw_order)),
     )

@@ -337,7 +337,8 @@ def _parse_refund_reply(root, rs_name: str) -> dict:
         for c in contracts or [None]:
             doc = _find_deep(c, "DocumentAndCouponInformation", "DocumentNumber") if c is not None else None
             mon = {m.get("Qualifier"): _money(m) for m in _find_all_local(_find_local(c, "MonetaryInformations"), "MonetaryInformation")} if c is not None else {}
-            fees = [_money(p) or 0 for p in _find_all_local(_find_local(c, "Penalties"), "Penalty")] if c is not None else []
+            # 13/11/2026 audit: only the penalty amounts Amadeus gives - no 0 filled in.
+            fees = [f for f in (_money(p) for p in _find_all_local(_find_local(c, "Penalties"), "Penalty")) if f is not None]                 if c is not None else []
             refundable = _find_local(c, "Refundable") if c is not None else None
             bundles.append({
                 "bundle_id": b.get("ID"),
@@ -348,7 +349,7 @@ def _parse_refund_reply(root, rs_name: str) -> dict:
                 "fare_paid": mon.get("B"),
                 "fare_used": mon.get("FRU") if mon.get("FRU") is not None else mon.get("RFU"),
                 "taxes": mon.get("TXT"),
-                "airline_fee": round(sum(fees), 2),
+                "airline_fee": round(sum(fees), 2) if fees else None,
                 "currency": (refundable.get("CurrencyCode") if refundable is not None else None),
                 "error": errs[0] if errs else None,
             })
@@ -381,9 +382,15 @@ async def _refund_session(session: AmadeusSession, locator: str, numbers: list[s
         fee = float(fees.get(d["number"]) or 0)
         b = _match(quote["bundles"], d["number"])
         if fee > 0 and b and b.get("contract_id"):
-            cur = b.get("currency") or d["currency"]
+            cur = b.get("currency")
+            if not cur:
+                raise AmadeusSoapError("Amadeus gave no refund currency for this document, so the airline fee can't be added.",
+                                       status_code=409)
+            # The fee exactly as staff entered it (it used to be rounded to whole units).
+            cents = round(fee * 100)
+            amount, places = (str(cents // 100), 0) if cents % 100 == 0 else (str(cents), 2)
             updates.append(f"""<ContractBundle ID="{b['bundle_id']}"><Contracts><Contract ID="{b['contract_id']}">
-              <Penalties><Penalty PenaltyType="CP" PercentOrAmount="A" Amount="{fee:.0f}" CurrencyCode="{cur}" DecimalPlaces="0"/></Penalties>
+              <Penalties><Penalty PenaltyType="CP" PercentOrAmount="A" Amount="{amount}" CurrencyCode="{cur}" DecimalPlaces="{places}"/></Penalties>
             </Contract></Contracts></ContractBundle>""")
     if updates:
         root = await call(operation="Ticket_UpdateRefund", soap_action="http://webservices.amadeus.com/Ticket_UpdateRefund_3.0",
@@ -398,8 +405,8 @@ async def _refund_session(session: AmadeusSession, locator: str, numbers: list[s
     for d in chosen:
         b = _match(quote["bundles"], d["number"]) or {}
         lines.append({**d, "refundable": b.get("refundable"), "fare_refund": b.get("fare_refund"),
-                      "taxes": b.get("taxes"), "airline_fee": b.get("airline_fee") or 0,
-                      "refund_currency": b.get("currency") or d["currency"], "error": b.get("error")})
+                      "taxes": b.get("taxes"), "airline_fee": b.get("airline_fee"),
+                      "refund_currency": b.get("currency"), "error": b.get("error")})
     return view, lines, quote
 
 

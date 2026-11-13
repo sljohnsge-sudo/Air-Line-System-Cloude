@@ -1121,8 +1121,11 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
             origin=ad_route[0].upper(), destination=ad_route[1].upper(),
             departure_date=ad_route[2], return_date=ad_route[3],
             adult_count=request.adult_count, child_count=request.child_count, infant_count=request.infant_count,
+            cabin_preference=request.cabin_preference,
         )
-        if (ad_enabled and ad_route)
+        # 13/11/2026 audit: students can't be priced on Amadeus (only adults,
+        # children and infants are sent) - no Amadeus fares rather than adult ones.
+        if (ad_enabled and ad_route and not request.student_count)
         else None
     )
 
@@ -1308,27 +1311,39 @@ _AD_SEGMENT_KEYS = ("departureDate", "departureTime", "arrivalDate", "arrivalTim
                     "marketingCarrier", "flightNumber", "bookingClass", "fareBasis", "ticketDesignator", "leg")
 _AD_SEGMENT_REQUIRED = _AD_SEGMENT_KEYS[:9]
 _AD_TYPE_PTC = {"adult": "ADT", "child": "CNN", "infant": "INF"}
-_AD_MEAL_CODES = {"AVML", "BBML", "BLML", "CHML", "DBML", "FPML", "GFML", "HNML", "KSML", "LCML", "LFML",
-                  "LSML", "MOML", "NLML", "NOML", "RVML", "SFML", "VGML", "VJML", "VLML", "VOML"}
-_AD_NOT_BOOKED = ("The airline could not confirm these seats just now, so nothing has been booked or charged. "
+# Our own wording, never presented as the airline's answer (13/11/2026 audit):
+# a hold can fail on our side, in Amadeus or at the airline.
+_AD_NOT_BOOKED = ("We couldn't book these seats just now, so nothing has been booked or charged. "
                   "Please choose another flight or try again in a few minutes.")
-_AD_CHECK_FAILED = ("We couldn't check your booking with the airline just now. No payment has been taken - "
+_AD_CHECK_FAILED = ("We couldn't check your booking just now. No payment has been taken - "
                     "please try again in a moment.")
+
+
+def _ad_not_ticketed_message(reference: str) -> str:
+    """Paid, but no ticket could be issued (Amadeus). Our wording: it does
+    not say why (that is in the refund request for staff)."""
+    return (f"We couldn't issue your ticket, so this flight is not booked for you. Your payment will be "
+            f"refunded in full - the refund request has already been created for you (reference {reference}), "
+            f"you don't need to do anything. Please do not pay again for this booking.")
 
 
 class AmadeusHoldTraveler(BaseModel):
     firstName: str = Field(..., min_length=1, max_length=60)
     lastName: str = Field(..., min_length=1, max_length=60)
-    type: Literal["adult", "child", "infant"] = "adult"
+    # 13/11/2026 audit: type, gender and nationality are required - never
+    # filled in by us (they go to the airline in the passport SSR).
+    type: Literal["adult", "child", "infant"]
     dateOfBirth: str
-    gender: Literal["Male", "Female"] = "Male"
+    gender: Literal["Male", "Female"]
     passportNumber: str = Field(..., min_length=3, max_length=20)
     passportExpiry: str
     passportIssueCountry: str = Field(..., min_length=2, max_length=3)
-    nationality: Optional[str] = Field(None, max_length=3)
-    # 14/11/2026: special requests and the home address (SSR DOCA).
-    mealCode: Optional[str] = Field(None, max_length=4)
-    wheelchair: Optional[Literal["WCHR", "WCHS", "WCHC"]] = None
+    nationality: str = Field(..., min_length=2, max_length=3)
+    # 14/11/2026: special requests and the home address (SSR DOCA). The code
+    # the customer picked goes to the airline as it is (4-letter SSR code);
+    # the airline's own answer is shown before payment.
+    mealCode: Optional[str] = Field(None, pattern=r"^[A-Za-z]{4}$")
+    wheelchair: Optional[str] = Field(None, pattern=r"^[A-Za-z]{4}$")
     addressStreet: Optional[str] = Field(None, max_length=80)
     addressCity: Optional[str] = Field(None, max_length=40)
     addressState: Optional[str] = Field(None, max_length=40)
@@ -1441,20 +1456,23 @@ def _amadeus_ready_to_pay(row: dict) -> None:
     if _ad_ticket_numbers(view):
         raise HTTPException(status_code=409, detail="This booking already has a ticket. Nothing has been charged.")
     if not _ad_flights_confirmed(view):
-        logger.warning(f"Amadeus {row['locator']}: not paid - flights no longer confirmed "
-                       f"{[(s.get('flight_number'), s.get('status')) for s in view.get('segments') or []]}")
-        raise HTTPException(status_code=409, detail="The airline is no longer holding these seats, so we can't take payment "
-                                                    "for this booking. Nothing has been charged - please search again.")
-    live_net = view.get("total_fare")
+        statuses = ", ".join(f"{s.get('flight_number')} {s.get('status') or 'no status'}" for s in view.get("segments") or [])
+        logger.warning(f"Amadeus {row['locator']}: not paid - flights not confirmed ({statuses or 'no flights on the booking'})")
+        raise HTTPException(status_code=409, detail=(
+            f"The flights on this booking are no longer confirmed ({statuses or 'no flights on the booking'}), so we "
+            f"can't take payment for it. Nothing has been charged - please search again."))
+    # 13/11/2026 audit: no payment unless the booking's current fare can be
+    # read and is exactly the one it was held at.
     try:
-        changed = live_net is not None and abs(float(live_net) - float(row["net_amount"])) >= 1
+        live_net = float(view.get("total_fare"))
     except (TypeError, ValueError):
-        changed = False
-    if changed:
+        logger.warning(f"Amadeus {row['locator']}: not paid - the booking's fare could not be read ({view.get('total_fare')!r})")
+        raise HTTPException(status_code=503, detail=_AD_CHECK_FAILED)
+    if abs(live_net - float(row["net_amount"])) >= 0.005:
         logger.warning(f"Amadeus {row['locator']}: not paid - fare changed {row['net_amount']} -> {live_net}")
-        raise HTTPException(status_code=409, detail="The airline's price for this booking has changed, so we can't take "
-                                                    "payment for it. Nothing has been charged - please search again "
-                                                    "for the current price.")
+        raise HTTPException(status_code=409, detail="The fare on this booking is no longer the one you were shown, so we "
+                                                    "can't take payment for it. Nothing has been charged - please search "
+                                                    "again for the current price.")
 
 
 def _amadeus_held_row(locator: str) -> dict:
@@ -1481,7 +1499,7 @@ def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> di
             return {"success": True, "already_issued": True, "locator": loc, "ticketNumbers": cur.get("ticket_list") or [],
                     "totalFare": cur.get("amount"), "currency": cur.get("currency")}
         if cur.get("status") == "failed":
-            raise HTTPException(status_code=409, detail=_paid_not_ticketed_message(ref))
+            raise HTTPException(status_code=409, detail=_ad_not_ticketed_message(ref))
         raise HTTPException(status_code=409, detail="The ticket for this booking is already being issued. "
                                                     "Please check again in a minute with Check My Ticket Status "
                                                     f"(reference {loc}). Please do not pay again.")
@@ -1496,7 +1514,7 @@ def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> di
             _notify_stuck_booking(ref, reason, payment_ref)
         except Exception as notify_err:
             logger.error(f"{ref}: stuck-booking notification failed (non-fatal): {notify_err}")
-        return HTTPException(status_code=409, detail=_paid_not_ticketed_message(ref))
+        return HTTPException(status_code=409, detail=_ad_not_ticketed_message(ref))
 
     # The airline may have dropped the flights after the payment started.
     try:
@@ -1511,7 +1529,8 @@ def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> di
             return {"success": True, "already_issued": True, "locator": loc, "ticketNumbers": already,
                     "totalFare": row["amount"], "currency": row["currency"]}
         if not _ad_flights_confirmed(view):
-            raise paid_not_ticketed("the airline has not confirmed / has cancelled the flights")
+            raise paid_not_ticketed("flights not confirmed on the booking: " + ", ".join(
+                f"{s.get('flight_number')} {s.get('status') or 'no status'}" for s in view.get("segments") or []))
 
     issue, error = None, None
     try:
@@ -1554,12 +1573,10 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
             raise HTTPException(status_code=422, detail="This fare's flight details are incomplete. Please search again.")
         segments.append(seg)
     _check_amadeus_travelers(request.travelers, segments)
-    for t in request.travelers:
-        if t.mealCode and t.mealCode.upper() not in _AD_MEAL_CODES:
-            raise HTTPException(status_code=422, detail="Please choose a special meal from the list.")
     travelers = [{**t.model_dump(), "firstName": t.firstName.strip(), "lastName": t.lastName.strip(),
-                  "passportNumber": t.passportNumber.strip().upper(),
-                  "nationality": t.nationality or t.passportIssueCountry} for t in request.travelers]
+                  "passportNumber": t.passportNumber.strip().upper(), "nationality": t.nationality.strip().upper(),
+                  "mealCode": (t.mealCode or "").upper() or None, "wheelchair": (t.wheelchair or "").upper() or None}
+                 for t in request.travelers]
     try:
         held = amadeus_staff.hold_booking_sync(segments, travelers, str(request.contactEmail), request.contactPhone.strip())
     except amadeus_staff.AmadeusBookingError as e:
@@ -1571,9 +1588,9 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
         net = float(pricing.get("totalAmount") or 0)
     except (TypeError, ValueError):
         net = 0.0
-    currency = (pricing.get("currency") or "LKR").upper()
-    if not loc or net <= 0:
-        logger.error(f"Amadeus hold gave no PNR or no price: locator={loc!r} pricing={pricing}")
+    currency = str(pricing.get("currency") or "").upper()
+    if not loc or net <= 0 or not currency:
+        logger.error(f"Amadeus hold gave no PNR, price or currency: locator={loc!r} pricing={pricing}")
         if loc:
             try:
                 amadeus_staff._call_sync("POST", f"/api/bookings/{loc}/cancel", {"staff": "WEBSITE NO PRICE"})
@@ -1593,12 +1610,13 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
         flights=" ".join(s["marketingCarrier"] + s["flightNumber"] for s in segments),
         airline_code=segments[0]["marketingCarrier"],
         booked_by=f"admin #{principal.get('admin_id')}" if is_staff else None)
-    # Special requests: what the airline answered, kept per airline (greys
-    # out what it refuses next time) and shown to the customer before paying.
+    # Special requests: the airline's answers for this booking, shown to the
+    # customer before paying, and recorded for staff. They are not used to
+    # grey options out for other bookings (13/11/2026 audit).
     special_requests = []
     try:
         answers = held.get("specialRequests") or []
-        ad_ssr.record(answers, loc, held.get("amadeusSystem") or "TEST")
+        ad_ssr.record(answers, loc, held.get("amadeusSystem"))
         names = [f"{t['firstName']} {t['lastName']}".upper() for t in travelers]
         special_requests = [{**a, "passenger": names[a["traveler_index"]] if (a.get("traveler_index") or 0) < len(names) else None}
                             for a in answers]
@@ -1612,19 +1630,6 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
     return {"locator": loc, "reference": ad_bookings.REF_PREFIX + loc, "amount": row["amount"], "currency": currency,
             "quoted_price": quoted, "price_changed": price_changed, "payment_methods": offline_payments.public_settings(),
             "special_requests": special_requests}
-
-
-@app.get("/api/amadeus-special-requests/availability")
-def amadeus_special_request_availability(carriers: str = Query(..., max_length=40)):
-    """Special request codes not provided by the airline(s) of an Amadeus
-    fare - their last real answer was a refusal. The passenger form greys
-    these out. Only on the Amadeus system the website uses now (TEST)."""
-    codes = [c.strip().upper() for c in carriers.split(",") if re.fullmatch(r"[A-Za-z0-9]{2}", c.strip())]
-    try:
-        return {"not_provided": ad_ssr.not_provided(codes, os.getenv("AMADEUS_SYSTEM", "TEST").upper())}
-    except Exception as e:
-        logger.warning(f"Special request availability not read: {e}")
-        return {"not_provided": []}
 
 
 @app.post("/api/amadeus-bookings/{locator}/pay-ticket")
