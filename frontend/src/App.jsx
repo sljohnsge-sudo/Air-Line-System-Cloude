@@ -3632,47 +3632,51 @@ export default function App() {
   // it into that offer's fare_options in `flights` state, so the existing
   // "Changes:"/"Cancellations:" display (shared with Travelport) picks it
   // up with no further changes.
+  // Fare rules and the airline's fare family (brand) code for every fare
+  // (cabin) of an Amadeus flight, from Amadeus's own price quote + rules
+  // (14/11/2026: one card can hold an Economy and a Business fare). The brand
+  // is shown exactly as Amadeus returns it, and only when it returns one.
   const fetchAmadeusFareRules = async (flight) => {
-    const fo = flight.fare_options && flight.fare_options[0];
-    const segments = fo && fo.raw_offering && fo.raw_offering.segments;
-    if (!segments || !segments.length) return;
-    if (fo.change_policy || amadeusFareRulesLoading[flight.offer_id]) return;
+    const options = flight.fare_options || [];
+    const todo = options.map((fo, i) => ({ fo, i }))
+      .filter(({ fo }) => fo?.raw_offering?.segments?.length && !fo.change_policy && !fo.rules_checked);
+    if (!todo.length || amadeusFareRulesLoading[flight.offer_id]) return;
 
     setAmadeusFareRulesLoading(prev => ({ ...prev, [flight.offer_id]: true }));
     try {
-      const resp = await fetch(`${API_BASE}/amadeus-fare-rules`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          segments: segments.map(s => ({
-            departureDate: s.departureDate,
-            departureTime: s.departureTime,
-            arrivalDate: s.arrivalDate,
-            arrivalTime: s.arrivalTime,
-            from: s.from,
-            to: s.to,
-            marketingCarrier: s.marketingCarrier,
-            flightNumber: s.flightNumber,
-            bookingClass: s.bookingClass,
-            fareBasis: s.fareBasis,
-            ticketDesignator: s.ticketDesignator,
-            validatingCarrier: s.validatingCarrier,
-          })),
-          paxCount: 1,
-        }),
-      });
-      if (!resp.ok) return;
-      const rules = await resp.json();
+      const results = await Promise.all(todo.map(async ({ fo, i }) => {
+        try {
+          const resp = await fetch(`${API_BASE}/amadeus-fare-rules`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              segments: fo.raw_offering.segments.map(sg => ({
+                departureDate: sg.departureDate, departureTime: sg.departureTime,
+                arrivalDate: sg.arrivalDate, arrivalTime: sg.arrivalTime,
+                from: sg.from, to: sg.to, marketingCarrier: sg.marketingCarrier, flightNumber: sg.flightNumber,
+                bookingClass: sg.bookingClass, fareBasis: sg.fareBasis, ticketDesignator: sg.ticketDesignator,
+                validatingCarrier: sg.validatingCarrier,
+              })),
+              paxCount: 1,
+            }),
+          });
+          return { i, rules: resp.ok ? await resp.json() : null };
+        } catch {
+          return { i, rules: null };
+        }
+      }));
       setFlights(prev => prev.map(f => {
-        if (f.offer_id !== flight.offer_id) return f;
+        if (f.offer_id !== flight.offer_id || f.source !== 'AD') return f;
         return {
           ...f,
-          fare_options: f.fare_options.map((o, i) => i === 0 ? { ...o, ...rules } : o),
+          fare_options: f.fare_options.map((o, i) => {
+            const r = results.find(x => x.i === i);
+            if (!r) return o;
+            const brand = (r.rules?.fare_families || []).join(' / ') || null;
+            return { ...o, ...(r.rules || {}), rules_checked: true, brand_name: brand || o.brand_name || null };
+          }),
         };
       }));
-    } catch (err) {
-      // Non-critical enrichment -- leave the policy fields blank on failure
-      // rather than surfacing an error for a secondary detail.
     } finally {
       setAmadeusFareRulesLoading(prev => ({ ...prev, [flight.offer_id]: false }));
     }
@@ -3721,6 +3725,9 @@ export default function App() {
       });
       const held = await handleApiResponse(res, 'We could not book this fare');
       setAmadeusHeld(held);
+      if (held.fare_families && held.fare_families.length) {
+        setSelectedFlight(f => (f ? { ...f, fare_family: held.fare_families.join(' / ') } : f));
+      }
       reportJourneyStep('Booking held', { detail: `Held with the airline (${held.reference}) for ${held.currency} ${held.amount}` });
       // Special requests the airline refused, or hasn't answered yet: shown
       // before payment (free of charge; the booking goes on without a refused one).

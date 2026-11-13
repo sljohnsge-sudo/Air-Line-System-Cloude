@@ -318,6 +318,19 @@ def _informative_pricing_body(segments: list[dict], travelers: list[dict], curre
     </Fare_InformativePricingWithoutPNR>"""
 
 
+def fare_family_codes(reply) -> list[str]:
+    """The airline's own fare family (brand) code(s) on a priced fare, e.g.
+    "ECLASSIC" - fareFamilyDetails/fareFamilyname, one per fare component, in
+    order and without repeats. Empty when the airline files none."""
+    out = []
+    for el in reply.iter() if reply is not None else []:
+        if _local(el.tag) == "fareFamilyDetails":
+            name = _text(el, "fareFamilyname")
+            if name and name not in out:
+                out.append(name)
+    return out
+
+
 def _parse_informative_reply(reply) -> dict:
     """Total, currency, fare basis per segment and fare components from a
     Fare_InformativePricingWithoutPNRReply -- or the error Amadeus gave."""
@@ -359,7 +372,7 @@ def _parse_informative_reply(reply) -> dict:
         return {"ok": False, "error": err or "Amadeus pricing returned no fare"}
     grand = sum((g["total"] or 0) * g["units"] for g in groups)
     return {"ok": True, "total": round(grand, 2), "currency": next((g["currency"] for g in groups if g["currency"]), None),
-            "groups": groups}
+            "groups": groups, "fareFamilies": fare_family_codes(reply)}
 
 
 async def informative_pricing(session: AmadeusSession, segments: list[dict], travelers: list[dict], end_session: bool = True,
@@ -1217,6 +1230,8 @@ async def price_pnr(session: AmadeusSession, segments: list[dict] | None = None,
         "currency": currency,
         # The fare's last ticketing date (lastTktDate LT) - TK XL at commit.
         "lastTicketing": last_ticketing,
+        # 14/11/2026: the airline's fare family (brand) on the held fare.
+        "fareFamilies": fare_family_codes(reply),
     }
 
 

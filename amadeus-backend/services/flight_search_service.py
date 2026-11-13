@@ -45,6 +45,16 @@ def _itinerary_xml(seg_ref: int, origin: str, destination: str, dep_date: date) 
       </itinerary>"""
 
 
+# 14/11/2026: fares for each cabin - Economy (M) and Business (C) - in one
+# search, grouped by our own family labels (ECO / BUS), so the website can show
+# an Economy and a Business tab per flight with real prices. These labels are
+# ours; the airline's own fare family (brand) comes from the price quote.
+_CABIN_FAMILIES = """<fareFamilies><familyInformation><refNumber>1</refNumber><fareFamilyname>ECO</fareFamilyname><hierarchy>10</hierarchy></familyInformation>
+      <familyCriteria><cabinProduct><cabinDesignator>M</cabinDesignator></cabinProduct></familyCriteria></fareFamilies>
+      <fareFamilies><familyInformation><refNumber>2</refNumber><fareFamilyname>BUS</fareFamilyname><hierarchy>20</hierarchy></familyInformation>
+      <familyCriteria><cabinProduct><cabinDesignator>C</cabinDesignator></cabinProduct></familyCriteria></fareFamilies>"""
+
+
 def _pax_xml(adults: int, children: int, infants: int) -> tuple[str, int]:
     """Passengers exactly as Amadeus's sample search sends them (13/11/2026
     audit): ADT, then CH for children (we sent "CHD", which Amadeus priced as
@@ -90,6 +100,9 @@ async def search_flights(
     # sent as the requested cabin - none when the customer chose none.
     cabin_xml = (f"<travelFlightInfo><cabinId><cabinQualifier>RC</cabinQualifier><cabin>{escape(cabin)}</cabin>"
                  f"</cabinId></travelFlightInfo>") if cabin else "<travelFlightInfo/>"
+    # Economy and Business fares per flight (the website's cabin tabs) only
+    # when the customer chose no cabin; with a choice, that cabin alone.
+    families_xml = "" if cabin else _CABIN_FAMILIES
 
     itineraries = _itinerary_xml(1, origin, destination, departure_date)
     if return_date:
@@ -107,6 +120,7 @@ async def search_flights(
         </unitNumberDetail>
       </numberOfUnit>
       {pax_xml}
+      {families_xml}
       <fareOptions>
         <pricingTickInfo>
           <pricingTicketing>
@@ -264,6 +278,9 @@ def _parse_reply(reply: ET.Element) -> dict:
             currency = _text(detail, "currency")
 
     baggage_by_fref = _parse_baggage_by_fare_ref(reply)
+    family_names = {}
+    for fi in _find_all_local(reply, "familyInformation"):
+        family_names[_text(fi, "refNumber")] = _text(fi, "fareFamilyname")
 
     # flightIndex[i] -> list of groupOfFlights (each a candidate set of segments for requestedSegmentRef i+1)
     flight_indexes = []
@@ -325,7 +342,11 @@ def _parse_reply(reply: ET.Element) -> dict:
             groups = flight_indexes[leg_idx]
             if 0 <= group_idx < len(groups):
                 for seg in groups[group_idx]:
-                    segments.append(seg)
+                    # A copy per fare (14/11/2026): the same flight is shared by
+                    # every recommendation that uses it, and each fare sets its
+                    # own booking class / fare basis / cabin on it below -
+                    # without a copy the last fare read overwrote the others'.
+                    segments.append(dict(seg))
                     seg_leg_numbers.append(leg_idx + 1)
 
         # Booking class (RBD) per requested leg (NOT per physical segment --
@@ -399,6 +420,13 @@ def _parse_reply(reply: ET.Element) -> dict:
                            f"({[s.get('marketingCarrier', '') + str(s.get('flightNumber', '')) for s in segments]})")
             continue
 
+        family = None
+        ffr = _find_local(rec, "fareFamilyRef")
+        for rd in _find_all_local(ffr, "referencingDetail") if ffr is not None else []:
+            if _text(rd, "refQualifier") == "F":
+                family = family_names.get(_text(rd, "refNumber"))
+                break
+
         item_number_el = _find_local(rec, "itemNumber")
         rec_item_id = _text(_find_local(item_number_el, "itemNumberId"), "number") if item_number_el is not None else None
 
@@ -407,6 +435,7 @@ def _parse_reply(reply: ET.Element) -> dict:
             "currency": currency,
             "segments": segments,
             "baggageAllowance": baggage_by_fref.get(rec_item_id, []),
+            "cabinFamily": family,   # ECO / BUS (our search labels), or None
         })
 
     return {"offers": offers, "currency": currency}

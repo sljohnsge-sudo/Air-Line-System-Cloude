@@ -98,6 +98,8 @@ def _leg_fields(segs: list[dict]) -> dict:
 _CABIN_NAMES = {"M": "Economy", "Y": "Economy", "W": "Premium Economy", "C": "Business", "F": "First"}
 # The website's cabin choice -> Amadeus cabin code for the search.
 _CABIN_CODES = {"economy": "M", "premium economy": "W", "business": "C", "first": "F"}
+# Our cabin-family labels in the search (14/11/2026), when a flight carries no cabin code.
+_FAMILY_CABIN = {"ECO": "Economy", "BUS": "Business"}
 
 
 def _cabin_name(segs: list[dict]) -> str | None:
@@ -173,7 +175,10 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_tr
             "currency": currency,
             # Real cabin name from Amadeus; no fare-family (brand) name until
             # Amadeus turns fare families on for this office.
-            "cabin_class": _cabin_name(segs),
+            # The cabin we asked Amadeus to price (ECO / BUS family); a flight's
+            # own cabin code only when there is none (one leg of a Business
+            # fare can carry another cabin code, e.g. QR's DOH-DXB leg).
+            "cabin_class": _FAMILY_CABIN.get(raw_offer.get("cabinFamily") or "") or _cabin_name(segs),
             "brand_name": None,
             "fare_basis_codes": list(dict.fromkeys(s.get("fareBasis") for s in segs if s.get("fareBasis"))),
             "classes_of_service": list(dict.fromkeys(s.get("bookingClass") for s in segs if s.get("bookingClass"))),
@@ -201,7 +206,7 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_tr
 async def search_amadeus_flights(
     origin: str, destination: str, departure_date: str,
     adult_count: int = 1, child_count: int = 0, infant_count: int = 0,
-    max_results: int = 20, return_date: str | None = None, cabin_preference: str | None = None,
+    max_results: int = 40, return_date: str | None = None, cabin_preference: str | None = None,
 ) -> list[dict]:
     """One-way, or a round trip when return_date is given (13/11/2026: the
     Amadeus backend now tags each flight with its leg, so the reply can be
@@ -237,4 +242,38 @@ async def search_amadeus_flights(
     tickets = (adult_count or 0) + (child_count or 0) + (infant_count or 0) or 1
     normalized = [_normalize_offer(o, i, pricing_settings, round_trip=bool(return_date), tickets=tickets)
                   for i, o in enumerate(offers)]
-    return [o for o in normalized if o is not None]
+    return _one_card_per_flight([o for o in normalized if o is not None])
+
+
+def _flight_key(offer: dict) -> tuple:
+    legs = offer.get("legs") or [offer]
+    return tuple((s.get("flight_number"), s.get("departure_time"))
+                 for leg in legs for s in (leg.get("segments") or [leg]))
+
+
+def _one_card_per_flight(offers: list[dict]) -> list[dict]:
+    """14/11/2026: the same flights priced in Economy and in Business come
+    back as separate Amadeus recommendations. One card per set of flights,
+    with one fare per cabin (the cheapest Amadeus returned for it), like the
+    cabin tabs of Travelport fares. A cabin Amadeus didn't price isn't shown."""
+    cards: dict = {}
+    for o in offers:
+        key = _flight_key(o)
+        fare = o["fare_options"][0]
+        card = cards.get(key)
+        if card is None:
+            cards[key] = {**o, "fare_options": [fare]}
+            continue
+        same_cabin = next((f for f in card["fare_options"] if f.get("cabin_class") == fare.get("cabin_class")), None)
+        if same_cabin is None:
+            card["fare_options"].append(fare)
+        elif fare["price"] < same_cabin["price"]:
+            card["fare_options"][card["fare_options"].index(same_cabin)] = fare
+    out = []
+    for card in cards.values():
+        card["fare_options"].sort(key=lambda f: f["price"])
+        cheapest = card["fare_options"][0]
+        card.update(price=cheapest["price"], currency=cheapest["currency"])
+        out.append(card)
+    out.sort(key=lambda c: c["price"])
+    return out

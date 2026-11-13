@@ -1860,7 +1860,10 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
                 + (f" - price changed from {request.quotedCurrency} {quoted}" if price_changed else ""))
     return {"locator": loc, "reference": ad_bookings.REF_PREFIX + loc, "amount": row["amount"], "currency": currency,
             "quoted_price": quoted, "price_changed": price_changed, "payment_methods": offline_payments.public_settings(),
-            "special_requests": special_requests}
+            "special_requests": special_requests,
+            # The airline's fare family (brand) code(s) on the held fare, from Amadeus's pricing.
+            "fare_families": pricing.get("fareFamilies") or []}
+
 
 
 @app.post("/api/amadeus-bookings/{locator}/pay-ticket")

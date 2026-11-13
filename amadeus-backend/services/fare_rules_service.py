@@ -124,6 +124,7 @@ async def _rules_via_check_rules(segments: list[dict], travelers: list[dict]) ->
     if not quote.get("ok"):
         await _sign_out(session)
         return None
+    _last_families[_key(segments)] = quote.get("fareFamilies") or []
     fcs = quote["groups"][0].get("fare_components") if quote.get("groups") else None
     if not fcs:
         await _sign_out(session)
@@ -167,6 +168,7 @@ async def _rules_via_check_rules(segments: list[dict], travelers: list[dict]) ->
         "fare_basis": [s.get("fareBasis") for s in quote["groups"][0]["segments"]],
         "quoted_total": quote.get("total"),
         "currency": quote.get("currency"),
+        "fare_families": quote.get("fareFamilies") or [],
         "source": "Fare_CheckRules",
     }
 
@@ -197,9 +199,19 @@ async def _rules_via_endorsement(segments: list[dict], total_pax: int) -> dict:
             "source": "endorsement"}
 
 
+# The quote's fare family codes, kept for the same flights when the rules
+# text itself isn't available (endorsement fallback) - 14/11/2026.
+_last_families: dict = {}
+
+
+def _key(segments: list[dict]) -> str:
+    return "|".join(f"{s.get('marketingCarrier')}{s.get('flightNumber')}{s.get('departureDate')}{s.get('bookingClass')}" for s in segments)
+
+
 async def get_fare_rules(segments: list[dict], total_pax: int = 1) -> dict:
     travelers = [{"type": "adult"}] * max(1, total_pax)
     rules = await _rules_via_check_rules(segments, travelers)
     if rules:
         return rules
-    return await _rules_via_endorsement(segments, total_pax)
+    fallback = await _rules_via_endorsement(segments, total_pax)
+    return {**fallback, "fare_families": _last_families.pop(_key(segments), [])}
