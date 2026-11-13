@@ -1388,15 +1388,27 @@ def issue_ticket(locator_code: str) -> dict:
     if issued_ticket_number:
         ticket["ticket_number"] = issued_ticket_number
         ticket["status"] = "Ticketed"
-        # Which passenger each ticket is for: Travelport's traveler id -> the
-        # traveler's position and name in the booking (shown on the receipt).
-        ref_pos = {r["id"]: i for i, r in enumerate(traveler_refs)}
-        ref_name = {r["id"]: r.get("name") for r in traveler_refs}
-        ticket["ticket_numbers"] = [
-            {"passenger_type": ptc, "number": num,
-             **({"traveler_index": ref_pos[ticket_traveler[num]], "traveler_name": ref_name.get(ticket_traveler[num])}
-                if ticket_traveler.get(num) in ref_pos else {})}
-            for ptc, num in found_tickets]
+        # Which passenger each ticket is for. The live booking read just above
+        # (retrieve_reservation) already links every ticket to its own
+        # passenger — use that. 13/11/2026 (JJ3RQS, QR NDC): the ticketing
+        # reply gave an infant and a child the SAME traveler id
+        # (travelerRefId_2), so the child's ticket was shown on the infant and
+        # the child showed none; the read straight after had the child as
+        # travelerRefId_3 with its own ticket.
+        live_numbers = {e.get("number") for e in ticket.get("ticket_numbers") or []}
+        if not (live_numbers and all(num in live_numbers for _, num in found_tickets)):
+            # The read didn't have them: link from the ticketing reply, but
+            # only where its traveler id belongs to exactly one passenger.
+            id_counts: dict = {}
+            for r in traveler_refs:
+                id_counts[r["id"]] = id_counts.get(r["id"], 0) + 1
+            ref_pos = {r["id"]: i for i, r in enumerate(traveler_refs) if id_counts[r["id"]] == 1}
+            ref_name = {r["id"]: r.get("name") for r in traveler_refs if id_counts[r["id"]] == 1}
+            ticket["ticket_numbers"] = [
+                {"passenger_type": ptc, "number": num,
+                 **({"traveler_index": ref_pos[ticket_traveler[num]], "traveler_name": ref_name.get(ticket_traveler[num])}
+                    if ticket_traveler.get(num) in ref_pos else {})}
+                for ptc, num in found_tickets]
     ticket["emd_numbers"] = found_emds
     # Seat/extra offers that were paid for here but came back without an
     # EMD — never shown as complete; the caller flags these for the admin.
