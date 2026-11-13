@@ -114,6 +114,51 @@ async def refund_booking(locator: str, staff: str, documents: list[str], fees: d
     return await _staff_call("POST", f"/api/bookings/{locator}/refund", {"staff": staff, "documents": documents, "fees": fees})
 
 
+# ── Customer booking, payment and ticket (13/11/2026) ─────────────────
+# Used by main.py's customer Amadeus flow (hold -> pay -> ticket). Plain
+# (non-async) calls, because the payment code that uses them is plain too.
+# The browser never calls the Amadeus backend itself any more.
+
+def _call_sync(method: str, path: str, payload: dict | None = None, timeout: float = 120,
+               internal: bool = True, params: dict | None = None) -> dict:
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.request(method, f"{AMADEUS_BACKEND_URL}{path}", json=payload, params=params,
+                                  headers=_internal_headers() if internal else {})
+    except httpx.ConnectError:
+        raise AmadeusBookingError("The Amadeus system is not running, so Amadeus bookings can't be reached right now.", 503)
+    except httpx.TimeoutException:
+        raise AmadeusBookingError("Amadeus took too long to answer.", 504)
+    if resp.status_code >= 400:
+        raise AmadeusBookingError(_extract_error(resp), resp.status_code)
+    return resp.json()
+
+
+def hold_booking_sync(segments: list[dict], travelers: list[dict], contact_email: str, contact_phone: str) -> dict:
+    """Books the flights and stores the fare (PNR + TST) -- no ticket. Every
+    passenger field (date of birth, passport) goes through as given."""
+    return _call_sync("POST", "/api/bookings/confirm", {
+        "segments": segments, "travelers": travelers,
+        "contactEmail": contact_email, "contactPhone": contact_phone,
+    }, timeout=150, internal=False)
+
+
+def servicing_view_sync(locator: str) -> dict:
+    return _call_sync("GET", f"/api/bookings/{locator}/servicing", timeout=60)
+
+
+def issue_ticket_sync(locator: str) -> dict:
+    return _call_sync("POST", f"/api/bookings/{locator}/issue-ticket", timeout=150)
+
+
+def lookup_booking_sync(query: str) -> dict:
+    return _call_sync("GET", "/api/bookings/lookup", params={"query": query}, timeout=60)
+
+
+def fare_rules_sync(payload: dict) -> dict:
+    return _call_sync("POST", "/api/flights/fare-rules", payload, timeout=90, internal=False)
+
+
 def _extract_error(resp: httpx.Response) -> str:
     try:
         data = resp.json()

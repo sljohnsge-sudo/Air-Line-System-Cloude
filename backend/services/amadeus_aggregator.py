@@ -92,7 +92,18 @@ def _leg_fields(segs: list[dict]) -> dict:
     }
 
 
-def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_trip: bool = False) -> dict | None:
+def customer_price(net_price: float, pricing_settings: dict, tickets: int = 1) -> float:
+    """The price a customer pays for an Amadeus fare: the Amadeus fare plus
+    the admin's markup (Admin Portal -> Pricing & Markup). Used for the
+    search results AND when the booking is held (13/11/2026), so the amount
+    charged is worked out the same way as the amount shown. A fixed markup is
+    per ticket (one per passenger), the same rule as Travelport fares."""
+    category = "amadeus_ticket" if pricing_settings.get("markup_scope") == "separate" else "ticket"
+    return apply_markup(float(net_price or 0), pricing_settings, category, max(int(tickets or 1), 1))[0]
+
+
+def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_trip: bool = False,
+                     tickets: int = 1) -> dict | None:
     segs = raw_offer.get("segments") or []
     if not segs:
         return None
@@ -120,8 +131,7 @@ def _normalize_offer(raw_offer: dict, idx: int, pricing_settings: dict, round_tr
     # fares were never marked up at all before this -- 'shared' reuses
     # Travelport's own ticket markup (category "ticket"), 'separate' uses
     # its own amadeus_ticket_markup_* values (category "amadeus_ticket").
-    category = "amadeus_ticket" if pricing_settings.get("markup_scope") == "separate" else "ticket"
-    price, _scale = apply_markup(net_price, pricing_settings, category)
+    price = customer_price(net_price, pricing_settings, tickets)
 
     round_trip_fields = {"is_round_trip": True, "legs": legs} if legs else {}
     return {
@@ -185,5 +195,7 @@ async def search_amadeus_flights(
 
     pricing_settings = get_pricing_settings()
     offers = data.get("offers") or []
-    normalized = [_normalize_offer(o, i, pricing_settings, round_trip=bool(return_date)) for i, o in enumerate(offers)]
+    tickets = (adult_count or 0) + (child_count or 0) + (infant_count or 0) or 1
+    normalized = [_normalize_offer(o, i, pricing_settings, round_trip=bool(return_date), tickets=tickets)
+                  for i, o in enumerate(offers)]
     return [o for o in normalized if o is not None]

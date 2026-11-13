@@ -1261,6 +1261,380 @@ async def amadeus_booking_issue_ticket(locator: str, _admin: dict = Depends(auth
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
 
+# ── Amadeus customer booking: hold -> pay -> ticket (13/11/2026) ─────────
+# Same order as Travelport fares: the flights are booked and held with the
+# airline first; the price is worked out here on the server (the Amadeus fare
+# + markup, never taken from the browser); the customer pays by card, bank
+# transfer or cash; and only a confirmed payment issues the ticket.
+# Everything the airline could refuse is checked BEFORE the customer pays.
+# If the ticket still isn't issued after a payment, the full-refund request
+# is filed automatically and the customer is told plainly.
+# Payment reference: "AD-<Amadeus PNR>" (card client_ref and the Bank & Cash
+# Payments row), so it can never be mistaken for a Travelport PNR.
+# Paid seats and extras are not sold on Amadeus fares yet.
+
+from services import amadeus_customer_bookings as ad_bookings
+from services.amadeus_aggregator import customer_price as amadeus_customer_price
+from services.pricing_service import get_settings as _markup_settings
+
+_AD_CONFIRMED = {"HK", "KK", "TK", "RR"}  # flight statuses the airline has confirmed
+_AD_SEGMENT_KEYS = ("departureDate", "departureTime", "arrivalDate", "arrivalTime", "from", "to",
+                    "marketingCarrier", "flightNumber", "bookingClass", "fareBasis", "ticketDesignator", "leg")
+_AD_SEGMENT_REQUIRED = _AD_SEGMENT_KEYS[:9]
+_AD_TYPE_PTC = {"adult": "ADT", "child": "CNN", "infant": "INF"}
+_AD_NOT_BOOKED = ("The airline could not confirm these seats just now, so nothing has been booked or charged. "
+                  "Please choose another flight or try again in a few minutes.")
+_AD_CHECK_FAILED = ("We couldn't check your booking with the airline just now. No payment has been taken - "
+                    "please try again in a moment.")
+
+
+class AmadeusHoldTraveler(BaseModel):
+    firstName: str = Field(..., min_length=1, max_length=60)
+    lastName: str = Field(..., min_length=1, max_length=60)
+    type: Literal["adult", "child", "infant"] = "adult"
+    dateOfBirth: str
+    gender: Literal["Male", "Female"] = "Male"
+    passportNumber: str = Field(..., min_length=3, max_length=20)
+    passportExpiry: str
+    passportIssueCountry: str = Field(..., min_length=2, max_length=3)
+    nationality: Optional[str] = Field(None, max_length=3)
+
+
+class AmadeusHoldRequest(BaseModel):
+    segments: List[dict] = Field(..., min_length=1, max_length=12)
+    travelers: List[AmadeusHoldTraveler] = Field(..., min_length=1, max_length=9)
+    contactEmail: EmailStr
+    contactPhone: str = Field(..., min_length=6, max_length=30)
+    quotedPrice: Optional[float] = None
+    quotedCurrency: Optional[str] = Field(None, max_length=3)
+
+
+class AmadeusPayTicketRequest(BaseModel):
+    reqid: str = Field(..., min_length=4, max_length=120)
+
+
+class AmadeusOfflineStartRequest(BaseModel):
+    method: Literal["bank", "cash"]
+
+
+class AmadeusFareRulesRequest(BaseModel):
+    segments: List[dict] = Field(..., min_length=1, max_length=12)
+    paxCount: int = Field(default=1, ge=1, le=9)
+
+
+def _ad_date(ddmmyy: str):
+    return datetime.strptime(str(ddmmyy), "%d%m%y").date()
+
+
+def _check_amadeus_travelers(travelers: list, segments: list) -> None:
+    """Refuses, BEFORE booking or payment, passenger details the airline will
+    reject at ticketing - the same rules as Travelport fares
+    (_check_travelers_for_trip): Adult 12+ and Child 2-11 on the first flight,
+    Infant under 2 on the last flight, passport valid for the whole trip."""
+    try:
+        dates = sorted(_ad_date(s["departureDate"]) for s in segments)
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=422, detail="This fare's flight details are incomplete. Please search again.")
+    first, last = dates[0], dates[-1]
+    today = datetime.now().date()
+
+    def age_on(dob, day):
+        return day.year - dob.year - ((day.month, day.day) < (dob.month, dob.day))
+
+    fmt = lambda d: d.strftime("%d/%m/%Y")
+    problems = []
+    for i, t in enumerate(travelers, 1):
+        who = f"Passenger {i} ({t.firstName.strip().upper()} {t.lastName.strip().upper()})"
+        if not re.fullmatch(r"[A-Za-z][A-Za-z ]*", t.firstName.strip()) or not re.fullmatch(r"[A-Za-z][A-Za-z ]*", t.lastName.strip()):
+            problems.append(f"{who}: names can only use the letters A-Z, as printed in the passport.")
+        try:
+            dob = datetime.strptime(t.dateOfBirth, "%Y-%m-%d").date()
+        except ValueError:
+            problems.append(f"{who}: please enter the date of birth.")
+            continue
+        if dob > today or dob.year < 1900:
+            problems.append(f"{who}: please check the date of birth.")
+            continue
+        ptc = _AD_TYPE_PTC[t.type]
+        age_first, age_last = age_on(dob, first), age_on(dob, last)
+        if ptc == "ADT" and age_first < 12:
+            problems.append(f"{who}: born {fmt(dob)}, so {age_first} years old on {fmt(first)} - "
+                            f"{_PTC_LABEL[ptc]} must be 12 or older. Please check the date of birth.")
+        elif ptc == "CNN" and not (2 <= age_first < 12):
+            problems.append(f"{who}: born {fmt(dob)}, so {age_first} years old on {fmt(first)} - "
+                            f"a Child must be 2 to 11 years old. Please check the date of birth.")
+        elif ptc == "INF" and (dob > first or age_last >= 2):
+            problems.append(f"{who}: born {fmt(dob)} - an Infant must be born before {fmt(first)} and "
+                            f"under 2 years old on {fmt(last)}. Please check the date of birth.")
+        try:
+            expiry = datetime.strptime(t.passportExpiry, "%Y-%m-%d").date()
+            if expiry < last or expiry <= today:
+                problems.append(f"{who}: passport expires {fmt(expiry)}, before the last flight on {fmt(last)}. "
+                                f"A passport valid for the whole trip is needed.")
+        except ValueError:
+            problems.append(f"{who}: please enter the passport expiry date.")
+    adults = sum(1 for t in travelers if t.type == "adult")
+    infants = sum(1 for t in travelers if t.type == "infant")
+    if adults == 0:
+        problems.append("At least one adult must travel on this booking.")
+    if infants > adults:
+        problems.append("Each infant must travel with an adult - there are more infants than adults.")
+    if problems:
+        raise HTTPException(status_code=422, detail=" ".join(problems))
+
+
+def _ad_ticket_numbers(view: dict) -> list:
+    return [d["number"] for d in (view.get("documents") or []) if d.get("kind") == "ticket" and d.get("status") == "issued"]
+
+
+def _ad_flights_confirmed(view: dict) -> bool:
+    segs = view.get("segments") or []
+    return bool(view.get("has_itinerary")) and bool(segs) and all(
+        (s.get("status") or "").upper() in _AD_CONFIRMED for s in segs)
+
+
+def _amadeus_ready_to_pay(row: dict) -> None:
+    """Checked live, right before taking ANY payment (card, bank transfer,
+    cash): never take money for flights the airline no longer holds, for a
+    booking that is already ticketed, or at a price that has changed."""
+    try:
+        view = amadeus_staff.servicing_view_sync(row["locator"])
+    except amadeus_staff.AmadeusBookingError as e:
+        logger.error(f"Amadeus {row['locator']}: live check before payment failed: {e.message}")
+        raise HTTPException(status_code=503, detail=_AD_CHECK_FAILED)
+    if _ad_ticket_numbers(view):
+        raise HTTPException(status_code=409, detail="This booking already has a ticket. Nothing has been charged.")
+    if not _ad_flights_confirmed(view):
+        logger.warning(f"Amadeus {row['locator']}: not paid - flights no longer confirmed "
+                       f"{[(s.get('flight_number'), s.get('status')) for s in view.get('segments') or []]}")
+        raise HTTPException(status_code=409, detail="The airline is no longer holding these seats, so we can't take payment "
+                                                    "for this booking. Nothing has been charged - please search again.")
+    live_net = view.get("total_fare")
+    try:
+        changed = live_net is not None and abs(float(live_net) - float(row["net_amount"])) >= 1
+    except (TypeError, ValueError):
+        changed = False
+    if changed:
+        logger.warning(f"Amadeus {row['locator']}: not paid - fare changed {row['net_amount']} -> {live_net}")
+        raise HTTPException(status_code=409, detail="The airline's price for this booking has changed, so we can't take "
+                                                    "payment for it. Nothing has been charged - please search again "
+                                                    "for the current price.")
+
+
+def _amadeus_held_row(locator: str) -> dict:
+    loc = _amadeus_locator(locator)
+    row = ad_bookings.get(loc)
+    if not row:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if row["status"] == "ticketed":
+        raise HTTPException(status_code=409, detail="This booking is already ticketed.")
+    if row["status"] != "held":
+        raise HTTPException(status_code=409, detail="This booking can't be paid for now. Nothing has been charged.")
+    return row
+
+
+def _amadeus_issue_after_payment(row: dict, payment_ref: str, method: str) -> dict:
+    """Runs only after the payment is confirmed (card verified, or staff
+    confirmed the bank transfer / cash). Issues the Amadeus ticket; if it
+    can't be issued, files the full-refund request for the customer."""
+    loc = row["locator"]
+    ref = ad_bookings.REF_PREFIX + loc
+    if not ad_bookings.claim_ticketing(loc):
+        cur = ad_bookings.get(loc) or {}
+        if cur.get("status") == "ticketed":
+            return {"success": True, "already_issued": True, "locator": loc, "ticketNumbers": cur.get("ticket_list") or [],
+                    "totalFare": cur.get("amount"), "currency": cur.get("currency")}
+        if cur.get("status") == "failed":
+            raise HTTPException(status_code=409, detail=_paid_not_ticketed_message(ref))
+        raise HTTPException(status_code=409, detail="The ticket for this booking is already being issued. "
+                                                    "Please check again in a minute with Check My Ticket Status "
+                                                    f"(reference {loc}). Please do not pay again.")
+
+    def paid_not_ticketed(reason: str) -> HTTPException:
+        logger.error(f"{ref}: paid ({method} {payment_ref}) but not ticketed - {reason}")
+        _auto_refund_request(ref, customer_id=row.get("customer_id"), name=row.get("lead_name"), email=row.get("email"),
+                             phone=row.get("phone"), travel_date=row.get("travel_date"), amount=row["amount"],
+                             currency=row["currency"], reason=reason, payment_ref=payment_ref)
+        ad_bookings.finish(loc, "failed", payment_method=method, payment_ref=payment_ref, error=reason)
+        try:
+            _notify_stuck_booking(ref, reason, payment_ref)
+        except Exception as notify_err:
+            logger.error(f"{ref}: stuck-booking notification failed (non-fatal): {notify_err}")
+        return HTTPException(status_code=409, detail=_paid_not_ticketed_message(ref))
+
+    # The airline may have dropped the flights after the payment started.
+    try:
+        view = amadeus_staff.servicing_view_sync(loc)
+    except amadeus_staff.AmadeusBookingError as e:
+        logger.warning(f"{ref}: live check before ticketing failed ({e.message}) - trying to ticket anyway")
+        view = None
+    if view is not None:
+        already = _ad_ticket_numbers(view)
+        if already:
+            ad_bookings.finish(loc, "ticketed", payment_method=method, payment_ref=payment_ref, ticket_numbers=already)
+            return {"success": True, "already_issued": True, "locator": loc, "ticketNumbers": already,
+                    "totalFare": row["amount"], "currency": row["currency"]}
+        if not _ad_flights_confirmed(view):
+            raise paid_not_ticketed("the airline has not confirmed / has cancelled the flights")
+
+    issue, error = None, None
+    try:
+        issue = amadeus_staff.issue_ticket_sync(loc)
+    except amadeus_staff.AmadeusBookingError as e:
+        error = e.message
+    numbers = list((issue or {}).get("ticketNumbers") or [])
+    # An error answer doesn't always mean no ticket: read the booking again.
+    for wait in ((3, 6) if not numbers else ()):
+        time.sleep(wait)
+        try:
+            numbers = _ad_ticket_numbers(amadeus_staff.servicing_view_sync(loc))
+        except amadeus_staff.AmadeusBookingError:
+            numbers = []
+        if numbers:
+            logger.warning(f"{ref}: ticketing answered '{error or 'no ticket number'}' but the booking holds {numbers}")
+            break
+    if not numbers:
+        raise paid_not_ticketed(error or "Amadeus returned no ticket number")
+
+    ad_bookings.finish(loc, "ticketed", payment_method=method, payment_ref=payment_ref, ticket_numbers=numbers)
+    logger.info(f"{ref}: paid ({method} {payment_ref}) - ticket(s) {numbers}")
+    return {"success": True, **(issue or {}), "locator": loc, "ticketNumbers": numbers,
+            # what the customer paid (Amadeus's own figure has no markup)
+            "totalFare": row["amount"], "currency": row["currency"]}
+
+
+@app.post("/api/amadeus-bookings/hold")
+def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] = Depends(auth.get_optional_principal)):
+    """STEP 1: book and hold the flights with the airline (PNR + stored fare,
+    no ticket) and work out the price to pay. Nothing is charged here."""
+    _require_switch("pnr_create_enabled")
+    if database.get_provider_settings().get("search_mode", "travelport_only") not in ("both", "amadeus_only"):
+        raise HTTPException(status_code=503, detail="This fare is not available right now. Nothing has been booked or "
+                                                    "charged - please search again.")
+    segments = []
+    for s in request.segments:
+        seg = {k: s.get(k) for k in _AD_SEGMENT_KEYS if s.get(k) not in (None, "")}
+        if any(not seg.get(k) for k in _AD_SEGMENT_REQUIRED):
+            raise HTTPException(status_code=422, detail="This fare's flight details are incomplete. Please search again.")
+        segments.append(seg)
+    _check_amadeus_travelers(request.travelers, segments)
+    travelers = [{**t.model_dump(), "firstName": t.firstName.strip(), "lastName": t.lastName.strip(),
+                  "passportNumber": t.passportNumber.strip().upper(),
+                  "nationality": t.nationality or t.passportIssueCountry} for t in request.travelers]
+    try:
+        held = amadeus_staff.hold_booking_sync(segments, travelers, str(request.contactEmail), request.contactPhone.strip())
+    except amadeus_staff.AmadeusBookingError as e:
+        logger.error(f"Amadeus hold failed ({' '.join(s['marketingCarrier'] + s['flightNumber'] for s in segments)}): {e.message}")
+        raise HTTPException(status_code=503 if e.status_code in (503, 504) else 409, detail=_AD_NOT_BOOKED)
+    loc = str(held.get("locator") or "").upper()
+    pricing = held.get("pricing") or {}
+    try:
+        net = float(pricing.get("totalAmount") or 0)
+    except (TypeError, ValueError):
+        net = 0.0
+    currency = (pricing.get("currency") or "LKR").upper()
+    if not loc or net <= 0:
+        logger.error(f"Amadeus hold gave no PNR or no price: locator={loc!r} pricing={pricing}")
+        if loc:
+            try:
+                amadeus_staff._call_sync("POST", f"/api/bookings/{loc}/cancel", {"staff": "WEBSITE NO PRICE"})
+            except amadeus_staff.AmadeusBookingError as e:
+                logger.error(f"Amadeus {loc}: could not release the unpriced booking: {e.message}")
+        raise HTTPException(status_code=409, detail=_AD_NOT_BOOKED)
+    tickets = len(travelers)
+    amount = amadeus_customer_price(net, _markup_settings(), tickets)
+    is_staff = bool(principal and principal.get("role") == "admin")
+    first = travelers[0]
+    row = ad_bookings.create(
+        loc, net_amount=net, amount=amount, currency=currency, tickets=tickets,
+        customer_id=principal.get("customer_id") if principal and principal.get("role") == "customer" else None,
+        lead_name=f"{first['firstName']} {first['lastName']}", email=str(request.contactEmail),
+        phone=request.contactPhone.strip(), travel_date=_ad_date(segments[0]["departureDate"]).isoformat(),
+        route="-".join([segments[0]["from"]] + [s["to"] for s in segments]),
+        flights=" ".join(s["marketingCarrier"] + s["flightNumber"] for s in segments),
+        airline_code=segments[0]["marketingCarrier"],
+        booked_by=f"admin #{principal.get('admin_id')}" if is_staff else None)
+    quoted = request.quotedPrice
+    price_changed = quoted is not None and (abs(float(quoted) - amount) >= 1
+                                            or (request.quotedCurrency or currency).upper() != currency)
+    logger.info(f"Amadeus {loc} held for {currency} {amount} (net {net}, {tickets} ticket(s))"
+                + (f" - price changed from {request.quotedCurrency} {quoted}" if price_changed else ""))
+    return {"locator": loc, "reference": ad_bookings.REF_PREFIX + loc, "amount": row["amount"], "currency": currency,
+            "quoted_price": quoted, "price_changed": price_changed, "payment_methods": offline_payments.public_settings()}
+
+
+@app.post("/api/amadeus-bookings/{locator}/pay-ticket")
+def amadeus_pay_ticket(locator: str, request: AmadeusPayTicketRequest):
+    """STEP 3 (card): back from NDB's card page. The payment must be
+    confirmed - for THIS booking (client_ref AD-<PNR>) and this amount - and
+    only then is the ticket issued. A reqid can be used once."""
+    loc = _amadeus_locator(locator)
+    row = ad_bookings.get(loc)
+    if not row:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if row["status"] == "ticketed":
+        return {"success": True, "already_issued": True, "locator": loc, "ticketNumbers": row.get("ticket_list") or [],
+                "totalFare": row["amount"], "currency": row["currency"]}
+    if row["status"] == "failed":
+        raise HTTPException(status_code=409, detail=_paid_not_ticketed_message(ad_bookings.REF_PREFIX + loc))
+    payment_result = _verify_and_claim_payment(
+        request.reqid, expected_client_ref=ad_bookings.REF_PREFIX + loc, locator_code=loc,
+        expected_amount=row["amount"], expected_currency=row["currency"])
+    return _amadeus_issue_after_payment(row, payment_result.get("txn_reference") or request.reqid, "card")
+
+
+@app.post("/api/amadeus-bookings/{locator}/offline-start")
+def amadeus_offline_start(locator: str, request: AmadeusOfflineStartRequest,
+                          principal: Optional[dict] = Depends(auth.get_optional_principal)):
+    """STEP 2 (bank transfer / cash): no money moves here. The booking stays
+    held until staff confirm the payment in Admin > Bank & Cash Payments
+    (row AD-<PNR>); only then is the Amadeus ticket issued."""
+    settings = offline_payments.get_settings()
+    method = request.method
+    if not settings[f"{method}_enabled"]:
+        raise HTTPException(status_code=503, detail=f"{offline_payments.METHOD_LABEL[method]} payments are not available right now.")
+    _require_switch("ticketing_enabled")
+    row = _amadeus_held_row(locator)
+    ref = ad_bookings.REF_PREFIX + row["locator"]
+    existing = offline_payments.open_for(ref)
+    if not existing:
+        _amadeus_ready_to_pay(row)
+    is_staff = bool(principal and principal.get("role") == "admin")
+    p = existing or offline_payments.start(
+        ref, method, row["amount"], row["currency"], row.get("lead_name"), row.get("email"),
+        f"admin #{principal.get('admin_id')}" if is_staff else None, settings["bank_hold_hours"])
+    ad_bookings.set_method(row["locator"], method)
+    emailed = False
+    if not existing and p.get("customer_email"):
+        try:
+            from services import email_service
+            subject, body = (offline_payments.instructions_email(p, settings["bank_instructions"]) if method == "bank"
+                             else offline_payments.cash_email(p))
+            emailed, err = email_service._send(p["customer_email"], subject, body)
+            if not emailed:
+                logger.warning(f"{ref}: {method} payment instructions not emailed: {err}")
+        except Exception as e:
+            logger.warning(f"{ref}: {method} payment instructions not emailed: {e}")
+    logger.info(f"{ref}: {method} payment started ({p['currency']} {p['amount']}) - awaiting staff confirmation")
+    pay_by = p.get("pay_by")
+    return {"payment_id": p["id"], "locator_code": ref, "method": method, "amount": float(p["amount"]),
+            "currency": p["currency"], "reference": ref,
+            "pay_by": pay_by.isoformat(sep=" ") if hasattr(pay_by, "isoformat") else pay_by,
+            "bank_instructions": settings["bank_instructions"] if method == "bank" else "", "emailed": emailed}
+
+
+@app.post("/api/amadeus-fare-rules")
+def amadeus_fare_rules(request: AmadeusFareRulesRequest):
+    """Fare rules for an Amadeus fare on the results page (through this
+    backend, so it works from any computer)."""
+    segments = [{k: s.get(k) for k in _AD_SEGMENT_KEYS if s.get(k) not in (None, "") and k != "leg"} for s in request.segments]
+    try:
+        return amadeus_staff.fare_rules_sync({"segments": segments, "paxCount": request.paxCount})
+    except amadeus_staff.AmadeusBookingError as e:
+        logger.warning(f"Amadeus fare rules failed: {e.message}")
+        raise HTTPException(status_code=502, detail="Fare rules are not available for this fare right now.")
+
+
 # ── Staff: Amadeus bookings — cancel / void / refund (12/11/2026) ────────
 # Admin > Amadeus Bookings. Each action has its own staff switch on Go-live
 # controls (go_live_switches.AMADEUS_SWITCHES), OFF until someone turns it
@@ -3939,6 +4313,20 @@ def payments_init(request: PaymentInitRequestBody):
     """
     amount, currency = request.amount, request.currency
     ref = (request.client_ref or "").strip()
+    if ref.upper().startswith(ad_bookings.REF_PREFIX):
+        # Amadeus booking (13/11/2026): the amount fixed on our side when it
+        # was held; the flights and the fare are checked live with the
+        # airline before the customer is sent to the card page.
+        _require_switch("ticketing_enabled")
+        _require_card_enabled()
+        ad_row = _amadeus_held_row(ref[len(ad_bookings.REF_PREFIX):])
+        _amadeus_ready_to_pay(ad_row)
+        ad_bookings.set_method(ad_row["locator"], "card")
+        if (ad_row["amount"], ad_row["currency"]) != (request.amount, request.currency):
+            logger.warning(f"Payment init for {ref}: browser sent {request.currency} {request.amount}, "
+                           f"charging the server-side {ad_row['currency']} {ad_row['amount']} instead.")
+        amount, currency = ad_row["amount"], ad_row["currency"]
+        ref = ""  # not a Travelport / NDC / add-on reference: skip those lookups
     if ref:
         pending = database.get_ndc_pending_payment(ref)
         addon = None if pending else (database.get_addon_payment(ref) if ref.startswith("ADD") else None)
@@ -4653,6 +5041,22 @@ def admin_confirm_offline_payment(payment_id: int, body: OfflinePaymentConfirmRe
     ref = f"{p['method'].upper()}-{(body.bank_reference or str(payment_id)).strip()}"
     fields = {"received_amount": body.received_amount, "bank_reference": body.bank_reference,
               "confirmed_by": who, "confirmed_at": datetime.now(), "note": body.note}
+    if locator.upper().startswith(ad_bookings.REF_PREFIX):
+        # Amadeus booking (13/11/2026): issue the Amadeus ticket.
+        ad_row = ad_bookings.get(locator[len(ad_bookings.REF_PREFIX):])
+        if not ad_row:
+            offline_payments.finish(payment_id, "failed", error="Amadeus booking record not found", **fields)
+            raise HTTPException(status_code=404, detail="The Amadeus booking for this payment was not found.")
+        try:
+            result = _amadeus_issue_after_payment(ad_row, ref, p["method"])
+        except HTTPException as e:
+            offline_payments.finish(payment_id, "failed", error=str(e.detail)[:1000], **fields)
+            raise
+        number = (result.get("ticketNumbers") or [None])[0]
+        offline_payments.finish(payment_id, "ticketed", ticket_number=number, **fields)
+        logger.info(f"{locator}: {p['method']} payment confirmed by {who} - Amadeus ticket(s) {result.get('ticketNumbers')}")
+        return {"success": True, "ticket_number": number, "ticket_numbers": result.get("ticketNumbers") or [],
+                "locator_code": locator, "provider": "AD", "already_issued": bool(result.get("already_issued"))}
     existing = database.get_booking_by_locator(locator)
     if existing and existing.get("ticket_number"):
         offline_payments.finish(payment_id, "ticketed", ticket_number=existing["ticket_number"], **fields)

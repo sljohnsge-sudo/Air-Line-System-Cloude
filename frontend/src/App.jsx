@@ -2403,35 +2403,31 @@ export default function App() {
     const src = params.get('src');
 
     if (locator && reqid && src === 'AD') {
-      // Amadeus card-payment return — the page just reloaded fresh (PayCorp
-      // redirected the browser), so amadeusTravelers/selectedFlight are
-      // gone. buildAmadeusIssuedTicket doesn't need them either: the
-      // issue-ticket response now carries travelers/segments/fare straight
-      // from a live PNR_Retrieve, so the receipt is self-sufficient even
-      // after a fresh reload.
+      // Amadeus card-payment return (13/11/2026). The page reloaded fresh,
+      // so only the PNR and reqid are needed: the server checks the payment
+      // was made for THIS booking and amount, then issues the ticket. If the
+      // airline doesn't issue it, the server has already filed the refund
+      // request and its message says so.
       window.history.replaceState({}, '', window.location.pathname);
-      let restoredAncillaries = [];
-      try {
-        restoredAncillaries = JSON.parse(sessionStorage.getItem(`ad_ancillaries_${locator}`) || '[]');
-        sessionStorage.removeItem(`ad_ancillaries_${locator}`);
-      } catch (e) { /* best-effort */ }
+      reportJourneyStep('Payment returned', { detail: `Customer came back from the payment page (Amadeus PNR ${locator})` });
       (async () => {
         try {
-          const issueRes = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${locator}/issue-ticket`, {
+          const res = await fetchWithRetry(`${API_BASE}/amadeus-bookings/${locator}/pay-ticket`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reqid }),
           });
-          const issueData = await handleApiResponse(issueRes, 'Ticket issuance failed');
-          const ticket = buildAmadeusIssuedTicket(issueData, { paymentMethod: 'card', selectedAncillaries: restoredAncillaries });
-          const ancillaryChargeRestored = restoredAncillaries.reduce((acc, a) => acc + a.price, 0);
-          if (ancillaryChargeRestored > 0) ticket.total_fare = (ticket.total_fare || 0) + ancillaryChargeRestored;
-          setIssuedTicket(ticket);
+          const issueData = await handleApiResponse(res, 'Ticket issuance failed');
+          setIssuedTicket(buildAmadeusIssuedTicket(issueData, { paymentMethod: 'card' }));
           setBookingStep('ticket');
-          showNotification('🎉 Payment confirmed — PNR ' + locator + ' finalized.', 'success');
+          showNotification('🎉 Payment confirmed — ticket issued!', 'success');
         } catch (err) {
-          setIssuedTicket(buildAmadeusIssuedTicket({ locator, ticketNumbers: [], travelers: [], segments: [] }, { paymentMethod: 'card', selectedAncillaries: restoredAncillaries }));
-          setBookingStep('ticket');
-          showNotification('Payment confirmed, but ticketing could not be verified — your PNR ' + locator + ' is held, contact support.', 'error', { sticky: true });
+          showNotification(
+            err instanceof TypeError
+              ? 'Your payment was received, but we could not confirm your ticket. Please do not pay again — check My Bookings shortly, or your refund will be processed automatically.'
+              : (err.message || 'Ticket issuance failed after payment'),
+            'error', { sticky: true }
+          );
         } finally {
           setVerifyingPayment(false);
         }
