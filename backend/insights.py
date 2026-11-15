@@ -390,10 +390,15 @@ def _backfill_provider_best() -> None:
 
 def log_search(req, offers: list, providers: dict, duration_ms: int, error: str | None,
                customer_id: int | None, user_agent: str | None, kind: str = "search",
-               messages: dict | None = None) -> None:
+               messages: dict | None = None, hidden: list | None = None) -> None:
     """One row per search with the ranked results exactly as returned.
-    messages: {"TP": [warning, ...]} — what a supplier said besides its fares."""
+    messages: {"TP": [warning, ...]} — what a supplier said besides its fares.
+    hidden: the same flights from another supplier at a higher price, not
+    shown to the customer (15/11/2026) — kept unranked, with the price shown."""
     try:
+        summaries = [_offer_summary(o, i + 1) for i, o in enumerate(offers)]
+        summaries += [{**_offer_summary(o, None), "hidden": True, "shown_instead": o.get("same_flight_shown")}
+                      for o in hidden or []]
         legs = [l.model_dump() for l in req.legs] if getattr(req, "legs", None) else None
         trip = "multicity" if legs and len(legs) > 2 else "roundtrip" if legs and len(legs) == 2 else "oneway"
         origin = (req.origin or (legs[0]["origin"] if legs else "") or "").upper()[:3]
@@ -409,11 +414,11 @@ def log_search(req, offers: list, providers: dict, duration_ms: int, error: str 
            (current_journey() if kind in ("search", "recheck") else None, kind, current_ip(), (user_agent or "")[:255],
             customer_id, trip, origin, dest, dep, ret, json.dumps(legs) if legs else None,
             req.adult_count, req.child_count, req.infant_count, getattr(req, "student_count", 0),
-            req.cabin_preference or "All", json.dumps(providers), json.dumps(provider_best(providers, offers)),
+            req.cabin_preference or "All", json.dumps(providers), json.dumps(provider_best(providers, offers + list(hidden or []))),
             json.dumps(messages) if messages else None, len(offers),
             cheapest.get("price") if cheapest else None, cheapest.get("currency") if cheapest else None,
             cheapest.get("airline") if cheapest else None, duration_ms, (error or "")[:500] or None,
-            json.dumps([_offer_summary(o, i + 1) for i, o in enumerate(offers)])),
+            json.dumps(summaries)),
            write=True)
         if kind == "search" and current_journey():
             journey_info(customer_id=customer_id, route=f"{origin} → {dest}" + (" (return)" if ret else ""),
@@ -620,10 +625,16 @@ def rates_log_detail(search_id: int) -> dict | None:
         row["lowest"] = {"cell": cheapest[0], **cheapest[1]} if cheapest else None
         comparison.append(row)
     comparison.sort(key=lambda r: (r["lowest"] or {}).get("price") or float("inf"))
+    # The same flights from two suppliers: only the cheaper one was shown.
+    same_flight = [{"airline": o.get("airline"), "code": o.get("code"), "flights": o.get("flights"), "times": o.get("times"),
+                    "not_shown": {"source": o.get("source"), "fare_source": o.get("fare_source"),
+                                  "price": o.get("price"), "currency": o.get("currency")},
+                    "shown": o.get("shown_instead")}
+                   for o in offers if o.get("hidden")]
     # What the customer saw first, and what they picked.
     priced = [o for o in offers if isinstance(o.get("price"), (int, float))]
     lowest = min(priced, key=lambda o: o["price"]) if priced else None
-    first = offers[0] if offers else None
+    first = next((o for o in offers if not o.get("hidden")), None)
     display = {"first_shown": first, "lowest": lowest,
                "lowest_shown_first": bool(first and lowest and first.get("price") == lowest.get("price"))}
     picked = None
@@ -651,7 +662,7 @@ def rates_log_detail(search_id: int) -> dict | None:
             a["delivery"] = None
     s.pop("user_agent", None)
     return {"search": s, "channels": _channel_states(best, alerts), "comparison": comparison,
-            "display": display, "messages": messages, "alerts": reviewed,
+            "display": display, "same_flight": same_flight, "messages": messages, "alerts": reviewed,
             "recipients_now": [r["email"] for r in database.get_notification_recipients(active_only=True)]}
 
 

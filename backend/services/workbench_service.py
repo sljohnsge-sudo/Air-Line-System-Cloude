@@ -1960,7 +1960,8 @@ def parse_ancillary_response(result: dict) -> list[dict]:
             catalog_offering_id = offering.get("id")
             price_detail = offering.get("Price", {})
             supplier_price = float(price_detail.get("TotalPrice", 0) or 0)
-            price, _ = apply_markup(supplier_price, pricing_settings, "ancillary")
+            # 15/11/2026: a free extra is booked free, so it's shown free (no markup).
+            price = apply_markup(supplier_price, pricing_settings, "ancillary")[0] if supplier_price else 0.0
             currency = price_detail.get("CurrencyCode", {}).get("value", "LKR")
             # TermsAndConditionsAncillary.Refundability: "Refundable" /
             # "NonRefundable", or absent when the airline doesn't say —
@@ -2611,7 +2612,12 @@ def _parse_single_seating_chart(seating_chart: dict, catalog_offerings: list, pr
     for offering in catalog_offerings:
         price_detail = offering.get("Price", {})
         price = float(price_detail.get("TotalPrice", 0))
-        price, _ = apply_markup(price, pricing_settings, "seat")
+        # 15/11/2026: only a seat the airline charges for gets our seat markup.
+        # A free seat is booked free (add_seats_and_extras_to_pnr), so showing
+        # the fixed markup on it (LKR 3,500 on JJ429J's 37A) asked for money
+        # that was never taken.
+        if price > 0:
+            price, _ = apply_markup(price, pricing_settings, "seat")
         currency = price_detail.get("CurrencyCode", {}).get("value", "LKR")
         
         brand_name = "STANDARD SEAT"

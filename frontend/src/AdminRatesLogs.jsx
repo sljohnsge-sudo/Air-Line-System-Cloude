@@ -88,6 +88,24 @@ function Detail({ api, row }) {
         )}
       </section>
 
+      {(d.same_flight || []).length > 0 && (
+        <section>
+          <div className="rl-sec-title">Same flights from two suppliers — only the cheaper one was shown</div>
+          <div className="rl-table-wrap"><table className="rl-table">
+            <thead><tr><th>Airline</th><th>Flights</th><th>Shown to the customer</th><th>Not shown (dearer)</th><th>Difference</th></tr></thead>
+            <tbody>{d.same_flight.map((r, i) => (
+              <tr key={i}>
+                <td><strong>{r.airline}</strong>{r.code ? <span className="adm-sub"> ({r.code})</span> : null}</td>
+                <td className="ins-mono">{(r.flights || []).join(' / ')}<div className="adm-sub">{(r.times || []).map(t => t.replace(/T/g, ' ')).join(' · ')}</div></td>
+                <td className="rl-best">{r.shown ? <>{money(r.shown.price, r.shown.currency)}<div className="adm-sub">{SUP[r.shown.source] || r.shown.source}</div></> : '—'}</td>
+                <td>{money(r.not_shown.price, r.not_shown.currency)}<div className="adm-sub">{cellLabel(`${r.not_shown.source}_${(r.not_shown.fare_source || 'GDS').toUpperCase()}`)}</div></td>
+                <td>{r.shown && r.shown.price != null && r.not_shown.price != null ? money(r.not_shown.price - r.shown.price, r.shown.currency) : '—'}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </section>
+      )}
+
       <section>
         <div className="rl-sec-title">Customer fare display verification</div>
         <div className="rl-grid">

@@ -286,7 +286,9 @@ function SearchDetail({ api, id, onClose }) {
   if (error) return <div className="error-banner">{error}</div>;
   if (!s) return <Loading text="Loading search…" />;
   const byAirline = {};
-  s.offers.forEach(o => { const k = `${o.airline} (${o.source})`; byAirline[k] = byAirline[k] || { n: 0, best: o.price, cur: o.currency, rank: o.rank }; byAirline[k].n += 1; });
+  // 15/11/2026: same flights from another supplier at a higher price are logged but not shown.
+  const shownOffers = s.offers.filter(o => !o.hidden), notShown = s.offers.filter(o => o.hidden);
+  shownOffers.forEach(o => { const k = `${o.airline} (${o.source})`; byAirline[k] = byAirline[k] || { n: 0, best: o.price, cur: o.currency, rank: o.rank }; byAirline[k].n += 1; });
   return (
     <div className="ins-detail">
       <div className="ins-detail-head">
@@ -328,10 +330,10 @@ function SearchDetail({ api, id, onClose }) {
           {sendMsg && <span className="ins-sub">{sendMsg}</span>}
         </div>
       )}
-      <h4 className="ins-h4">Results exactly as shown ({s.offers.length})</h4>
+      <h4 className="ins-h4">Results exactly as shown ({shownOffers.length})</h4>
       <div className="ins-table-wrap ins-tall"><table className="ins-table">
         <thead><tr><th>#</th><th>Airline</th><th>Flights</th><th>Times</th><th>Stops</th><th>Fare</th><th>Price</th></tr></thead>
-        <tbody>{s.offers.map(o => (
+        <tbody>{shownOffers.map(o => (
           <tr key={o.rank}>
             <td>{o.rank}</td>
             <td>{o.airline}<div className="ins-sub">{o.source} · {o.fare_source}</div></td>
@@ -343,6 +345,22 @@ function SearchDetail({ api, id, onClose }) {
           </tr>
         ))}</tbody>
       </table></div>
+      {notShown.length > 0 && (<>
+        <h4 className="ins-h4">Same flights from another supplier — not shown, the cheaper supplier was shown ({notShown.length})</h4>
+        <div className="ins-table-wrap"><table className="ins-table">
+          <thead><tr><th>Airline</th><th>Flights</th><th>Times</th><th>Not shown</th><th>Shown instead</th></tr></thead>
+          <tbody>{notShown.map((o, i) => (
+            <tr key={i}>
+              <td>{o.airline}</td>
+              <td className="ins-mono">{o.flights.join(' / ')}</td>
+              <td className="ins-small">{o.times.map((t, j) => <div key={j}>{t.replace(/T/g, ' ')}</div>)}</td>
+              <td>{money(o.price, o.currency)}<div className="ins-sub">{SUPPLIER_NAME[o.source] || o.source}</div></td>
+              <td><strong>{o.shown_instead ? money(o.shown_instead.price, o.shown_instead.currency) : '—'}</strong>
+                <div className="ins-sub">{o.shown_instead ? (SUPPLIER_NAME[o.shown_instead.source] || o.shown_instead.source) : ''}</div></td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      </>)}
     </div>
   );
 }

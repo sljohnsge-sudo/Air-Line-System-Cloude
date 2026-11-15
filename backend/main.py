@@ -1024,6 +1024,53 @@ def _encode_search_reply(result: dict, gzip_ok: bool) -> tuple[bytes, dict]:
     return body, {"Vary": "Accept-Encoding"}
 
 
+_SUPPLIER_NAMES = {"TP": "Travelport", "AD": "Amadeus"}
+_FLIGHT_NO = re.compile(r"^([A-Z0-9]{2})0*(\d{1,4})$")
+
+
+def _same_flight_key(offer: dict) -> tuple:
+    """Every flight of the trip, in order: (flight number, departure to the
+    minute). "AI0282" and "AI282" are the same flight; Travelport sends
+    seconds in the time and Amadeus doesn't."""
+    parts = []
+    for leg in offer.get("legs") or [offer]:
+        for s in leg.get("segments") or [leg]:
+            fn = re.sub(r"\s+", "", str(s.get("flight_number") or "")).upper()
+            m = _FLIGHT_NO.match(fn)
+            parts.append((f"{m.group(1)}{m.group(2)}" if m else fn,
+                          str(s.get("departure_time") or "").replace(" ", "T")[:16]))
+    return tuple(parts)
+
+
+def _cheapest_per_same_flight(offers: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Same flights from more than one supplier: only the supplier with the
+    cheaper price is shown (an equal price keeps Travelport). Returns (shown,
+    hidden); each hidden card says which supplier's price was shown instead.
+    Different currencies aren't compared, so both stay."""
+    groups: dict = {}
+    for o in offers:
+        groups.setdefault(_same_flight_key(o), []).append(o)
+    shown, hidden = [], []
+    for key, group in groups.items():
+        sources = {o.get("source") for o in group}
+        currencies = {o.get("currency") for o in group}
+        if len(sources) < 2 or len(currencies) != 1 or not all(fn and dt for fn, dt in key):
+            shown.extend(group)
+            continue
+        price = lambda o: o["price"] if isinstance(o.get("price"), (int, float)) and o["price"] > 0 else float("inf")
+        best = min(group, key=lambda o: (price(o), o.get("source") != "TP"))
+        for o in group:
+            if o.get("source") == best.get("source"):
+                shown.append(o)
+            else:
+                hidden.append({**o, "same_flight_shown": {"source": best.get("source"), "price": best.get("price"),
+                                                          "currency": best.get("currency")}})
+    if hidden:
+        logger.info(f"Same flights from two suppliers: {len(hidden)} dearer card(s) not shown "
+                    f"({', '.join(sorted({_SUPPLIER_NAMES.get(h.get('source'), h.get('source')) for h in hidden}))})")
+    return shown, hidden
+
+
 async def _search_core(request: FlightSearchRequest, kind: str = "search", customer_id: Optional[int] = None,
                        user_agent: Optional[str] = None):
     """
@@ -1211,9 +1258,13 @@ async def _search_core(request: FlightSearchRequest, kind: str = "search", custo
                                 customer_id, user_agent, kind, messages)
         raise HTTPException(status_code=502, detail=f"Travelport search error: {str(tp_result)[:400]}")
 
+    # 15/11/2026 (user): the same flights from Travelport and Amadeus are
+    # shown once, at the cheaper supplier's price. The other supplier's rate
+    # is kept in the search log for the Admin Portal's Airline rates logs.
+    offers, same_flight_hidden = _cheapest_per_same_flight(offers)
     offers.sort(key=lambda o: (o.get("price") if o.get("price") is not None else float("inf")))
     await asyncio.to_thread(insights.log_search, request, offers, providers, elapsed_ms, None,
-                            customer_id, user_agent, kind, messages)
+                            customer_id, user_agent, kind, messages, same_flight_hidden)
     if kind == "nearby":
         # The date strip / price calendar only needs the cheapest fare. Sending
         # all ~150 offers (several MB each) made the server spend seconds
