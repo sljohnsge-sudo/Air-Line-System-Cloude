@@ -43,7 +43,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # Two images from the one Dockerfile at the top of the repo (16/11/2026):
-      # each holds its frontend (/app/frontend) and backend (/app/backend).
+      # each holds its frontend (/app/frontend) and backend (/app/backend) and
+      # runs as two containers (website + API), four in all (docker-compose.yml).
       - name: 📦 Build and Push Airline Site Image (website + its API)
         uses: docker/build-push-action@v6
         with:
@@ -74,8 +75,8 @@ jobs:
         run: |
           echo "=================================================="
           echo "🎉 Airline Docker Hub Images Pushed Successfully!"
-          echo "Airline site:  ${{ secrets.DOCKERHUB_USERNAME }}/airline-site:latest   (website + its API, port 5176)"
-          echo "Airline admin: ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin:latest  (admin site + admin API, port 5177)"
+          echo "Airline site:  ${{ secrets.DOCKERHUB_USERNAME }}/airline-site:latest   (airline_site_frontend :5176 + airline_site_backend)"
+          echo "Airline admin: ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin:latest  (airline_admin_frontend :5177 + airline_admin_backend)"
           echo "=================================================="
 
   # ====================================================================
@@ -116,14 +117,20 @@ jobs:
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
+          # Containers from earlier layouts hold ports 5176/5177 or the same names.
+          for c in airline_site airline_admin airline_frontend airline_backend airline_site_frontend airline_site_backend airline_admin_frontend airline_admin_backend; do
+            owner=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c" 2>/dev/null) || continue
+            [ "$owner" = "tickandbook" ] && continue
+            echo "Removing $c (earlier layout)"; docker rm -f "$c" >/dev/null
+          done
           docker compose up -d --remove-orphans
           echo "Waiting for all four containers to become healthy (up to 3 minutes)..."
           for i in $(seq 1 36); do
-            unhealthy=$(docker compose ps --format '{{.Name}} {{.Health}}' | grep -vc ' healthy$' || true)
-            [ "$unhealthy" = "0" ] && break
+            healthy=$(docker compose ps -a --format '{{.Name}} {{.Health}}' | grep -c ' healthy$' || true)
+            [ "$healthy" = "4" ] && break
             sleep 5
           done
-          docker compose ps
+          docker compose ps -a
 
       - name: 🩺 Verify Server Health (website + admin site)
         run: |
@@ -134,15 +141,17 @@ jobs:
             if [ "$got" = "$want" ]; then echo "✅ $name $url ($got)"; else echo "❌ $name $url (got $got, want $want)"; fail=1; fi
           done
           if [ "$fail" = "1" ]; then
-            docker compose logs airline_site --tail 40
-            docker compose logs airline_admin --tail 40
+            docker compose logs airline_site_backend --tail 40
+            docker compose logs airline_site_frontend --tail 20
+            docker compose logs airline_admin_backend --tail 40
+            docker compose logs airline_admin_frontend --tail 20
             exit 1
           fi
 
       - name: 🌱 Run Database Migrations (Schema & Airport Lookup)
         run: |
-          echo "Executing init_db() inside airline_site..."
-          docker compose exec -T -w /app/backend airline_site python -c "import database; database.init_db(); print('Airline DB Initialized!')"
+          echo "Executing init_db() inside airline_site_backend..."
+          docker compose exec -T -w /app/backend airline_site_backend python -c "import database; database.init_db(); print('Airline DB Initialized!')"
 
       # Read-only Playwright checks (e2e/): pages open, the customer and admin
       # sites are separated, headers are sent. They never search, book, pay or

@@ -4,13 +4,13 @@
 #   powershell -ExecutionPolicy Bypass -File deploy\build-images.ps1
 #
 # Two images, each with its frontend and backend inside (separate folders
-# /app/frontend and /app/backend):
-#   airline-site   customer website + its API    -> airline-site.tar   (port 5176)
-#   airline-admin  admin site + the admin API     -> airline-admin.tar  (port 5177)
+# /app/frontend and /app/backend), each run as two containers:
+#   airline-site   -> airline-site.tar    airline_site_frontend (5176) + airline_site_backend
+#   airline-admin  -> airline-admin.tar   airline_admin_frontend (5177) + airline_admin_backend
 #
 # Makes deploy\out\tickandbook-<date-time>-<commit>\ with:
 #   airline-site.tar, airline-admin.tar   the two images
-#   docker-compose.yml                    starts both on the server
+#   docker-compose.yml                    starts the four containers on the server
 #   load-on-server.sh                     loads both files and starts them
 #   SHA256.txt, BUILT-FROM.txt            checksums and the commit they came from
 # backend\.env is NOT included (it holds passwords): the server has its own.

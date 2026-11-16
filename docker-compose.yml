@@ -1,22 +1,37 @@
 # ==========================================
-# Tick and Book - two images, two containers (16/11/2026)
+# Tick and Book - two images, four containers (16/11/2026)
 # Host Server: 172.16.7.41
 #
-#   airline_site   image tickbook/airline-site   port 5176   tickandbook.com
-#                  /app/frontend = customer website, /app/backend = its API (APP_MODE=public)
-#   airline_admin  image tickbook/airline-admin  port 5177   admin.tickandbook.com
-#                  /app/frontend = admin site,       /app/backend = admin API (APP_MODE=admin)
+# Image tickbook/airline-site  (customer website, tickandbook.com)
+#   airline_site_frontend   website, port 5176     /app/frontend
+#   airline_site_backend    its API (APP_MODE=public)  /app/backend
+# Image tickbook/airline-admin (admin site, admin.tickandbook.com)
+#   airline_admin_frontend  admin site, port 5177  /app/frontend
+#   airline_admin_backend   admin API (APP_MODE=admin) /app/backend
 #
-# Both read the same backend/.env and use the main MySQL database on the
-# host (settings, bookings, switches), so admin changes reach the website at
-# once. Staff accounts live in ADMIN_MYSQL_DATABASE. Uploaded images are in
-# the shared airline_uploads volume. The APIs are not published: each is
-# reached only through its own site (/api/...).
+# Docker Desktop shows them together under "tickandbook" (Containers tab);
+# each container can be started and stopped on its own. A frontend passes
+# /api/ and /uploads/ to its backend; while that backend is stopped the site
+# still opens and /api/ answers 503. The backends are not published: they are
+# reached only through their own site.
+#
+# Both backends read the same backend/.env and use the main MySQL database on
+# the host (settings, bookings, switches), so admin changes reach the website
+# at once. Staff accounts live in ADMIN_MYSQL_DATABASE. Uploaded images are in
+# the shared airline_uploads volume. The frontends get no settings at all.
 # Build: docker compose build   Server set-up: deploy/README.md
 # ==========================================
 
+name: tickandbook
+
 x-common: &common
   restart: unless-stopped
+  init: true
+  networks:
+    - airline_network
+
+x-backend: &backend
+  <<: *common
   env_file:
     - path: ./backend/.env
       required: false
@@ -30,19 +45,29 @@ x-common: &common
     # Uploaded images (tour package posters): kept across redeploys and
     # shared, so an image uploaded on the admin site shows on the website.
     - airline_uploads:/app/backend/uploads
-  networks:
-    - airline_network
 
 services:
-  # 1. Airline system: customer website + its API
-  airline_site:
-    <<: *common
+  # ---- Image 1: airline-site (customer website + its API) ----------------
+  airline_site_backend:
+    <<: *backend
     build:
       context: .
       args:
         SITE: public
     image: ${DOCKERHUB_USERNAME:-tickbook}/airline-site:latest
-    container_name: airline_site
+    container_name: airline_site_backend
+    environment:
+      - ROLE=backend
+      - APP_MODE=public
+      - MYSQL_HOST=host.docker.internal
+      # Behind nginx (the frontend container): read the visitor's real
+      # address from X-Forwarded-For (rate limits, IP blocks).
+      - TRUST_PROXY_HEADERS=true
+
+  airline_site_frontend:
+    <<: *common
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-site:latest
+    container_name: airline_site_frontend
     ports:
       # FRONTEND_BIND=127.0.0.1 once the HTTPS front door on this server is
       # the only way in (deploy/README.md); default open for LAN testing.
@@ -50,29 +75,45 @@ services:
       # deploy/local-test.bat uses 8176 / 8177 so the dev servers can run too.
       - "${FRONTEND_BIND:-0.0.0.0}:${SITE_PORT:-5176}:80"
     environment:
-      - MYSQL_HOST=host.docker.internal
+      - ROLE=frontend
       - APP_MODE=public
-      # Behind nginx: read the visitor's real address (rate limits, IP blocks).
-      - TRUST_PROXY_HEADERS=true
+      - API_UPSTREAM=airline_site_backend:8000
+    depends_on:
+      airline_site_backend:
+        condition: service_started
 
-  # 2. Airline admin: admin site + the admin API (staff only, no booking)
-  airline_admin:
-    <<: *common
+  # ---- Image 2: airline-admin (admin site + admin API, staff only) -------
+  airline_admin_backend:
+    <<: *backend
     build:
       context: .
       args:
         SITE: admin
     image: ${DOCKERHUB_USERNAME:-tickbook}/airline-admin:latest
-    container_name: airline_admin
+    container_name: airline_admin_backend
+    environment:
+      - ROLE=backend
+      - APP_MODE=admin
+      - MYSQL_HOST=host.docker.internal
+      - TRUST_PROXY_HEADERS=true
+    depends_on:
+      # The website's API prepares the shared database first.
+      airline_site_backend:
+        condition: service_healthy
+
+  airline_admin_frontend:
+    <<: *common
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-admin:latest
+    container_name: airline_admin_frontend
     ports:
       - "${FRONTEND_BIND:-0.0.0.0}:${ADMIN_PORT:-5177}:80"
     environment:
-      - MYSQL_HOST=host.docker.internal
+      - ROLE=frontend
       - APP_MODE=admin
-      - TRUST_PROXY_HEADERS=true
+      - API_UPSTREAM=airline_admin_backend:8000
     depends_on:
-      airline_site:
-        condition: service_healthy
+      airline_admin_backend:
+        condition: service_started
 
 volumes:
   airline_uploads:

@@ -1,18 +1,29 @@
 # Putting Tick and Book on the server
 
-Two images, two containers (16/11/2026). Each image holds its frontend and its backend,
-kept apart in separate folders:
+Two images, four containers (16/11/2026). Each image holds its frontend and its backend, kept
+apart in separate folders (`/app/frontend`, `/app/backend`), and runs as **two containers**:
+one for the website, one for the API. Docker Desktop shows all four together under
+**tickandbook** (Containers tab); each one can be started and stopped on its own.
 
-| Image (file) | Container | Port | Inside | Address |
+| Image (file) | Container | What it runs | Port | Address |
 |---|---|---|---|---|
-| `tickbook/airline-site` (`airline-site.tar`) | `airline_site` | 5176 | `/app/frontend` customer website, `/app/backend` its API (`APP_MODE=public`) | https://tickandbook.com |
-| `tickbook/airline-admin` (`airline-admin.tar`) | `airline_admin` | 5177 | `/app/frontend` admin site, `/app/backend` admin API (`APP_MODE=admin`) | https://admin.tickandbook.com |
+| `tickbook/airline-site` (`airline-site.tar`) | `airline_site_frontend` | customer website (nginx, `/app/frontend`) | 5176 | https://tickandbook.com |
+| | `airline_site_backend` | its API (`/app/backend`, `APP_MODE=public`) | - | - |
+| `tickbook/airline-admin` (`airline-admin.tar`) | `airline_admin_frontend` | admin site (nginx, `/app/frontend`) | 5177 | https://admin.tickandbook.com |
+| | `airline_admin_backend` | admin API (`/app/backend`, `APP_MODE=admin`) | - | - |
 
-In each container nginx (port 80) serves `/app/frontend` and passes `/api/` and `/uploads/` to
-the API, which listens only inside the container. Both use the same `backend/.env` and the main
-MySQL database on the server, so every admin change reaches the website at once. Staff accounts
-are in their own database (`ADMIN_MYSQL_DATABASE`, created on first use). Built from the one
-`Dockerfile` at the top of the repo (`--build-arg SITE=public` or `SITE=admin`).
+Each frontend passes `/api/` and `/uploads/` to its own backend. The backends are not published
+(no port): they are reached only through their site. While a backend is stopped, its site still
+opens and `/api/` answers 503 "Service temporarily unavailable". Both backends use the same
+`backend/.env` and the main MySQL database on the server, so every admin change reaches the
+website at once; the frontends get no settings at all. Staff accounts are in their own database
+(`ADMIN_MYSQL_DATABASE`, created on first use). Built from the one `Dockerfile` at the top of the
+repo (`--build-arg SITE=public` or `SITE=admin`); `ROLE=frontend` / `ROLE=backend` (set in
+`docker-compose.yml`) chooses what a container runs.
+
+To see the files: Docker Desktop -> Containers -> click a container -> **Files** tab ->
+`/app/frontend` (website) and `/app/backend` (API). Or
+`docker exec airline_site_backend ls /app/backend`.
 
 Two ways to deploy:
 
@@ -50,15 +61,20 @@ The Run button starts the image without `backend/.env` and without
 stops. Since 16/11 the image then says so plainly in its log ("started WITHOUT its settings")
 instead of a MySQL error.
 
-Easiest: double-click **`deploy\local-test.bat`** (starts both on **8176** / **8177**, waits until healthy,
-opens both sites; the normal local system from start_all.bat keeps 5176 / 5177, so both can run) and **`deploy\local-stop.bat`** to stop. The same by hand:
+Easiest: double-click **`deploy\local-test.bat`** (starts all four, the sites on **8176** / **8177**,
+waits until healthy, opens both sites; the normal local system from start_all.bat keeps
+5176 / 5177, so both can run) and **`deploy\local-stop.bat`** to stop. The same by hand:
 
 ```
-docker compose up -d --no-build        # start both (website http://localhost:5176, admin http://localhost:5177)
-docker compose ps                      # both should say (healthy)
-docker compose logs -f airline_site    # watch the website's log (Ctrl+C to stop watching)
-docker compose down                    # stop both
+docker compose up -d --no-build                 # start all four (website http://localhost:5176, admin http://localhost:5177)
+docker compose ps                               # all four should say (healthy)
+docker compose stop airline_site_backend        # stop one container (the website then answers 503 on /api/)
+docker compose start airline_site_backend       # start it again
+docker compose logs -f airline_site_backend     # watch one container's log (Ctrl+C to stop watching)
+docker compose down                             # stop and remove all four
 ```
+
+In Docker Desktop: Containers -> **tickandbook** -> the Start / Stop buttons on each row.
 
 XAMPP MySQL must be running. By hand, the default ports are 5176/5177 (as on the server); to run
 next to the dev servers use `SITE_PORT=8176 ADMIN_PORT=8177` like local-test.bat.
@@ -75,7 +91,7 @@ next to the dev servers use `SITE_PORT=8176 ADMIN_PORT=8177` like local-test.bat
 
 ## 3. `backend/.env` on the server
 
-Start from `backend/.env.example`. Must be set (the admin container refuses to start otherwise):
+Start from `backend/.env.example`. Must be set (the admin backend refuses to start otherwise):
 
 * `JWT_SECRET_KEY` - 32+ random characters
 * `ADMIN_JWT_SECRET_KEY` - 32+ random characters, **different** from `JWT_SECRET_KEY`
@@ -107,8 +123,8 @@ bash load-on-server.sh
 
 (or, from the repo folder: `bash load-on-server.sh /path/to/the/copied/folder`). It checks both
 files are complete, checks the required `.env` settings (without printing them), loads the two
-images, starts `airline_site` (5176) and `airline_admin` (5177), waits until both are healthy and
-checks the sites and their APIs. Uploaded images (tour packages) are kept in the Docker volume
+images, removes containers left from an earlier layout, starts the four containers (website
+5176, admin site 5177), waits until all four are healthy and checks the sites and their APIs. Uploaded images (tour packages) are kept in the Docker volume
 `airline_uploads`, shared by both sites and kept across redeploys.
 
 The same by hand, if you prefer:

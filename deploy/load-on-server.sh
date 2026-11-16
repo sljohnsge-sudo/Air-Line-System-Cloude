@@ -5,8 +5,9 @@
 #   bash load-on-server.sh [folder-with-the-tar-files]     (default: this script's folder)
 #
 # Run it in the folder that has docker-compose.yml and backend/.env.
-# Starts:  airline_site   (image airline-site,  port 5176)  website + its API
-#          airline_admin  (image airline-admin, port 5177)  admin site + admin API
+# Starts four containers (Docker project "tickandbook"):
+#   image airline-site:   airline_site_frontend  (website, port 5176) + airline_site_backend  (its API)
+#   image airline-admin:  airline_admin_frontend (admin site, port 5177) + airline_admin_backend (admin API)
 # It never books, pays or tickets anything; it only starts the containers and
 # checks they answer.
 set -euo pipefail
@@ -41,13 +42,24 @@ docker load -i "$DIR/airline-site.tar"
 docker load -i "$DIR/airline-admin.tar"
 
 export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME:-tickbook}"
-echo "== Starting both containers (images from the files, nothing pulled or built)"
+
+# Containers from earlier layouts (one container per site, or the old
+# frontend/backend images) hold ports 5176/5177 or the same names.
+echo "== Removing containers from an earlier layout (if any)"
+for c in airline_site airline_admin airline_frontend airline_backend airline_site_frontend airline_site_backend airline_admin_frontend airline_admin_backend; do
+  owner=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c" 2>/dev/null) || continue
+  [ "$owner" = "tickandbook" ] && continue
+  echo "   removing $c"
+  docker rm -f "$c" >/dev/null
+done
+
+echo "== Starting the four containers (images from the files, nothing pulled or built)"
 docker compose up -d --no-build --pull never --remove-orphans
 
-echo "== Waiting for both to be healthy (up to 3 minutes)"
+echo "== Waiting for all four to be healthy (up to 3 minutes)"
 for i in $(seq 1 36); do
-  unhealthy=$(docker compose ps --format '{{.Name}} {{.Health}}' | grep -vc ' healthy$' || true)
-  [ "$unhealthy" = "0" ] && break
+  healthy=$(docker compose ps -a --format '{{.Name}} {{.Health}}' | grep -c ' healthy$' || true)
+  [ "$healthy" = "4" ] && break
   sleep 5
 done
 docker compose ps

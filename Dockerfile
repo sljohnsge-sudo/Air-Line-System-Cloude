@@ -7,9 +7,12 @@
 # Inside each image, frontend and backend are kept apart:
 #   /app/frontend   the built website (customer site or admin site)
 #   /app/backend    the Python API (FastAPI), APP_MODE=public or admin
-# nginx (port 80) serves /app/frontend and passes /api/ and /uploads/ to the
-# API, which listens only inside the container (127.0.0.1:8000).
-# backend/.env is never copied in (.dockerignore); the server passes it at run time.
+# Each image runs as TWO containers (docker-compose.yml), chosen by ROLE:
+#   ROLE=frontend   nginx, port 80: serves /app/frontend, passes /api/ and
+#                   /uploads/ to the backend container
+#   ROLE=backend    the API, port 8000 (Docker network only, never published)
+# backend/.env is never copied in (.dockerignore); compose passes it to the
+# backend containers only.
 # ==========================================================================
 
 # ---- Stage 1: build the website (Node) ----------------------------------
@@ -49,8 +52,9 @@ COPY backend/ ./
 # Frontend: the built site from stage 1
 COPY --from=frontend /out /app/frontend
 
-# nginx for this site, and the start script (API + nginx)
-COPY deploy/docker/nginx-${SITE}.conf /etc/nginx/conf.d/tickandbook.conf
+# nginx for this site (start.sh fills in the backend address), and the start
+# script (ROLE=frontend: nginx, ROLE=backend: the API)
+COPY deploy/docker/nginx-${SITE}.conf /app/nginx/site.conf.template
 COPY deploy/docker/start.sh /app/start.sh
 
 # The API runs as an ordinary user that owns /app/backend (uploads/ is the
@@ -59,12 +63,14 @@ RUN useradd --system --uid 10001 --home-dir /app/backend tickbook \
  && mkdir -p /app/backend/uploads/packages \
  && chown -R tickbook:tickbook /app/backend \
  && chmod +x /app/start.sh \
+ && sed 's/__API_UPSTREAM__/127.0.0.1:8000/' /app/nginx/site.conf.template > /etc/nginx/conf.d/tickandbook.conf \
  && nginx -t
 
-EXPOSE 80
+EXPOSE 80 8000
 
-# Healthy = the website and the API both answer.
+# Healthy = the frontend container's website answers (port 80), or the
+# backend container's API answers (port 8000).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-    CMD python -c "import urllib.request as u; u.urlopen('http://127.0.0.1/', timeout=4); u.urlopen('http://127.0.0.1:8000/', timeout=4)" || exit 1
+    CMD python -c "import os, urllib.request as u; u.urlopen('http://127.0.0.1/' if os.environ.get('ROLE') == 'frontend' else 'http://127.0.0.1:8000/', timeout=4)" || exit 1
 
 CMD ["/app/start.sh"]
