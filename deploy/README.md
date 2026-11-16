@@ -157,11 +157,38 @@ SITE_URL=https://tickandbook.com ADMIN_URL=https://admin.tickandbook.com bash de
 powershell -ExecutionPolicy Bypass -File deploy\run-smoke.ps1    # on the laptop
 ```
 
-Playwright checks in `e2e/` (run in Microsoft's Playwright Docker image, nothing to install).
-They check that the pages open, that the customer site has no admin pages or staff API, that the
-admin site has no search/booking/payment API, the security headers, and that staff routes need a
-sign-in. **They never choose a flight, book, pay, issue a ticket or sign in.** Real bookings are
-tested by a person, by hand, using the go-live switches (search / PNR / tickets).
+Playwright tests in `e2e/` (run in Microsoft's Playwright Docker image, nothing to install), in
+three groups:
+
+* **customer-site** - pages open, no admin pages or staff API, security headers, and sign-in:
+  customer APIs need a token, forged / changed / expired tokens are refused, wrong passwords get
+  the same message for every email, sign-up refuses bad details, Google and Microsoft sign-in
+  start correctly, a made-up sign-in return gives no token, other websites can't call the API.
+* **admin-site** - no search/booking/payment API, staff and analytics APIs need a token, forged
+  tokens are refused, and the four roles (Admin, Staff, Analytics, Staff + Analytics) each reach
+  exactly what they should; disabled accounts can't sign in; customer and staff tokens only work
+  on their own site.
+* **cmb-routes** - the CMB route test: the 52 destinations / 448 flights (361 GDS, 87 NDC) of the
+  7 Nov test, searched on the website for 27 Nov 2026 (Travelport, one-way, 1 adult). One test per
+  flight: is that airline offered with that content, and what the fare includes (bags, carry-on,
+  seat choice, meals, change/cancel fees). Only with `-Routes` (52 searches).
+
+**No test ever chooses a flight, books, pays or issues a ticket.** Real bookings are tested by a
+person, by hand, using the go-live switches (search / PNR / tickets). Seat maps and paid extras
+need a started booking, so the route test reports what each fare includes instead.
+
+On the laptop:
+
+```
+powershell -ExecutionPolicy Bypass -File deploy\run-smoke.ps1 -Accounts                    # smoke + sign-in + roles
+powershell -ExecutionPolicy Bypass -File deploy\run-smoke.ps1 -Routes -Project cmb-routes  # CMB route test only
+py e2e\tools\route_report.py <run-id>                                                      # Excel report of a route run
+deploy\playwright-ui.bat                                                                   # the interface with every test
+```
+
+`-Accounts` makes temporary test accounts in the LOCAL database (`e2e/tools/auth_accounts.py`,
+names starting `e2e_`) and deletes them after the run; the role tests are skipped without them
+(server, CI). The HTML report is `e2e\playwright-report\index.html`.
 
 Optional: `SMOKE_SEARCH=1 bash deploy/run-smoke.sh` (laptop: `run-smoke.ps1 -Search`) adds one
 live flight search with the form's default route and checks results come back. It never presses
