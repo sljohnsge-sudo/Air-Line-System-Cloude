@@ -79,8 +79,9 @@ jobs:
         run: |
           echo "=================================================="
           echo "🎉 Airline Docker Hub Images Pushed Successfully!"
-          echo "Backend:  ${{ secrets.DOCKERHUB_USERNAME }}/airline-backend:latest"
-          echo "Frontend: ${{ secrets.DOCKERHUB_USERNAME }}/airline-frontend:latest"
+          echo "Backend:     ${{ secrets.DOCKERHUB_USERNAME }}/airline-backend:latest  (customer API + admin API)"
+          echo "Website:     ${{ secrets.DOCKERHUB_USERNAME }}/airline-frontend:latest"
+          echo "Admin site:  ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin-frontend:latest"
           echo "=================================================="
 
   # ====================================================================
@@ -122,23 +123,49 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           docker compose up -d --remove-orphans
-          echo "Waiting for services to become healthy..."
-          sleep 12
-          docker ps --filter "name=airline_"
+          echo "Waiting for all four containers to become healthy (up to 3 minutes)..."
+          for i in $(seq 1 36); do
+            unhealthy=$(docker compose ps --format '{{.Name}} {{.Health}}' | grep -vc ' healthy$' || true)
+            [ "$unhealthy" = "0" ] && break
+            sleep 5
+          done
+          docker compose ps
 
-      - name: 🩺 Verify Server Health
+      - name: 🩺 Verify Server Health (website + admin site)
         run: |
-          echo "Checking Frontend availability on IPv4 (127.0.0.1:5176)..."
-          curl -I http://127.0.0.1:5176/ || curl -I http://localhost:5176/ || exit 1
-          echo "Checking Backend container logs and connectivity..."
-          docker compose logs airline_backend --tail 30
-          curl -f http://127.0.0.1:8005/ || true
+          fail=0
+          for target in "Website|http://127.0.0.1:5176/" "Website API|http://127.0.0.1:8005/" \
+                        "Admin site|http://127.0.0.1:5177/" "Admin API|http://127.0.0.1:8006/"; do
+            name="${target%%|*}"; url="${target#*|}"
+            if curl -fsS -o /dev/null -m 15 "$url"; then echo "✅ $name $url"; else echo "❌ $name $url"; fail=1; fi
+          done
+          if [ "$fail" = "1" ]; then
+            docker compose logs airline_backend --tail 40
+            docker compose logs airline_admin_backend --tail 40
+            exit 1
+          fi
 
       - name: 🌱 Run Database Migrations (Schema & Airport Lookup)
         run: |
           echo "Executing init_db() inside airline_backend..."
           docker compose exec -T airline_backend python -c "import database; database.init_db(); print('Airline DB Initialized!')"
+
+      # Read-only Playwright checks (e2e/): pages open, the customer and admin
+      # sites are separated, headers are sent. They never search, book, pay or
+      # sign in. Runs in Microsoft's Playwright image, nothing to install.
+      - name: 🧪 Smoke Checks (Playwright, read-only)
+        run: |
+          bash deploy/run-smoke.sh
           echo "=================================================="
-          echo "  Airline System Deployed Successfully on Port 5176! "
-          echo "  URL: http://172.16.7.41:5176/                      "
+          echo "  Deployed: website :5176   admin site :5177         "
+          echo "  http://172.16.7.41:5176/   http://172.16.7.41:5177/ "
           echo "=================================================="
+
+      - name: 📎 Keep the smoke check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: e2e/playwright-report
+          if-no-files-found: ignore
+          retention-days: 14

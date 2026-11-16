@@ -1,0 +1,13 @@
+{
+  "name": "tickandbook-smoke",
+  "private": true,
+  "description": "Read-only smoke checks for the customer site and the admin site after a deploy. They never search, choose a flight, book, pay or sign in.",
+  "type": "module",
+  "scripts": {
+    "smoke": "playwright test",
+    "report": "playwright show-report playwright-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.48.2"
+  }
+}

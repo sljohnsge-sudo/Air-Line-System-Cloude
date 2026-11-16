@@ -2,31 +2,53 @@
 # Airline Booking System (Tick and Book)
 # Multi-Project Docker Compose Orchestration
 # Host Server: 172.16.7.41
+#
+#   tickandbook.com        -> host HTTPS proxy -> :5176 airline_frontend       -> airline_backend       (APP_MODE=public)
+#   admin.tickandbook.com  -> host HTTPS proxy -> :5177 airline_admin_frontend -> airline_admin_backend (APP_MODE=admin)
+#
+# Both backends use the same image, the same backend/.env and the main MySQL
+# database on the host (settings, bookings, switches), so admin changes reach
+# the customer site at once. Staff accounts live in ADMIN_MYSQL_DATABASE.
+# Server set-up (DNS, HTTPS proxy, .env keys): deploy/README.md
 # ==========================================
 
+x-backend-common: &backend-common
+  image: ${DOCKERHUB_USERNAME:-tickbook}/airline-backend:latest
+  restart: unless-stopped
+  env_file:
+    - path: ./backend/.env
+      required: false
+      # raw = every value exactly as written. Without it Compose treats a "$"
+      # inside a value as a variable, and the Travelport passwords contain one
+      # (they would reach the backend changed). Needs Docker Compose 2.30+.
+      format: raw
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  volumes:
+    # Uploaded images (tour package posters): kept across redeploys and
+    # shared, so an image uploaded on the admin site shows on the website.
+    - airline_uploads:/app/uploads
+  networks:
+    - airline_network
+
 services:
-  # 1. Main FastAPI Airline Backend
+  # 1. Customer-site API (tickandbook.com)
   airline_backend:
+    <<: *backend-common
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-backend:latest
     container_name: airline_backend
-    restart: unless-stopped
     ports:
-      - "127.0.0.1:8005:8000"  # backend reachable only on the server itself; nginx uses the docker network (16/11/2026)
-    env_file:
-      - path: ./backend/.env
-        required: false
+      - "127.0.0.1:8005:8000"  # reachable only on the server itself; nginx uses the docker network
     environment:
       - PYTHONUNBUFFERED=1
       - MYSQL_HOST=host.docker.internal
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - airline_network
+      - APP_MODE=public
+      # Behind nginx: read the visitor's real address (rate limits, IP blocks).
+      - TRUST_PROXY_HEADERS=true
 
-  # 2. React Vite Frontend + Nginx Production Reverse Proxy
+  # 2. Customer website: React build + nginx (proxies /api and /uploads)
   airline_frontend:
     build:
       context: ./frontend
@@ -35,37 +57,33 @@ services:
     container_name: airline_frontend
     restart: unless-stopped
     ports:
-      - "5176:80"
+      # FRONTEND_BIND=127.0.0.1 once the HTTPS proxy on this server is the
+      # only way in (deploy/README.md); default open for LAN testing.
+      - "${FRONTEND_BIND:-0.0.0.0}:5176:80"
     depends_on:
-      - airline_backend
+      airline_backend:
+        condition: service_healthy
     networks:
       - airline_network
 
-  # 3. Admin site backend (16/11/2026): same image, APP_MODE=admin — staff
-  # routes only, staff accounts in the admin database (ADMIN_MYSQL_DATABASE),
-  # staff logins signed with ADMIN_JWT_SECRET_KEY. Settings stay in the main
-  # database, so changes reach the customer site at once.
+  # 3. Admin-site API (16/11/2026): same image, APP_MODE=admin — staff routes
+  # only, staff accounts in ADMIN_MYSQL_DATABASE, staff sign-ins signed with
+  # ADMIN_JWT_SECRET_KEY (must be set in backend/.env or it won't start).
   airline_admin_backend:
-    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-backend:latest
+    <<: *backend-common
     container_name: airline_admin_backend
-    restart: unless-stopped
     ports:
       - "127.0.0.1:8006:8000"
-    env_file:
-      - path: ./backend/.env
-        required: false
     environment:
       - PYTHONUNBUFFERED=1
       - MYSQL_HOST=host.docker.internal
       - APP_MODE=admin
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - TRUST_PROXY_HEADERS=true
     depends_on:
-      - airline_backend
-    networks:
-      - airline_network
+      airline_backend:
+        condition: service_healthy
 
-  # 4. Admin site (admin.tickandbook.com): staff pages only, nginx -> admin backend
+  # 4. Admin site (admin.tickandbook.com): staff pages only, nginx -> admin API
   airline_admin_frontend:
     build:
       context: ./frontend
@@ -77,11 +95,16 @@ services:
     container_name: airline_admin_frontend
     restart: unless-stopped
     ports:
-      - "5177:80"
+      - "${FRONTEND_BIND:-0.0.0.0}:5177:80"
     depends_on:
-      - airline_admin_backend
+      airline_admin_backend:
+        condition: service_healthy
     networks:
       - airline_network
+
+volumes:
+  airline_uploads:
+    name: airline_uploads
 
 networks:
   airline_network:

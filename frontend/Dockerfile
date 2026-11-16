@@ -14,9 +14,10 @@ ARG SITE=public
 
 WORKDIR /app
 
-# Install dependencies first (layer caching)
+# Install dependencies first (layer caching). npm ci installs exactly what
+# package-lock.json says, so every server build is the same.
 COPY package*.json ./
-RUN npm install
+RUN npm ci --no-audit --no-fund
 
 # Copy application source and compile (the admin build goes to dist-admin;
 # both end up in /app/out)
@@ -35,6 +36,10 @@ COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
 
 # Expose HTTP port
 EXPOSE 80
+
+# Docker marks the container unhealthy if nginx stops answering.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1
 
 # Start Nginx in foreground
 CMD ["nginx", "-g", "daemon off;"]

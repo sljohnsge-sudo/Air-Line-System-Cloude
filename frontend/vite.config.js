@@ -29,6 +29,8 @@ export default defineConfig(({ mode }) => {
       // Vite passes those calls on; on the server nginx does it.
       proxy: {
         '/api': { target: admin ? 'http://127.0.0.1:8006' : 'http://127.0.0.1:8005', changeOrigin: true },
+        // Uploaded images (package posters) are served by the backend at /uploads/.
+        '/uploads': { target: admin ? 'http://127.0.0.1:8006' : 'http://127.0.0.1:8005', changeOrigin: true },
       },
     },
   }

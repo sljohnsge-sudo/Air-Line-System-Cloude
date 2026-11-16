@@ -242,6 +242,7 @@ ADMIN_SITE_EXTRA_ROUTES = [re.compile(p) for p in (
     r"^/api/feature-flags$",
     r"^/api/site-content$",
     r"^/api/terminal-connections$",
+    r"^/uploads/",                                    # package images (shared uploads volume)
 )]
 
 
@@ -5930,11 +5931,12 @@ async def admin_upload_image(request: Request, file: UploadFile = File(...), _ad
     with open(os.path.join(UPLOAD_ROOT, "packages", filename), "wb") as f:
         f.write(contents)
 
-    # Built from the actual incoming request host, not a hardcoded localhost
-    # URL — resolves correctly whether the admin is on this machine or
-    # another one on the LAN (see App.jsx's API_BASE, which derives its host
-    # the same way).
-    return {"url": f"{str(request.base_url).rstrip('/')}/uploads/packages/{filename}"}
+    # 16/11/2026 (server deploy): a site-relative address. Behind nginx the
+    # backend's own host (http://airline_backend:8000) is not reachable from
+    # browsers, and an image uploaded on admin.tickandbook.com must also show
+    # on tickandbook.com — both nginx configs pass /uploads/ to their backend,
+    # and both backends share the uploads volume (docker-compose.yml).
+    return {"url": f"/uploads/packages/{filename}"}
 
 
 @app.get("/api/admin/packages")
