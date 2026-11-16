@@ -34,7 +34,8 @@ fi
 
 if [ -f "$DIR/SHA256.txt" ]; then
   echo "== Checking the image files are complete"
-  (cd "$DIR" && sha256sum -c SHA256.txt)
+  # tr: the file may have Windows line endings after copying.
+  (cd "$DIR" && tr -d '\r' < SHA256.txt | sha256sum -c -)
 fi
 
 echo "== Loading the two images"

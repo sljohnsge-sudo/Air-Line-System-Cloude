@@ -84,7 +84,8 @@ foreach ($img in $images) {
 
 Copy-Item (Join-Path $src 'docker-compose.yml') $out
 Copy-Item (Join-Path $src 'deploy\load-on-server.sh') $out
-$sums | Set-Content -Path (Join-Path $out 'SHA256.txt') -Encoding ascii
+# Linux line endings: sha256sum on the server reads this file.
+[System.IO.File]::WriteAllText((Join-Path $out 'SHA256.txt'), (($sums -join "`n") + "`n"))
 "Built from commit $commit on $(Get-Date -Format 'yyyy-MM-dd HH:mm')" | Set-Content -Path (Join-Path $out 'BUILT-FROM.txt') -Encoding ascii
 if (-not $WorkingCopy) { Remove-Item -Recurse -Force $src }
 
