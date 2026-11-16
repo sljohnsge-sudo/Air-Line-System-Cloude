@@ -37,5 +37,21 @@ if errorlevel 1 (
     echo [INFO] Website already running.
 )
 
-echo [INFO] Done. Website: http://localhost:5176
+REM 4. Admin site (16/11/2026): admin backend on 8006, admin pages on 5177
+powershell -NoProfile -Command "exit [int](-not (Get-NetTCPConnection -State Listen -LocalPort 8006 -ErrorAction SilentlyContinue))"
+if errorlevel 1 (
+    echo [INFO] Starting admin backend...
+    start "Tick and Book - Admin Backend" /min cmd /c "%~dp0start_admin_backend.bat"
+) else (
+    echo [INFO] Admin backend already running.
+)
+powershell -NoProfile -Command "exit [int](-not (Get-NetTCPConnection -State Listen -LocalPort 5177 -ErrorAction SilentlyContinue))"
+if errorlevel 1 (
+    echo [INFO] Starting admin site...
+    start "Tick and Book - Admin Site" /min cmd /c "%~dp0start_admin_frontend.bat"
+) else (
+    echo [INFO] Admin site already running.
+)
+
+echo [INFO] Done. Website: http://localhost:5176   Admin: http://localhost:5177
 timeout /t 5 >nul

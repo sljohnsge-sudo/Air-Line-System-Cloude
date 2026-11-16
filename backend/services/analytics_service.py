@@ -84,7 +84,7 @@ def get_current_analytics_user(credentials: HTTPAuthorizationCredentials = Depen
     is still active (deactivating an account locks it out at once)."""
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Please sign in")
-    payload = auth.decode_token(credentials.credentials)
+    payload = auth.decode_staff_token(credentials.credentials)  # admin site only (16/11/2026)
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Your session expired - please sign in again")
     if payload.get("role") != "analytics":

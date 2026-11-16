@@ -62,6 +62,19 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/airline-frontend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/airline-frontend:${{ github.sha }}
 
+      - name: 📦 Build and Push Admin Site Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          build-args: |
+            SITE=admin
+            NGINX_CONF=nginx.admin.conf
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin-frontend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin-frontend:${{ github.sha }}
+
       - name: ✅ Confirm Docker Hub Push
         run: |
           echo "=================================================="

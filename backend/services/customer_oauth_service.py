@@ -144,5 +144,16 @@ def exchange_code_for_profile(provider: str, code: str, redirect_uri: str) -> di
     email = info.get("email")
     if not email:
         raise OAuthExchangeError(f"{provider} did not return an email address for this account.")
+    # 16/11/2026 (security): the email signs the person into the account with
+    # that email and joins its guest bookings, so it must be one the provider
+    # has verified. Google says so (email_verified). Microsoft's "common" /
+    # "organizations" tenants let any Azure tenant admin set any email on a
+    # user, so only "consumers" (personal accounts) or one named tenant ID is
+    # trusted.
+    if provider == "google" and info.get("email_verified") is not True:
+        raise OAuthExchangeError("Google has not verified this account's email address.")
+    if provider == "microsoft" and (AuthConfig.MICROSOFT_TENANT or "").strip().lower() in ("", "common", "organizations"):
+        raise OAuthExchangeError("Microsoft sign-in needs MICROSOFT_TENANT set to 'consumers' or your own tenant ID "
+                                 "(not 'common'), so the account email can be trusted.")
     name = info.get("name") or info.get("given_name") or email.split("@")[0]
     return {"email": email, "name": name}

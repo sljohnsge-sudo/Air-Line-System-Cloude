@@ -136,7 +136,8 @@ def compose(d: dict) -> tuple[str, str, str]:
         lines.append(f"Check My Ticket Status: {site}/check-ticket")
     else:
         lines.append(f"You can see this booking under My Bookings or Check My Ticket Status on the {BRAND} website.")
-    contacts = [c for c in (EmailConfig.SUPPORT_PHONE, EmailConfig.SUPPORT_EMAIL) if c]
+    from services import site_content  # Admin › Website Contacts & Texts
+    contacts = [c for c in (site_content.support_phone(), site_content.support_email()) if c]
     lines += ["", BRAND] + contacts
     text = "\n".join(lines) + "\n"
 

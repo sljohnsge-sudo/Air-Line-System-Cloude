@@ -97,14 +97,7 @@ def _ensure_tables() -> None:
                                AND TABLE_NAME='go_live_controls' AND COLUMN_NAME=%s""", (col,))
                 if cur.fetchone()[0] == 0:
                     cur.execute(f"ALTER TABLE go_live_controls ADD COLUMN {col} TINYINT(1) NOT NULL DEFAULT 0")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS super_admins (
-                    admin_id INT PRIMARY KEY,
-                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )""")
-            cur.execute("SELECT COUNT(*) FROM super_admins")
-            if cur.fetchone()[0] == 0:
-                cur.execute("INSERT IGNORE INTO super_admins (admin_id) SELECT id FROM admins WHERE username='admin'")
+            # super_admins moved to the admin database (services/admin_db.py), 16/11/2026.
             conn.commit()
             _ready = True
         finally:
@@ -161,17 +154,9 @@ def staff_switch_on(name: str) -> bool:
 
 
 def is_super_admin(admin_id) -> bool:
-    if not admin_id:
-        return False
-    _ensure_tables()
-    conn = database.get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT 1 FROM super_admins WHERE admin_id=%s", (admin_id,))
-        return cur.fetchone() is not None
-    finally:
-        cur.close()
-        conn.close()
+    """Super admins are kept in the admin database (services/admin_db.py)."""
+    from services import admin_db
+    return admin_db.is_super_admin(admin_id)
 
 
 def can_change(admin_id) -> bool:

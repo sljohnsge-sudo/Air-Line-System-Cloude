@@ -1212,13 +1212,14 @@ def get_bookings_for_customer(customer_id: int) -> list[dict]:
 
 def link_guest_bookings_by_email(customer_id: int, email: str) -> int:
     """Claim any unclaimed guest bookings (customer_id IS NULL) whose
-    passenger_email matches this customer's account email. Called on every
-    login so bookings made as a guest before — or between — logins get
-    picked up automatically. Returns the number of bookings linked.
+    passenger_email matches this customer's account email. Returns the number
+    of bookings linked.
 
-    NOTE: this system has no email verification, so this is a deliberate
-    trust decision — anyone who can log into an account with a given email
-    absorbs every guest booking made under that same email address."""
+    16/11/2026 (security): only call this once the customer has PROVED they
+    own the email (OTP-verified email change, or a provider-verified Google /
+    Microsoft email). Registering or logging in with a password proves
+    nothing — anyone could register someone else's email — so those use
+    link_guest_booking() per booking after a PNR + surname lookup instead."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -1228,6 +1229,25 @@ def link_guest_bookings_by_email(customer_id: int, email: str) -> int:
         )
         conn.commit()
         return cursor.rowcount
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def link_guest_booking(locator_code: str, customer_id: int, email: str) -> bool:
+    """Claim ONE guest booking for a signed-in customer who has just shown
+    they hold it (PNR + surname lookup) and whose account email is the email
+    on the booking. True if it was linked now."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE bookings SET customer_id=%s WHERE locator_code=%s AND customer_id IS NULL "
+            "AND LOWER(passenger_email)=LOWER(%s)",
+            (customer_id, locator_code, email),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
     finally:
         cursor.close()
         conn.close()
@@ -3135,45 +3155,26 @@ def get_bookings_in_date_range(start_dt: str, end_dt: str) -> list[dict]:
 # Admin accounts
 # ---------------------------------------------------------------------------
 
+# 16/11/2026: staff accounts live in their own database (services/admin_db.py,
+# ADMIN_MYSQL_DATABASE), opened only by the admin site's backend. These keep
+# their old names so callers don't change.
+
 def create_admin_if_not_exists(username: str, password_hash: str, full_name: str | None = None) -> bool:
     """Insert the admin row only if the username doesn't already exist.
     Returns True if a new row was created, False if it already existed."""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT id FROM admins WHERE username=%s", (username,))
-        if cursor.fetchone():
-            return False
-        cursor.execute(
-            "INSERT INTO admins (username, password_hash, full_name) VALUES (%s,%s,%s)",
-            (username, password_hash, full_name),
-        )
-        conn.commit()
-        return True
-    finally:
-        cursor.close()
-        conn.close()
+    from services import admin_db
+    return admin_db.create_admin_if_not_exists(username, password_hash, full_name)
 
 
 def get_admin_by_username(username: str) -> dict | None:
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM admins WHERE username=%s", (username,))
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return row
+    from services import admin_db
+    return admin_db.get_admin_by_username(username)
 
 
 def list_admins() -> list[dict]:
     """Never includes password_hash."""
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, username, full_name, created_at FROM admins ORDER BY created_at")
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return rows
+    from services import admin_db
+    return admin_db.list_admins()
 
 
 # ── Settings Change Requests (four-eyes approval for Pricing/Loyalty) ────────
@@ -3200,12 +3201,8 @@ def create_settings_change_request(setting_type: str, proposed_data: dict, propo
 def get_settings_change_requests(status: str | None = None) -> list[dict]:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    query = """
-        SELECT r.*, p.username AS proposed_by_username, rv.username AS reviewed_by_username
-        FROM settings_change_requests r
-        JOIN admins p ON p.id = r.proposed_by_admin_id
-        LEFT JOIN admins rv ON rv.id = r.reviewed_by_admin_id
-    """
+    # Staff names come from the admin database (services/admin_db.py).
+    query = "SELECT r.* FROM settings_change_requests r"
     if status:
         query += " WHERE r.status=%s ORDER BY r.requested_at DESC"
         cursor.execute(query, (status,))
@@ -3215,8 +3212,12 @@ def get_settings_change_requests(status: str | None = None) -> list[dict]:
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
+    from services import admin_db
+    names = admin_db.usernames_by_id([r["proposed_by_admin_id"] for r in rows] + [r["reviewed_by_admin_id"] for r in rows])
     for row in rows:
         row["proposed_data"] = json.loads(row["proposed_data"])
+        row["proposed_by_username"] = names.get(row["proposed_by_admin_id"])
+        row["reviewed_by_username"] = names.get(row["reviewed_by_admin_id"])
     return rows
 
 

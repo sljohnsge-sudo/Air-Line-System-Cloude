@@ -19,6 +19,17 @@ from config.email_config import EmailConfig
 from utils.dates import fmt_date, fmt_datetime
 
 
+def _support_footer() -> str:
+    """Address + "Tel: … | Email: …" lines from Admin › Website Contacts &
+    Texts (services/site_content), each only when set."""
+    from services import site_content  # local: site_content imports database
+    address, phone, email = site_content.support_address(), site_content.support_phone(), site_content.support_email()
+    whatsapp = site_content.support_whatsapp()
+    contact = " | ".join(x for x in (f"Tel: {phone}" if phone else "", f"WhatsApp: {whatsapp}" if whatsapp else "",
+                                     f"Email: {email}" if email else "") if x)
+    return (f"{address}\n" if address else "") + (f"{contact}\n" if contact else "")
+
+
 def _send(to_addr: str, subject: str, body: str) -> tuple[bool, str | None]:
     """to_addr may be a single address or a comma-separated list — every
     recipient gets the same message, addressed to all of them in the To: header."""
@@ -95,10 +106,7 @@ def send_ticket_share_email(to_addr: str, ticket: dict) -> tuple[bool, str | Non
         f"Status:          {ticket.get('status') or ''}\n\n"
         f"For the full itinerary or a printable copy, sign in to My Account on Tick and Book.\n\n"
         f"Tick and Book\n"
-        + (f"{EmailConfig.SUPPORT_ADDRESS}\n" if EmailConfig.SUPPORT_ADDRESS else "")
-        + (" | ".join(x for x in (f"Tel: {EmailConfig.SUPPORT_PHONE}" if EmailConfig.SUPPORT_PHONE else "",
-                                  f"Email: {EmailConfig.SUPPORT_EMAIL}" if EmailConfig.SUPPORT_EMAIL else "") if x) + "\n"
-           if (EmailConfig.SUPPORT_PHONE or EmailConfig.SUPPORT_EMAIL) else "")
+        + _support_footer()
     )
     return _send(to_addr, subject, body)
 

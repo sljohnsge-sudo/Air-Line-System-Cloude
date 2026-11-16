@@ -1,21 +1,27 @@
-// Tick and Book's own customer contact details, from frontend/.env
-// (VITE_SUPPORT_PHONE / VITE_SUPPORT_EMAIL / VITE_SUPPORT_ADDRESS). Each is
+// Tick and Book's own customer contact details. Since 16/11/2026 staff set
+// them in Admin › Website Contacts & Texts (siteContent.js); until saved
+// there, the old frontend/.env values (VITE_SUPPORT_*) are used. Each is
 // shown on e-tickets and support notes only when set. Customers must never
 // see George Steuart Travel's name, address, phone or emails: GS also runs a
 // travel agency, and linking the two brings price-comparison calls to its
 // agents.
-export const SUPPORT_PHONE = (import.meta.env.VITE_SUPPORT_PHONE || '').trim();
-export const SUPPORT_EMAIL = (import.meta.env.VITE_SUPPORT_EMAIL || '').trim();
-export const SUPPORT_ADDRESS = (import.meta.env.VITE_SUPPORT_ADDRESS || '').trim();
+import { siteText } from './siteContent.js';
 
-// "Tel: … | Email: …" — empty when neither is set.
+export const supportPhone = () => siteText('support_phone').trim();
+export const supportEmail = () => siteText('support_email').trim();
+export const supportAddress = () => siteText('support_address').trim();
+export const supportWhatsapp = () => siteText('support_whatsapp').trim();
+
+// "Tel: … | WhatsApp: … | Email: …" — empty when none is set.
 export const supportContactLine = () =>
-  [SUPPORT_PHONE && `Tel: ${SUPPORT_PHONE}`, SUPPORT_EMAIL && `Email: ${SUPPORT_EMAIL}`].filter(Boolean).join(' | ');
+  [supportPhone() && `Tel: ${supportPhone()}`, supportWhatsapp() && `WhatsApp: ${supportWhatsapp()}`,
+   supportEmail() && `Email: ${supportEmail()}`].filter(Boolean).join(' | ');
 
 // How to reach support, as the end of a sentence.
 export const supportHow = () => {
-  if (SUPPORT_PHONE && SUPPORT_EMAIL) return `at ${SUPPORT_PHONE} or email ${SUPPORT_EMAIL}`;
-  if (SUPPORT_PHONE) return `at ${SUPPORT_PHONE}`;
-  if (SUPPORT_EMAIL) return `by email at ${SUPPORT_EMAIL}`;
+  const phone = supportPhone(), email = supportEmail();
+  if (phone && email) return `at ${phone} or email ${email}`;
+  if (phone) return `at ${phone}`;
+  if (email) return `by email at ${email}`;
   return 'through My Account → Manage my booking';
 };

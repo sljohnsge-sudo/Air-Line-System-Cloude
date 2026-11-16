@@ -27,7 +27,7 @@ echo [INFO] Starting FastAPI backend (production mode)...
 echo [INFO] Press CTRL+C to stop the server.
 echo.
 
-venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8005 --no-access-log --timeout-keep-alive 30
+venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8005 --no-access-log --timeout-keep-alive 30
 
 echo.
 echo [INFO] Backend server stopped.

@@ -180,8 +180,27 @@ def client_ip_of(request) -> str:
     if TRUST_PROXY_HEADERS:
         fwd = request.headers.get("x-forwarded-for")
         if fwd:
-            return fwd.split(",")[0].strip()[:45]
+            # The LAST entry is the one our own nginx added ($remote_addr);
+            # earlier entries come from the visitor and can be faked
+            # (16/11/2026 — used for IP blocks and rate limits).
+            return fwd.split(",")[-1].strip()[:45]
     return (request.client.host if request.client else "")[:45]
+
+
+def ip_for_limits() -> str | None:
+    """The visitor's address for per-connection rate limits, or None when it
+    isn't known: without TRUST_PROXY_HEADERS, a loopback/private address is
+    the proxy in front of us (Vite, nginx), shared by every visitor, so
+    limiting it would limit the whole site."""
+    ip = current_ip()
+    if not ip or TRUST_PROXY_HEADERS:
+        return ip or None
+    try:
+        import ipaddress
+        addr = ipaddress.ip_address(ip)
+        return None if (addr.is_loopback or addr.is_private) else ip
+    except ValueError:
+        return None
 
 
 def bind_request(request):

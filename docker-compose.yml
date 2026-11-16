@@ -14,15 +14,13 @@ services:
     container_name: airline_backend
     restart: unless-stopped
     ports:
-      - "8005:8000"
+      - "127.0.0.1:8005:8000"  # backend reachable only on the server itself; nginx uses the docker network (16/11/2026)
     env_file:
       - path: ./backend/.env
         required: false
     environment:
       - PYTHONUNBUFFERED=1
       - MYSQL_HOST=host.docker.internal
-      - TP_PASSWORD=o$$TC@[M$$zi0*AY{y
-      - TP_UAPI_PASSWORD=o$$TC@[M$$zi0*AY{y
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -40,6 +38,48 @@ services:
       - "5176:80"
     depends_on:
       - airline_backend
+    networks:
+      - airline_network
+
+  # 3. Admin site backend (16/11/2026): same image, APP_MODE=admin — staff
+  # routes only, staff accounts in the admin database (ADMIN_MYSQL_DATABASE),
+  # staff logins signed with ADMIN_JWT_SECRET_KEY. Settings stay in the main
+  # database, so changes reach the customer site at once.
+  airline_admin_backend:
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-backend:latest
+    container_name: airline_admin_backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8006:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MYSQL_HOST=host.docker.internal
+      - APP_MODE=admin
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - airline_backend
+    networks:
+      - airline_network
+
+  # 4. Admin site (admin.tickandbook.com): staff pages only, nginx -> admin backend
+  airline_admin_frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        SITE: admin
+        NGINX_CONF: nginx.admin.conf
+    image: ${DOCKERHUB_USERNAME:-tickbook}/airline-admin-frontend:latest
+    container_name: airline_admin_frontend
+    restart: unless-stopped
+    ports:
+      - "5177:80"
+    depends_on:
+      - airline_admin_backend
     networks:
       - airline_network
 

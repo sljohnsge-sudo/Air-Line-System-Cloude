@@ -61,6 +61,8 @@ import hotel_database
 import insights
 from utils.dates import fmt_date, fmt_datetime
 from services import seat_rules, fare_rule_service, seat_request_log
+from services import rate_limit
+from services import site_content
 from services.special_services import MEAL_SSR_TYPES, merge_ssr_status
 from services import segment_status
 from services import live_booking_service
@@ -96,12 +98,67 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ── Which site this process serves (16/11/2026, admin site split) ──────────────
+# The same code runs as two separate processes:
+#   APP_MODE=public (default) — the customer site (tickandbook.com): no admin
+#       routes at all, admin logins refused, runs the background jobs.
+#   APP_MODE=admin — the staff site (admin.tickandbook.com): only the admin
+#       routes (ADMIN_SITE_ROUTES below); staff accounts in their own database
+#       (services/admin_db.py), staff logins signed with ADMIN_JWT_SECRET_KEY.
+# Both use the main database for settings, bookings and switches, so a change
+# made on the admin site reaches the customer site straight away.
+APP_MODE = (os.getenv("APP_MODE", "public").strip().lower() or "public")
+if APP_MODE not in ("public", "admin"):
+    raise RuntimeError(f"APP_MODE must be 'public' or 'admin', not '{APP_MODE}'")
+IS_ADMIN_SITE = APP_MODE == "admin"
+
 # ── FastAPI App ────────────────────────────────────────────────────────────────
+# 16/11/2026 (security): the API docs (/docs, /redoc, /openapi.json) list
+# every route, admin ones included. They are on only while Travelport is
+# pre-production, or when API_DOCS_ENABLED=true is set on purpose.
+_API_DOCS = (not TravelportConfig.is_production()
+             or os.getenv("API_DOCS_ENABLED", "false").strip().lower() in ("1", "true", "yes"))
 app = FastAPI(
-    title="George Steuart Travel — Flight Booking API",
-    description="Live Travelport TripServices v11 integration. No mock data.",
-    version="2.0.0"
+    title="Tick and Book — Flight Booking API",
+    description="Travelport TripServices v11 integration. No mock data.",
+    version="2.0.0",
+    docs_url="/docs" if _API_DOCS else None,
+    redoc_url="/redoc" if _API_DOCS else None,
+    openapi_url="/openapi.json" if _API_DOCS else None,
 )
+
+
+def _refuse_unsafe_start() -> None:
+    """16/11/2026: stop the backend from starting with settings that would
+    sell real tickets unsafely. Runs before the app serves anything."""
+    problems = []
+    if len(AuthConfig.JWT_SECRET_KEY or "") < AuthConfig.JWT_SECRET_MIN_LENGTH:
+        problems.append(f"JWT_SECRET_KEY must be at least {AuthConfig.JWT_SECRET_MIN_LENGTH} random characters "
+                        "(with an empty or short key anyone could sign their own customer login)")
+    if IS_ADMIN_SITE:
+        key = AuthConfig.ADMIN_JWT_SECRET_KEY or ""
+        if len(key) < AuthConfig.JWT_SECRET_MIN_LENGTH:
+            problems.append(f"ADMIN_JWT_SECRET_KEY must be at least {AuthConfig.JWT_SECRET_MIN_LENGTH} random characters "
+                            "(the admin site signs staff logins with it)")
+        elif key == AuthConfig.JWT_SECRET_KEY:
+            problems.append("ADMIN_JWT_SECRET_KEY must be different from JWT_SECRET_KEY")
+    from config.cybersource_config import CyberSourceConfig
+    if CyberSourceConfig.GATEWAY == "cybersource":
+        tp_live = TravelportConfig.is_production()
+        card_live = CyberSourceConfig.ENV == "live"
+        if tp_live and not card_live:
+            problems.append("Travelport is LIVE but CYBERSOURCE_ENV is not 'live': a sandbox test card would be "
+                            "'paid' and a real ticket issued with no money taken")
+        if card_live and not tp_live:
+            problems.append("CYBERSOURCE_ENV is 'live' but Travelport is pre-production: real cards would be "
+                            "charged for test bookings")
+    if problems:
+        for p in problems:
+            logger.critical(f"Backend NOT started: {p}")
+        raise RuntimeError("Unsafe settings in .env — " + "; ".join(problems))
+
+
+_refuse_unsafe_start()
 
 
 @app.on_event("startup")
@@ -121,7 +178,10 @@ def _start_extras_deadline_sweep():
     """Unpaid seats/extras on ticketed bookings are released when their
     payment deadline passes even if the customer never comes back
     (services/addon_deadlines.py). EXTRAS_SWEEP_MINUTES=0 turns it off —
-    run one process with it on if the API is scaled to several workers."""
+    run one process with it on if the API is scaled to several workers.
+    Customer site only: the admin site must not run it a second time."""
+    if IS_ADMIN_SITE:
+        return
     addon_deadlines.start_sweeper(int(os.getenv("EXTRAS_SWEEP_MINUTES", "15")))
 
 
@@ -129,7 +189,10 @@ def _start_extras_deadline_sweep():
 def _start_analytics_sync():
     """Business dashboard (/analytics): rebuilds its own analytics database
     from the main one every ANALYTICS_SYNC_MINUTES (default 30, 0 = off).
-    Read-only against the main database (services/analytics_sync.py)."""
+    Read-only against the main database (services/analytics_sync.py).
+    Customer site only, so it never runs twice."""
+    if IS_ADMIN_SITE:
+        return
     try:
         analytics_sync.start_scheduler(int(os.getenv("ANALYTICS_SYNC_MINUTES", "30")))
     except Exception as e:
@@ -157,6 +220,43 @@ def _ensure_insight_tables():
 # /api/packages* route in this file -- none of their admin equivalents share
 # these prefixes, they all live under /api/admin/...).
 #
+# Admin site split (16/11/2026, see APP_MODE). Staff-only routes outside
+# /api/admin: on the customer site they don't exist (404); on the admin site
+# they and /api/admin/* are all that is served, plus a few read-only lookups
+# the Admin Portal uses. Everything else on the admin site is 404, so no
+# search, booking, payment or ticketing can start from it.
+STAFF_ROUTE_PATTERNS = [re.compile(p) for p in (
+    r"^/api/admin(/|$)",
+    r"^/api/analytics(/|$)",
+    r"^/api/bookings/history$",
+    r"^/api/bookings/[A-Za-z0-9]+/cancel(/quote)?$",
+    r"^/api/invoice/(report|price-raw/.+)$",
+    r"^/api/payments/complete$",
+    r"^/api/amadeus-bookings/[A-Za-z0-9-]+/issue-ticket$",
+)]
+ADMIN_SITE_EXTRA_ROUTES = [re.compile(p) for p in (
+    r"^/$",
+    r"^/api/bookings/retrieve/[A-Za-z0-9]+$",        # Booking Lookup
+    r"^/api/invoice/(pnr|ticket)/.+$",                # Invoice data
+    r"^/api/reference/",                              # airport pickers
+    r"^/api/feature-flags$",
+    r"^/api/site-content$",
+    r"^/api/terminal-connections$",
+)]
+
+
+@app.middleware("http")
+async def _enforce_site_split(request: Request, call_next):
+    path = request.url.path
+    staff = any(p.match(path) for p in STAFF_ROUTE_PATTERNS)
+    if IS_ADMIN_SITE:
+        if not (staff or any(p.match(path) for p in ADMIN_SITE_EXTRA_ROUTES)):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    elif staff:
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    return await call_next(request)
+
+
 # Registered BEFORE add_middleware(CORSMiddleware) below on purpose: Starlette
 # builds its middleware stack so the LAST one added ends up OUTERMOST. CORS
 # must be outermost so it still adds Access-Control-Allow-Origin to this
@@ -620,20 +720,8 @@ class CancelRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {
-        "service": "George Steuart Travel — Live Travelport API",
-        "version": "2.0.0",
-        "status": "online",
-        "data_source": "Travelport TripServices v11",
-        "endpoints": {
-            "search":   "POST /api/flights/search",
-            "book":     "POST /api/bookings/create",
-            "retrieve": "GET  /api/bookings/retrieve/{pnr}",
-            "history":  "GET  /api/bookings/history",
-            "cancel":   "POST /api/bookings/{pnr}/cancel",
-            "docs":     "/docs"
-        }
-    }
+    # 16/11/2026 (security): no route map here any more — it is public.
+    return {"service": "Tick and Book API", "status": "online"}
 
 
 # ── Airport Reference Data ───────────────────────────────────────────────────
@@ -1002,6 +1090,16 @@ def _require_switch(name: str, after_payment: bool = False) -> None:
     if not go_live_switches.is_on(name):
         detail = go_live_switches.PAID_TICKETING_PAUSED if after_payment else go_live_switches.CUSTOMER_MESSAGES[name]
         raise HTTPException(status_code=503, detail=detail)
+
+
+def _limit_new_bookings() -> None:
+    """16/11/2026 (security): at most 15 new bookings (PNRs held at the
+    airline) per connection per hour, so a script can't hold seats with
+    dummy names (airline penalties). Only when the visitor's real address is
+    known — see insights.ip_for_limits()."""
+    rate_limit.hit("new-booking-ip", insights.ip_for_limits(), 15, 3600,
+                   "Too many new bookings from your connection in the last hour. "
+                   "Nothing has been booked or charged. Please try again later, or contact us.")
 
 
 @app.post("/api/flights/search")
@@ -1848,6 +1946,7 @@ def amadeus_booking_hold(request: AmadeusHoldRequest, principal: Optional[dict] 
     """STEP 1: book and hold the flights with the airline (PNR + stored fare,
     no ticket) and work out the price to pay. Nothing is charged here."""
     _require_switch("pnr_create_enabled")
+    _limit_new_bookings()
     if database.get_provider_settings().get("search_mode", "travelport_only") not in ("both", "amadeus_only"):
         raise HTTPException(status_code=503, detail="This fare is not available right now. Nothing has been booked or "
                                                     "charged - please search again.")
@@ -2417,6 +2516,7 @@ def create_booking(request: BookingCreateRequest, customer_id: Optional[int] = D
     booking details for the frontend popup.
     """
     _require_switch("pnr_create_enabled")
+    _limit_new_bookings()
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
     _claim_booking_submission(raw_offering, travelers)
@@ -2526,6 +2626,7 @@ def initiate_booking(request: BookingInitiateRequest):
     Initiates booking: Creates GDS workbench, adds selected offer, and returns seat map.
     """
     _require_switch("pnr_create_enabled")
+    _limit_new_bookings()
     logger.info("Initiating booking and fetching live seat map...")
     if {str(s.get("carrier") or "").upper() for s in _segments_of_offering(request.raw_offering)} & PAUSED_CARRIERS:
         raise HTTPException(status_code=409, detail=PAUSED_CARRIER_DETAIL)
@@ -2676,6 +2777,7 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
     Steps 4-9 are re-executed atomically in one fresh session.
     """
     _require_switch("pnr_create_enabled")
+    _limit_new_bookings()
     logger.info("Confirming booking — creating fresh GDS workbench at commit time...")
     travelers = [t.model_dump() for t in request.travelers]
     raw_offering = request.raw_offering
@@ -3036,7 +3138,9 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     existing = database.get_booking_by_locator(locator_code)
     if existing and existing.get("ticket_number"):
         logger.info(f"Issue-ticket for {locator_code} called again — already ticketed (#{existing['ticket_number']}), returning the existing ticket instead of re-issuing.")
-        return {"success": True, "ticket": existing, "cached_id": existing.get("id"), "already_issued": True}
+        # Masked (16/11/2026, security): this route needs no login, so anyone
+        # posting a ticketed PNR here must not get its passport/contact data.
+        return {"success": True, "ticket": _public_booking_view(existing), "cached_id": existing.get("id"), "already_issued": True}
 
     _require_switch("ticketing_enabled", after_payment=True)
     if not request.reqid:
@@ -3525,6 +3629,7 @@ def ndc_book(request: NdcBookAndIssueRequest, customer_id: Optional[int] = Depen
     /api/ndc/instant-pay/complete.
     """
     _require_switch("pnr_create_enabled")
+    _limit_new_bookings()
     _journey_booking_info(request.travelers, request.raw_offering)
     _check_travelers_for_trip(request.travelers, request.raw_offering)
     if _ndc_carrier_of(request.raw_offering) in NDC_INSTANT_PAY_CARRIERS:
@@ -4177,6 +4282,15 @@ def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth
     then update our local database cache. Passport, birth date and contact
     details are only returned to staff or the booking's own customer.
     """
+    is_staff = bool(principal and principal.get("role") == "admin")
+    if not is_staff:
+        # 16/11/2026 (security): customers and shared-ticket links only ever
+        # see bookings made on this website — never any other PNR in the
+        # agency's PCC — and at most 60 look-ups per connection in 15 minutes
+        # (each one is a paid Travelport call).
+        rate_limit.hit("retrieve-ip", insights.ip_for_limits(), 60, 900, rate_limit.TOO_MANY_LOOKUPS)
+        if not database.get_booking_by_locator(locator_code):
+            raise HTTPException(status_code=404, detail="Reservation not found.")
     try:
         # Fetch live from Travelport
         ticket = services.retrieve_reservation(locator_code)
@@ -4505,28 +4619,37 @@ def _build_invoice_response(pnr: str) -> dict:
 
 @app.get("/api/invoice/pnr/{locator_code}")
 def get_invoice_by_pnr(locator_code: str, principal: dict = Depends(auth.get_admin_or_customer)):
-    """Retrieve invoice data by PNR / locator code. A general 'manage my
-    booking' style lookup, same as an airline's own PNR retrieval tool —
-    open to any signed-in admin or customer, not restricted to bookings
-    tied to the caller's own account. This is intentional: the same person
-    may have booked under a different email than their account, so ownership
-    can't be assumed. The PNR itself (a random, non-guessable code only the
-    booker receives) is the access control here, not account linkage."""
+    """Retrieve invoice data by PNR / locator code. Staff: any booking.
+    Customers (16/11/2026, security): only bookings on their own account —
+    the invoice carries passport numbers, birth dates and contacts, so a PNR
+    alone is not enough. A guest booking joins the account after a PNR +
+    surname look-up in Booking Status."""
     pnr = locator_code.upper().strip()
-    return _build_invoice_response(pnr)
+    _require_invoice_access(principal, database.get_booking_by_locator(pnr))
+    return _staff_mask(_build_invoice_response(pnr), principal)
+
+
+def _require_invoice_access(principal: dict, booking: Optional[dict]) -> None:
+    if principal.get("role") == "admin":
+        return
+    if not booking or booking.get("customer_id") is None or booking.get("customer_id") != principal.get("customer_id"):
+        raise HTTPException(status_code=404, detail="No booking on your account has this reference. "
+                                                    "If you booked as a guest, open it once in Booking Status "
+                                                    "(booking reference + last name) to add it to your account.")
 
 
 @app.get("/api/invoice/ticket/{ticket_number}")
 def get_invoice_by_ticket(ticket_number: str, principal: dict = Depends(auth.get_admin_or_customer)):
     """Retrieve invoice data by issued ticket number — resolves the ticket
     number to its PNR/locator via the local booking cache, then fetches the
-    same live Travelport invoice data as the PNR lookup. Same open-lookup
-    model as get_invoice_by_pnr — see its docstring."""
+    same live Travelport invoice data as the PNR lookup. Same access rule as
+    get_invoice_by_pnr (customers: own bookings only)."""
     booking = database.get_booking_by_ticket_number(ticket_number.strip())
     if not booking or not booking.get("locator_code"):
         raise HTTPException(status_code=404, detail=f"No booking found for ticket number '{ticket_number}'.")
+    _require_invoice_access(principal, booking)
     pnr = booking["locator_code"].upper().strip()
-    return _build_invoice_response(pnr)
+    return _staff_mask(_build_invoice_response(pnr), principal)
 
 
 @app.get("/api/invoice/report")
@@ -4930,9 +5053,17 @@ class PricingSettingsRequest(BaseModel):
 
 @app.post("/api/admin/login")
 def admin_login(request: AdminLoginRequest):
+    # Rate limits (16/11/2026): 5 wrong passwords per account and 20 per
+    # connection in 15 minutes, then 429 until the window passes.
+    user_key = (request.username or "").strip().lower()
+    rate_limit.check("admin-login-user", user_key, 5, 900, rate_limit.TOO_MANY_SIGN_INS)
+    rate_limit.check("admin-login-ip", insights.ip_for_limits(), 20, 900, rate_limit.TOO_MANY_SIGN_INS)
     admin = database.get_admin_by_username(request.username)
     if not admin or not auth.verify_password(request.password, admin["password_hash"]):
+        rate_limit.hit("admin-login-user", user_key, 5, 900, rate_limit.TOO_MANY_SIGN_INS)
+        rate_limit.hit("admin-login-ip", insights.ip_for_limits(), 20, 900, rate_limit.TOO_MANY_SIGN_INS)
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    rate_limit.clear("admin-login-user", user_key)
     token = auth.create_access_token({
         "sub": admin["username"], "role": "admin", "admin_id": admin["id"],
     })
@@ -5392,6 +5523,35 @@ def admin_put_go_live_switches(body: GoLiveSwitchesRequest, admin: dict = Depend
     values = go_live_switches.update(body.model_dump(), admin.get("sub"))
     return {**values, "labels": {**go_live_switches.SWITCHES, **go_live_switches.AMADEUS_SWITCHES}, "can_change": True, "signed_in_as": admin.get("sub"),
             "is_super_admin": is_super}
+
+
+# ── Website contacts & texts (services/site_content), 16/11/2026 ────────────
+
+@app.get("/api/site-content")
+def public_site_content():
+    """Contacts and customer-facing texts for the website (public: only what
+    customers see anyway)."""
+    return site_content.values()
+
+
+@app.get("/api/admin/site-content")
+def admin_get_site_content(admin: dict = Depends(auth.get_current_admin)):
+    return {**site_content.admin_view(), "can_change": go_live_switches.can_change(admin.get("admin_id"))}
+
+
+class SiteContentUpdate(BaseModel):
+    values: dict[str, str]
+
+
+@app.put("/api/admin/site-content")
+def admin_put_site_content(body: SiteContentUpdate, admin: dict = Depends(auth.get_current_admin)):
+    if not go_live_switches.can_change(admin.get("admin_id")):
+        raise HTTPException(status_code=403, detail="Only a super admin can change the website contacts and texts.")
+    try:
+        view = site_content.update(body.values, admin.get("sub"))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {**view, "can_change": True}
 
 
 # ── Bank transfer / deposit and cash payments (services/offline_payments) ───
@@ -6063,14 +6223,17 @@ class CustomerLoginRequest(BaseModel):
 
 @app.post("/api/customers/register", status_code=status.HTTP_201_CREATED)
 def customer_register(request: CustomerRegisterRequest):
+    rate_limit.hit("register-ip", insights.ip_for_limits(), 10, 3600, rate_limit.TOO_MANY_REQUESTS)
     if database.get_customer_by_email(request.email):
         raise HTTPException(status_code=409, detail="An account with this email already exists.")
     password_hash = auth.hash_password(request.password)
     customer = database.create_customer(request.email, password_hash, request.full_name, request.phone)
-    # Pick up any guest bookings already made under this email before the account existed.
-    database.link_guest_bookings_by_email(customer["id"], customer["email"])
-    _ad_link_by_email(customer["id"], customer["email"])
-    hotel_database.link_guest_hotel_bookings_by_email(customer["id"], customer["email"])
+    # 16/11/2026 (security): guest bookings are NOT linked here any more.
+    # Registering doesn't prove the person owns this email, so anyone could
+    # have registered a traveller's email and taken over their bookings
+    # (passport details, cancel/change). A guest booking joins the account
+    # when the customer opens it with PNR + surname (Booking Status), or after
+    # an OTP-verified email change.
     token = auth.create_access_token({
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
     })
@@ -6082,13 +6245,16 @@ def customer_register(request: CustomerRegisterRequest):
 
 @app.post("/api/customers/login")
 def customer_login(request: CustomerLoginRequest):
+    user_key = str(request.email).strip().lower()
+    rate_limit.check("customer-login-user", user_key, 5, 900, rate_limit.TOO_MANY_SIGN_INS)
+    rate_limit.check("customer-login-ip", insights.ip_for_limits(), 30, 900, rate_limit.TOO_MANY_SIGN_INS)
     customer = database.get_customer_by_email(request.email)
     if not customer or not auth.verify_password(request.password, customer["password_hash"]):
+        rate_limit.hit("customer-login-user", user_key, 5, 900, rate_limit.TOO_MANY_SIGN_INS)
+        rate_limit.hit("customer-login-ip", insights.ip_for_limits(), 30, 900, rate_limit.TOO_MANY_SIGN_INS)
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    # Pick up any guest bookings made under this email since the last login.
-    database.link_guest_bookings_by_email(customer["id"], customer["email"])
-    _ad_link_by_email(customer["id"], customer["email"])
-    hotel_database.link_guest_hotel_bookings_by_email(customer["id"], customer["email"])
+    rate_limit.clear("customer-login-user", user_key)
+    # Guest bookings are not linked on login (16/11/2026, see customer_register).
     token = auth.create_access_token({
         "sub": customer["email"], "role": "customer", "customer_id": customer["id"],
     })
@@ -6381,6 +6547,10 @@ LOOKUP_UNAVAILABLE = ("The airline's booking system didn't answer just now, so w
 
 @app.post("/api/booking-status/lookup")
 def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = Depends(auth.get_current_customer)):
+    # 16/11/2026: at most 20 look-ups per account and 40 per connection in
+    # 15 minutes, so PNR + surname pairs can't be guessed by script.
+    rate_limit.hit("lookup-customer", str(current.get("customer_id")), 20, 900, rate_limit.TOO_MANY_LOOKUPS)
+    rate_limit.hit("lookup-ip", insights.ip_for_limits(), 40, 900, rate_limit.TOO_MANY_LOOKUPS)
     # An Amadeus booking made on this website (PNR or ticket number): the same
     # page, read live from the Amadeus PNR (services/amadeus_booking_status.py).
     try:
@@ -6406,6 +6576,14 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
             raise HTTPException(status_code=503, detail=LOOKUP_UNAVAILABLE)
     live["trace_id"] = trace_id
     live["manage_token"] = auth.create_manage_booking_token(live["locator_code"], current["customer_id"])
+    # The customer has just shown they hold this booking (PNR + surname): a
+    # guest booking made under their account email now joins their account
+    # (replaces the old link-everything-on-login, 16/11/2026).
+    try:
+        if current.get("sub") and database.link_guest_booking(live["locator_code"], current["customer_id"], current["sub"]):
+            logger.info(f"{live['locator_code']}: guest booking linked to customer {current['customer_id']} after lookup")
+    except Exception as e:
+        logger.warning(f"Guest booking {live['locator_code']} not linked: {e}")
     # Seats card: requests the airline refused (never on the PNR) with the
     # reason, and each flight's seat-selection time limit when the airline has one.
     live["seat_requests"] = seat_request_log.view(live["locator_code"], live)
@@ -7987,7 +8165,7 @@ def _auto_reminder_pass() -> None:
 
 @app.on_event("startup")
 def _start_auto_reminders():
-    if not AUTO_REMINDERS:
+    if not AUTO_REMINDERS or IS_ADMIN_SITE:  # customer site's process only, never twice
         return
     import threading
 

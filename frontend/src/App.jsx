@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
@@ -45,12 +45,19 @@ import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
 import * as Ico from './WizardIcons.jsx';
 import PaxSignIn from './PaxSignIn.jsx';
-import { SUPPORT_ADDRESS, supportContactLine, supportHow } from './supportContact.js';
+import { supportAddress, supportContactLine, supportHow } from './supportContact.js';
+import { setSiteContent, siteText, siteLines } from './siteContent.js';
 import { buildShareItem, flightIdentity, ShareToggle, ShareFaresBar, SharedFaresBanner } from './ShareFares.jsx';
 
 // Same-origin API: the server's web server sends /api to the backend, and in
 // development Vite does the same (vite.config.js proxy -> port 8000).
 const API_BASE = '/api';
+// Which site this build is (vite.config.js, 16/11/2026 admin site split):
+// 'admin' = admin.tickandbook.com, staff pages only; anything else = the
+// customer site, which has no admin pages, no staff sign-in and no staff options.
+const IS_ADMIN_SITE = import.meta.env.VITE_SITE === 'admin';
+const STAFF_TABS = ['admin', 'bookings', 'invoice', 'analytics'];   // all the admin site shows
+const STAFF_ONLY_TABS = ['admin', 'bookings', 'analytics'];         // never on the customer site
 // Amadeus-only features (seat maps, fare rules, cancellation requests) call
 // amadeus-backend directly instead of going through the Travelport backend's
 // proxy -- its CORS allows this origin specifically for that purpose.
@@ -1410,8 +1417,14 @@ export default function App() {
     if (pathname.startsWith('/invoice')) return 'invoice';
     return 'home';
   };
+  // A page this site doesn't have falls back to its start page: the Admin
+  // Portal on the admin site, Home on the customer site.
+  const siteTab = (tab) => (IS_ADMIN_SITE
+    ? (STAFF_TABS.includes(tab) ? tab : 'admin')
+    : (STAFF_ONLY_TABS.includes(tab) ? 'home' : tab));
 
-  const [activeTab, setActiveTab] = useState(() => tabFromPath(window.location.pathname));
+  const [activeTab, setActiveTabRaw] = useState(() => siteTab(tabFromPath(window.location.pathname)));
+  const setActiveTab = useCallback((tab) => setActiveTabRaw(t => siteTab(typeof tab === 'function' ? tab(t) : tab)), []);
 
   // Go-live module switches (Admin Console -> Providers & Modules -> Go-Live
   // Module Switches). Starts all-OFF (Phase 1 sells Travelport flights only),
@@ -1435,7 +1448,7 @@ export default function App() {
     if (activeTab === 'hotels' && !featureFlags.hotels_enabled) setActiveTab('home');
     if (activeTab === 'visa' && !featureFlags.visa_enabled) setActiveTab('home');
     if (activeTab === 'packages' && !featureFlags.packages_enabled) setActiveTab('home');
-  }, [featureFlags, activeTab]);
+  }, [featureFlags, activeTab, setActiveTab]);
 
   // Seeds the search-form state from the encrypted /results/:token when the
   // page is first loaded directly there (a shared/bookmarked link) —
@@ -1457,7 +1470,9 @@ export default function App() {
   })();
 
   // ── Admin / Customer auth state (persisted to localStorage) ──────────────
-  const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || null);
+  // Staff sign-in exists on the admin site only; the customer site never has
+  // (or sends) a staff token, so no staff-only option can appear there.
+  const [adminToken, setAdminToken] = useState(() => (IS_ADMIN_SITE ? localStorage.getItem('adminToken') || null : null));
   const [customerToken, setCustomerToken] = useState(() => localStorage.getItem('customerToken') || null);
   // Staff or the signed-in customer see a booking's passport/contact details;
   // without a token the backend masks them (see /api/bookings/retrieve).
@@ -1574,6 +1589,16 @@ export default function App() {
   // is paused" or a failed payment start) reuses it instead of booking a new
   // PNR each time — one test journey had made 3 PNRs for the same flight.
   const heldBookingRef = useRef(null);
+  // Contacts and texts set in Admin › Website Contacts & Texts (siteContent.js).
+  // Loaded once; the counter only re-renders the page when they arrive. If the
+  // call fails, the built-in defaults stay in use.
+  const [, setSiteContentLoaded] = useState(0);
+  useEffect(() => {
+    fetch(`${API_BASE}/site-content`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) { setSiteContent(data); setSiteContentLoaded(n => n + 1); } })
+      .catch(() => {});
+  }, []);
   const [headerHeight, setHeaderHeight] = useState(67);
   const [topbarHeight, setTopbarHeight] = useState(66);
 
@@ -2339,7 +2364,7 @@ export default function App() {
   useEffect(() => {
     // Loaded when the site opens and again at the review step, so the
     // payment choice is complete the moment the review step shows.
-    if (bookingStep && bookingStep !== 'review') return;
+    if (IS_ADMIN_SITE || (bookingStep && bookingStep !== 'review')) return;  // no payments on the admin site
     fetch(`${API_BASE}/payment-methods`).then(r => r.ok ? r.json() : null)
       .then(d => { if (d) { setPayMethods(d); if (!d.card && paymentMethod === 'card') setPaymentMethod(d.bank ? 'bank' : 'card'); } })
       .catch(() => {});
@@ -4238,9 +4263,22 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
 
       {/* Header */}
       <header ref={headerRef} className={`header header-sky glass-panel${showHomePage ? ' header-home' : ''}${activeTab === 'analytics' ? ' header-hidden' : ''}`}>
-        <div className="logo-container" onClick={() => setActiveTab('home')} role="link" aria-label="Tick and Book home" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+        <div className="logo-container" onClick={() => setActiveTab(IS_ADMIN_SITE ? 'admin' : 'home')} role="link" aria-label={IS_ADMIN_SITE ? 'Tick and Book admin' : 'Tick and Book home'} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <TickBookLogo light size={44} />
+          {IS_ADMIN_SITE && <span style={{ color: '#fff', fontWeight: 800, fontSize: '0.8rem', letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.9 }}>Staff Admin</span>}
         </div>
+        {IS_ADMIN_SITE ? (
+        <nav className="nav-tabs">
+          {/* Admin site (16/11/2026): staff pages only — no search, booking or ticketing. */}
+          <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin Portal</button>
+          {adminToken && <>
+            <button className={`nav-tab ${activeTab === 'bookings' ? 'active' : ''}`} onClick={() => setActiveTab('bookings')}>All Bookings</button>
+            <button className={`nav-tab ${activeTab === 'invoice' ? 'active' : ''}`} onClick={() => openInvoiceAs('admin')}>Invoice Data</button>
+            <button className={`nav-tab ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>Analytics</button>
+            <button className="nav-tab" onClick={() => { handleAdminLogout(); setActiveTab('admin'); }}>Sign Out</button>
+          </>}
+        </nav>
+        ) : (
         <nav className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
           {/* Hotels, packages and visa are reached from the service links on
@@ -4248,16 +4286,13 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               so the menu doesn't repeat them. */}
           <button className={`nav-tab ${activeTab === 'cancelRequest' ? 'active' : ''}`} onClick={() => openCancellationRequest(null)}>Cancel Booking</button>
           <button className={`nav-tab ${activeTab === 'ticketStatus' ? 'active' : ''}`} onClick={() => { setTicketStatusResult(null); setTicketStatusError(''); setActiveTab('ticketStatus'); }}>Check My Ticket Status</button>
-          {/* Admin isn't advertised to customers: staff open /admin directly.
-              Once a staff member is signed in, the link shows for them. */}
-          {adminToken && (
-            <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>
-          )}
+          {/* Staff use the separate admin site (admin.tickandbook.com) — no admin link here. */}
           <button className={`nav-tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
             {customerProfile ? customerProfile.full_name.split(' ')[0] : 'Sign In'}
           </button>
         </nav>
+        )}
       </header>
 
       {/* ── HOME TAB (the flight search lives here; /book shows the same page) ── */}
@@ -6952,8 +6987,9 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
           <div className="empty-state glass-panel animate-fade" style={{ maxWidth: '480px', margin: '3rem auto' }}>
             <p>Sign in to view invoice and transaction data.</p>
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.75rem' }}>
-              <button className="btn btn-primary" onClick={() => setActiveTab('admin')}>Admin Login</button>
-              <button className="btn btn-secondary" onClick={() => setActiveTab('account')}>Customer Sign In</button>
+              {IS_ADMIN_SITE
+                ? <button className="btn btn-primary" onClick={() => setActiveTab('admin')}>Staff Sign In</button>
+                : <button className="btn btn-primary" onClick={() => setActiveTab('account')}>Sign In</button>}
             </div>
           </div>
         </div>
@@ -8547,7 +8583,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         </div>
       )}
 
-      {activeTab === 'bookings' && (
+      {IS_ADMIN_SITE && activeTab === 'bookings' && (
         adminToken ? (
           <div className="tab-content animate-fade">
             <section className="search-section glass-panel">
@@ -8612,7 +8648,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
       )}
 
       {/* ── ADMIN PORTAL TAB ─────────────────────────────────────────────── */}
-      {activeTab === 'admin' && (
+      {IS_ADMIN_SITE && activeTab === 'admin' && (
         <AdminPortal
           onOpenInvoice={() => openInvoiceAs('admin')}
           adminToken={adminToken}
@@ -8626,7 +8662,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         />
       )}
 
-      {activeTab === 'analytics' && <AnalyticsDashboard API_BASE={API_BASE} />}
+      {IS_ADMIN_SITE && activeTab === 'analytics' && <AnalyticsDashboard API_BASE={API_BASE} />}
 
       {/* ── CUSTOMER (ACCOUNT) PORTAL TAB ───────────────────────────────── */}
       {activeTab === 'account' && (
@@ -10488,15 +10524,15 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 {paymentMethod !== 'card' && (
                 <div style={{ fontSize: '0.78rem', color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.6rem 0.9rem', marginBottom: '0.75rem' }}>
                   {paymentMethod === 'bank'
-                    ? <>🏦 Your booking is confirmed with the airline first and held for you. You then pay by bank transfer or deposit using your booking reference. Your ticket is issued and emailed as soon as our team confirms your payment has arrived.</>
+                    ? <>🏦 {siteText('review_bank_note')}</>
                     : adminToken ? <>💵 The booking is confirmed with the airline first and held. Record the cash received in Admin → Bank &amp; Cash Payments to issue the ticket.</>
-                      : <>💵 Your booking is confirmed with the airline first and held for you. Pay in cash at a Tick and Book office using your booking reference; your ticket is issued and emailed as soon as we receive it.</>}
+                      : <>💵 {siteText('review_cash_note')}</>}
                 </div>
                 )}
 
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem' }}>
                   <input type="checkbox" checked={dataConfirmAgreed} onChange={e => setDataConfirmAgreed(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                  <span>I confirm that all passenger details entered (names, passport information, dates of birth) are accurate and match my travel documents exactly. I understand that incorrect information may result in denied boarding, additional airline fees, or ticket cancellation with no refund.</span>
+                  <span>{siteText('review_passenger_confirmation')}</span>
                 </label>
 
                 <div className="modal-actions">
@@ -10707,7 +10743,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
                     <strong>Tick and Book</strong>
-                    {SUPPORT_ADDRESS && <><br />{SUPPORT_ADDRESS}</>}
+                    {supportAddress() && <><br />{supportAddress()}</>}
                     {supportContactLine() && <><br />{supportContactLine()}</>}
                   </div>
                 </div>
@@ -11228,14 +11264,16 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               {/* Important Notices */}
               <div style={{ borderTop: '2px solid #cbd5e1', paddingTop: '1.25rem', fontSize: '0.68rem', color: '#64748b', lineHeight: '1.4' }}>
                 <h4 style={{ color: '#1e293b', fontWeight: '700', margin: '0 0 0.4rem 0', textTransform: 'uppercase' }}>
-                  Important Travel Information
+                  {siteText('eticket_info_title')}
                 </h4>
+                {/* Admin › Website Contacts & Texts › E-ticket. "Label: text"
+                    shows the label in bold; {support} = phone/email. */}
                 <ul style={{ paddingLeft: '1.25rem', margin: 0 }}>
-                  <li>Please carry a printout of this e-ticket receipt or have it ready on your mobile device during check-in.</li>
-                  <li>Most international flights require passengers to arrive at the airport check-in counter at least 3 hours before departure. Check-in gates close exactly 60 minutes prior.</li>
-                  <li><strong>Passport Validity:</strong> Ensure your passport is valid for at least 6 months from the date of your journey. Many destinations require specific entry visas.</li>
-                  <li>Baggage policies may vary. Please contact Tick and Book support or the airline directly to purchase extra allowance.</li>
-                  <li>For support, flight updates, changes or cancellations, please contact the Tick and Book desk {supportHow()}.</li>
+                  {siteLines('eticket_info_items').map((line, i) => {
+                    const text = line.replaceAll('{support}', supportHow());
+                    const m = text.match(/^([^:]{2,40}):\s(.+)$/);
+                    return <li key={i}>{m ? <><strong>{m[1]}:</strong> {m[2]}</> : text}</li>;
+                  })}
                 </ul>
               </div>
 

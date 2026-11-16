@@ -8,6 +8,7 @@ import AdminRatesLogs from './AdminRatesLogs.jsx';
 import AdminPaymentRecon from './AdminPaymentRecon.jsx';
 import AdminGoLiveControls from './AdminGoLiveControls.jsx';
 import AdminOfflinePayments from './AdminOfflinePayments.jsx';
+import AdminSiteContent from './AdminSiteContent.jsx';
 import AdminAmadeusBookings from './AdminAmadeusBookings.jsx';
 import AdminAnalyticsUsers from './AdminAnalyticsUsers.jsx';
 import AdminCustomerInterests from './AdminCustomerInterests.jsx';
@@ -1362,6 +1363,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
     { group: 'Administration', items: [
       { id: 'settings-approvals', label: 'Change Approvals', icon: 'check', count: pendingSettingsChanges.length },
       { id: 'providers', label: 'Providers & Modules', icon: 'sliders' },
+      { id: 'site-content', label: 'Website Contacts & Texts', icon: 'mail' },
       { id: 'admins', label: 'Staff Accounts', icon: 'key' },
     ] },
   ];
@@ -2132,7 +2134,7 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
         <h3 className="results-heading" style={{ marginTop: '2rem' }}>Go-live Controls (super admin)</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
           Switch flight search, new bookings, ticketing, staff void/refund and the Amadeus cancel / void / refund actions on or off while testing for go-live.
-          A switch only ever stops a customer before they pay; anyone who has already paid still gets their booking and ticket.
+          Steps 1–3 are a ladder: search only, then search + PNR (stops before payment), then the full flow with tickets.
           Takes effect within a few seconds, no restart needed.
         </p>
         <AdminGoLiveControls API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} onChanged={loadProviderSettings} />
@@ -2925,6 +2927,17 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           If the airline has released the booking meanwhile, no ticket is issued and a refund request is filed.
         </p>
         <AdminOfflinePayments API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
+      </section>
+      )}
+
+      {activeAdminSection === 'site-content' && (
+      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
+        <h3 className="results-heading">Website Contacts &amp; Texts</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
+          The phone numbers, email addresses and texts customers see, section by section. Save each section on its own;
+          customers see the change within a minute. Empty a text, or press Use the standard text, to go back to the original wording.
+        </p>
+        <AdminSiteContent API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
       </section>
       )}
 
