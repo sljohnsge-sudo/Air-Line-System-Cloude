@@ -5051,23 +5051,41 @@ class PricingSettingsRequest(BaseModel):
     refund_charge_fixed: float = Field(default=0.0, ge=0)
 
 
-@app.post("/api/admin/login")
-def admin_login(request: AdminLoginRequest):
-    # Rate limits (16/11/2026): 5 wrong passwords per account and 20 per
-    # connection in 15 minutes, then 429 until the window passes.
-    user_key = (request.username or "").strip().lower()
+def _staff_sign_in(username: str, password: str) -> dict:
+    """One sign-in for every staff role (16/11/2026, services/admin_db.py):
+    Admin, Staff, Analytics, Staff + Analytics. The token's role is "admin"
+    for anyone with the Admin Portal (so /api/admin/* accepts it) and
+    "analytics" for dashboard-only accounts (refused by /api/admin/*);
+    staff_role carries the account's real role."""
+    from services import admin_db
+    # Rate limits: 5 wrong passwords per account and 20 per connection in
+    # 15 minutes, then 429 until the window passes.
+    user_key = (username or "").strip().lower()
     rate_limit.check("admin-login-user", user_key, 5, 900, rate_limit.TOO_MANY_SIGN_INS)
     rate_limit.check("admin-login-ip", insights.ip_for_limits(), 20, 900, rate_limit.TOO_MANY_SIGN_INS)
-    admin = database.get_admin_by_username(request.username)
-    if not admin or not auth.verify_password(request.password, admin["password_hash"]):
+    admin = database.get_admin_by_username((username or "").strip())
+    if not admin or not auth.verify_password(password or "", admin["password_hash"]):
         rate_limit.hit("admin-login-user", user_key, 5, 900, rate_limit.TOO_MANY_SIGN_INS)
         rate_limit.hit("admin-login-ip", insights.ip_for_limits(), 20, 900, rate_limit.TOO_MANY_SIGN_INS)
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    if not admin.get("active", 1):
+        raise HTTPException(status_code=403, detail="This account has been disabled. Ask an Admin to turn it back on.")
     rate_limit.clear("admin-login-user", user_key)
+    role = admin.get("role") or "staff"
+    portal = admin_db.can_portal(role)
     token = auth.create_access_token({
-        "sub": admin["username"], "role": "admin", "admin_id": admin["id"],
+        "sub": admin["username"], "role": "admin" if portal else "analytics",
+        "staff_role": role, "admin_id": admin["id"],
     })
-    return {"access_token": token, "token_type": "bearer", "full_name": admin.get("full_name")}
+    admin_db.record_login(admin["id"])
+    return {"access_token": token, "token_type": "bearer", "full_name": admin.get("full_name"),
+            "username": admin["username"], "staff_role": role, "role_label": admin_db.ROLES.get(role, role),
+            "can_portal": portal, "can_analytics": admin_db.can_analytics(role)}
+
+
+@app.post("/api/admin/login")
+def admin_login(request: AdminLoginRequest):
+    return _staff_sign_in(request.username, request.password)
 
 
 @app.get("/api/admin/pricing-settings")
@@ -5181,25 +5199,71 @@ def admin_reject_settings_change(request_id: int, body: SettingsChangeReview, ad
 # admin's settings changes above -- previously the only way to create an
 # admin was the seed_admin.py CLI script.
 
+STAFF_ROLE_PATTERN = "^(admin|staff|analytics|staff_analytics)$"
+
+
 class AdminCreateRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=100)
-    password: str = Field(..., min_length=8, max_length=100)
+    username: str = Field(..., min_length=3, max_length=100, pattern=r"^[A-Za-z0-9._-]+$")
+    password: str = Field(..., min_length=10, max_length=100)
     full_name: Optional[str] = Field(None, max_length=150)
+    role: str = Field("staff", pattern=STAFF_ROLE_PATTERN)
+
+
+class AdminUpdateRequest(BaseModel):
+    full_name: Optional[str] = Field(None, max_length=150)
+    role: Optional[str] = Field(None, pattern=STAFF_ROLE_PATTERN)
+    active: Optional[bool] = None
+    password: Optional[str] = Field(None, min_length=10, max_length=100)
+
+
+def _require_admin_role(admin: dict) -> None:
+    """Staff users & roles (16/11/2026): only an Admin creates, edits or
+    disables accounts."""
+    if not go_live_switches.is_super_admin(admin.get("admin_id")):
+        raise HTTPException(status_code=403, detail="Only an Admin can manage staff users and roles.")
 
 
 @app.get("/api/admin/admins")
-def admin_list_admins(_admin: dict = Depends(auth.get_current_admin)):
-    return {"admins": database.list_admins()}
+def admin_list_admins(admin: dict = Depends(auth.get_current_admin)):
+    from services import admin_db
+    _require_admin_role(admin)
+    return {"admins": database.list_admins(), "roles": admin_db.ROLES, "me": admin.get("admin_id")}
 
 
 @app.post("/api/admin/admins", status_code=status.HTTP_201_CREATED)
-def admin_create_admin(request: AdminCreateRequest, _admin: dict = Depends(auth.get_current_admin)):
-    created = database.create_admin_if_not_exists(
-        request.username.strip(), auth.hash_password(request.password), request.full_name,
-    )
-    if not created:
-        raise HTTPException(status_code=409, detail="An admin with that username already exists.")
-    return {"created": True, "username": request.username.strip()}
+def admin_create_admin(request: AdminCreateRequest, admin: dict = Depends(auth.get_current_admin)):
+    from services import admin_db
+    _require_admin_role(admin)
+    username = request.username.strip()
+    if database.get_admin_by_username(username):
+        raise HTTPException(status_code=409, detail="A staff user with that username already exists.")
+    new_id = admin_db.create_user(username, auth.hash_password(request.password),
+                                  (request.full_name or "").strip() or None, request.role, admin.get("sub"))
+    logger.warning(f"Staff user {username} ({request.role}) created by {admin.get('sub')}")
+    return {"created": True, "id": new_id, "username": username, "role": request.role}
+
+
+@app.put("/api/admin/admins/{user_id}")
+def admin_update_admin(user_id: int, request: AdminUpdateRequest, admin: dict = Depends(auth.get_current_admin)):
+    from services import admin_db
+    _require_admin_role(admin)
+    target = admin_db.get_admin_by_id(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Staff user not found.")
+    myself = user_id == admin.get("admin_id")
+    if myself and (request.active is False or (request.role and request.role != target.get("role"))):
+        raise HTTPException(status_code=422, detail="You can't disable your own account or change your own role. Ask another Admin.")
+    losing_admin = target.get("role") == "admin" and target.get("active") and (
+        request.active is False or (request.role and request.role != "admin"))
+    if losing_admin and admin_db.active_admin_count() <= 1:
+        raise HTTPException(status_code=422, detail="At least one active Admin must remain.")
+    admin_db.update_user(user_id, admin.get("sub"), full_name=request.full_name, role=request.role,
+                         active=None if request.active is None else (1 if request.active else 0),
+                         password_hash=auth.hash_password(request.password) if request.password else None)
+    logger.warning(f"Staff user {target.get('username')} changed by {admin.get('sub')}: "
+                   f"{ {k: v for k, v in request.model_dump().items() if v is not None and k != 'password'} }"
+                   + (" + password reset" if request.password else ""))
+    return {"ok": True}
 
 
 class LoyaltyTierBenefitCreate(BaseModel):
@@ -5517,7 +5581,7 @@ def admin_get_go_live_switches(admin: dict = Depends(auth.get_current_admin)):
 def admin_put_go_live_switches(body: GoLiveSwitchesRequest, admin: dict = Depends(auth.get_current_admin)):
     is_super = go_live_switches.is_super_admin(admin.get("admin_id"))
     if not go_live_switches.can_change(admin.get("admin_id")):
-        raise HTTPException(status_code=403, detail="Only a super admin can change these switches.")
+        raise HTTPException(status_code=403, detail="Only an Admin can change these switches.")
     if body.all_admins_can_switch is not None and not is_super:
         raise HTTPException(status_code=403, detail="Only the main admin account (admin) can decide who may change the switches.")
     values = go_live_switches.update(body.model_dump(), admin.get("sub"))
@@ -5546,7 +5610,7 @@ class SiteContentUpdate(BaseModel):
 @app.put("/api/admin/site-content")
 def admin_put_site_content(body: SiteContentUpdate, admin: dict = Depends(auth.get_current_admin)):
     if not go_live_switches.can_change(admin.get("admin_id")):
-        raise HTTPException(status_code=403, detail="Only a super admin can change the website contacts and texts.")
+        raise HTTPException(status_code=403, detail="Only an Admin can change the website contacts and texts.")
     try:
         view = site_content.update(body.values, admin.get("sub"))
     except ValueError as e:
@@ -5644,7 +5708,7 @@ def admin_get_payment_methods(admin: dict = Depends(auth.get_current_admin)):
 @app.put("/api/admin/payment-methods")
 def admin_put_payment_methods(body: PaymentMethodSettingsRequest, admin: dict = Depends(auth.get_current_admin)):
     if not go_live_switches.can_change(admin.get("admin_id")):
-        raise HTTPException(status_code=403, detail="Only a super admin can change payment methods.")
+        raise HTTPException(status_code=403, detail="Only an Admin can change payment methods.")
     return {**offline_payments.update_settings(body.model_dump(), admin.get("sub")), "can_change": True}
 
 
@@ -7990,12 +8054,17 @@ class AnalyticsUserUpdateRequest(BaseModel):
 
 @app.post("/api/analytics/login")
 def analytics_login(request: AnalyticsLoginRequest):
-    return analytics_service.login(request.username, request.password)
+    """The dashboard's own sign-in box: the same staff accounts (16/11/2026);
+    only roles that include Analytics get in."""
+    data = _staff_sign_in(request.username, request.password)
+    if not data["can_analytics"]:
+        raise HTTPException(status_code=403, detail="Your account does not include the Analytics dashboard.")
+    return data
 
 
 @app.get("/api/analytics/me")
 def analytics_me(user: dict = Depends(analytics_service.get_current_analytics_user)):
-    return {"username": user.get("sub")}
+    return {"username": user.get("sub"), "staff_role": user.get("staff_role")}
 
 
 @app.get("/api/analytics/overview")
@@ -8070,19 +8139,19 @@ def _require_super_admin(admin: dict) -> None:
         raise HTTPException(status_code=403, detail="Only a super admin can manage analytics logins.")
 
 
+ANALYTICS_LOGINS_MOVED = ("Analytics logins are now staff users with the Analytics role. "
+                          "Create or change them in Administration > Staff Users & Roles.")
+
+
 @app.post("/api/admin/analytics-users")
 def admin_create_analytics_user(request: AnalyticsUserCreateRequest, admin: dict = Depends(auth.get_current_admin)):
-    _require_super_admin(admin)
-    return analytics_service.create_user(request.username, request.full_name or "", request.password,
-                                         admin.get("sub"))
+    raise HTTPException(status_code=410, detail=ANALYTICS_LOGINS_MOVED)  # 16/11/2026: one staff login with roles
 
 
 @app.put("/api/admin/analytics-users/{user_id}")
 def admin_update_analytics_user(user_id: int, request: AnalyticsUserUpdateRequest,
                                 admin: dict = Depends(auth.get_current_admin)):
-    _require_super_admin(admin)
-    return analytics_service.update_user(user_id, admin.get("sub"), full_name=request.full_name,
-                                         password=request.password or None, active=request.active)
+    raise HTTPException(status_code=410, detail=ANALYTICS_LOGINS_MOVED)
 
 
 # Automatic daily reminders — OFF unless AUTO_REMINDERS=true. Birthday wishes

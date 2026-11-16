@@ -45,6 +45,7 @@ import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
 import * as Ico from './WizardIcons.jsx';
 import PaxSignIn from './PaxSignIn.jsx';
+import PhoneCodePicker from './PhoneCodePicker.jsx';
 import { supportAddress, supportContactLine, supportHow } from './supportContact.js';
 import { setSiteContent, siteText, siteLines } from './siteContent.js';
 import { buildShareItem, flightIdentity, ShareToggle, ShareFaresBar, SharedFaresBanner } from './ShareFares.jsx';
@@ -1489,14 +1490,35 @@ export default function App() {
     }
   });
 
-  const handleAdminLogin = (token) => {
+  // Stable (useCallback): the Analytics dashboard's data loading depends on
+  // its sign-out handler, so a new function each render would reload it.
+  const handleAdminLogin = useCallback((token) => {
     setAdminToken(token);
-    localStorage.setItem('adminToken', token);
-  };
-  const handleAdminLogout = () => {
+    try { localStorage.setItem('adminToken', token); } catch { /* storage off */ }
+  }, []);
+  const handleAdminLogout = useCallback(() => {
     setAdminToken(null);
-    localStorage.removeItem('adminToken');
-  };
+    try { localStorage.removeItem('adminToken'); localStorage.removeItem('analyticsToken'); } catch { /* storage off */ }
+  }, []);
+  // Staff role from the sign-in (16/11/2026, role-based staff logins; display
+  // only — the server checks every request). Older sign-ins without a role:
+  // an Admin Portal token counts as Staff, a dashboard one as Analytics.
+  const staffRole = (() => {
+    if (!adminToken) return null;
+    try {
+      const p = JSON.parse(atob(adminToken.split('.')[1]));
+      return p.staff_role || (p.role === 'admin' ? 'staff' : p.role === 'analytics' ? 'analytics' : null);
+    } catch { return null; }
+  })();
+  const staffCanPortal = ['admin', 'staff', 'staff_analytics'].includes(staffRole);
+  const staffCanAnalytics = ['admin', 'analytics', 'staff_analytics'].includes(staffRole);
+  // Each role lands where it may work: Analytics-only users go to the
+  // dashboard; anyone without Analytics is sent back from it.
+  useEffect(() => {
+    if (!IS_ADMIN_SITE || !adminToken || !staffRole) return;
+    if (!staffCanPortal && activeTab !== 'analytics') setActiveTab('analytics');
+    else if (!staffCanAnalytics && activeTab === 'analytics') setActiveTab('admin');
+  }, [adminToken, staffRole, staffCanPortal, staffCanAnalytics, activeTab, setActiveTab]);
   const handleCustomerLogin = (token, profile) => {
     setCustomerToken(token);
     setCustomerProfile(profile);
@@ -1529,6 +1551,9 @@ export default function App() {
     if (next === 'ticketStatus') {
       setTicketStatusResult(null); setTicketStatusError('');
       setActiveTab('ticketStatus');
+    } else if (next === 'booking') {
+      // Back from Google / Microsoft sign-in started on Passenger Details.
+      restoreBookingDraft();
     } else if (next && next.startsWith('/results/')) {
       navigate(next);
       let pending = null;
@@ -3174,6 +3199,66 @@ export default function App() {
     setActivePassengerIdx(0);
   };
 
+  // ── Google / Microsoft sign-in from Passenger Details (16/11/2026) ──────────
+  // Those sign-ins leave the site and come back to /account, which would lose
+  // the booking. So the chosen flight, the passengers typed so far and the
+  // search are kept in this tab (sessionStorage) first, and put back when the
+  // customer returns signed in — straight onto Passenger Details. Kept 30 min.
+  const BOOKING_DRAFT_KEY = 'tb_booking_draft';
+  const BOOKING_DRAFT_FLIGHTS_KEY = 'tb_booking_draft_flights';
+  const signInMidBooking = (provider) => {
+    try {
+      sessionStorage.setItem(BOOKING_DRAFT_KEY, JSON.stringify({
+        savedAt: Date.now(), selectedFlight, travelers, activePassengerIdx,
+        lastSearchBody: lastSearchBodyRef.current,
+        search: { searchType, searchOrigin, searchDest, searchDate, returnDate, adultCount, childCount,
+                  infantCount, studentCount, childAges, infantAges, studentAges, cabinPref },
+      }));
+      sessionStorage.setItem(AFTER_SIGN_IN_KEY, 'booking');
+      // The results list too, so "back to results" still works; skipped if
+      // it is too big for the browser's storage.
+      try { sessionStorage.setItem(BOOKING_DRAFT_FLIGHTS_KEY, JSON.stringify(flights)); }
+      catch { try { sessionStorage.removeItem(BOOKING_DRAFT_FLIGHTS_KEY); } catch { /* storage off */ } }
+    } catch { /* storage off: sign-in still works, the flight is chosen again */ }
+    window.location.href = `${API_BASE}/customers/oauth/${provider}/start`;
+  };
+  const restoreBookingDraft = () => {
+    let draft = null, savedFlights = null;
+    try {
+      draft = JSON.parse(sessionStorage.getItem(BOOKING_DRAFT_KEY) || 'null');
+      savedFlights = JSON.parse(sessionStorage.getItem(BOOKING_DRAFT_FLIGHTS_KEY) || 'null');
+      sessionStorage.removeItem(BOOKING_DRAFT_KEY);
+      sessionStorage.removeItem(BOOKING_DRAFT_FLIGHTS_KEY);
+    } catch { /* storage off */ }
+    if (!draft?.selectedFlight || Date.now() - (draft.savedAt || 0) > 30 * 60 * 1000) {
+      showNotification('You are signed in. Please choose your flight again.', 'info');
+      setActiveTab('book');
+      return;
+    }
+    const s = draft.search || {};
+    if (s.searchType) setSearchType(s.searchType);
+    if (s.searchOrigin) setSearchOrigin(s.searchOrigin);
+    if (s.searchDest) setSearchDest(s.searchDest);
+    if (s.searchDate) setSearchDate(s.searchDate);
+    if (s.returnDate) setReturnDate(s.returnDate);
+    if (s.adultCount) setAdultCount(s.adultCount);
+    setChildCount(s.childCount || 0); setInfantCount(s.infantCount || 0); setStudentCount(s.studentCount || 0);
+    if (Array.isArray(s.childAges)) setChildAges(s.childAges);
+    if (Array.isArray(s.infantAges)) setInfantAges(s.infantAges);
+    if (Array.isArray(s.studentAges)) setStudentAges(s.studentAges);
+    if (s.cabinPref) setCabinPref(s.cabinPref);
+    if (Array.isArray(savedFlights) && savedFlights.length) { setFlights(savedFlights); setShowSearchForm(false); }
+    lastSearchBodyRef.current = draft.lastSearchBody || null;
+    setSelectedFlight(draft.selectedFlight);
+    setTravelers(Array.isArray(draft.travelers) ? draft.travelers : []);
+    setActivePassengerIdx(draft.activePassengerIdx || 0);
+    setBookingError('');
+    setDataConfirmAgreed(false);
+    setBookingStep('passenger');
+    setActiveTab('book');
+    showNotification('You are signed in. Your flight and the details you typed are kept.', 'success');
+  };
+
   // Fill one passenger from a signed-in customer's earlier booking. Special
   // requests are never copied: meal / wheelchair are asked fresh every trip.
   const fillTravelerFromSaved = (idx, saved) => {
@@ -4270,11 +4355,19 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         {IS_ADMIN_SITE ? (
         <nav className="nav-tabs">
           {/* Admin site (16/11/2026): staff pages only — no search, booking or ticketing. */}
-          <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin Portal</button>
+          {/* What each role sees (16/11/2026): Admin / Staff / Staff + Analytics get the
+              Admin Portal pages; Admin / Analytics / Staff + Analytics get Analytics. */}
+          {(!adminToken || staffCanPortal) && (
+            <button className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin Portal</button>
+          )}
           {adminToken && <>
-            <button className={`nav-tab ${activeTab === 'bookings' ? 'active' : ''}`} onClick={() => setActiveTab('bookings')}>All Bookings</button>
-            <button className={`nav-tab ${activeTab === 'invoice' ? 'active' : ''}`} onClick={() => openInvoiceAs('admin')}>Invoice Data</button>
-            <button className={`nav-tab ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>Analytics</button>
+            {staffCanPortal && <>
+              <button className={`nav-tab ${activeTab === 'bookings' ? 'active' : ''}`} onClick={() => setActiveTab('bookings')}>All Bookings</button>
+              <button className={`nav-tab ${activeTab === 'invoice' ? 'active' : ''}`} onClick={() => openInvoiceAs('admin')}>Invoice Data</button>
+            </>}
+            {staffCanAnalytics && (
+              <button className={`nav-tab ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>Analytics</button>
+            )}
             <button className="nav-tab" onClick={() => { handleAdminLogout(); setActiveTab('admin'); }}>Sign Out</button>
           </>}
         </nav>
@@ -8648,7 +8741,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
       )}
 
       {/* ── ADMIN PORTAL TAB ─────────────────────────────────────────────── */}
-      {IS_ADMIN_SITE && activeTab === 'admin' && (
+      {IS_ADMIN_SITE && activeTab === 'admin' && (!adminToken || staffCanPortal) && (
         <AdminPortal
           onOpenInvoice={() => openInvoiceAs('admin')}
           adminToken={adminToken}
@@ -8662,7 +8755,10 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         />
       )}
 
-      {IS_ADMIN_SITE && activeTab === 'analytics' && <AnalyticsDashboard API_BASE={API_BASE} />}
+      {IS_ADMIN_SITE && activeTab === 'analytics' && (
+        <AnalyticsDashboard API_BASE={API_BASE} staffToken={staffCanAnalytics ? adminToken : ''}
+                            onStaffSignIn={handleAdminLogin} onStaffSignOut={handleAdminLogout} />
+      )}
 
       {/* ── CUSTOMER (ACCOUNT) PORTAL TAB ───────────────────────────────── */}
       {activeTab === 'account' && (
@@ -8874,6 +8970,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     travelers={travelers}
                     activeIdx={activePassengerIdx}
                     onFill={fillTravelerFromSaved}
+                    onOAuth={signInMidBooking}
                   />
                 </div>
                 {travelers.length > 1 && (
@@ -9023,32 +9120,19 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">Mobile number <span className="req">*</span></label>
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      <div className="pax-control" style={{ flex: '0 0 112px' }}>
-                        <Ico.IconPhone size={16} className="pax-control-icon" />
-                        <select
-                          className="form-input"
-                          style={{ paddingRight: '0.2rem' }}
-                          required
-                          value={phoneParts(travelers[activePassengerIdx]).dial}
-                          onChange={e => handleTravelerPhoneDialChange(e.target.value)}
-                        >
-                          <option value="">Code</option>
-                          {DIAL_CODES.map(c => (
-                            <option key={c.code} value={c.dial}>+{c.dial} {c.code}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <input
-                        type="tel"
-                        className="form-input"
-                        required
-                        placeholder="771234567"
-                        style={{ flex: 1, ...fieldErrorStyle(activePassengerIdx, 'phone') }}
-                        value={phoneParts(travelers[activePassengerIdx]).local}
-                        onChange={e => handleTravelerPhoneLocalChange(e.target.value)}
-                      />
-                    </div>
+                    {/* One box: [flag +94 ▾ | number]; the flag opens a searchable country list (16/11/2026). */}
+                    <PhoneCodePicker
+                      key={activePassengerIdx}
+                      countries={NATIONALITIES}
+                      dial={phoneParts(travelers[activePassengerIdx]).dial}
+                      local={phoneParts(travelers[activePassengerIdx]).local}
+                      onDialChange={handleTravelerPhoneDialChange}
+                      onLocalChange={handleTravelerPhoneLocalChange}
+                      suggestCode={travelers[activePassengerIdx]?.nationality || null}
+                      placeholder="77 123 4567"
+                      invalid={Object.keys(fieldErrorStyle(activePassengerIdx, 'phone') || {}).length > 0
+                        || Object.keys(fieldErrorStyle(activePassengerIdx, 'phone_country_code') || {}).length > 0}
+                    />
                     {renderFieldError(activePassengerIdx, 'phone_country_code')}
                     {renderFieldError(activePassengerIdx, 'phone')}
                   </div>

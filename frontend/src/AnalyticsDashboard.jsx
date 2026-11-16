@@ -663,8 +663,11 @@ function Login({ API_BASE, onSignedIn, notice }) {
   );
 }
 
-export default function AnalyticsDashboard({ API_BASE = '/api' }) {
-  const [token, setToken] = useState(readToken);
+// 16/11/2026, role-based staff logins: one sign-in for the whole admin site.
+// staffToken = the admin site's own sign-in (Admin / Analytics / Staff +
+// Analytics); onStaffSignIn / onStaffSignOut keep the two in step.
+export default function AnalyticsDashboard({ API_BASE = '/api', staffToken = '', onStaffSignIn, onStaffSignOut }) {
+  const [token, setToken] = useState(() => staffToken || readToken());
   const [user, setUser] = useState('');
   const [notice, setNotice] = useState('');
   const [tab, setTab] = useState('overview');
@@ -675,7 +678,8 @@ export default function AnalyticsDashboard({ API_BASE = '/api' }) {
 
   const signOut = useCallback((msg = '') => {
     saveToken(''); setToken(''); setUser(''); setCache({}); setLastSync(null); setNotice(msg);
-  }, []);
+    onStaffSignOut?.();
+  }, [onStaffSignOut]);
 
   const api = useCallback(async (path, opts = {}) => {
     const res = await fetch(`${API_BASE}/analytics${path}`, {
@@ -729,7 +733,7 @@ export default function AnalyticsDashboard({ API_BASE = '/api' }) {
     return (
       <div className="tab-content animate-fade adm an-page">
         <Login API_BASE={API_BASE} notice={notice}
-               onSignedIn={(d) => { saveToken(d.access_token); setNotice(''); setCache({}); setToken(d.access_token); setUser(d.username); }} />
+               onSignedIn={(d) => { saveToken(d.access_token); setNotice(''); setCache({}); setToken(d.access_token); setUser(d.username); onStaffSignIn?.(d.access_token); }} />
       </div>
     );
   }

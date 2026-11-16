@@ -87,11 +87,14 @@ def get_current_analytics_user(credentials: HTTPAuthorizationCredentials = Depen
     payload = auth.decode_staff_token(credentials.credentials)  # admin site only (16/11/2026)
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Your session expired - please sign in again")
-    if payload.get("role") != "analytics":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="An analytics dashboard account is required")
-    row = store.q(f"SELECT active FROM {t('analytics_users')} WHERE id=%s", (payload.get("analytics_user_id"),), one=True)
-    if not row or not row["active"]:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This account is no longer active")
+    # 16/11/2026: one staff login with roles (services/admin_db.py). Admin,
+    # Analytics and Staff + Analytics may open the dashboard.
+    from services import admin_db
+    if not admin_db.can_analytics(payload.get("staff_role")):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Your account does not include the Analytics dashboard")
+    if not auth.staff_session_ok(payload):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This account is no longer active - please sign in again")
     return payload
 
 

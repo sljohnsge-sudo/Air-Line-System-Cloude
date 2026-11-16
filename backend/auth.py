@@ -74,7 +74,7 @@ _admin_seen: dict[tuple, float] = {}
 def _admin_still_exists(payload: dict) -> bool:
     import time
     import database  # local import: database does not import auth
-    key = (payload.get("admin_id"), payload.get("sub"))
+    key = (payload.get("admin_id"), payload.get("sub"), payload.get("staff_role"), payload.get("role"))
     now = time.monotonic()
     if now - _admin_seen.get(key, -1e9) < 60:
         return True
@@ -82,11 +82,24 @@ def _admin_still_exists(payload: dict) -> bool:
         row = database.get_admin_by_username(payload.get("sub") or "")
     except Exception:
         return True  # database briefly unreachable: don't lock staff out
-    if not row or row.get("id") != payload.get("admin_id"):
+    # 16/11/2026 roles: a disabled account, or one whose role was changed,
+    # is signed out (within a minute) and must sign in again.
+    role = row.get("role") if row else None
+    claimed = payload.get("staff_role") or ("staff" if payload.get("role") == "admin" else "analytics")
+    ok = bool(row) and row.get("id") == payload.get("admin_id") and bool(row.get("active", 1)) and (
+        role == claimed if payload.get("staff_role") else
+        (role in ("admin", "staff", "staff_analytics") if payload.get("role") == "admin" else role in ("admin", "analytics", "staff_analytics")))
+    if not ok:
         _admin_seen.pop(key, None)
         return False
     _admin_seen[key] = now
     return True
+
+
+def staff_session_ok(payload: dict) -> bool:
+    """For other modules (analytics): the staff account behind a token is
+    still active with the same role."""
+    return _admin_still_exists(payload)
 
 
 def create_manage_booking_token(locator_code: str, customer_id: int | None) -> str:
@@ -124,7 +137,7 @@ def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(_beare
     if payload.get("role") != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     if not _admin_still_exists(payload):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This staff account no longer exists")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Your staff account was changed or disabled. Please sign in again.")
     return payload
 
 
@@ -177,7 +190,7 @@ def get_admin_or_customer(credentials: HTTPAuthorizationCredentials = Depends(_b
     if payload is None or payload.get("role") not in ("admin", "customer"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
     if payload.get("role") == "admin" and not _admin_still_exists(payload):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This staff account no longer exists")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Your staff account was changed or disabled. Please sign in again.")
     return {
         "role": payload.get("role"),
         "customer_id": payload.get("customer_id"),

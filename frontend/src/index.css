@@ -4429,6 +4429,47 @@ button, input, select, textarea { font-family: inherit; }
   font-size: 0.74rem; font-weight: 700; color: var(--tb-navy, #123b70); cursor: pointer;
 }
 .pax-signin-btn:hover { border-color: var(--tb-navy, #123b70); }
+/* Mobile number field on the Passenger Details step (PhoneCodePicker.jsx):
+   one box [flag +94 ▾ | number], list with search below it. */
+.pcf { position: relative; width: 100%; }
+.pcf-box { display: flex; align-items: stretch; height: 44px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 8px; background: #fff; overflow: hidden; }
+.pcf-box:focus-within, .pcf-open { border-color: var(--tb-navy, #123b70); box-shadow: 0 0 0 3px rgba(18, 59, 112, 0.12); }
+.pcf-invalid { border-color: #dc2626; }
+.pcf-country { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem 0 0.75rem; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 0.92rem; color: #0f172a; white-space: nowrap; }
+.pcf-country:hover { background: #f8fafc; }
+.pcf-dial { font-variant-numeric: tabular-nums; }
+.pcf-caret { color: #475569; font-size: 0.7rem; }
+.pcf-number { flex: 1; min-width: 0; border: 0; outline: 0; padding: 0 0.75rem; font: inherit; font-size: 0.95rem; color: #0f172a; background: transparent; }
+.pcf-number::placeholder { color: #94a3b8; }
+.pcf-flag { font-size: 1.15rem; line-height: 1; }
+.pcf-flag-tag { font-size: 0.66rem; font-weight: 800; color: #334155; background: #e2e8f0; border-radius: 3px; padding: 0.12rem 0.28rem; letter-spacing: 0.02em; }
+.pcf-flag-empty { opacity: 0.6; }
+.pcf-pop { position: absolute; z-index: 60; top: calc(100% + 2px); left: 0; right: 0; max-width: 420px; background: #fff;
+  border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); overflow: hidden; }
+.pcf-search { width: 100%; height: 44px; border: 0; border-bottom: 1px solid #e2e8f0; padding: 0 0.85rem; font: inherit; font-size: 0.95rem; outline: 0; box-sizing: border-box; }
+.pcf-list { list-style: none; margin: 0; padding: 0.25rem 0; max-height: 270px; overflow-y: auto; }
+.pcf-group { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8; padding: 0.5rem 0.85rem 0.25rem; }
+.pcf-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.85rem; cursor: pointer; font-size: 0.95rem; color: #0f172a; }
+.pcf-row .pcf-name { flex: 0 1 auto; }
+.pcf-row-dial { color: #94a3b8; font-variant-numeric: tabular-nums; }
+.pcf-active { background: #eef4fb; }
+.pcf-selected .pcf-name { font-weight: 700; }
+.pcf-empty { padding: 0.75rem 0.85rem; font-size: 0.85rem; color: #64748b; }
+
+/* Google / Microsoft sign-in on the Passenger Details step (16/11/2026) */
+.pax-signin-btn.pax-oauth { display: inline-flex; align-items: center; gap: 0.35rem; color: #0f172a; }
+.pax-oauth-row { display: flex; flex-direction: column; gap: 0.5rem; }
+.pax-oauth-wide {
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem; width: 100%; height: 40px;
+  border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #0f172a;
+  font-size: 0.86rem; font-weight: 600; cursor: pointer;
+}
+.pax-oauth-wide:hover { border-color: var(--tb-navy, #123b70); }
+.pax-oauth-or { display: flex; align-items: center; gap: 0.75rem; color: #94a3b8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+.pax-oauth-or::before, .pax-oauth-or::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+.pax-oauth-note { font-size: 0.74rem; color: #64748b; text-align: center; margin-top: -0.2rem; }
+@media (max-width: 560px) { .pax-signin-btn.pax-oauth span { display: none; } }
 .pax-signin-fill { height: 28px; border: 1px solid #c9d6e8; border-radius: 6px; font-size: 0.74rem; padding: 0 0.4rem; background: #fff; color: #0f172a; max-width: 15rem; }
 .pax-signin-error { font-size: 0.72rem; color: #b91c1c; }
 .pax-signin-note { color: #94a3b8; }
@@ -5331,6 +5372,27 @@ button, input, select, textarea { font-family: inherit; }
 .amb-check { display: flex; gap: 0.45rem; align-items: flex-start; font-size: 0.8rem; color: #9a3412; }
 .amb-fee { width: 110px; padding: 0.25rem 0.4rem; font-size: 0.8rem; }
 .glc-group { margin: 0.9rem 0 0.35rem; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+/* Admin › Staff Users & Roles (AdminStaffUsers.jsx) */
+.su-table-wrap { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 10px; background: #fff; }
+.su-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; min-width: 720px; }
+.su-table th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); background: #f8fafc; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border-color); }
+.su-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+.su-table tr:last-child td { border-bottom: 0; }
+.su-off td { opacity: 0.6; }
+.su-sub { font-size: 0.74rem; color: var(--text-muted); margin-top: 0.15rem; }
+.su-you { margin-left: 0.4rem; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 0.05rem 0.4rem; }
+.su-role { min-width: 160px; }
+.su-state { font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 0.15rem 0.55rem; }
+.su-state.on { color: #166534; background: #dcfce7; } .su-state.off { color: #991b1b; background: #fee2e2; }
+.su-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.su-reset { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+.su-reset .form-input { height: 34px; font-size: 0.8rem; }
+.su-h { font-size: 0.9rem; margin: 1.4rem 0 0.6rem; }
+.su-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; align-items: end; }
+.su-form .form-group { margin-bottom: 0; }
+.su-msg { font-size: 0.82rem; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+.su-legend { margin-top: 1rem; font-size: 0.76rem; color: var(--text-muted); display: grid; gap: 0.2rem; }
+
 /* Admin › Website Contacts & Texts (AdminSiteContent.jsx) */
 .sc-section { padding: 0.4rem 0 1.1rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.6rem; }
 .sc-item textarea.form-input { resize: vertical; line-height: 1.45; font-family: inherit; }

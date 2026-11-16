@@ -10,7 +10,7 @@ import AdminGoLiveControls from './AdminGoLiveControls.jsx';
 import AdminOfflinePayments from './AdminOfflinePayments.jsx';
 import AdminSiteContent from './AdminSiteContent.jsx';
 import AdminAmadeusBookings from './AdminAmadeusBookings.jsx';
-import AdminAnalyticsUsers from './AdminAnalyticsUsers.jsx';
+import AdminStaffUsers from './AdminStaffUsers.jsx';
 import AdminCustomerInterests from './AdminCustomerInterests.jsx';
 
 // Common terminal labels for the Terminal Connections form's From/To
@@ -91,26 +91,17 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
   // is server-side) so the UI can grey out "Approve" on an admin's own
   // pending settings change. The real self-approval block is enforced by
   // the backend regardless of what this shows.
-  const currentAdminId = (() => {
-    try {
-      const payload = JSON.parse(atob(adminToken.split('.')[1]));
-      return payload.admin_id ?? null;
-    } catch {
-      return null;
-    }
+  const tokenPayload = (() => {
+    try { return JSON.parse(atob(adminToken.split('.')[1])); } catch { return {}; }
   })();
+  const currentAdminId = tokenPayload.admin_id ?? null;
+  // Role (16/11/2026, role-based staff logins): only an Admin sees Staff
+  // Users & Roles; the server enforces every rule regardless.
+  const isAdminRole = tokenPayload.staff_role === 'admin';
 
   const [pendingSettingsChanges, setPendingSettingsChanges] = useState([]);
   const [pendingSettingsChangesError, setPendingSettingsChangesError] = useState('');
   const [settingsChangeActionId, setSettingsChangeActionId] = useState(null);
-
-  const [adminsList, setAdminsList] = useState([]);
-  const [adminsError, setAdminsError] = useState('');
-  const emptyNewAdminForm = { username: '', password: '', full_name: '' };
-  const [newAdminForm, setNewAdminForm] = useState(emptyNewAdminForm);
-  const [newAdminSubmitting, setNewAdminSubmitting] = useState(false);
-  const [newAdminError, setNewAdminError] = useState('');
-  const [newAdminMsg, setNewAdminMsg] = useState('');
 
   const [settings, setSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -340,37 +331,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       setPendingSettingsChangesError(err.message);
     } finally {
       setSettingsChangeActionId(null);
-    }
-  };
-
-  const loadAdmins = async () => {
-    setAdminsError('');
-    try {
-      const res = await fetchWithRetry(`${API_BASE}/admin/admins`, { headers: authHeaders });
-      const data = await adminApiResponse(res, 'Failed to load admin accounts');
-      setAdminsList(data.admins || []);
-    } catch (err) {
-      setAdminsError(err.message);
-    }
-  };
-
-  const createAdmin = async (e) => {
-    e.preventDefault();
-    setNewAdminError('');
-    setNewAdminMsg('');
-    setNewAdminSubmitting(true);
-    try {
-      const res = await fetchWithRetry(`${API_BASE}/admin/admins`, {
-        method: 'POST', headers: authHeaders, body: JSON.stringify(newAdminForm),
-      });
-      await adminApiResponse(res, 'Failed to create admin account');
-      setNewAdminMsg(`Admin "${newAdminForm.username}" created.`);
-      setNewAdminForm(emptyNewAdminForm);
-      loadAdmins();
-    } catch (err) {
-      setNewAdminError(err.message);
-    } finally {
-      setNewAdminSubmitting(false);
     }
   };
 
@@ -729,7 +689,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       loadVisaRequirements();
       loadForceIssuedLog();
       loadPendingSettingsChanges();
-      loadAdmins();
       loadTerminalConnections();
     }
   }, [adminToken]);
@@ -1339,7 +1298,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       { id: 'insight-searches', label: 'Search Log', icon: 'list' },
       { id: 'insight-ips', label: 'IP Monitor', icon: 'shield' },
       { id: 'insight-reminders', label: 'Birthdays & Passports', icon: 'gift' },
-      { id: 'analytics-users', label: 'Analytics Logins', icon: 'users' },
     ] },
     { group: 'Commercial', items: [
       { id: 'reports', label: 'Sales Reports', icon: 'chart' },
@@ -1364,7 +1322,8 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       { id: 'settings-approvals', label: 'Change Approvals', icon: 'check', count: pendingSettingsChanges.length },
       { id: 'providers', label: 'Providers & Modules', icon: 'sliders' },
       { id: 'site-content', label: 'Website Contacts & Texts', icon: 'mail' },
-      { id: 'admins', label: 'Staff Accounts', icon: 'key' },
+      // Analytics Logins merged into this page (16/11/2026); Admins only.
+      ...(isAdminRole ? [{ id: 'admins', label: 'Staff Users & Roles', icon: 'key' }] : []),
     ] },
   ];
   const navQuery = adminNavFilter.trim().toLowerCase();
@@ -1607,41 +1566,14 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
       </section>
       )}
 
-      {activeAdminSection === 'admins' && (
+      {activeAdminSection === 'admins' && isAdminRole && (
       <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Staff Accounts</h3>
+        <h3 className="results-heading">Staff Users &amp; Roles</h3>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
-          At least two admin accounts are needed for the Pricing/Loyalty approval workflow above to actually work —
-          otherwise there's no second admin who can approve your changes.
+          Every staff sign-in for the admin site, with its role. Only an Admin can add users, change roles, disable accounts
+          or reset passwords. The Pricing/Loyalty approval workflow needs at least two Admin or Staff users.
         </p>
-        {adminsError && <div className="error-banner">{adminsError}</div>}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
-          {adminsList.map(a => (
-            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.85rem' }}>
-              <span><strong>{a.username}</strong>{a.full_name && ` — ${a.full_name}`}{a.id === currentAdminId && ' (you)'}</span>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Since {fmtDate(a.created_at)}</span>
-            </div>
-          ))}
-        </div>
-
-        <h4 style={{ fontSize: '0.9rem', color: 'var(--gs-dark)', marginBottom: '0.75rem' }}>+ Add Admin</h4>
-        <form onSubmit={createAdmin} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '160px' }}>
-            <label className="form-label">Username *</label>
-            <input className="form-input" required value={newAdminForm.username} onChange={e => setNewAdminForm(f => ({ ...f, username: e.target.value }))} />
-          </div>
-          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '160px' }}>
-            <label className="form-label">Password *</label>
-            <input type="password" className="form-input" required minLength={8} value={newAdminForm.password} onChange={e => setNewAdminForm(f => ({ ...f, password: e.target.value }))} />
-          </div>
-          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '160px' }}>
-            <label className="form-label">Full Name</label>
-            <input className="form-input" value={newAdminForm.full_name} onChange={e => setNewAdminForm(f => ({ ...f, full_name: e.target.value }))} />
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={newAdminSubmitting}>{newAdminSubmitting ? 'Creating…' : 'Create Admin'}</button>
-        </form>
-        {newAdminError && <div className="error-banner" style={{ marginTop: '0.75rem' }}>{newAdminError}</div>}
-        {newAdminMsg && <p style={{ fontSize: '0.8rem', color: '#166534', marginTop: '0.75rem' }}>{newAdminMsg}</p>}
+        <AdminStaffUsers API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
       </section>
       )}
 
@@ -2949,17 +2881,6 @@ export default function AdminPortal({ adminToken, onAdminLogin, onAdminLogout, A
           Find everyone interested in a destination or airline and send them a special offer. Customers who switched it off are never listed.
         </p>
         <AdminCustomerInterests API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
-      </section>
-      )}
-
-      {activeAdminSection === 'analytics-users' && (
-      <section className="search-section glass-panel" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="results-heading">Analytics Logins</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '-0.5rem', marginBottom: '0.8rem' }}>
-          Separate accounts for the business dashboard at /analytics (customers 360, airlines, countries and airports, extras,
-          hotels, visa and tour packages). These accounts cannot open the Admin Console.
-        </p>
-        <AdminAnalyticsUsers API_BASE={API_BASE} adminToken={adminToken} onSessionExpired={onAdminLogout} />
       </section>
       )}
 

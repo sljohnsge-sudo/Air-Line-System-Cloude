@@ -35,6 +35,25 @@ _PASSWORD = os.getenv("ADMIN_MYSQL_PASSWORD", "") if os.getenv("ADMIN_MYSQL_USER
 _pool = None
 _lock = threading.Lock()
 
+# Roles (16/11/2026, role-based staff logins). Only an Admin creates, edits
+# or disables users and changes switches/settings.
+ROLES = {
+    "admin": "Admin",                      # everything: Admin Portal, Analytics, users, switches
+    "staff": "Staff",                      # Admin Portal day-to-day work
+    "analytics": "Analytics",              # Analytics dashboard only
+    "staff_analytics": "Staff + Analytics",
+}
+PORTAL_ROLES = ("admin", "staff", "staff_analytics")
+ANALYTICS_ROLES = ("admin", "analytics", "staff_analytics")
+
+
+def can_portal(role: str | None) -> bool:
+    return role in PORTAL_ROLES
+
+
+def can_analytics(role: str | None) -> bool:
+    return role in ANALYTICS_ROLES
+
 
 def _conn():
     global _pool
@@ -86,10 +105,69 @@ def _setup() -> None:
         if cur.fetchone()[0] == 0:
             cur.execute("INSERT IGNORE INTO super_admins (admin_id) SELECT id FROM admins WHERE username='admin'")
             c.commit()
+        _add_role_columns(cur)
+        c.commit()
+        cur.execute("CREATE TABLE IF NOT EXISTS admin_meta (k VARCHAR(60) PRIMARY KEY, v VARCHAR(255))")
+        cur.execute("SELECT v FROM admin_meta WHERE k='analytics_users_moved'")
+        if not cur.fetchone():
+            _move_analytics_users(cur)
+            cur.execute("INSERT INTO admin_meta (k, v) VALUES ('analytics_users_moved', NOW())")
+        c.commit()
     finally:
         cur.close()
         c.close()
     _loosen_main_links()
+
+
+def _has_column(cur, column: str) -> bool:
+    cur.execute("""SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+                   AND TABLE_NAME='admins' AND COLUMN_NAME=%s""", (column,))
+    return cur.fetchone()[0] > 0
+
+
+def _add_role_columns(cur) -> None:
+    """role / active / who-changed-what on staff accounts. When the role
+    column is first added, super admins become Admin and everyone else Staff."""
+    if not _has_column(cur, "role"):
+        cur.execute("ALTER TABLE admins ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'staff' AFTER full_name")
+        cur.execute("UPDATE admins SET role='admin' WHERE id IN (SELECT admin_id FROM super_admins)")
+        logger.warning("Staff accounts: roles added (super admins -> Admin, other staff -> Staff)")
+    for col, ddl in (("active", "TINYINT(1) NOT NULL DEFAULT 1"), ("created_by", "VARCHAR(100) NULL"),
+                     ("updated_by", "VARCHAR(100) NULL"), ("last_login_at", "DATETIME NULL")):
+        if not _has_column(cur, col):
+            cur.execute(f"ALTER TABLE admins ADD COLUMN {col} {ddl}")
+
+
+def _move_analytics_users(cur) -> None:
+    """Once: the separate Analytics dashboard logins (analytics database)
+    become staff accounts with the Analytics role, same username, password and
+    active state. A username that is already a staff account gets the
+    combined role instead (Staff -> Staff + Analytics; Admin stays Admin)."""
+    try:
+        from services import analytics_sync as store
+        from services.analytics_sync import t
+        rows = store.q(f"SELECT username, password_hash, full_name, active, created_at, created_by "
+                       f"FROM {t('analytics_users')}") or []
+    except Exception as e:
+        logger.warning(f"Analytics logins not moved (analytics database not readable): {e}")
+        return
+    moved = merged = 0
+    for r in rows:
+        cur.execute("SELECT id, role FROM admins WHERE username=%s", (r["username"],))
+        hit = cur.fetchone()
+        if hit:
+            if hit[1] == "staff":
+                cur.execute("UPDATE admins SET role='staff_analytics' WHERE id=%s", (hit[0],))
+                merged += 1
+            continue
+        cur.execute("INSERT INTO admins (username, password_hash, full_name, role, active, created_at, created_by) "
+                    "VALUES (%s,%s,%s,'analytics',%s,%s,%s)",
+                    (r["username"], r["password_hash"], r["full_name"], 1 if r["active"] else 0,
+                     r["created_at"], r.get("created_by")))
+        moved += 1
+    if rows:
+        logger.warning(f"Analytics logins moved to staff accounts: {moved} new (Analytics role), "
+                       f"{merged} existing staff now Staff + Analytics")
 
 
 def _copy_from_main(cur) -> None:
@@ -188,7 +266,45 @@ def get_admin_by_username(username: str) -> dict | None:
 
 def list_admins() -> list[dict]:
     """Never includes password_hash."""
-    return _all("SELECT id, username, full_name, created_at FROM admins ORDER BY created_at")
+    return _all("SELECT id, username, full_name, role, active, created_at, created_by, updated_at, updated_by, "
+                "last_login_at FROM admins ORDER BY active DESC, username")
+
+
+def get_admin_by_id(admin_id) -> dict | None:
+    return _one("SELECT * FROM admins WHERE id=%s", (admin_id,))
+
+
+def create_user(username: str, password_hash: str, full_name: str | None, role: str, by: str | None) -> int:
+    c = _conn()
+    cur = c.cursor()
+    try:
+        cur.execute("INSERT INTO admins (username, password_hash, full_name, role, active, created_by) "
+                    "VALUES (%s,%s,%s,%s,1,%s)", (username, password_hash, full_name, role, by))
+        c.commit()
+        return cur.lastrowid
+    finally:
+        cur.close()
+        c.close()
+
+
+def update_user(admin_id: int, by: str | None, **fields) -> int:
+    allowed = {k: v for k, v in fields.items() if k in ("full_name", "role", "active", "password_hash") and v is not None}
+    if not allowed:
+        return 0
+    sets = ", ".join(f"{k}=%s" for k in allowed)
+    return _write(f"UPDATE admins SET {sets}, updated_by=%s WHERE id=%s", (*allowed.values(), by, admin_id))
+
+
+def active_admin_count() -> int:
+    row = _one("SELECT COUNT(*) AS n FROM admins WHERE role='admin' AND active=1")
+    return int(row["n"]) if row else 0
+
+
+def record_login(admin_id: int) -> None:
+    try:
+        _write("UPDATE admins SET last_login_at=NOW() WHERE id=%s", (admin_id,))
+    except Exception:
+        pass
 
 
 def usernames_by_id(ids) -> dict:
@@ -200,6 +316,8 @@ def usernames_by_id(ids) -> dict:
 
 
 def is_super_admin(admin_id) -> bool:
+    """Since 16/11/2026: an active account with the Admin role (the old
+    super_admins list was turned into that role)."""
     if not admin_id:
         return False
-    return _one("SELECT 1 AS ok FROM super_admins WHERE admin_id=%s", (admin_id,)) is not None
+    return _one("SELECT 1 AS ok FROM admins WHERE id=%s AND role='admin' AND active=1", (admin_id,)) is not None

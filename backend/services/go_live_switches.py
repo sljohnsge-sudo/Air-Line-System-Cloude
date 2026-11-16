@@ -160,15 +160,11 @@ def is_super_admin(admin_id) -> bool:
 
 
 def can_change(admin_id) -> bool:
-    """Who may change the switches (go-live, payment methods, void/refund):
-    a super admin always; every staff account while all_admins_can_switch is
-    on (the owner's choice for now)."""
-    if is_super_admin(admin_id):
-        return True
-    try:
-        return bool(admin_id) and get().get("all_admins_can_switch", True)
-    except Exception:
-        return False
+    """Who may change the switches (go-live, payment methods, void/refund,
+    website texts): accounts with the Admin role only (16/11/2026, role-based
+    staff logins — Staff do day-to-day work but don't change settings). The
+    old all_admins_can_switch setting no longer widens this."""
+    return is_super_admin(admin_id)
 
 
 def update(values: dict, admin_username: str | None) -> dict:
