@@ -994,11 +994,14 @@ def _notify_cancel_failure(locator_code: str, error_message: str, recorded_statu
         logger.error(f"Failed to log stuck_booking_notifications row: {db_err}")
 
 
-def _require_switch(name: str) -> None:
-    """Super-admin go-live switch (services/go_live_switches.py). Only ever
-    called BEFORE a customer pays — a paid booking is never blocked."""
+def _require_switch(name: str, after_payment: bool = False) -> None:
+    """Super-admin go-live switch (services/go_live_switches.py). With
+    after_payment=True it guards a ticket/EMD issue step: it must run BEFORE
+    the payment is claimed, so a refused payment can be used once ticketing
+    is back on."""
     if not go_live_switches.is_on(name):
-        raise HTTPException(status_code=503, detail=go_live_switches.CUSTOMER_MESSAGES[name])
+        detail = go_live_switches.PAID_TICKETING_PAUSED if after_payment else go_live_switches.CUSTOMER_MESSAGES[name]
+        raise HTTPException(status_code=503, detail=detail)
 
 
 @app.post("/api/flights/search")
@@ -1335,6 +1338,7 @@ async def amadeus_booking_issue_ticket(locator: str, _admin: dict = Depends(auth
     # bank / cash payment step yet, so a customer-side call here would issue
     # a ticket with no payment confirmed. Until that step exists, only a
     # signed-in staff member can issue an Amadeus ticket.
+    await asyncio.to_thread(_require_switch, "ticketing_enabled")
     try:
         return await services.issue_amadeus_ticket(locator)
     except services.AmadeusBookingError as e:
@@ -1951,6 +1955,7 @@ def amadeus_pay_ticket(locator: str, request: AmadeusPayTicketRequest):
                 "totalFare": row["amount"], "currency": row["currency"]}
     if row["status"] == "failed":
         raise HTTPException(status_code=409, detail=_paid_not_ticketed_message(ad_bookings.REF_PREFIX + loc))
+    _require_switch("ticketing_enabled", after_payment=True)
     payment_result = _verify_and_claim_payment(
         request.reqid, expected_client_ref=ad_bookings.REF_PREFIX + loc, locator_code=loc,
         expected_amount=row["amount"], expected_currency=row["currency"])
@@ -3024,6 +3029,7 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
         logger.info(f"Issue-ticket for {locator_code} called again — already ticketed (#{existing['ticket_number']}), returning the existing ticket instead of re-issuing.")
         return {"success": True, "ticket": existing, "cached_id": existing.get("id"), "already_issued": True}
 
+    _require_switch("ticketing_enabled", after_payment=True)
     if not request.reqid:
         logger.warning(f"Ticket issuance refused for {locator_code} — no PayCorp payment reference.")
         raise HTTPException(status_code=402, detail=PAYMENT_REQUIRED_DETAIL)
@@ -3636,6 +3642,8 @@ def ndc_instant_pay_complete(request: NdcInstantPayCompleteRequest):
     done = already_handled()
     if done:
         return done
+    _require_switch("pnr_create_enabled", after_payment=True)
+    _require_switch("ticketing_enabled", after_payment=True)
     # The paid amount must equal the server-side amount fixed at /api/ndc/book
     # (Travelport's priced fare + markup), for this pending booking, once.
     payment_result = _verify_and_claim_payment(
@@ -4790,6 +4798,7 @@ def payments_init(request: PaymentInitRequestBody):
             amount, currency = pending["amount"], pending["currency"]
         elif addon:
             # Manage My Booking add-on: amount fixed when the seats/extras were booked.
+            _require_switch("ticketing_enabled")  # paid seats/extras = EMDs, issued like tickets
             if addon["status"] != "awaiting_payment":
                 raise HTTPException(status_code=409, detail="This add-on has already been paid or closed.")
             # Never take payment for an item already released or no longer
@@ -5487,6 +5496,9 @@ def admin_confirm_offline_payment(payment_id: int, body: OfflinePaymentConfirmRe
         raise HTTPException(status_code=404, detail="Payment not found.")
     if p["status"] != "awaiting":
         raise HTTPException(status_code=409, detail=f"This payment is already {p['status']}.")
+    if not go_live_switches.is_on("ticketing_enabled"):
+        raise HTTPException(status_code=503, detail="Issue tickets is switched off (Go-live controls), so this ticket "
+                                                    "can't be issued now. Turn it on, then confirm this payment again.")
     if body.received_amount + 0.5 < float(p["amount"]):
         raise HTTPException(status_code=400, detail=f"Received {p['currency']} {body.received_amount:,.2f} is less than "
                                                     f"the booking total {p['currency']} {float(p['amount']):,.2f}. Ticket not issued.")
@@ -6623,6 +6635,8 @@ def manage_booking_complete_payment(request: AddonPaymentCompleteRequest, curren
     addon = database.get_addon_payment(request.addon_id)
     if not addon or addon.get("customer_id") != current["customer_id"]:
         raise HTTPException(status_code=404, detail="Payment not found.")
+    if addon["status"] == "awaiting_payment":
+        _require_switch("ticketing_enabled", after_payment=True)
     locator = addon["locator_code"]
     # So the portal can open the paid invoice and show the booking (with the
     # new extras and EMDs) straight after payment: the customer's own

@@ -1,18 +1,18 @@
 // Admin › Providers & Modules › Go-live controls (11/11/2026). Super-admin
 // switches for go-live testing: flight search, creating new bookings (PNR),
-// issuing tickets, and staff void/refund. Every switch only stops a customer
-// BEFORE they pay — a paid booking is always completed
-// (backend services/go_live_switches.py).
+// issuing tickets, and staff void/refund. The first three are one ladder
+// (16/11/2026): each step turns on the steps below it and off the steps above
+// it, and the server enforces it (backend services/go_live_switches.py).
 import { useCallback, useEffect, useState } from 'react';
 import { fmtDateTime } from './dateFormat.js';
 
 const ROWS = [
-  { key: 'flight_search_enabled', label: 'Flight search results',
-    desc: 'Customers can search flights. Off: the search page says flight search is paused.' },
-  { key: 'pnr_create_enabled', label: 'Create bookings (PNR)',
-    desc: 'Customers can make a new booking. Off: stopped before any booking is made or anything is charged.' },
-  { key: 'ticketing_enabled', label: 'Issue tickets',
-    desc: 'Customers can pay for and receive tickets. Off: stopped at the payment step, so nobody pays for a ticket that won’t be issued. Bookings already paid for still get their ticket.' },
+  { key: 'flight_search_enabled', label: 'Step 1 · Flight search results',
+    desc: 'Search and show results only. Off: the search page says flight search is paused, and steps 2 and 3 turn off too.' },
+  { key: 'pnr_create_enabled', label: 'Step 2 · Create bookings (PNR)',
+    desc: 'Search, then create the PNR and stop. The payment page never opens and no ticket is issued. Turning this on also turns on step 1; turning it off also turns off step 3.' },
+  { key: 'ticketing_enabled', label: 'Step 3 · Issue tickets',
+    desc: 'The full flow: search, PNR, payment page, payment confirmation and ticket. Turning this on also turns on steps 1 and 2. Off: no ticket or paid seat/extra (EMD) is issued by any route, including bank/cash confirmation.' },
   { key: 'ticketed_cancel_enabled', label: 'Void & refund ticketed bookings',
     desc: 'Staff can void or refund a ticketed booking (All Bookings and Cancellation Requests). Cancelling a held booking always works.' },
   { key: 'amadeus_cancel_enabled', label: 'Amadeus: cancel bookings', group: 'Amadeus bookings (Operations › Amadeus Bookings)',

@@ -4,9 +4,11 @@ bookings (PNRs) and ticketing on or off while go-live testing, and the staff
 void/refund switch (provider_settings.ticketed_cancel_enabled, which already
 existed) — only a super admin may change them.
 
-Every switch only ever stops a customer BEFORE they pay: search, creating a
-new booking, and starting a payment for a flight ticket. A customer who has
-already paid is never blocked — their booking and ticket go ahead as usual.
+16/11/2026: the three are linked as a ladder for testing on live (search
+only -> + create PNR -> + ticketing) and are strict: with ticketing off no
+ticket or EMD is issued by any route (card, Emirates Instant Pay, bank/cash
+confirm, seats/extras, Amadeus). A payment made in the moment before the
+switch went off is not used, so the customer finishes once it is back on.
 
 All switches default ON (and void/refund keeps its current value), so turning
 this in changes nothing until a super admin flips one. Own tables, created on
@@ -26,6 +28,19 @@ SWITCHES = {
     "pnr_create_enabled": "Create new bookings (PNR)",
     "ticketing_enabled": "Issue tickets (take payment for new tickets)",
 }
+
+# Order matters: each step needs every step before it (see update()).
+LADDER = ("flight_search_enabled", "pnr_create_enabled", "ticketing_enabled")
+
+# Steps that fail CLOSED (treated as off) when the switches can't be read,
+# so a database hiccup during a live test never creates a PNR or a ticket.
+FAIL_CLOSED = ("pnr_create_enabled", "ticketing_enabled")
+
+# Shown when a ticket / EMD would be issued after a payment while ticketing
+# is off: the payment is not used, so the same step can be repeated later.
+PAID_TICKETING_PAUSED = ("Ticketing is paused for a short while, so your ticket has not been issued yet. "
+                         "Your payment has not been used: please do not pay again. Open this booking again "
+                         "a little later to finish, or contact us.")
 
 CUSTOMER_MESSAGES = {
     "flight_search_enabled": "Flight search is paused for a short while. Please try again later.",
@@ -124,13 +139,14 @@ def get() -> dict:
 
 
 def is_on(name: str) -> bool:
-    """Fails open: if the switches can't be read, nothing is blocked (the
-    system keeps working exactly as before)."""
+    """Flight search fails open (if the switches can't be read, search keeps
+    working); creating PNRs and ticketing fail closed (FAIL_CLOSED)."""
     try:
         return get().get(name, True)
     except Exception as e:
-        logger.warning(f"Go-live switch {name} could not be read ({e}) — treating it as ON")
-        return True
+        closed = name in FAIL_CLOSED
+        logger.warning(f"Go-live switch {name} could not be read ({e}) — treating it as {'OFF' if closed else 'ON'}")
+        return not closed
 
 
 def staff_switch_on(name: str) -> bool:
@@ -176,6 +192,14 @@ def update(values: dict, admin_username: str | None) -> dict:
     try:
         cols = {k: (1 if values[k] else 0) for k in (*SWITCHES, *AMADEUS_SWITCHES, "all_admins_can_switch")
                 if k in values and values[k] is not None}
+        # 16/11/2026: the three customer switches are one ladder for live
+        # testing — search only -> + create PNR (stops before payment) -> +
+        # ticketing (full flow). Turning a step on turns on every step below
+        # it; turning a step off turns off every step above it.
+        for i, key in enumerate(LADDER):
+            if key in cols:
+                for other in (LADDER[:i] if cols[key] else LADDER[i + 1:]):
+                    cols[other] = cols[key]
         if cols:
             sets = ", ".join(f"{k}=%s" for k in cols)
             cur.execute(f"UPDATE go_live_controls SET {sets}, updated_by=%s WHERE id=1", (*cols.values(), admin_username))
