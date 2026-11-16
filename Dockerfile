@@ -25,7 +25,9 @@ COPY frontend/ ./
 RUN if [ "$SITE" = "admin" ]; then npm run build:admin && mv dist-admin /out; else npm run build && mv dist /out; fi
 
 # ---- Stage 2: API + nginx -------------------------------------------------
-FROM python:3.11-slim-bookworm
+# Debian 13 (trixie): Debian 12 no longer gets fixes for nginx and several
+# base libraries (security scan 16/11/2026); Debian 13 has them.
+FROM python:3.11-slim-trixie
 ARG SITE=public
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="tickandbook-${SITE}" \
@@ -39,14 +41,22 @@ ENV PYTHONUNBUFFERED=1 \
     APP_MODE=${SITE} \
     MYSQL_HOST=host.docker.internal
 
+# Latest Debian security updates, then nginx.
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends nginx \
  && rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled/default
 
-# Backend: Python packages, then the code
+# Backend: Python packages (exact versions, backend/requirements.txt), then the
+# code. pip, setuptools and wheel are only needed to install, so they are
+# removed afterwards: nothing in the running app uses them, and the scanner
+# flagged old copies bundled inside them.
 WORKDIR /app/backend
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+ && pip uninstall -y setuptools wheel \
+ && python -m pip uninstall -y pip \
+ && rm -rf /usr/local/lib/python3.11/ensurepip
 COPY backend/ ./
 
 # Frontend: the built site from stage 1
