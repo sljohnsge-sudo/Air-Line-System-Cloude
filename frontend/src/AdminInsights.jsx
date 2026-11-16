@@ -98,6 +98,7 @@ function Journeys({ api, openJourneyId, onOpened }) {
                   <td>{money(r.amount, r.currency)}</td>
                   <td><span className={`ins-pill ${r.status}`}>{STATUS_LABEL[r.status] || r.status}</span></td>
                   <td>{r.status === 'failed' ? r.failed_step : r.status === 'ticketed' ? (r.locator_code || '') : r.last_step}
+                    {r.status !== 'ticketed' && r.locator_code && <div className="ins-sub">PNR <span className="ins-mono">{r.locator_code}</span> held</div>}
                     {r.status === 'failed' && r.why_failed && <div className="ins-why-short">{r.why_failed}</div>}</td>
                   <td className="ins-mono">{r.ip}</td>
                 </tr>

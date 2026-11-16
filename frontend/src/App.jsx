@@ -1569,6 +1569,11 @@ export default function App() {
   const headerRef = useRef(null);
   const topbarRef = useRef(null);
   const confirmBookingInFlightRef = useRef(false);
+  // 16/11/2026: the PNR already held for this exact flight, fare, passengers
+  // and seats/extras ({key, ticket}). Pressing Pay again (e.g. after "ticketing
+  // is paused" or a failed payment start) reuses it instead of booking a new
+  // PNR each time — one test journey had made 3 PNRs for the same flight.
+  const heldBookingRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(67);
   const [topbarHeight, setTopbarHeight] = useState(66);
 
@@ -3476,6 +3481,33 @@ export default function App() {
       return;
     }
 
+    // Same flight, fare, passengers and seats/extras as the PNR already held
+    // on this page? Then go straight to payment with that PNR.
+    const heldKey = JSON.stringify([selectedFlight.raw_offering, selectedFlight.price, travelers, selectedSeats, selectedAncillaries]);
+    const held = heldBookingRef.current && heldBookingRef.current.key === heldKey ? heldBookingRef.current.ticket : null;
+    if (held) {
+      try {
+        await payForHeldBooking(held);
+      } catch (err) {
+        // 503 = paused or busy for a moment: keep the PNR for the next try.
+        // Anything else (booking no longer held, fare changed...): forget
+        // it, so the next press makes a fresh booking.
+        if (err.status && err.status !== 503) heldBookingRef.current = null;
+        if (isFareChangedError(err)) {
+          setBookingStep('review');
+          recheckFare(err.message, 'confirm', airlinePriceOf(err));
+          return;
+        }
+        const errMsg = err.message || String(err);
+        setBookingError(errMsg);
+        setBookingStep('review');
+        showNotification(errMsg, 'error');
+      } finally {
+        confirmBookingInFlightRef.current = false;
+      }
+      return;
+    }
+
     try {
       // Always pass raw_offering so the backend can create a FRESH workbench at
       // commit time. This fixes the "WORKBENCH ID IS NOT VALID" (error 8506)
@@ -3501,6 +3533,7 @@ export default function App() {
 
       const data = await handleApiResponse(res, 'Booking failed');
       const pnrTicket = data.ticket; // PNR confirmed on Travelport — not yet ticketed
+      heldBookingRef.current = null;
 
       // The airline dropped or hasn't confirmed a flight (e.g. HX): the
       // ticket couldn't be issued, so never send the customer to payment.
@@ -3519,8 +3552,12 @@ export default function App() {
         setBookingStep('addons_result');
         return;
       }
+      heldBookingRef.current = { key: heldKey, ticket: pnrTicket };
       await payForHeldBooking(pnrTicket);
     } catch (err) {
+      // Payment start refused for good (not 503 paused/busy): forget the held
+      // PNR so the next press books afresh.
+      if (err.status && err.status !== 503) heldBookingRef.current = null;
       if (isScheduleBlockedError(err)) {
         setBookingStep('review');
         setFareRecheck({ state: 'schedule', message: err.message });

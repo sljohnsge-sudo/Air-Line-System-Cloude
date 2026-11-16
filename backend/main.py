@@ -2889,6 +2889,15 @@ def confirm_booking(request: BookingConfirmRequest, customer_id: Optional[int] =
         # Save to local MySQL cache
         saved = database.save_booking(ticket)
 
+        # 16/11/2026: show the held PNR in Admin > Booking Journeys as soon as
+        # it exists (before, it appeared only once a ticket was issued, so a
+        # PNR-only test on the go-live switches never showed it).
+        held = ticket.get("locator_code")
+        if held:
+            insights.mark("PNR held", "pass", f"PNR {held} held, not ticketed"
+                          + (f" · {ticket.get('currency')} {float(ticket['total_fare']):,.2f}" if ticket.get("total_fare") else ""))
+            insights.journey_info(locator_code=held)
+
         return {
             "success": True,
             "ticket": ticket,
@@ -4816,7 +4825,7 @@ def payments_init(request: PaymentInitRequestBody):
                 database.set_addon_payment_started(addon["addon_id"], None)
             amount, currency = addon["amount"], addon["currency"]
         elif booking and not booking.get("ticket_number") and booking.get("total_fare"):
-            _require_switch("ticketing_enabled")  # go-live switch: before the customer pays
+            _require_switch("ticketing_enabled")  # go-live switch: before the customer pays (PNR shown to staff only, in Booking Journeys)
             _require_card_enabled()
             booking = _held_booking_ready_to_pay(ref.upper(), booking)
             amount, currency = float(booking["total_fare"]), booking.get("currency") or currency
