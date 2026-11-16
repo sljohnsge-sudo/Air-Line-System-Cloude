@@ -46,7 +46,9 @@ services:
     ports:
       # FRONTEND_BIND=127.0.0.1 once the HTTPS front door on this server is
       # the only way in (deploy/README.md); default open for LAN testing.
-      - "${FRONTEND_BIND:-0.0.0.0}:5176:80"
+      # SITE_PORT / ADMIN_PORT: 5176 / 5177 by default (the server);
+      # deploy/local-test.bat uses 8176 / 8177 so the dev servers can run too.
+      - "${FRONTEND_BIND:-0.0.0.0}:${SITE_PORT:-5176}:80"
     environment:
       - MYSQL_HOST=host.docker.internal
       - APP_MODE=public
@@ -63,7 +65,7 @@ services:
     image: ${DOCKERHUB_USERNAME:-tickbook}/airline-admin:latest
     container_name: airline_admin
     ports:
-      - "${FRONTEND_BIND:-0.0.0.0}:5177:80"
+      - "${FRONTEND_BIND:-0.0.0.0}:${ADMIN_PORT:-5177}:80"
     environment:
       - MYSQL_HOST=host.docker.internal
       - APP_MODE=admin

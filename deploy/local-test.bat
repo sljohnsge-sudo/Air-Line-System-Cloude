@@ -3,8 +3,10 @@ title Tick and Book - local Docker test
 REM Starts the two images on this laptop the right way (docker compose, with
 REM backend\.env and MySQL on this PC), waits until both are healthy and opens
 REM both sites. Stop them with deploy\local-stop.bat.
-REM   website  http://localhost:5176   (image tickbook/airline-site)
-REM   admin    http://localhost:5177   (image tickbook/airline-admin)
+REM   website  http://localhost:8176   (image tickbook/airline-site)
+REM   admin    http://localhost:8177   (image tickbook/airline-admin)
+REM Ports 8176/8177 so the normal local system (start_all.bat: 5176/5177)
+REM can run at the same time. On the server the images use 5176/5177.
 cd /d "%~dp0.."
 
 docker info >nul 2>&1
@@ -27,13 +29,17 @@ if not exist "backend\.env" (
     exit /b 1
 )
 
+REM Remove leftovers started with Docker Desktop's Run button (no settings).
+powershell -NoProfile -Command "docker ps -a --filter ancestor=tickbook/airline-site:latest --filter ancestor=tickbook/airline-admin:latest --format '{{.Names}}' | Where-Object { $_ -notin 'airline_site','airline_admin' } | ForEach-Object { docker rm -f $_ | Out-Null; Write-Host ('[INFO] Removed ' + $_ + ' (started with the Run button, no settings)') }"
+
 set DOCKERHUB_USERNAME=tickbook
-echo [INFO] Starting airline_site and airline_admin ...
+set SITE_PORT=8176
+set ADMIN_PORT=8177
+echo [INFO] Starting airline_site (8176) and airline_admin (8177) ...
 docker compose up -d --no-build --pull never
 if errorlevel 1 (
     echo.
-    echo [ERROR] Could not start. If it says "port is already allocated", the dev servers
-    echo         from start_all.bat are using 5176/5177 - close those windows first.
+    echo [ERROR] Could not start - see the message above.
     pause
     exit /b 1
 )
@@ -48,13 +54,13 @@ if errorlevel 1 (
 )
 
 docker compose ps
-start "" http://localhost:5176
-start "" http://localhost:5177
+start "" http://localhost:8176
+start "" http://localhost:8177
 echo.
-echo [OK] Website  http://localhost:5176
-echo [OK] Admin    http://localhost:5177
+echo [OK] Docker test   website http://localhost:8176   admin http://localhost:8177
+echo      Local system  website http://localhost:5176   admin http://localhost:5177  (start_all.bat)
 echo.
-echo Playwright checks (read-only):
-echo     powershell -ExecutionPolicy Bypass -File deploy\run-smoke.ps1
+echo Playwright checks (read-only) on the Docker test:
+echo     powershell -ExecutionPolicy Bypass -File deploy\run-smoke.ps1 -SiteUrl http://host.docker.internal:8176 -AdminUrl http://host.docker.internal:8177
 echo Stop:  deploy\local-stop.bat
 pause

@@ -50,8 +50,8 @@ The Run button starts the image without `backend/.env` and without
 stops. Since 16/11 the image then says so plainly in its log ("started WITHOUT its settings")
 instead of a MySQL error.
 
-Easiest: double-click **`deploy\local-test.bat`** (starts both, waits until healthy, opens both
-sites) and **`deploy\local-stop.bat`** to stop. The same by hand:
+Easiest: double-click **`deploy\local-test.bat`** (starts both on **8176** / **8177**, waits until healthy,
+opens both sites; the normal local system from start_all.bat keeps 5176 / 5177, so both can run) and **`deploy\local-stop.bat`** to stop. The same by hand:
 
 ```
 docker compose up -d --no-build        # start both (website http://localhost:5176, admin http://localhost:5177)
@@ -60,8 +60,8 @@ docker compose logs -f airline_site    # watch the website's log (Ctrl+C to stop
 docker compose down                    # stop both
 ```
 
-XAMPP MySQL must be running, and the dev servers (start_all.bat) must be stopped first: they use
-the same ports 5176/5177.
+XAMPP MySQL must be running. By hand, the default ports are 5176/5177 (as on the server); to run
+next to the dev servers use `SITE_PORT=8176 ADMIN_PORT=8177` like local-test.bat.
 
 ## 2. Server requirements (once)
 
