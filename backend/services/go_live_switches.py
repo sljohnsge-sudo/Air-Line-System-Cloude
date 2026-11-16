@@ -6,8 +6,9 @@ existed) — only a super admin may change them.
 
 16/11/2026: the three are linked as a ladder for testing on live (search
 only -> + create PNR -> + ticketing) and are strict: with ticketing off no
-ticket or EMD is issued by any route (card, Emirates Instant Pay, bank/cash
-confirm, seats/extras, Amadeus). A payment made in the moment before the
+flight ticket is issued by any route (card, Emirates Instant Pay, bank/cash
+confirm, Amadeus). Paid seats/extras (EMDs) in Manage My Booking are not
+covered: they have their own checks there. A payment made in the moment before the
 switch went off is not used, so the customer finishes once it is back on.
 
 All switches default ON (and void/refund keeps its current value), so turning

@@ -4798,7 +4798,6 @@ def payments_init(request: PaymentInitRequestBody):
             amount, currency = pending["amount"], pending["currency"]
         elif addon:
             # Manage My Booking add-on: amount fixed when the seats/extras were booked.
-            _require_switch("ticketing_enabled")  # paid seats/extras = EMDs, issued like tickets
             if addon["status"] != "awaiting_payment":
                 raise HTTPException(status_code=409, detail="This add-on has already been paid or closed.")
             # Never take payment for an item already released or no longer
@@ -6635,8 +6634,6 @@ def manage_booking_complete_payment(request: AddonPaymentCompleteRequest, curren
     addon = database.get_addon_payment(request.addon_id)
     if not addon or addon.get("customer_id") != current["customer_id"]:
         raise HTTPException(status_code=404, detail="Payment not found.")
-    if addon["status"] == "awaiting_payment":
-        _require_switch("ticketing_enabled", after_payment=True)
     locator = addon["locator_code"]
     # So the portal can open the paid invoice and show the booking (with the
     # new extras and EMDs) straight after payment: the customer's own

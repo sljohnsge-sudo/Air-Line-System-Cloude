@@ -12,7 +12,7 @@ const ROWS = [
   { key: 'pnr_create_enabled', label: 'Step 2 · Create bookings (PNR)',
     desc: 'Search, then create the PNR and stop. The payment page never opens and no ticket is issued. Turning this on also turns on step 1; turning it off also turns off step 3.' },
   { key: 'ticketing_enabled', label: 'Step 3 · Issue tickets',
-    desc: 'The full flow: search, PNR, payment page, payment confirmation and ticket. Turning this on also turns on steps 1 and 2. Off: no ticket or paid seat/extra (EMD) is issued by any route, including bank/cash confirmation.' },
+    desc: 'The full flow: search, PNR, payment page, payment confirmation and ticket. Turning this on also turns on steps 1 and 2. Off: no flight ticket is issued by any route, including bank/cash confirmation. Paid seats and extras in Manage My Booking follow their own rules.' },
   { key: 'ticketed_cancel_enabled', label: 'Void & refund ticketed bookings',
     desc: 'Staff can void or refund a ticketed booking (All Bookings and Cancellation Requests). Cancelling a held booking always works.' },
   { key: 'amadeus_cancel_enabled', label: 'Amadeus: cancel bookings', group: 'Amadeus bookings (Operations › Amadeus Bookings)',
