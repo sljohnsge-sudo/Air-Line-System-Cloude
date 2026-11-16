@@ -217,13 +217,64 @@ def _ticket_field(booking: dict) -> str:
     return ", ".join(nums)[:140] or (booking.get("ticket_number") or "")
 
 
-def push_booking_to_erp(booking: dict) -> str:
-    """Creates a Sales Invoice in the ERP for one ticketed booking.
+# Optional delivery warehouse for Sales Order lines whose item is a stock item
+# (ERPNext refuses to submit a Sales Order without one). Empty = whatever the
+# item's/company's defaults give.
+ERP_WAREHOUSE = os.getenv("ERP_WAREHOUSE", "")
+
+
+def _clean_mapped(doc: dict) -> dict:
+    """A document returned by an ERPNext "make_..." mapper is an unsaved draft
+    with temporary names (new-sales-order-xxx); drop those so it inserts as new."""
+    drop = {"name", "__islocal", "__unsaved", "__onload", "creation", "modified", "owner", "modified_by"}
+    out = {k: v for k, v in doc.items() if k not in drop}
+    for k, v in out.items():
+        if isinstance(v, list):
+            out[k] = [{ck: cv for ck, cv in row.items() if ck not in drop | {"parent"}}
+                      if isinstance(row, dict) else row for row in v]
+    return out
+
+
+def _insert(client: httpx.Client, doctype: str, doc: dict, submit: bool, locator: str) -> str:
+    """Inserts (and, with submit, submits) one document; returns its name.
+    Saved as a draft first and then submitted the way ERPNext's own screens do
+    it — inserting straight with docstatus=1 skips the status update, leaving
+    a submitted document showing "Draft"."""
+    resp = client.post(f"{ERP_BASE_URL}/api/resource/{doctype}", json={**doc, "docstatus": 0})
+    if resp.status_code >= 400:
+        raise ErpSyncError(f"ERP {doctype} create failed ({resp.status_code}) for {locator}: {resp.text[:500]}")
+    saved = resp.json()["data"]
+    if submit:
+        resp = client.post(f"{ERP_BASE_URL}/api/method/frappe.client.submit", json={"doc": saved})
+        if resp.status_code >= 400:
+            raise ErpSyncError(f"ERP {doctype} {saved['name']} submit failed ({resp.status_code}) "
+                               f"for {locator}: {resp.text[:500]}")
+    return saved["name"]
+
+
+def _map(client: httpx.Client, method: str, source_name: str, locator: str) -> dict:
+    """Runs one of ERPNext's own document mappers (Quotation -> Sales Order,
+    Sales Order -> Sales Invoice), so the new document's lines carry the
+    links back to the one they came from."""
+    resp = client.post(f"{ERP_BASE_URL}/api/method/{method}", json={"source_name": source_name})
+    if resp.status_code >= 400:
+        raise ErpSyncError(f"ERP {method.rsplit('.', 1)[-1]} failed ({resp.status_code}) for {locator}: {resp.text[:500]}")
+    return _clean_mapped(resp.json()["message"])
+
+
+def push_booking_to_erp(booking: dict, on_step=None) -> str:
+    """Creates the ERPNext sales chain for one ticketed booking:
+    Quotation (submitted) -> Sales Order (submitted, linked to the Quotation)
+    -> Sales Invoice (draft as before, linked to the Sales Order).
 
     `booking` is the same dict shape database.save_booking()/get_all_bookings()
     produce (locator_code, pnr, ticket_number, passenger_name,
     passenger_email, flight_number, airline, departure_airport,
     arrival_airport, departure_time, total_fare, currency, booking_date...).
+    If it already carries erp_quotation_name / erp_sales_order_name (a retry
+    after a part-way failure) those documents are reused, not made again.
+    `on_step(kind, name)` is called as each of "quotation" / "sales_order" is
+    created, so the caller can record it before the next step.
 
     Returns the new Sales Invoice's name. Raises ErpSyncError on any
     failure — the caller is responsible for making this non-fatal.
@@ -244,11 +295,52 @@ def push_booking_to_erp(booking: dict) -> str:
             ).strip()
 
             posting_date = (booking.get("booking_date") or "")[:10] or None
+            if not posting_date:
+                from datetime import date as _date
+                posting_date = _date.today().isoformat()
+            # Travel date as the quotation's validity and the order's delivery
+            # date — never before the booking date (ERPNext rejects that).
+            travel_date = str(booking.get("departure_time") or "")[:10]
+            delivery_date = travel_date if travel_date >= posting_date else posting_date
+            currency = booking.get("currency") or "LKR"
+            pnr = booking.get("pnr") or locator
 
-            payload = {
-                "company": ERP_COMPANY,
-                "customer": customer,
-                "currency": booking.get("currency") or "LKR",
+            # 1. Quotation — the priced fare, as offered to the passenger.
+            quotation = booking.get("erp_quotation_name")
+            if not quotation:
+                quotation = _insert(client, "Quotation", {
+                    "quotation_to": "Customer",
+                    "party_name": customer,
+                    "company": ERP_COMPANY,
+                    "currency": currency,
+                    "transaction_date": posting_date,
+                    "valid_till": delivery_date,
+                    "order_type": "Sales",
+                    "items": _ticket_lines(booking, description),
+                }, submit=True, locator=locator)
+                logger.info(f"ERP sync: booking {locator} -> Quotation {quotation}")
+                if on_step:
+                    on_step("quotation", quotation)
+
+            # 2. Sales Order from the Quotation — the confirmed booking.
+            sales_order = booking.get("erp_sales_order_name")
+            if not sales_order:
+                so = _map(client, "erpnext.selling.doctype.quotation.quotation.make_sales_order", quotation, locator)
+                so.update({"transaction_date": posting_date, "delivery_date": delivery_date,
+                           "po_no": pnr, "po_date": posting_date})
+                for it in so.get("items") or []:
+                    it["delivery_date"] = delivery_date
+                    if ERP_WAREHOUSE and not it.get("warehouse"):
+                        it["warehouse"] = ERP_WAREHOUSE
+                sales_order = _insert(client, "Sales Order", so, submit=True, locator=locator)
+                logger.info(f"ERP sync: booking {locator} -> Sales Order {sales_order}")
+                if on_step:
+                    on_step("sales_order", sales_order)
+
+            # 3. Sales Invoice from the Sales Order — left as a draft, as before.
+            payload = _map(client, "erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice",
+                           sales_order, locator)
+            payload.update({
                 # Without set_posting_time, ERPNext silently defaults
                 # posting_date to today regardless of what's sent here —
                 # confirmed live: due_date (correctly set to the booking's
@@ -268,19 +360,13 @@ def push_booking_to_erp(booking: dict) -> str:
                 # Custom fields (Sales Invoice-custom_pnr / -custom_ticket_number,
                 # added 2026-10-20) so these show as their own list-view columns
                 # instead of only being readable inside the Remarks text.
-                "custom_pnr": booking.get("pnr") or locator,
+                "custom_pnr": pnr,
                 "custom_ticket_number": _ticket_field(booking),
-                "items": _ticket_lines(booking, description),
-            }
+            })
+            invoice_name = _insert(client, "Sales Invoice", payload, submit=False, locator=locator)
 
-            resp = client.post(f"{ERP_BASE_URL}/api/resource/Sales Invoice", json=payload)
-            if resp.status_code >= 400:
-                raise ErpSyncError(
-                    f"ERP Sales Invoice create failed ({resp.status_code}) for {locator}: {resp.text[:500]}"
-                )
-            invoice_name = resp.json()["data"]["name"]
-
-        logger.info(f"ERP sync: booking {locator} -> Sales Invoice {invoice_name}")
+        logger.info(f"ERP sync: booking {locator} -> Quotation {quotation} -> Sales Order {sales_order} "
+                    f"-> Sales Invoice {invoice_name}")
         return invoice_name
 
     except ErpSyncError:

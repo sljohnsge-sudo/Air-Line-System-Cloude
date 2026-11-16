@@ -260,6 +260,18 @@ def init_db():
         cursor.execute("ALTER TABLE bookings ADD COLUMN erp_synced_at DATETIME NULL AFTER erp_invoice_name")
         cursor.execute("ALTER TABLE bookings ADD COLUMN erp_sync_error VARCHAR(500) NULL AFTER erp_synced_at")
 
+    # bookings.erp_quotation_name / erp_sales_order_name — the Quotation and
+    # Sales Order made before the Sales Invoice (Quotation -> Sales Order ->
+    # Sales Invoice). Saved as each one is made, so a retry after a part-way
+    # failure carries on from there instead of making them twice.
+    cursor.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='bookings' AND COLUMN_NAME='erp_quotation_name'
+    """, (MYSQL_DATABASE,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("ALTER TABLE bookings ADD COLUMN erp_quotation_name VARCHAR(140) NULL AFTER erp_sync_error")
+        cursor.execute("ALTER TABLE bookings ADD COLUMN erp_sales_order_name VARCHAR(140) NULL AFTER erp_quotation_name")
+
     # seat_number was VARCHAR(10): enough for "14A", but multi-flight seat
     # labels ("Departure UL225: 20C, Return UL226: 4A") were silently cut
     # off (MySQL here runs without STRICT mode, so no error was raised).
@@ -1130,6 +1142,20 @@ def mark_erp_synced(locator_code: str, invoice_name: str) -> None:
             "UPDATE bookings SET erp_invoice_name=%s, erp_synced_at=NOW(), erp_sync_error=NULL WHERE locator_code=%s",
             (invoice_name, locator_code),
         )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def mark_erp_step(locator_code: str, kind: str, name: str) -> None:
+    """Records the ERP Quotation ("quotation") or Sales Order ("sales_order")
+    just made for this booking, before the next step of the push."""
+    column = {"quotation": "erp_quotation_name", "sales_order": "erp_sales_order_name"}[kind]
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"UPDATE bookings SET {column}=%s WHERE locator_code=%s", (name, locator_code))
         conn.commit()
     finally:
         cursor.close()

@@ -3383,6 +3383,14 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
     }
 
 
+def _erp_push(locator: str, booking: dict) -> str:
+    """Quotation -> Sales Order -> Sales Invoice in the ERP for one booking,
+    recording the Quotation / Sales Order on the booking as each is made (so a
+    retry continues from there). Returns the Sales Invoice name; raises."""
+    return services.push_booking_to_erp(
+        booking, on_step=lambda kind, name: database.mark_erp_step(locator, kind, name))
+
+
 def _push_booking_to_erp_background(locator: str, saved: dict) -> None:
     """Ticket -> ERPNext Sales Invoice on a background thread, seconds after
     ticketing, never holding up the customer's response. Result recorded on
@@ -3392,7 +3400,7 @@ def _push_booking_to_erp_background(locator: str, saved: dict) -> None:
 
     def run():
         try:
-            invoice_name = services.push_booking_to_erp(saved)
+            invoice_name = _erp_push(locator, saved)
             database.mark_erp_synced(locator, invoice_name)
         except Exception as e:
             logger.warning(f"ERP sync failed for {locator} (non-fatal): {e}")
@@ -3432,7 +3440,7 @@ def erp_sync_one(locator_code: str, admin: dict = Depends(auth.get_current_admin
     if not booking:
         raise HTTPException(status_code=404, detail=f"No booking found for locator {locator_code}.")
     try:
-        invoice_name = services.push_booking_to_erp(booking)
+        invoice_name = _erp_push(booking.get("locator_code") or "", booking)
         database.mark_erp_synced(locator_code, invoice_name)
         return {"success": True, "invoice_name": invoice_name}
     except Exception as e:
@@ -3453,7 +3461,7 @@ def erp_sync_backfill(admin: dict = Depends(auth.get_current_admin)):
     for booking in pending:
         locator = booking.get("locator_code")
         try:
-            invoice_name = services.push_booking_to_erp(booking)
+            invoice_name = _erp_push(booking.get("locator_code") or "", booking)
             database.mark_erp_synced(locator, invoice_name)
             results.append({"locator_code": locator, "success": True, "invoice_name": invoice_name})
         except Exception as e:
