@@ -47,7 +47,11 @@ committed (`.gitignore`). `backend\.env` is **not** in it: it holds passwords.
 Use `docker compose` in the project folder - **not** the Run (play) button in Docker Desktop.
 The Run button starts the image without `backend/.env` and without
 `MYSQL_HOST=host.docker.internal`, so the API looks for MySQL inside the container itself and
-stops with *"Can't connect to MySQL server on 'localhost:3306'"*.
+stops. Since 16/11 the image then says so plainly in its log ("started WITHOUT its settings")
+instead of a MySQL error.
+
+Easiest: double-click **`deploy\local-test.bat`** (starts both, waits until healthy, opens both
+sites) and **`deploy\local-stop.bat`** to stop. The same by hand:
 
 ```
 docker compose up -d --no-build        # start both (website http://localhost:5176, admin http://localhost:5177)

@@ -28,10 +28,13 @@ ARG REVISION=unknown
 LABEL org.opencontainers.image.title="tickandbook-${SITE}" \
       org.opencontainers.image.revision="${REVISION}"
 
+# MYSQL_HOST: MySQL runs on the machine itself, outside Docker
+# (docker-compose sets the same; Docker Desktop knows this name by itself).
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive \
-    APP_MODE=${SITE}
+    APP_MODE=${SITE} \
+    MYSQL_HOST=host.docker.internal
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends nginx \
