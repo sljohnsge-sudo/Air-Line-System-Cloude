@@ -12,9 +12,15 @@
 # by hand (deploy\README.md lists the settings it needs).
 #
 # Needs Docker Desktop running (it needs WSL - deploy\README.md, step 0).
+#
+# By default the images are built from the COMMITTED code (a clean copy of the
+# current git commit), so what goes to the server is exactly what is in git;
+# uncommitted changes in this folder are left out and listed. -WorkingCopy
+# builds from this folder as it is, uncommitted changes included.
 param(
     [string]$Tag = (Get-Date -Format 'yyyyMMdd-HHmm'),
-    [string]$Prefix = 'tickbook'
+    [string]$Prefix = 'tickbook',
+    [switch]$WorkingCopy
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -28,6 +34,28 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+$commit = (& git rev-parse --short HEAD).Trim()
+if ($WorkingCopy) {
+    $src = $repo
+    $commit = "$commit-local"
+    Write-Host "== Building from this folder AS IT IS (uncommitted changes included)" -ForegroundColor Yellow
+} else {
+    $src = Join-Path $env:TEMP "tickandbook-build-$commit"
+    if (Test-Path $src) { Remove-Item -Recurse -Force $src }
+    New-Item -ItemType Directory -Path $src | Out-Null
+    $archive = "$src.tar"
+    & git -c core.autocrlf=false archive --format=tar -o $archive HEAD
+    if ($LASTEXITCODE -ne 0) { Write-Host "git archive failed" -ForegroundColor Red; exit 1 }
+    & tar -xf $archive -C $src
+    Remove-Item $archive
+    Write-Host "== Building from commit $commit (a clean copy of what is in git)" -ForegroundColor Cyan
+    $dirty = & git status --porcelain
+    if ($dirty) {
+        Write-Host "   NOT included (uncommitted in this folder):" -ForegroundColor Yellow
+        $dirty | ForEach-Object { Write-Host "     $_" -ForegroundColor Yellow }
+    }
+}
+
 $images = @(
     @{ Name = "$Prefix/airline-backend";        Context = 'backend';  Args = @() },
     @{ Name = "$Prefix/airline-frontend";       Context = 'frontend'; Args = @() },
@@ -35,12 +63,13 @@ $images = @(
 )
 foreach ($img in $images) {
     Write-Host "== Building $($img.Name):$Tag" -ForegroundColor Cyan
-    $cmd = @('build', '--platform', 'linux/amd64', '-t', "$($img.Name):latest", '-t', "$($img.Name):$Tag") + $img.Args + @($img.Context)
+    $cmd = @('build', '--platform', 'linux/amd64', '--label', "org.opencontainers.image.revision=$commit",
+             '-t', "$($img.Name):latest", '-t', "$($img.Name):$Tag") + $img.Args + @((Join-Path $src $img.Context))
     & docker @cmd
     if ($LASTEXITCODE -ne 0) { Write-Host "Build failed: $($img.Name)" -ForegroundColor Red; exit 1 }
 }
 
-$out = Join-Path $repo "deploy\out\tickandbook-$Tag"
+$out = Join-Path $repo "deploy\out\tickandbook-$Tag-$commit"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $tar = Join-Path $out 'tickandbook-images.tar'
 Write-Host "== Saving images to $tar" -ForegroundColor Cyan
@@ -48,8 +77,10 @@ $tags = $images | ForEach-Object { "$($_.Name):latest"; "$($_.Name):$Tag" }
 & docker save -o $tar @tags
 if ($LASTEXITCODE -ne 0) { Write-Host "docker save failed" -ForegroundColor Red; exit 1 }
 
-Copy-Item (Join-Path $repo 'docker-compose.yml') $out
-Copy-Item (Join-Path $repo 'deploy\load-on-server.sh') $out
+Copy-Item (Join-Path $src 'docker-compose.yml') $out
+Copy-Item (Join-Path $src 'deploy\load-on-server.sh') $out
+"Built from commit $commit on $(Get-Date -Format 'yyyy-MM-dd HH:mm')" | Set-Content -Path (Join-Path $out 'BUILT-FROM.txt') -Encoding ascii
+if (-not $WorkingCopy) { Remove-Item -Recurse -Force $src }
 $hash = (Get-FileHash $tar -Algorithm SHA256).Hash.ToLower()
 "$hash  tickandbook-images.tar" | Set-Content -Path (Join-Path $out 'SHA256.txt') -Encoding ascii
 $sizeMb = [math]::Round((Get-Item $tar).Length / 1MB)

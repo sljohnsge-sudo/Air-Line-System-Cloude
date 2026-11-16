@@ -25,6 +25,9 @@ export default defineConfig(({ mode }) => {
       // port is taken, stop with an error instead of quietly moving.
       port: admin ? 5177 : 5176,
       strictPort: true,
+      // deploy\run-smoke.ps1 reaches this PC's dev sites from inside Docker
+      // as host.docker.internal (dev server only; production is nginx).
+      allowedHosts: ['host.docker.internal'],
       // The site calls its backend at '/api' (same origin). In development
       // Vite passes those calls on; on the server nginx does it.
       proxy: {

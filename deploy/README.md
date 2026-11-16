@@ -109,8 +109,12 @@ powershell -ExecutionPolicy Bypass -File deploy\run-smoke.ps1    # on the laptop
 Playwright checks in `e2e/` (run in Microsoft's Playwright Docker image, nothing to install).
 They check that the pages open, that the customer site has no admin pages or staff API, that the
 admin site has no search/booking/payment API, the security headers, and that staff routes need a
-sign-in. **They never search, choose a flight, book, pay, issue a ticket or sign in.** Real
-bookings are tested by a person, by hand, using the go-live switches (search / PNR / tickets).
+sign-in. **They never choose a flight, book, pay, issue a ticket or sign in.** Real bookings are
+tested by a person, by hand, using the go-live switches (search / PNR / tickets).
+
+Optional: `SMOKE_SEARCH=1 bash deploy/run-smoke.sh` (laptop: `run-smoke.ps1 -Search`) adds one
+live flight search with the form's default route and checks results come back. It never presses
+"Select Flight". Off by default: on live every search counts toward Travelport's look-to-book ratio.
 
 ## After going live
 

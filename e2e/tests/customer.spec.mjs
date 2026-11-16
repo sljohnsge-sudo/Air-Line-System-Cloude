@@ -1,5 +1,6 @@
-// Customer site (tickandbook.com) — read-only smoke checks. No search, no
-// flight choice, no booking, no payment, no sign-in (see playwright.config.mjs).
+// Customer site (tickandbook.com) — read-only smoke checks. No flight choice,
+// no booking, no payment, no sign-in (see playwright.config.mjs). One live
+// search only when SMOKE_SEARCH=1.
 import { test, expect } from '@playwright/test';
 
 test.describe('customer site', () => {
@@ -9,6 +10,22 @@ test.describe('customer site', () => {
     await expect(page).toHaveTitle(/Tick and Book/);
     // Only checks the button is there — it is never pressed.
     await expect(page.getByRole('button', { name: 'Search Live Flights' })).toBeVisible();
+  });
+
+  // OPTIONAL, read-only: one live flight search with the form's own default
+  // route, to confirm Travelport answers through the website. Off unless
+  // SMOKE_SEARCH=1 (on live every search counts toward Travelport's
+  // look-to-book ratio). It never presses "Select Flight": choosing a flight,
+  // booking and paying are only ever done by a person.
+  test('flight search returns results (SMOKE_SEARCH=1 only)', async ({ page }) => {
+    test.skip(process.env.SMOKE_SEARCH !== '1', 'set SMOKE_SEARCH=1 to run one live search');
+    test.setTimeout(150_000);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Search Live Flights' }).click();
+    const results = page.getByRole('button', { name: 'Select Flight' }).first();
+    const none = page.getByText(/No flights found/i).first();
+    await expect(results.or(none)).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/Search failed|Travelport search error/i)).toHaveCount(0);
   });
 
   test('has no admin pages: /admin goes back to Home', async ({ page }) => {
