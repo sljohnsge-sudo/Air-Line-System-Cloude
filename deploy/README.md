@@ -42,6 +42,23 @@ It builds from the committed code (uncommitted changes are left out and listed) 
 `docker-compose.yml`, `load-on-server.sh`, `SHA256.txt` and `BUILT-FROM.txt`. The folder is not
 committed (`.gitignore`). `backend\.env` is **not** in it: it holds passwords.
 
+### Running the images on this laptop
+
+Use `docker compose` in the project folder - **not** the Run (play) button in Docker Desktop.
+The Run button starts the image without `backend/.env` and without
+`MYSQL_HOST=host.docker.internal`, so the API looks for MySQL inside the container itself and
+stops with *"Can't connect to MySQL server on 'localhost:3306'"*.
+
+```
+docker compose up -d --no-build        # start both (website http://localhost:5176, admin http://localhost:5177)
+docker compose ps                      # both should say (healthy)
+docker compose logs -f airline_site    # watch the website's log (Ctrl+C to stop watching)
+docker compose down                    # stop both
+```
+
+XAMPP MySQL must be running, and the dev servers (start_all.bat) must be stopped first: they use
+the same ports 5176/5177.
+
 ## 2. Server requirements (once)
 
 * Docker Engine with **Docker Compose 2.30 or newer** (`docker compose version`); the compose
