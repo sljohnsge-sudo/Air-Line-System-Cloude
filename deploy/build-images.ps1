@@ -1,30 +1,32 @@
-# Tick and Book - build the three Docker images on this PC and save them as one
+# Tick and Book - build the two Docker images on this PC and save each as a
 # file to carry to the server (16/11/2026).
 #
 #   powershell -ExecutionPolicy Bypass -File deploy\build-images.ps1
 #
-# Makes deploy\out\tickandbook-<date-time>\ with:
-#   tickandbook-images.tar   the 3 images (backend, website, admin site)
-#   docker-compose.yml       the same file as in the repo
-#   load-on-server.sh        loads the images and starts everything on the server
-#   SHA256.txt               checksum, to confirm the copy on the server is complete
-# backend\.env is NOT included (it holds passwords): copy the server's own .env
-# by hand (deploy\README.md lists the settings it needs).
+# Two images, each with its frontend and backend inside (separate folders
+# /app/frontend and /app/backend):
+#   airline-site   customer website + its API    -> airline-site.tar   (port 5176)
+#   airline-admin  admin site + the admin API     -> airline-admin.tar  (port 5177)
 #
-# Needs Docker Desktop running (it needs WSL - deploy\README.md, step 0).
+# Makes deploy\out\tickandbook-<date-time>-<commit>\ with:
+#   airline-site.tar, airline-admin.tar   the two images
+#   docker-compose.yml                    starts both on the server
+#   load-on-server.sh                     loads both files and starts them
+#   SHA256.txt, BUILT-FROM.txt            checksums and the commit they came from
+# backend\.env is NOT included (it holds passwords): the server has its own.
 #
 # By default the images are built from the COMMITTED code (a clean copy of the
-# current git commit), so what goes to the server is exactly what is in git;
-# uncommitted changes in this folder are left out and listed. -WorkingCopy
-# builds from this folder as it is, uncommitted changes included.
+# current git commit); uncommitted changes in this folder are left out and
+# listed. -WorkingCopy builds from this folder as it is.
+# Needs Docker Desktop running (it needs WSL - deploy\README.md, step 0).
 param(
-    [string]$Tag = (Get-Date -Format 'yyyyMMdd-HHmm'),
     [string]$Prefix = 'tickbook',
     [switch]$WorkingCopy
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
+$stamp = Get-Date -Format 'yyyyMMdd-HHmm'
 
 Write-Host "== Checking Docker" -ForegroundColor Cyan
 & docker info --format '{{.ServerVersion}}' *> $null
@@ -56,37 +58,34 @@ if ($WorkingCopy) {
     }
 }
 
-$images = @(
-    @{ Name = "$Prefix/airline-backend";        Context = 'backend';  Args = @() },
-    @{ Name = "$Prefix/airline-frontend";       Context = 'frontend'; Args = @() },
-    @{ Name = "$Prefix/airline-admin-frontend"; Context = 'frontend'; Args = @('--build-arg', 'SITE=admin', '--build-arg', 'NGINX_CONF=nginx.admin.conf') }
-)
-foreach ($img in $images) {
-    Write-Host "== Building $($img.Name):$Tag" -ForegroundColor Cyan
-    $cmd = @('build', '--platform', 'linux/amd64', '--label', "org.opencontainers.image.revision=$commit",
-             '-t', "$($img.Name):latest", '-t', "$($img.Name):$Tag") + $img.Args + @((Join-Path $src $img.Context))
-    & docker @cmd
-    if ($LASTEXITCODE -ne 0) { Write-Host "Build failed: $($img.Name)" -ForegroundColor Red; exit 1 }
-}
-
-$out = Join-Path $repo "deploy\out\tickandbook-$Tag-$commit"
+$out = Join-Path $repo "deploy\out\tickandbook-$stamp-$commit"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
-$tar = Join-Path $out 'tickandbook-images.tar'
-Write-Host "== Saving images to $tar" -ForegroundColor Cyan
-$tags = $images | ForEach-Object { "$($_.Name):latest"; "$($_.Name):$Tag" }
-& docker save -o $tar @tags
-if ($LASTEXITCODE -ne 0) { Write-Host "docker save failed" -ForegroundColor Red; exit 1 }
+$images = @(
+    @{ Name = "$Prefix/airline-site";  Site = 'public'; File = 'airline-site.tar' },
+    @{ Name = "$Prefix/airline-admin"; Site = 'admin';  File = 'airline-admin.tar' }
+)
+$sums = @()
+foreach ($img in $images) {
+    Write-Host "== Building $($img.Name):latest (SITE=$($img.Site))" -ForegroundColor Cyan
+    & docker build --platform linux/amd64 --build-arg "SITE=$($img.Site)" --build-arg "REVISION=$commit" `
+        -t "$($img.Name):latest" $src
+    if ($LASTEXITCODE -ne 0) { Write-Host "Build failed: $($img.Name)" -ForegroundColor Red; exit 1 }
+    $tar = Join-Path $out $img.File
+    Write-Host "== Saving $($img.Name) to $tar" -ForegroundColor Cyan
+    & docker save -o $tar "$($img.Name):latest"
+    if ($LASTEXITCODE -ne 0) { Write-Host "docker save failed" -ForegroundColor Red; exit 1 }
+    $sums += "$((Get-FileHash $tar -Algorithm SHA256).Hash.ToLower())  $($img.File)"
+}
 
 Copy-Item (Join-Path $src 'docker-compose.yml') $out
 Copy-Item (Join-Path $src 'deploy\load-on-server.sh') $out
+$sums | Set-Content -Path (Join-Path $out 'SHA256.txt') -Encoding ascii
 "Built from commit $commit on $(Get-Date -Format 'yyyy-MM-dd HH:mm')" | Set-Content -Path (Join-Path $out 'BUILT-FROM.txt') -Encoding ascii
 if (-not $WorkingCopy) { Remove-Item -Recurse -Force $src }
-$hash = (Get-FileHash $tar -Algorithm SHA256).Hash.ToLower()
-"$hash  tickandbook-images.tar" | Set-Content -Path (Join-Path $out 'SHA256.txt') -Encoding ascii
-$sizeMb = [math]::Round((Get-Item $tar).Length / 1MB)
 
 Write-Host ""
 Write-Host "Done. Copy this folder to the server:" -ForegroundColor Green
-Write-Host "  $out  ($sizeMb MB)"
-Write-Host "Then on the server, in the repo folder (where backend/.env is):"
-Write-Host "  bash load-on-server.sh /path/to/tickandbook-images.tar"
+Get-ChildItem $out | ForEach-Object { Write-Host ("  {0,-22} {1,8:N0} MB" -f $_.Name, ($_.Length / 1MB)) }
+Write-Host "  $out"
+Write-Host "Then on the server, in the folder with docker-compose.yml and backend/.env:"
+Write-Host "  bash load-on-server.sh"

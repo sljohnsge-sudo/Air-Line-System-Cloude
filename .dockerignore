@@ -1,14 +1,34 @@
+# Build context = the whole repo (Dockerfile at the top, 16/11/2026).
+# Keep passwords, local data and anything not needed out of the images.
+
+# Passwords and local settings - never in an image
+**/.env
+**/.env.*
+!**/.env.example
+
+# Version control, tools, docs, deploy output
 .git
 .github
 .claude
-backend/venv
-backend/__pycache__
-backend/logs
-amadeus-backend/venv
-amadeus-backend/__pycache__
-amadeus-backend/logs
-frontend/node_modules
-frontend/dist
+docs
+e2e
+deploy/out
 *.docx
+*.bat
 *.log
 
+# Python
+**/venv
+**/__pycache__
+**/*.pyc
+backend/logs
+backend/uploads
+
+# Node / builds
+frontend/node_modules
+frontend/dist
+frontend/dist-admin
+
+# Not part of these images (Amadeus = phase 2)
+amadeus-backend
+Air-Line-System-*

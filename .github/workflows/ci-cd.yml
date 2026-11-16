@@ -42,46 +42,40 @@ jobs:
       - name: 🛠️ Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 📦 Build and Push Airline Backend Image
+      # Two images from the one Dockerfile at the top of the repo (16/11/2026):
+      # each holds its frontend (/app/frontend) and backend (/app/backend).
+      - name: 📦 Build and Push Airline Site Image (website + its API)
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            SITE=public
+            REVISION=${{ github.sha }}
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/airline-backend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/airline-backend:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/airline-site:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/airline-site:${{ github.sha }}
 
-      - name: 📦 Build and Push Frontend Image
+      - name: 📦 Build and Push Airline Admin Image (admin site + admin API)
         uses: docker/build-push-action@v6
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/airline-frontend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/airline-frontend:${{ github.sha }}
-
-      - name: 📦 Build and Push Admin Site Image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
+          context: .
+          file: ./Dockerfile
           build-args: |
             SITE=admin
-            NGINX_CONF=nginx.admin.conf
+            REVISION=${{ github.sha }}
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin-frontend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin-frontend:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin:${{ github.sha }}
 
       - name: ✅ Confirm Docker Hub Push
         run: |
           echo "=================================================="
           echo "🎉 Airline Docker Hub Images Pushed Successfully!"
-          echo "Backend:     ${{ secrets.DOCKERHUB_USERNAME }}/airline-backend:latest  (customer API + admin API)"
-          echo "Website:     ${{ secrets.DOCKERHUB_USERNAME }}/airline-frontend:latest"
-          echo "Admin site:  ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin-frontend:latest"
+          echo "Airline site:  ${{ secrets.DOCKERHUB_USERNAME }}/airline-site:latest   (website + its API, port 5176)"
+          echo "Airline admin: ${{ secrets.DOCKERHUB_USERNAME }}/airline-admin:latest  (admin site + admin API, port 5177)"
           echo "=================================================="
 
   # ====================================================================
@@ -134,21 +128,21 @@ jobs:
       - name: 🩺 Verify Server Health (website + admin site)
         run: |
           fail=0
-          for target in "Website|http://127.0.0.1:5176/" "Website API|http://127.0.0.1:8005/" \
-                        "Admin site|http://127.0.0.1:5177/" "Admin API|http://127.0.0.1:8006/"; do
-            name="${target%%|*}"; url="${target#*|}"
-            if curl -fsS -o /dev/null -m 15 "$url"; then echo "✅ $name $url"; else echo "❌ $name $url"; fail=1; fi
+          for target in "Website|http://127.0.0.1:5176/|200" "Website API|http://127.0.0.1:5176/api/feature-flags|200"                         "Admin site|http://127.0.0.1:5177/|200" "Admin API (needs sign-in)|http://127.0.0.1:5177/api/admin/go-live-switches|401"; do
+            IFS='|' read -r name url want <<< "$target"
+            got=$(curl -s -o /dev/null -m 15 -w '%{http_code}' "$url" || true)
+            if [ "$got" = "$want" ]; then echo "✅ $name $url ($got)"; else echo "❌ $name $url (got $got, want $want)"; fail=1; fi
           done
           if [ "$fail" = "1" ]; then
-            docker compose logs airline_backend --tail 40
-            docker compose logs airline_admin_backend --tail 40
+            docker compose logs airline_site --tail 40
+            docker compose logs airline_admin --tail 40
             exit 1
           fi
 
       - name: 🌱 Run Database Migrations (Schema & Airport Lookup)
         run: |
-          echo "Executing init_db() inside airline_backend..."
-          docker compose exec -T airline_backend python -c "import database; database.init_db(); print('Airline DB Initialized!')"
+          echo "Executing init_db() inside airline_site..."
+          docker compose exec -T -w /app/backend airline_site python -c "import database; database.init_db(); print('Airline DB Initialized!')"
 
       # Read-only Playwright checks (e2e/): pages open, the customer and admin
       # sites are separated, headers are sent. They never search, book, pay or

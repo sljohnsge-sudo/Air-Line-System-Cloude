@@ -1,19 +1,22 @@
 # Putting Tick and Book on the server
 
-Two sites from one code base (16/11/2026):
+Two images, two containers (16/11/2026). Each image holds its frontend and its backend,
+kept apart in separate folders:
 
-| Site | Address | Container (port) | API container |
-|---|---|---|---|
-| Customer website | https://tickandbook.com | `airline_frontend` (5176) | `airline_backend` (127.0.0.1:8005, `APP_MODE=public`) |
-| Admin site (staff) | https://admin.tickandbook.com | `airline_admin_frontend` (5177) | `airline_admin_backend` (127.0.0.1:8006, `APP_MODE=admin`) |
+| Image (file) | Container | Port | Inside | Address |
+|---|---|---|---|---|
+| `tickbook/airline-site` (`airline-site.tar`) | `airline_site` | 5176 | `/app/frontend` customer website, `/app/backend` its API (`APP_MODE=public`) | https://tickandbook.com |
+| `tickbook/airline-admin` (`airline-admin.tar`) | `airline_admin` | 5177 | `/app/frontend` admin site, `/app/backend` admin API (`APP_MODE=admin`) | https://admin.tickandbook.com |
 
-Both APIs use the same image, the same `backend/.env` and the main MySQL database on the
-server, so every admin change reaches the website at once. Staff accounts are in their own
-database (`ADMIN_MYSQL_DATABASE`, created on first use).
+In each container nginx (port 80) serves `/app/frontend` and passes `/api/` and `/uploads/` to
+the API, which listens only inside the container. Both use the same `backend/.env` and the main
+MySQL database on the server, so every admin change reaches the website at once. Staff accounts
+are in their own database (`ADMIN_MYSQL_DATABASE`, created on first use). Built from the one
+`Dockerfile` at the top of the repo (`--build-arg SITE=public` or `SITE=admin`).
 
 Two ways to deploy:
 
-* **A. Image file from the laptop** (steps 0-5 below) - build on this PC, copy one file, load it on the server.
+* **A. Image files from the laptop** (steps 0-5 below) - build on this PC, copy two files, load them on the server.
 * **B. GitHub Actions** - pushing `main` builds the images, deploys to 172.16.7.41 and runs the
   smoke checks (`.github/workflows/ci-cd.yml`). Update the `AIRLINE_BACKEND_ENV` secret first (step 3).
 
@@ -28,14 +31,15 @@ Docker Desktop needs WSL (Windows Subsystem for Linux). Without it, it stops wit
 2. **Restart Windows.**
 3. Open Docker Desktop and wait for **Engine running**.
 
-## 1. Build the image file (laptop)
+## 1. Build the two image files (laptop)
 
 ```
 powershell -ExecutionPolicy Bypass -File deploy\build-images.ps1
 ```
 
-It makes `deploy\out\tickandbook-<date-time>\` with `tickandbook-images.tar` (all three
-images), `docker-compose.yml`, `load-on-server.sh` and `SHA256.txt`. The folder is not
+It builds from the committed code (uncommitted changes are left out and listed) and makes
+`deploy\out\tickandbook-<date-time>-<commit>\` with `airline-site.tar`, `airline-admin.tar`,
+`docker-compose.yml`, `load-on-server.sh`, `SHA256.txt` and `BUILT-FROM.txt`. The folder is not
 committed (`.gitignore`). `backend\.env` is **not** in it: it holds passwords.
 
 ## 2. Server requirements (once)
@@ -73,17 +77,27 @@ For GitHub Actions (way B), the whole file goes into the repository secret `AIRL
 
 ## 4. Load and start (server)
 
-Copy the folder from step 1 to the server (WinSCP / `scp`). In the folder that has
-`docker-compose.yml` and `backend/.env` (the repo folder):
+Copy the folder from step 1 to the server (WinSCP / `scp`), put the server's `.env` in it as
+`backend/.env`, and in that folder run:
 
 ```
-bash load-on-server.sh /path/to/tickandbook-images.tar
+bash load-on-server.sh
 ```
 
-It checks the file is complete, checks the required `.env` settings (without printing them),
-loads the images, starts the four containers, waits until they are healthy and checks
-5176 / 5177 / 8005 / 8006. Uploaded images (tour packages) are kept in the Docker volume
+(or, from the repo folder: `bash load-on-server.sh /path/to/the/copied/folder`). It checks both
+files are complete, checks the required `.env` settings (without printing them), loads the two
+images, starts `airline_site` (5176) and `airline_admin` (5177), waits until both are healthy and
+checks the sites and their APIs. Uploaded images (tour packages) are kept in the Docker volume
 `airline_uploads`, shared by both sites and kept across redeploys.
+
+The same by hand, if you prefer:
+
+```
+docker load -i airline-site.tar
+docker load -i airline-admin.tar
+DOCKERHUB_USERNAME=tickbook docker compose up -d --no-build --pull never
+docker compose ps
+```
 
 ## 5. Domains and HTTPS (server, once)
 
