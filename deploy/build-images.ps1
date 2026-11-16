@@ -48,7 +48,12 @@ if ($WorkingCopy) {
     $archive = "$src.tar"
     & git -c core.autocrlf=false archive --format=tar -o $archive HEAD
     if ($LASTEXITCODE -ne 0) { Write-Host "git archive failed" -ForegroundColor Red; exit 1 }
-    & tar -xf $archive -C $src
+    # Windows' own tar: Git's tar (first on PATH in Git Bash) reads "C:\..." as
+    # a remote host and extracts nothing.
+    & (Join-Path $env:SystemRoot 'System32\tar.exe') -xf $archive -C $src
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $src 'Dockerfile'))) {
+        Write-Host "Could not unpack the clean copy into $src" -ForegroundColor Red; exit 1
+    }
     Remove-Item $archive
     Write-Host "== Building from commit $commit (a clean copy of what is in git)" -ForegroundColor Cyan
     $dirty = & git status --porcelain
