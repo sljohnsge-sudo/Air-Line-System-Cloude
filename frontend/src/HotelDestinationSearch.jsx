@@ -39,7 +39,9 @@ export default function HotelDestinationSearch({ value, onChange }) {
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const close = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    // composedPath, not contains(): choosing a country redraws the list, so the
+    // clicked row is gone from the page by the time this runs (17/11/2026).
+    const close = (e) => { if (boxRef.current && !e.composedPath().includes(boxRef.current)) setOpen(false); };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, []);
