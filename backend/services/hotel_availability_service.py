@@ -157,6 +157,30 @@ def parse_availability_offers(raw_response: dict) -> list[dict]:
 
         terms = offering.get("TermsAndConditions", {}) or {}
 
+        # Room and rate details for the room list — same live response, see
+        # the 13 Oct 2026 FP-22792 capture: RoomCharacteristics.BedConfiguration,
+        # TermsAndConditions.MealsIncluded, the "Per stay" PriceBreakdown's
+        # rate Description and the "Per night" NightlyRate list.
+        room_type = {}
+        for option in offering.get("ProductOptions", []) or []:
+            for product in option.get("Product", []) or []:
+                if isinstance(product, dict) and product.get("bookingCode") == booking_code:
+                    room_type = product.get("RoomType", {}) or {}
+        chars = room_type.get("RoomCharacteristics", {}) or {}
+        beds = [f"{b.get('quantity', 1)} × {b.get('bedType', '').strip()}".strip(" ×")
+                for b in (chars.get("BedConfiguration") or []) if b.get("bedType")]
+        meals_raw = terms.get("MealsIncluded", {}) or {}
+        meals = [m for m, key in (("Breakfast", "breakfastInd"), ("Lunch", "lunchInd"), ("Dinner", "dinnerInd"))
+                 if meals_raw.get(key)]
+        rate_name, nightly = "", []
+        for pb in price.get("PriceBreakdown", []) or []:
+            if pb.get("roomPricingType") == "Per stay" and pb.get("Description"):
+                rate_name = str(pb["Description"]).strip().rstrip(",")
+            for n in pb.get("NightlyRate", []) or []:
+                amt = n.get("Amount", {}) or {}
+                nightly.append({"date": n.get("startDate"), "nights": n.get("nights", 1),
+                                "base": amt.get("Base"), "total": amt.get("Total")})
+
         offers.append({
             "offer_id": offering.get("id", ""),
             "authority": authority,
@@ -169,6 +193,13 @@ def parse_availability_offers(raw_response: dict) -> list[dict]:
             "total_taxes": price.get("TotalTaxes", 0),
             "total_fees": price.get("TotalFees", 0),
             "total_price": price.get("TotalPrice", 0),
+            "rate_name": rate_name,
+            "beds": beds,
+            "smoking": chars.get("smokingAllowed", ""),
+            "accessible": chars.get("accessibleRoom", ""),
+            "meals": meals,
+            "guarantee": [g.get("guaranteeType") for g in (terms.get("Guarantee") or []) if g.get("guaranteeType")],
+            "nightly": nightly,
             "raw_terms": terms,
         })
 

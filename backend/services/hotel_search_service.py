@@ -234,12 +234,32 @@ def parse_hotel_offers(raw_response: dict, check_in_date: str = "", check_out_da
     properties = []
     properties_response = raw_response.get("PropertiesResponse", raw_response)
     property_infos = (properties_response.get("Properties", {}) or {}).get("PropertyInfo", []) or []
+    # Hotels price in their own currency (AED, EUR...); Travelport sends the
+    # rates into the requested currency with each page (CurrencyRateConversion),
+    # which give every hotel a comparable price for sorting and the price filter.
+    rates = {}
+    for conv in properties_response.get("CurrencyRateConversion", []) or []:
+        src = (conv.get("SourceCurrency") or {}).get("value")
+        tgt = (conv.get("TargetCurrency") or {}).get("value")
+        rate = (conv.get("ConversionRate") or {}).get("value")
+        if src and tgt and rate:
+            rates[src] = (tgt, float(rate))
 
     for info in property_infos:
         prop = info.get("Property", {}) or {}
         property_key = prop.get("PropertyKey", {}) or {}
         geoloc = prop.get("GeoLocation", {}) or {}
         lowest = info.get("LowestAvailableRate", {}) or {}
+        highest = info.get("MaximumAvailableRate", {}) or {}
+        addr = prop.get("Address", {}) or {}
+        ratings = prop.get("Rating", []) or []
+        stars = max((r.get("value") or 0 for r in ratings if isinstance(r.get("value"), (int, float))), default=0)
+        compare = None
+        if lowest.get("value") is not None and lowest.get("code") in rates:
+            tgt, rate = rates[lowest["code"]]
+            compare = {"currency": tgt, "value": round(float(lowest["value"]) * rate, 2)}
+        elif lowest.get("value") is not None and lowest.get("code") and lowest.get("code") == HotelConfig.DEFAULT_CURRENCY:
+            compare = {"currency": lowest["code"], "value": float(lowest["value"])}
 
         properties.append({
             "property_name": prop.get("name", ""),
@@ -253,11 +273,20 @@ def parse_hotel_offers(raw_response: dict, check_in_date: str = "", check_out_da
             "source": (info.get("Identifier", {}) or {}).get("authority", ""),
             "check_in_date": check_in_date,
             "check_out_date": check_out_date,
-            "address": {},  # not part of this endpoint's response — see Property Details
+            # The live response does carry Property.Address (13 Oct 2026 capture).
+            "address": {
+                "line": ", ".join(l for l in (addr.get("AddressLine") or []) if l).strip(", "),
+                "city": addr.get("City", ""),
+                "country_code": (addr.get("Country") or {}).get("value", ""),
+            },
             "latitude": geoloc.get("latitude"),
             "longitude": geoloc.get("longitude"),
             "distance": (info.get("Distance", {}) or {}).get("value"),
-            "ratings": prop.get("Rating", []) or [],
+            "ratings": ratings,
+            "stars": stars,
+            "amenities": [a.get("description", "") for a in (prop.get("PropertyAmenity") or []) if a.get("description")],
+            "highest_price": highest.get("value"),
+            "compare_price": compare,  # lowest_price in the requested currency, Travelport's own rate
             "image_urls": [img.get("value", "") for img in (prop.get("Image", []) or []) if img.get("value")],
             "lowest_price": lowest.get("value"),
             "lowest_price_currency": lowest.get("code", "USD"),

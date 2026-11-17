@@ -7546,7 +7546,10 @@ def hotel_rules(offer_id: str):
     https://developer.travelport.com/apis/stays/rules/buildhotelrulesfromcatalogoffering"""
     try:
         raw = hotel_rules_service.get_rules_for_offer(offer_id)
-        return raw
+        # Raw response kept as before; "summary" is the customer-facing part
+        # (cancellation deadline, check-in/out, pay-at-hotel) the room and
+        # checkout steps show.
+        return {**raw, "summary": hotel_rules_service.parse_rules(raw)}
     except HotelApiError as e:
         logger.error(f"Hotel rules failed: {e}")
         raise HTTPException(status_code=e.status_code or 502, detail=str(e))

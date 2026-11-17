@@ -63,3 +63,62 @@ def get_rules_for_offer(offer_id: str) -> dict:
         )
 
     return response.json()
+
+
+def parse_rules(raw_response: dict) -> dict:
+    """Customer-facing summary of a Rules (OfferHospitalityResponse) answer —
+    field paths as in the live pre-prod response for FP-22792 (13 Oct 2026):
+    Offer.TermsAndConditionsFull[0].{CancelPenalty[], CheckInOutPolicy,
+    RatePaymentInfo, Guarantee[], TextBlock[], AcceptedCreditCard[]}, and
+    Offer.Price for the confirmed price. Missing parts come back empty."""
+    resp = raw_response.get("OfferHospitalityResponse", raw_response) or {}
+    offer = resp.get("Offer", {}) or {}
+    if isinstance(offer, list):
+        offer = offer[0] if offer else {}
+    terms_list = offer.get("TermsAndConditionsFull", []) or []
+    terms = terms_list[0] if terms_list else {}
+    price = offer.get("Price", {}) or {}
+
+    penalties = []
+    for p in terms.get("CancelPenalty", []) or []:
+        deadline = ((p.get("Deadline") or {}).get("SpecificDate")) or {}
+        hp = p.get("HotelPenalty", {}) or {}
+        amount = None
+        for a in hp.get("Amount", []) or []:
+            amount = {"value": a.get("value"), "currency": a.get("code")}
+            break
+        penalties.append({
+            "refundable": (p.get("Refundable") or "").lower() == "yes",
+            "from": deadline.get("start"),
+            "until": deadline.get("end"),
+            "time": (p.get("Deadline") or {}).get("Time"),
+            "percent": hp.get("Percent"),
+            "amount": amount,
+            "description": p.get("Description", ""),
+        })
+
+    policy = terms.get("CheckInOutPolicy", {}) or {}
+    blocks = []
+    for b in terms.get("TextBlock", []) or []:
+        text = " ".join((t.get("value") or "").strip() for t in (b.get("TextFormatted") or []) if t.get("value"))
+        if text:
+            blocks.append({"title": b.get("title", ""), "text": text})
+
+    free_until = next((p for p in penalties if p["refundable"] and p.get("until")), None)
+    return {
+        "currency": (price.get("CurrencyCode") or {}).get("value"),
+        "base_price": price.get("Base"),
+        "total_taxes": price.get("TotalTaxes"),
+        "total_price": price.get("TotalPrice"),
+        "refundable": any(p["refundable"] for p in penalties),
+        "free_cancellation_until": free_until["until"] if free_until else None,
+        "free_cancellation_time": free_until["time"] if free_until else None,
+        "cancel_penalties": penalties,
+        "check_in_time": (policy.get("checkInTime") or "")[:5],
+        "check_out_time": (policy.get("checkOutTime") or "")[:5],
+        "payment": terms.get("RatePaymentInfo", ""),  # e.g. "PostPay" = paid at the hotel
+        "guarantee": [g.get("guaranteeType") for g in (terms.get("Guarantee") or []) if g.get("guaranteeType")],
+        "accepted_cards": sorted({c.get("value") for c in (terms.get("AcceptedCreditCard") or []) if c.get("value")}),
+        "description": [d for d in (terms.get("Description") or []) if d],
+        "text_blocks": blocks,
+    }
