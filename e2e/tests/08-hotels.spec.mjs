@@ -90,6 +90,19 @@ test.describe('hotels', () => {
     expect((await request.post('/api/hotels/checkout/HTLNOSUCH0/complete', { data: { reqid: 'zztest0000' } })).status()).toBe(404);
   });
 
+  test('API: rate sources check refuses bad input before asking Travelport', async ({ request }) => {
+    test.skip(!(await hotelsEnabled(request)), 'Hotels are switched off on this system');
+    expect((await request.post('/api/hotels/rate-sources', { data: {} })).status()).toBe(422);
+    const stay = { check_in_date: day(30), check_out_date: day(31), adults: 2 };
+    // No hotels, too many hotels, or check-out not after check-in: refused.
+    expect((await request.post('/api/hotels/rate-sources', { data: { ...stay, properties: [] } })).status()).toBe(422);
+    const nine = Array.from({ length: 9 }, (_, i) => ({ chain_code: 'ZZ', property_code: `X${i}` }));
+    expect((await request.post('/api/hotels/rate-sources', { data: { ...stay, properties: nine } })).status()).toBe(422);
+    expect((await request.post('/api/hotels/rate-sources', {
+      data: { check_in_date: day(31), check_out_date: day(30), properties: [{ chain_code: 'ZZ', property_code: 'X1' }] },
+    })).status()).toBe(422);
+  });
+
   test('API: staff hotel orders need a staff sign-in', async ({ request }) => {
     expect((await request.get('/api/admin/hotel-orders')).status(), 'not on the customer site').toBe(404);
     let admin = null;
@@ -116,6 +129,12 @@ test.describe('hotels', () => {
       await expect(cards.nth(i).locator('.hb-source')).toHaveText(/^(TVPT|BKNG|ETGR)/);
     }
     await expect(cards.first().locator('.hb-card-price')).toContainText(/LKR|per night/);
+    // Booking.com (BKNG) is only in each hotel's rates: the cards in view are
+    // checked and tagged with every source that has rooms (TVPT and/or BKNG).
+    await expect(cards.first().locator('.hb-src-checking')).toHaveCount(0, { timeout: 120_000 });
+    await expect(cards.first().locator('.hb-card-top .hb-source').first()).toHaveText(/^(TVPT|BKNG|ETGR)/);
+    const tags = await cards.first().locator('.hb-card-top .hb-source').allInnerTexts();
+    console.log('first hotel sources:', tags.map(t => t.slice(0, 4)).join(' + '));
     await expect(page.locator('.hb-filter').filter({ hasText: 'Content source' })).toBeVisible();
     // Price filter / sort: lowest first must not be more expensive than the next.
     await page.locator('.hb-sort select').selectOption('price_asc');

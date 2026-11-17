@@ -29,7 +29,7 @@ base = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8005"
 api = json.load(urllib.request.urlopen(f"{base}/openapi.json", timeout=20))
 src = (ROOT / "backend" / "main.py").read_text(encoding="utf-8").split("\n")
 # Routers mounted by main.py (app.include_router) - their routes too.
-for extra in ("backend/services/hotel_checkout_api.py",):
+for extra in ("backend/services/hotel_checkout_api.py", "backend/services/hotel_rate_sources.py"):
     src += (ROOT / extra).read_text(encoding="utf-8").split("\n")
 
 # ---- sign-in rule of each API, from its FastAPI dependencies ------------------

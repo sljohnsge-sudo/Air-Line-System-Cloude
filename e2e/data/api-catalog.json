@@ -1,6 +1,6 @@
 {
  "source": "http://localhost:8005/openapi.json + backend/main.py",
- "count": 226,
+ "count": 227,
  "apis": [
   {
    "method": "GET",
@@ -2515,6 +2515,20 @@
    "body": false,
    "action": "read",
    "why": "read only",
+   "area": "hotels"
+  },
+  {
+   "method": "POST",
+   "path": "/api/hotels/rate-sources",
+   "url": "/api/hotels/rate-sources",
+   "query": {},
+   "name": "Hotel Rate Sources",
+   "function": "hotel_rate_sources",
+   "auth": "none",
+   "site": "website",
+   "body": true,
+   "action": "invalid",
+   "why": "only checked that invalid input is refused before anything happens",
    "area": "hotels"
   },
   {

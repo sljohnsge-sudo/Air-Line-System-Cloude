@@ -86,7 +86,7 @@ from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
-from services import hotel_checkout, hotel_checkout_api
+from services import hotel_checkout, hotel_checkout_api, hotel_rate_sources
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
 from services.indigo_uapi_client import IndigoApiError
@@ -7736,6 +7736,8 @@ def hotel_property_details(chain_code: str, property_code: str, image_size: Opti
 
 # Hotel payment: pay by card first, then the room is reserved (17/11/2026).
 app.include_router(hotel_checkout_api.router)
+# Which sources (TVPT / BKNG) have rooms per hotel, for the results list (17/11/2026).
+app.include_router(hotel_rate_sources.router)
 
 
 @app.post("/api/hotels/availability")
@@ -7744,7 +7746,9 @@ def hotel_availability(request: HotelAvailabilityRequest):
     /api/hotels/search results — the step Search by Location can't provide.
     https://developer.travelport.com/apis/stays/availability/createhotelavailability"""
     try:
-        raw = hotel_availability_service.get_availability(
+        # Cached for a few minutes: the results list may have just asked for
+        # this hotel's rates (services/hotel_rate_sources).
+        raw = hotel_rate_sources.get_availability_cached(
             chain_code=request.chain_code,
             property_code=request.property_code,
             check_in_date=request.check_in_date,

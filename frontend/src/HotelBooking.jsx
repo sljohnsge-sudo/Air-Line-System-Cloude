@@ -56,6 +56,7 @@ const SORTS = [
 
 // Content source of a hotel / rate: Travelport's Identifier.authority.
 const SOURCES = { TVPT: 'Travelport', BKNG: 'Booking.com', ETGR: 'Expedia TAAP' };
+const SOURCE_ORDER = ['TVPT', 'BKNG', 'ETGR'];
 const SourceBadge = ({ code }) => (code ? (
   <span className={`hb-source hb-source-${code.toLowerCase()}`} title={`Content source: ${SOURCES[code] || code} (${code})`}>
     {code}<em>{SOURCES[code] || ''}</em>
@@ -188,6 +189,17 @@ export default function HotelBooking({ customerProfile, customerToken }) {
   const [allRooms, setAllRooms] = useState(false);
   const [roomSource, setRoomSource] = useState('all');
   const [sourceFilter, setSourceFilter] = useState([]);
+  // Rate sources per hotel ("CHAIN|PROP" -> {loading} | {sources, rates, lowest}).
+  // Search only labels hotels TVPT; Booking.com (BKNG) rates show up in each
+  // hotel's rates, so the hotels the customer scrolls to are checked a few at
+  // a time (/api/hotels/rate-sources, cached on the server).
+  const [rateSources, setRateSources] = useState({});
+  const srcQueue = useRef(new Set());
+  const srcAsked = useRef(new Set());
+  const srcBusy = useRef(false);
+  const srcTimer = useRef(null);
+  const srcQuery = useRef(null);
+  const srcObserver = useRef(null);
   const [rules, setRules] = useState({});           // offer_id -> {loading, error, summary}
   const [room, setRoom] = useState(null);
   const [priceNotice, setPriceNotice] = useState('');
@@ -210,6 +222,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
     setQuery(q); setStep('results'); setHotel(null); setRoom(null); setConfirmation(null);
     setSearching(true); setSearchError(''); setHotels([]); setPagesLeft(0); setPagesTotal(0);
     setNameFilter(''); setStarFilter([]); setMaxDistance(0); setAmenityFilter([]); setPriceCap(0); setSourceFilter([]); setSort('recommended');
+    setRateSources({}); srcQueue.current.clear(); srcAsked.current.clear(); srcQuery.current = q;
     fetch(`${API_BASE}/hotels/search`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -244,6 +257,58 @@ export default function HotelBooking({ customerProfile, customerToken }) {
       .catch(err => { if (id === searchSeq.current) { setSearchError(err.message); setSearching(false); } });
   };
 
+  // ── Rate sources of the hotels in view ──
+  const flushSources = () => {
+    srcTimer.current = null;
+    const q = srcQuery.current;
+    if (!q || srcBusy.current || !srcQueue.current.size) return;
+    const keys = [...srcQueue.current].slice(0, 6);
+    keys.forEach(k => srcQueue.current.delete(k));
+    srcBusy.current = true;
+    setRateSources(m => ({ ...m, ...Object.fromEntries(keys.map(k => [k, { loading: true }])) }));
+    const put = (fn) => { if (srcQuery.current === q) setRateSources(m => { const n = { ...m }; keys.forEach(k => { n[k] = fn(k); }); return n; }); };
+    fetch(`${API_BASE}/hotels/rate-sources`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        check_in_date: q.checkIn, check_out_date: q.checkOut, adults: q.adults, rooms: q.rooms,
+        children_ages: q.childAges.length ? q.childAges : null, currency: PAY_CURRENCY,
+        properties: keys.map(k => { const [chain_code, property_code] = k.split('|'); return { chain_code, property_code }; }),
+      }),
+    })
+      .then(jsonOrThrow)
+      .then(d => put(k => d.results?.[k] || { error: 'not checked', sources: {} }))
+      .catch(() => put(() => ({ error: 'not checked', sources: {} })))
+      .finally(() => {
+        srcBusy.current = false;
+        if (srcQueue.current.size && !srcTimer.current) srcTimer.current = setTimeout(flushSources, 150);
+      });
+  };
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        obs.unobserve(e.target);
+        const k = e.target.dataset.srcKey;
+        if (!k || srcAsked.current.has(k)) return;
+        srcAsked.current.add(k); srcQueue.current.add(k);
+      });
+      if (srcQueue.current.size && !srcTimer.current) srcTimer.current = setTimeout(flushSources, 250);
+    }, { rootMargin: '150px 0px' });
+    srcObserver.current = obs;
+    return () => { obs.disconnect(); clearTimeout(srcTimer.current); srcTimer.current = null; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const watchCard = (el) => { if (el && srcObserver.current) srcObserver.current.observe(el); };
+  const srcKey = (h) => `${h.chain_code}|${h.property_code}`;
+  // Sources with rooms in this hotel: from its checked rates, else the search label.
+  const hotelSources = (h) => {
+    const found = Object.keys(rateSources[srcKey(h)]?.sources || {}).filter(c => c !== '?');
+    const list = found.length ? found : (h.source ? [h.source] : []);
+    return SOURCE_ORDER.filter(c => list.includes(c)).concat(list.filter(c => !SOURCE_ORDER.includes(c)));
+  };
+
   // ── Filtering ──
   // Hotels can price in different currencies; compare_price is each one's
   // rate in the requested currency, using Travelport's own conversion rate.
@@ -261,7 +326,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
       if (starFilter.length && !starFilter.includes(Math.round(h.stars || 0))) return false;
       if (maxDistance && !(h.distance !== null && h.distance <= maxDistance)) return false;
       if (priceCap && cmp(h) !== null && cmp(h) > priceCap) return false;
-      if (sourceFilter.length && !sourceFilter.includes(h.source)) return false;
+      if (sourceFilter.length && !hotelSources(h).some(c => sourceFilter.includes(c))) return false;
       for (const k of amenityFilter) {
         const f = AMENITY_FILTERS.find(x => x.key === k);
         if (!(h.amenities || []).some(a => f.re.test(a))) return false;
@@ -273,8 +338,9 @@ export default function HotelBooking({ customerProfile, customerToken }) {
     if (sort === 'stars') list = [...list].sort((a, b) => (b.stars || 0) - (a.stars || 0));
     if (sort === 'distance') list = [...list].sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9));
     return list;
-  }, [hotels, nameFilter, starFilter, maxDistance, priceCap, amenityFilter, sourceFilter, sort]);
-  const sourceCounts = useMemo(() => hotels.reduce((m, h) => { if (h.source) m[h.source] = (m[h.source] || 0) + 1; return m; }, {}), [hotels]);
+  }, [hotels, nameFilter, starFilter, maxDistance, priceCap, amenityFilter, sourceFilter, sort, rateSources]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sourceCounts = useMemo(() => hotels.reduce((m, h) => { hotelSources(h).forEach(c => { m[c] = (m[c] || 0) + 1; }); return m; }, {}), [hotels, rateSources]); // eslint-disable-line react-hooks/exhaustive-deps
+  const srcChecking = Object.values(rateSources).some(v => v.loading);
 
   const activeFilters = (nameFilter ? 1 : 0) + starFilter.length + (maxDistance ? 1 : 0) + (priceCap ? 1 : 0) + amenityFilter.length + sourceFilter.length;
   const clearFilters = () => { setNameFilter(''); setStarFilter([]); setMaxDistance(0); setPriceCap(0); setAmenityFilter([]); setSourceFilter([]); };
@@ -832,6 +898,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
                   <label key={code} className="hb-check"><input type="checkbox" checked={sourceFilter.includes(code)} onChange={() => toggle(setSourceFilter)(code)} />
                     <SourceBadge code={code} /><em>{n}</em></label>
                 ))}
+                <p className="hb-filter-note">{srcChecking ? 'Checking rooms for more Booking.com rates…' : 'Booking.com rates show once a hotel\'s rooms are checked, as you scroll.'}</p>
               </fieldset>
             )}
             {Object.keys(starCounts).length > 0 && (
@@ -892,11 +959,18 @@ export default function HotelBooking({ customerProfile, customerToken }) {
               <div className="empty-state glass-panel"><p>No hotels match your filters. <button type="button" className="hb-link" onClick={clearFilters}>Clear filters</button></p></div>
             ) : (
               shown.map(h => (
-                <article key={`${h.chain_code}-${h.property_code}`} className="hb-card glass-panel">
+                <article key={`${h.chain_code}-${h.property_code}`} className="hb-card glass-panel" ref={watchCard} data-src-key={srcKey(h)}>
                   <button type="button" className="hb-card-img" onClick={() => openHotel(h)} aria-label={`View ${h.property_name}`}
                     style={h.image_urls?.[0] ? { backgroundImage: `url(${h.image_urls[0]})` } : undefined} />
                   <div className="hb-card-body">
-                    <div className="hb-card-top"><SourceBadge code={h.source} /></div>
+                    <div className="hb-card-top">
+                      {hotelSources(h).map(c => <SourceBadge key={c} code={c} />)}
+                      {rateSources[srcKey(h)]?.loading && <span className="hb-src-checking"><span className="spinner-inline" />Checking rates…</span>}
+                      {rateSources[srcKey(h)]?.sources && Object.keys(rateSources[srcKey(h)].sources).length > 1 && (
+                        <span className="hb-src-count">{hotelSources(h).filter(c => rateSources[srcKey(h)].sources[c])
+                          .map(c => `${rateSources[srcKey(h)].sources[c]} ${SOURCES[c] || c}`).join(' · ')} rates</span>
+                      )}
+                    </div>
                     <h4><button type="button" className="hb-card-title" onClick={() => openHotel(h)}>{h.property_name}</button> <Stars n={h.stars} /></h4>
                     <p className="hb-muted">
                       {[h.address?.line, h.address?.city].filter(Boolean).join(', ')}
