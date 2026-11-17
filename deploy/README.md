@@ -158,7 +158,7 @@ powershell -ExecutionPolicy Bypass -File deploy\run-smoke.ps1    # on the laptop
 ```
 
 Playwright tests in `e2e/tests/` (run in Microsoft's Playwright Docker image, nothing to install),
-537 in five files, all in one group so the Playwright interface shows every one at once:
+756 in six files, all in one group so the Playwright interface shows every one at once:
 
 * **01-website** (8) - pages open, no admin pages or staff API, security headers.
 * **02-website-sign-in** (12) - customer APIs need a token, forged / changed / expired tokens are
@@ -174,6 +174,16 @@ Playwright tests in `e2e/tests/` (run in Microsoft's Playwright Docker image, no
   of the 7 Nov test, searched on the website for 27 Nov 2026 (Travelport, one-way, 1 adult). One
   test per flight: is that airline offered with that content, and what the fare includes (bags,
   carry-on, seat choice, meals, change/cancel fees). Only with `-Routes` (52 searches).
+* **06-api** (219) - every backend API, one test each, from `e2e/data/api-catalog.json`
+  (`py e2e\tools\api_catalog.py` rebuilds it from the local backend's API list; a last test fails
+  when an API in `backend/main.py` has no test). Each test attaches the request and the reply
+  (passwords, tokens and card fields masked). Reads (GET) are called without sign-in (protected
+  ones must refuse with 401) and signed in with the temporary test Admin / customer. APIs that
+  change something are only checked to refuse without sign-in; public logins and searches only
+  with invalid input (422); the 23 public booking, payment, ticketing and cancel steps are never
+  called (shown as skipped). Each API is also checked to be absent (404) on the other site. A
+  test fails on a crash (5xx without a handled message), a wrong refusal, or personal details in
+  a public reply; switched-off modules (503) and handled supplier errors pass with a note.
 
 **No test ever chooses a flight, books, pays or issues a ticket.** Real bookings are tested by a
 person, by hand, using the go-live switches (search / PNR / tickets). Seat maps and paid extras
