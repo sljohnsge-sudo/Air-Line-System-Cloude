@@ -49,6 +49,36 @@ const SORTS = [
   ['distance', 'Distance from centre'],
 ];
 
+// Content source of a hotel / rate: Travelport's Identifier.authority.
+const SOURCES = { TVPT: 'Travelport', BKNG: 'Booking.com', ETGR: 'Expedia TAAP' };
+const SourceBadge = ({ code }) => (code ? (
+  <span className={`hb-source hb-source-${code.toLowerCase()}`} title={`Content source: ${SOURCES[code] || code} (${code})`}>
+    {code}<em>{SOURCES[code] || ''}</em>
+  </span>
+) : null);
+
+// Room photos: the hotel's own guest-room / suite / room-amenity pictures
+// from Property Details (OTA picture categories 6, 7, 21). Availability has
+// no per-room images, so a room gets a photo only when every room and bed
+// type the photo's caption names ("Superior", "Suite", "King", "Twin"…) is
+// in the room's name too; otherwise it gets none.
+const ROOM_PHOTO_CATEGORIES = [6, 7, 21];
+const ROOM_TYPE_WORDS = ['suite', 'studio', 'superior', 'deluxe', 'classic', 'executive', 'premium', 'family', 'apartment', 'villa', 'club', 'junior'];
+const BED_WORDS = ['king', 'queen', 'twin', 'double', 'single', 'bedroom'];
+const words = (s) => new Set((s || '').toLowerCase().match(/[a-z]+/g) || []);
+const photosForRoom = (roomName, roomPhotos) => {
+  const rw = words(roomName);
+  return roomPhotos.filter(p => {
+    const cw = words(p.caption);
+    const types = ROOM_TYPE_WORDS.filter(w => cw.has(w));
+    const beds = BED_WORDS.filter(w => cw.has(w));
+    // Every room type and bed type the caption names must be the room's too
+    // ("Classic Room, King" is not a photo of a twin room).
+    if (![...types, ...beds].every(w => rw.has(w))) return false;
+    return types.length + beds.length > 0;
+  });
+};
+
 const Stars = ({ n }) => (n > 0 ? <span className="hb-stars" aria-label={`${n} star hotel`}>{'★'.repeat(Math.round(n))}</span> : null);
 
 function Steps({ step }) {
@@ -151,6 +181,8 @@ export default function HotelBooking({ customerProfile, customerToken }) {
   const [offersError, setOffersError] = useState('');
   const [mealsOnly, setMealsOnly] = useState(false);
   const [allRooms, setAllRooms] = useState(false);
+  const [roomSource, setRoomSource] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState([]);
   const [rules, setRules] = useState({});           // offer_id -> {loading, error, summary}
   const [room, setRoom] = useState(null);
   const [priceNotice, setPriceNotice] = useState('');
@@ -172,7 +204,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
     const q = { destination, checkIn, checkOut, adults, rooms, childAges: [...childAges], nights: nightsBetween(checkIn, checkOut) };
     setQuery(q); setStep('results'); setHotel(null); setRoom(null); setConfirmation(null);
     setSearching(true); setSearchError(''); setHotels([]); setPagesLeft(0); setPagesTotal(0);
-    setNameFilter(''); setStarFilter([]); setMaxDistance(0); setAmenityFilter([]); setPriceCap(0); setSort('recommended');
+    setNameFilter(''); setStarFilter([]); setMaxDistance(0); setAmenityFilter([]); setPriceCap(0); setSourceFilter([]); setSort('recommended');
     fetch(`${API_BASE}/hotels/search`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -224,6 +256,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
       if (starFilter.length && !starFilter.includes(Math.round(h.stars || 0))) return false;
       if (maxDistance && !(h.distance !== null && h.distance <= maxDistance)) return false;
       if (priceCap && cmp(h) !== null && cmp(h) > priceCap) return false;
+      if (sourceFilter.length && !sourceFilter.includes(h.source)) return false;
       for (const k of amenityFilter) {
         const f = AMENITY_FILTERS.find(x => x.key === k);
         if (!(h.amenities || []).some(a => f.re.test(a))) return false;
@@ -235,16 +268,17 @@ export default function HotelBooking({ customerProfile, customerToken }) {
     if (sort === 'stars') list = [...list].sort((a, b) => (b.stars || 0) - (a.stars || 0));
     if (sort === 'distance') list = [...list].sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9));
     return list;
-  }, [hotels, nameFilter, starFilter, maxDistance, priceCap, amenityFilter, sort]);
+  }, [hotels, nameFilter, starFilter, maxDistance, priceCap, amenityFilter, sourceFilter, sort]);
+  const sourceCounts = useMemo(() => hotels.reduce((m, h) => { if (h.source) m[h.source] = (m[h.source] || 0) + 1; return m; }, {}), [hotels]);
 
-  const activeFilters = (nameFilter ? 1 : 0) + starFilter.length + (maxDistance ? 1 : 0) + (priceCap ? 1 : 0) + amenityFilter.length;
-  const clearFilters = () => { setNameFilter(''); setStarFilter([]); setMaxDistance(0); setPriceCap(0); setAmenityFilter([]); };
+  const activeFilters = (nameFilter ? 1 : 0) + starFilter.length + (maxDistance ? 1 : 0) + (priceCap ? 1 : 0) + amenityFilter.length + sourceFilter.length;
+  const clearFilters = () => { setNameFilter(''); setStarFilter([]); setMaxDistance(0); setPriceCap(0); setAmenityFilter([]); setSourceFilter([]); };
   const toggle = (setter) => (v) => setter(list => (list.includes(v) ? list.filter(x => x !== v) : [...list, v]));
 
   // ── Hotel page ──
   const openHotel = (h) => {
     setHotel(h); setStep('hotel'); setDetails(null); setOffers([]); setOffersError(''); setRules({});
-    setRoom(null); setMealsOnly(false); setAllRooms(false); setGallery(-1); scrollTop();
+    setRoom(null); setMealsOnly(false); setAllRooms(false); setRoomSource('all'); setGallery(-1); scrollTop();
     setOffersLoading(true);
     fetch(`${API_BASE}/hotels/availability`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -336,7 +370,13 @@ export default function HotelBooking({ customerProfile, customerToken }) {
     (details?.amenities || []).forEach(a => { const c = a.category || 'Other'; (g[c] = g[c] || []).push(a.description); });
     return Object.entries(g).sort((a, b) => a[0].localeCompare(b[0]));
   }, [details]);
-  const shownOffers = mealsOnly ? offers.filter(o => (o.meals || []).includes('Breakfast')) : offers;
+  const shownOffers = offers.filter(o => (!mealsOnly || (o.meals || []).includes('Breakfast'))
+    && (roomSource === 'all' || o.authority === roomSource));
+  const offerSources = useMemo(() => offers.reduce((m, o) => { if (o.authority) m[o.authority] = (m[o.authority] || 0) + 1; return m; }, {}), [offers]);
+  const roomPhotos = useMemo(() => (details?.images || [])
+    .filter(i => ROOM_PHOTO_CATEGORIES.includes(i.category) && i.url)
+    .filter((p, i, a) => a.findIndex(x => x.url === p.url) === i), [details]);
+  const openPhoto = (url) => { const i = photos.findIndex(p => p.url === url); if (i >= 0) setGallery(i); };
   const mapUrl = hotel?.latitude && hotel?.longitude ? `https://www.google.com/maps/search/?api=1&query=${hotel.latitude},${hotel.longitude}` : '';
 
   // ── Pieces ──
@@ -394,6 +434,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
         </div>
         <p className="hb-muted">{plural(query.nights, 'night')} · {plural(query.adults, 'adult')}{query.childAges.length ? ` · ${plural(query.childAges.length, 'child')}` : ''} · {plural(query.rooms, 'room')}</p>
         <div className="hb-summary-room">
+          <SourceBadge code={room.authority} />
           <strong>{cleanRoomName(room.room_description)}</strong>
           {room.rate_name && <span>{room.rate_name}</span>}
           {room.beds?.length > 0 && <span>{room.beds.join(', ')}</span>}
@@ -420,6 +461,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
             <div><span>Booking reference (PNR)</span><strong>{confirmation.locator_code || '—'}</strong></div>
             <div><span>Hotel</span><strong>{confirmation.property_name}</strong></div>
             <div><span>Room</span><strong>{cleanRoomName(confirmation.room_description)}</strong></div>
+            {room?.authority && <div><span>Rate source</span><strong>{room.authority} · {SOURCES[room.authority] || room.authority}</strong></div>}
             <div><span>Check-in</span><strong>{fmtDate(confirmation.check_in_date)}{roomRules?.check_in_time ? `, from ${roomRules.check_in_time}` : ''}</strong></div>
             <div><span>Check-out</span><strong>{fmtDate(confirmation.check_out_date)}{roomRules?.check_out_time ? `, until ${roomRules.check_out_time}` : ''}</strong></div>
             <div><span>Total</span><strong>{money(confirmation.currency, confirmation.total_price)}</strong></div>
@@ -489,7 +531,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
                   <span>I have checked the guest details, the room and the cancellation policy above.</span>
                 </label>
                 {bookError && <div className="error-banner">{bookError}</div>}
-                <button type="button" className="btn btn-primary hb-wide" disabled={!agree || booking} onClick={submitBooking}>
+                <button type="button" className="btn btn-primary hb-wide hb-confirm-btn" disabled={!agree || booking} onClick={submitBooking}>
                   {booking ? 'Confirming with the hotel…' : `Confirm booking · ${money(room.currency, room.total_price)}`}
                 </button>
               </div>
@@ -539,11 +581,32 @@ export default function HotelBooking({ customerProfile, customerToken }) {
 
         <section id="hb-rooms" className="glass-panel hb-panel">
           <div className="hb-rooms-head">
-            <h3>Available rooms</h3>
-            {offers.some(o => (o.meals || []).includes('Breakfast')) && (
-              <label className="hb-toggle"><input type="checkbox" checked={mealsOnly} onChange={e => setMealsOnly(e.target.checked)} /> Breakfast included</label>
-            )}
+            <h3>Available rooms{offers.length ? <span className="hb-count">{offers.length}</span> : null}</h3>
+            <div className="hb-rooms-tools">
+              {Object.keys(offerSources).length > 1 && (
+                <div className="hb-seg" role="group" aria-label="Rate source">
+                  <button type="button" className={roomSource === 'all' ? 'is-on' : ''} onClick={() => setRoomSource('all')}>All {offers.length}</button>
+                  {Object.entries(offerSources).map(([code, n]) => (
+                    <button type="button" key={code} className={roomSource === code ? 'is-on' : ''} onClick={() => setRoomSource(code)}>
+                      {code} · {SOURCES[code] || code} {n}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {offers.some(o => (o.meals || []).includes('Breakfast')) && (
+                <label className="hb-toggle"><input type="checkbox" checked={mealsOnly} onChange={e => setMealsOnly(e.target.checked)} /> Breakfast included</label>
+              )}
+            </div>
           </div>
+          {roomPhotos.length > 0 && (
+            <div className="hb-room-photos" aria-label="Room photos from the hotel">
+              {roomPhotos.slice(0, 12).map(p => (
+                <button type="button" key={p.url} style={{ backgroundImage: `url(${p.url})` }} onClick={() => openPhoto(p.url)} title={p.caption} aria-label={p.caption || 'Room photo'}>
+                  {p.caption && <span>{p.caption}</span>}
+                </button>
+              ))}
+            </div>
+          )}
           {offersLoading ? (
             <div className="loading-state"><div className="spinner"></div><p>Getting live room rates from the hotel…</p></div>
           ) : offersError ? (
@@ -555,14 +618,22 @@ export default function HotelBooking({ customerProfile, customerToken }) {
               {(allRooms ? shownOffers : shownOffers.slice(0, ROOMS_SHOWN)).map(o => {
                 const r = rules[o.offer_id];
                 const detail = roomDetail(o.room_description);
+                const pics = photosForRoom(o.room_description, roomPhotos);
                 return (
-                  <article key={o.offer_id} className="hb-room">
+                  <article key={o.offer_id} className={`hb-room${pics.length ? ' has-photo' : ''}`}>
+                    {pics.length > 0 && (
+                      <button type="button" className="hb-room-photo" style={{ backgroundImage: `url(${pics[0].url})` }}
+                        onClick={() => openPhoto(pics[0].url)} aria-label={`Photo: ${pics[0].caption || 'room'}`}>
+                        {pics.length > 1 && <span>{pics.length} photos</span>}
+                      </button>
+                    )}
                     <div className="hb-room-info">
+                      <div className="hb-card-top"><SourceBadge code={o.authority} /></div>
                       <h4>{cleanRoomName(o.room_description)}</h4>
                       {detail && <p className="hb-room-detail">{detail}</p>}
                       <div className="hb-tags">
-                        {o.beds?.map(b => <span key={b} className="hb-tag">🛏 {b}</span>)}
-                        <span className={`hb-tag ${o.meals?.length ? 'is-good' : ''}`}>{o.meals?.length ? `🍽 ${o.meals.join(' & ')} included` : 'Room only'}</span>
+                        {o.beds?.map(b => <span key={b} className="hb-tag">{b}</span>)}
+                        <span className={`hb-tag ${o.meals?.length ? 'is-good' : ''}`}>{o.meals?.length ? `${o.meals.join(' & ')} included` : 'Room only'}</span>
                         {o.smoking === 'No' && <span className="hb-tag">Non-smoking</span>}
                         {o.accessible === 'Yes' && <span className="hb-tag">Accessible room</span>}
                       </div>
@@ -640,8 +711,12 @@ export default function HotelBooking({ customerProfile, customerToken }) {
   return (
     <div className="hb" ref={topRef}>
       <div className="hb-hero">
-        <h2>Find your stay</h2>
-        <p>Live rooms and rates from hotels worldwide — see the price, meals and cancellation terms before you book.</p>
+        <svg className="hb-hero-trail" viewBox="0 0 600 160" aria-hidden="true" preserveAspectRatio="none">
+          <path d="M0 140 C 160 120, 260 40, 420 52 S 560 90, 600 30" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="2 9" strokeLinecap="round" />
+        </svg>
+        <span className="hb-hero-kicker">Tick and Book · Hotels</span>
+        <h2>Land, check in, <span>stay well.</span></h2>
+        <p>Live rooms and rates — with meals, taxes and the cancellation deadline shown before you book.</p>
       </div>
       {searchBar}
 
@@ -666,6 +741,15 @@ export default function HotelBooking({ customerProfile, customerToken }) {
                 <input type="range" min={0} max={priceMax} step={Math.max(1, Math.round(priceMax / 50))} value={priceCap || priceMax}
                   onChange={e => setPriceCap(Number(e.target.value) >= priceMax ? 0 : Number(e.target.value))} />
               </label>
+            )}
+            {Object.keys(sourceCounts).length > 0 && (
+              <fieldset className="hb-filter">
+                <legend>Content source</legend>
+                {Object.entries(sourceCounts).map(([code, n]) => (
+                  <label key={code} className="hb-check"><input type="checkbox" checked={sourceFilter.includes(code)} onChange={() => toggle(setSourceFilter)(code)} />
+                    <SourceBadge code={code} /><em>{n}</em></label>
+                ))}
+              </fieldset>
             )}
             {Object.keys(starCounts).length > 0 && (
               <fieldset className="hb-filter">
@@ -729,6 +813,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
                   <button type="button" className="hb-card-img" onClick={() => openHotel(h)} aria-label={`View ${h.property_name}`}
                     style={h.image_urls?.[0] ? { backgroundImage: `url(${h.image_urls[0]})` } : undefined} />
                   <div className="hb-card-body">
+                    <div className="hb-card-top"><SourceBadge code={h.source} /></div>
                     <h4><button type="button" className="hb-card-title" onClick={() => openHotel(h)}>{h.property_name}</button> <Stars n={h.stars} /></h4>
                     <p className="hb-muted">
                       {[h.address?.line, h.address?.city].filter(Boolean).join(', ')}
