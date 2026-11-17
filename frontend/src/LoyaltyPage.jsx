@@ -5,7 +5,7 @@
 // under ".loy" (Tick and Book palette).
 import { useMemo, useState } from 'react';
 import { fmtDate, fmtDateTime } from './dateFormat.js';
-import { routeOf, isUpcoming, CANCELLED, refundNote } from './BookingLineList.jsx';
+import { routeOf, isUpcoming, refundNote, isUnpaid, bookingKey, isClosed, unpaidNote } from './BookingLineList.jsx';
 import { cleanPassengerName } from './BookingCard.jsx';
 import { IconPlane, IconInfo } from './WizardIcons.jsx';
 
@@ -37,9 +37,9 @@ function downloadStatement(bookings, adjustments, pointsBy, liveStatuses, tier, 
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [['Departure', 'Booking', 'Ticket', 'Airline', 'Route', 'Passenger', 'Fare', 'Status', 'Points'].map(esc).join(',')]
     .concat(bookings.map(b => {
-      const live = liveStatuses?.[b.locator_code];
-      return [fmtDateTime(b.departure_time), b.locator_code, b.ticket_number || '', b.airline, routeOf(b), cleanPassengerName(b.passenger_name),
-              `${b.currency} ${Number(b.total_fare || 0).toFixed(2)}`, live?.checked ? live.status : b.status, pointsBy[b.locator_code] || 0].map(esc).join(',');
+      const live = isUnpaid(b) ? null : liveStatuses?.[bookingKey(b)];
+      return [fmtDateTime(b.departure_time), b.locator_code || 'No ticket yet', b.ticket_number || '', b.airline, routeOf(b), cleanPassengerName(b.passenger_name),
+              `${b.currency} ${Number(b.total_fare || 0).toFixed(2)}`, live?.checked ? live.status : b.status, (b.locator_code && pointsBy[b.locator_code]) || 0].map(esc).join(',');
     }));
   if (adjustments.length) {
     lines.push('', [esc('Other points changes')].join(','));
@@ -228,27 +228,35 @@ export default function LoyaltyPage({ loyalty, bookings, loadingBookings, liveSt
               <span className="r">Fare</span><span className="r">Points</span><span>Status</span><span>Actions</span>
             </div>
             {bookings.map(b => {
-              const live = liveStatuses?.[b.locator_code];
+              // 17/11/2026: a booking without a ticket shows no PNR, earns no
+              // points and has no Manage / Cancel - it opens the pay pop-up.
+              const unpaid = isUnpaid(b);
+              const live = unpaid ? null : liveStatuses?.[bookingKey(b)];
               const status = live?.checked ? live.status : b.status;
-              const cancelled = CANCELLED.includes(status) || !!b.not_ticketed;
+              const cancelled = isClosed(b, status);
               const upcoming = isUpcoming(b);
-              const req = (cancellationRequests || []).find(r => r.booking_locator === b.locator_code && r.status !== 'rejected');
-              const earned = pointsBy[b.locator_code];
-              const tone = cancelled ? 'bad' : /ticketed|confirmed/i.test(status || '') ? 'ok' : 'warn';
+              const req = unpaid ? null : (cancellationRequests || []).find(r => r.booking_locator === b.locator_code && r.status !== 'rejected');
+              const earned = unpaid ? 0 : pointsBy[b.locator_code];
+              const pointsRemoved = !unpaid && cancelled && !earned
+                && (loyalty.recent_transactions || []).some(t => t.locator_code === b.locator_code && t.points_change > 0);
+              const tone = cancelled ? 'bad' : unpaid ? 'warn' : /ticketed|confirmed/i.test(status || '') ? 'ok' : 'warn';
               const open = () => onOpen?.(b);
               return (
                 <div key={b.id} role="row" tabIndex={0} className={`loy-bk-row${cancelled ? ' is-cancelled' : ''}`}
-                     aria-label={`Booking ${b.locator_code}, ${routeOf(b)}, ${status}. Open details.`}
+                     aria-label={unpaid ? `Booking without a ticket, ${routeOf(b)}, ${status}. Open to pay.`
+                       : `Booking ${b.locator_code}, ${routeOf(b)}, ${status}. Open details.`}
                      onClick={open} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } }}>
                   <span className="loy-bk-flight"><strong>{b.airline}</strong><small>{b.flight_number}{b.cabin_class ? ` · ${b.cabin_class}` : ''}</small></span>
                   <span className="loy-bk-route"><strong>{routeOf(b)}</strong></span>
                   <span className="loy-bk-dep">{fmtDateTime(b.departure_time)}</span>
-                  <span className="loy-bk-pnr"><strong>{b.locator_code}</strong><small>{b.ticket_number || 'Not ticketed'}</small></span>
+                  {unpaid
+                    ? <span className="loy-bk-pnr"><strong className="bl-noticket">No ticket yet</strong><small>{unpaidNote(b)}</small></span>
+                    : <span className="loy-bk-pnr"><strong>{b.locator_code}</strong><small>{b.ticket_number || 'Not ticketed'}</small></span>}
                   <span className="loy-bk-pax">{cleanPassengerName(b.passenger_name)}</span>
                   <span className="loy-bk-fare r"><strong>{b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
                   <span className="loy-bk-pts r">
                     {earned ? <b className={earned > 0 ? 'plus' : 'minus'}>{earned > 0 ? '+' : ''}{earned.toLocaleString()} pts</b>
-                      : <small>{b.ticket_number ? '0 pts' : b.not_ticketed ? '—' : 'After ticketing'}</small>}
+                      : <small>{pointsRemoved ? 'Points removed' : unpaid ? (cancelled ? '—' : 'After ticketing') : b.ticket_number ? '0 pts' : b.not_ticketed ? '—' : 'After ticketing'}</small>}
                   </span>
                   <span className="loy-bk-status">
                     <span className={`mmb-chip ${tone}`}>{b.not_ticketed ? 'Not ticketed' : status}</span>
@@ -256,7 +264,11 @@ export default function LoyaltyPage({ loyalty, bookings, loadingBookings, liveSt
                       : live?.checked && <small>✓ Live {fmtDateTime(live.retrieved_at)}</small>}
                   </span>
                   <span className="loy-bk-actions" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
-                    {upcoming && !cancelled ? (
+                    {unpaid ? (
+                      b.payment_state === 'awaiting_payment'
+                        ? <button type="button" className="loy-act" onClick={open}>Pay to issue ticket</button>
+                        : <small>{cancelled ? 'Not paid' : unpaidNote(b)}</small>
+                    ) : upcoming && !cancelled ? (
                       <>
                         <button type="button" className="loy-act" onClick={() => onManage?.(b)}>Manage booking</button>
                         {req ? <span className="loy-req">Cancellation {req.status}</span>

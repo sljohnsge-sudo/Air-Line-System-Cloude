@@ -1,6 +1,6 @@
 {
  "source": "http://localhost:8005/openapi.json + backend/main.py",
- "count": 220,
+ "count": 222,
  "apis": [
   {
    "method": "GET",
@@ -2039,6 +2039,20 @@
    "area": "customers"
   },
   {
+   "method": "POST",
+   "path": "/api/customers/me/bookings/{pay_ref}/pay",
+   "url": "/api/customers/me/bookings/ZZTEST/pay",
+   "query": {},
+   "name": "Customer Pay For Booking",
+   "function": "customer_pay_for_booking",
+   "auth": "customer",
+   "site": "website",
+   "body": false,
+   "action": "guard",
+   "why": "changes data or reaches the payment gateway: only checked that it is refused without sign-in, never called signed in",
+   "area": "customers"
+  },
+  {
    "method": "GET",
    "path": "/api/customers/me/cancellation-requests",
    "url": "/api/customers/me/cancellation-requests",
@@ -2931,6 +2945,20 @@
    "auth": "optional",
    "site": "website",
    "body": true,
+   "action": "never",
+   "why": "booking / payment / ticketing / cancelling step open to the public: never called by tests (Tick and Book rule), tested by a person by hand",
+   "area": "payments"
+  },
+  {
+   "method": "POST",
+   "path": "/api/payments/{reqid}/issue-ticket",
+   "url": "/api/payments/zztest/issue-ticket",
+   "query": {},
+   "name": "Issue Ticket For Portal Payment",
+   "function": "issue_ticket_for_portal_payment",
+   "auth": "none",
+   "site": "website",
+   "body": false,
    "action": "never",
    "why": "booking / payment / ticketing / cancelling step open to the public: never called by tests (Tick and Book rule), tested by a person by hand",
    "area": "payments"

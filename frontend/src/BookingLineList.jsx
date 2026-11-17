@@ -33,8 +33,20 @@ export const isUpcoming = (b) => {
 
 const time = (iso) => fmtDateTime(iso);
 
-// liveStatuses: locator -> {checked, status, retrieved_at, missing, error}
-// from /customers/me/bookings/refresh-status (upcoming bookings only).
+// 17/11/2026: a booking without a ticket comes from the server without its
+// PNR (pay_ref instead) - it is listed as "No ticket yet" and opens the pay
+// pop-up (PayTicketDialog), never its details.
+export const isUnpaid = (b) => !!b.unpaid || !b.locator_code;
+export const bookingKey = (b) => b.locator_code || b.pay_ref || b.id;
+export const isClosed = (b, status) => CANCELLED.includes(status) || !!b.not_ticketed
+  || b.payment_state === 'expired' || b.payment_state === 'refund';
+export const unpaidNote = (b) => ({
+  awaiting_payment: 'Pay to issue the ticket', paid_pending: 'Ticket being issued',
+  offline_pending: 'Payment being confirmed', expired: 'Released by the airline',
+}[b.payment_state] || (b.not_ticketed ? refundNote(b) : ''));
+
+// liveStatuses: bookingKey -> {checked, status, retrieved_at, missing, error}
+// from /customers/me/bookings/refresh-status (checked live on every visit).
 export default function BookingLineList({ bookings, liveStatuses = {}, refreshing = false, onOpen }) {
   return (
     <div className="booking-lines glass-panel">
@@ -49,15 +61,19 @@ export default function BookingLineList({ bookings, liveStatuses = {}, refreshin
         <span className="bl-go"></span>
       </div>
       {bookings.map(b => {
-        const live = liveStatuses[b.locator_code];
-        const status = live?.checked ? live.status : b.status;
-        // Paid but not ticketed (Amadeus): shown like a closed booking.
-        const cancelled = CANCELLED.includes(status) || !!b.not_ticketed;
+        const unpaid = isUnpaid(b);
+        const live = liveStatuses[bookingKey(b)];
+        const status = live?.checked && !unpaid ? live.status : b.status;
+        // Paid but not ticketed (Amadeus) or an unpaid booking the airline
+        // released: shown like a closed booking.
+        const cancelled = isClosed(b, status);
         const open = () => onOpen(b);
         return (
           <div key={b.id} role="button" tabIndex={0}
                className={`booking-line ${cancelled ? 'is-cancelled' : ''}`}
-               aria-label={`Booking ${b.locator_code}, ${b.airline} ${b.flight_number}, ${routeOf(b)}, ${status}. Open details.`}
+               aria-label={unpaid
+                 ? `Booking without a ticket, ${b.airline} ${b.flight_number}, ${routeOf(b)}, ${status}. Open to pay.`
+                 : `Booking ${b.locator_code}, ${b.airline} ${b.flight_number}, ${routeOf(b)}, ${status}. Open details.`}
                onClick={open}
                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}>
             <span className="bl-flight">
@@ -66,13 +82,16 @@ export default function BookingLineList({ bookings, liveStatuses = {}, refreshin
             </span>
             <span className="bl-route"><strong>{routeOf(b)}</strong></span>
             <span className="bl-dep">{fmtDateTime(b.departure_time)}</span>
-            <span className="bl-pnr"><strong>{b.locator_code}</strong><small className="bl-ticket">{b.ticket_number || 'Not ticketed'}</small></span>
+            {unpaid
+              ? <span className="bl-pnr"><strong className="bl-noticket">No ticket yet</strong><small className="bl-ticket">{unpaidNote(b)}</small></span>
+              : <span className="bl-pnr"><strong>{b.locator_code}</strong><small className="bl-ticket">{b.ticket_number || 'Not ticketed'}</small></span>}
             <span className="bl-pax">{cleanPassengerName(b.passenger_name)}</span>
             <span className="bl-fare"><strong>{b.currency} {Number(b.total_fare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
             <span className="bl-status">
-              <span className={`pass-status-badge ${b.not_ticketed ? 'cancelled' : status?.toLowerCase()}`}>{b.not_ticketed ? 'Not ticketed' : status}</span>
+              <span className={`pass-status-badge ${cancelled ? 'cancelled' : unpaid ? 'unpaid' : status?.toLowerCase()}`}>{b.not_ticketed ? 'Not ticketed' : status}</span>
               <small>
-                {b.not_ticketed ? refundNote(b)
+                {unpaid ? (b.payment_state === 'awaiting_payment' ? <span className="bl-paylink">Pay now ›</span> : '')
+                  : b.not_ticketed ? refundNote(b)
                   : live?.checked ? <span title={b.source === 'AD' ? 'Checked live in Amadeus' : 'Checked live with Travelport and the airline'}>✓ Live {time(live.retrieved_at)}</span>
                   : live?.missing ? <span style={{ color: '#b45309', fontWeight: 700 }} title="Travelport no longer holds this booking — please contact us">⚠ Not on Travelport</span>
                   : live ? <span title={live.error}>Couldn't check live</span>
