@@ -30,7 +30,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$image = 'mcr.microsoft.com/playwright:v1.48.2-noble'   # must match e2e\package.json
+$image = 'mcr.microsoft.com/playwright:v1.64.1-noble'   # must match e2e\package.json
 $name = 'tickandbook_playwright_ui'
 $py = Join-Path $repo 'backend\venv\Scripts\python.exe'
 $accountsTool = Join-Path $repo 'e2e\tools\auth_accounts.py'

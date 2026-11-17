@@ -17,7 +17,7 @@ ADMIN_URL="${ADMIN_URL:-http://127.0.0.1:5177}"
 SMOKE_SEARCH="${SMOKE_SEARCH:-}"
 ROUTE_TESTS="${ROUTE_TESTS:-}"
 ROUTE_RUN_ID="${ROUTE_RUN_ID:-}"
-IMAGE="mcr.microsoft.com/playwright:v1.48.2-noble"   # must match e2e/package.json
+IMAGE="mcr.microsoft.com/playwright:v1.64.1-noble"   # must match e2e/package.json
 
 echo "Playwright: customer site $SITE_URL, admin site $ADMIN_URL${SMOKE_SEARCH:+, with one live search}${ROUTE_TESTS:+, with the CMB route test}"
 docker run --rm --network host --ipc=host \

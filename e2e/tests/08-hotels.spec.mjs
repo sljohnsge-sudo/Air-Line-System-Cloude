@@ -125,8 +125,9 @@ test.describe('hotels', () => {
     await expect(page.locator('.hb-progress')).toHaveCount(0, { timeout: 180_000 });
     const n = await cards.count();
     expect(n).toBeGreaterThan(0);
+    // Every card has at least one source tag (a hotel can have TVPT and BKNG).
     for (let i = 0; i < Math.min(n, 10); i++) {
-      await expect(cards.nth(i).locator('.hb-source')).toHaveText(/^(TVPT|BKNG|ETGR)/);
+      await expect(cards.nth(i).locator('.hb-source').first()).toHaveText(/^(TVPT|BKNG|ETGR)/);
     }
     await expect(cards.first().locator('.hb-card-price')).toContainText(/LKR|per night/);
     // Booking.com (BKNG) is only in each hotel's rates: the cards in view are
