@@ -2138,7 +2138,7 @@ export default function App() {
   // of flashing the Home page while the mount effect below verifies payment.
   const [verifyingPayment, setVerifyingPayment] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return !!((params.get('locator') || params.get('ndc_pending')) && params.get('reqid'));
+    return !!((params.get('locator') || params.get('ndc_pending') || params.get('pay')) && params.get('reqid'));
   });
   // This page load came back from PayCorp: never re-run the old flight search
   // from the results link (its "Searching Live Inventory" covered the payment
@@ -2321,6 +2321,9 @@ export default function App() {
 
   const crossSellAvailable = !!(featureFlags.hotels_enabled || featureFlags.visa_enabled || featureFlags.packages_enabled);
   const ticketLocator = issuedTicket?.locator_code || issuedTicket?.pnr || null;
+  // The e-ticket is shown only once Travelport has given a ticket number (17/11/2026).
+  const issuedHasTicket = !!(issuedTicket && (issuedTicket.ticket_number
+    || (issuedTicket.ticket_numbers || []).some(t => (t && typeof t === 'object' ? t.number : t))));
   useEffect(() => {
     if (bookingStep !== 'ticket' || !ticketLocator || tripCrossSell.loc === ticketLocator) return;
     // Checked on every scroll (the ticket scrolls inside its own panel, so
@@ -2363,8 +2366,35 @@ export default function App() {
     const reqid = params.get('reqid');
     const cancelled = params.get('payment') === 'cancelled';
     const src = params.get('src');
+    // My Bookings > Pay (17/11/2026): only the booking reference (never the
+    // PNR) comes back; the server finds the booking from the payment itself.
+    const payRef = params.get('pay');
 
-    if (locator && reqid && src === 'AD') {
+    if (payRef && cancelled) {
+      window.history.replaceState({}, '', window.location.pathname);
+      setVerifyingPayment(false);
+      showNotification('Payment was cancelled - nothing was charged. Your booking still has no ticket: open it under My Bookings to pay and issue the ticket.', 'info');
+    } else if (payRef && reqid) {
+      window.history.replaceState({}, '', window.location.pathname);
+      (async () => {
+        try {
+          const res = await fetchWithRetry(`${API_BASE}/payments/${encodeURIComponent(reqid)}/issue-ticket`, { method: 'POST' });
+          const data = await handleApiResponse(res, 'Ticket issuance failed');
+          setIssuedTicket(data.ticket);
+          setBookingStep('ticket');
+          showNotification('🎉 Payment confirmed — ticket issued!', 'success');
+        } catch (err) {
+          showNotification(
+            err instanceof TypeError
+              ? 'Your payment was received, but we could not confirm your ticket. Please do not pay again — check My Bookings shortly, or your refund will be processed automatically.'
+              : (err.message || 'Ticket issuance failed after payment'),
+            'error', { sticky: true }
+          );
+        } finally {
+          setVerifyingPayment(false);
+        }
+      })();
+    } else if (locator && reqid && src === 'AD') {
       // Amadeus card-payment return (13/11/2026). The page reloaded fresh,
       // so only the PNR and reqid are needed: the server checks the payment
       // was made for THIS booking and amount, then issues the ticket. If the
@@ -2457,7 +2487,8 @@ export default function App() {
       window.history.replaceState({}, '', window.location.pathname);
       reportJourneyStep('Payment cancelled', { detail: `Customer cancelled on the payment page (PNR ${locator})` });
       setVerifyingPayment(false);
-      showNotification(`Payment was cancelled. Your booking (PNR: ${locator}) is held — you can complete payment later.`, 'info');
+      // No PNR for a booking without a ticket (17/11/2026).
+      showNotification('Payment was cancelled - nothing was charged. Your booking is held without a ticket: open it under My Bookings to pay and issue the ticket.', 'info');
     } else if (ndcPending && cancelled) {
       window.history.replaceState({}, '', window.location.pathname);
       reportJourneyStep('Payment cancelled', { detail: 'Customer cancelled on the payment page' });
@@ -10423,8 +10454,27 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
         </div>
       )}
 
+      {/* No ticket number = no e-ticket (17/11/2026): a booking that isn't
+          paid / ticketed never gets the Electronic Ticket Receipt (no "Paid",
+          no QR code, nothing to print or share). */}
+      {bookingStep === 'ticket' && issuedTicket && !issuedHasTicket && (
+        <div className="modal-overlay animate-fade-only pay-ticket-overlay" role="dialog" aria-modal="true" aria-labelledby="no-ticket-title">
+          <div className="modal-content glass-panel animate-fade pay-ticket">
+            <h3 id="no-ticket-title">No ticket yet</h3>
+            <p className="pay-ticket-lead">
+              {issuedTicket.ticket_issuance_diagnostic
+                ? 'We have received your payment and the airline is issuing your ticket. Please don\'t pay again - your e-ticket will be emailed to you and will appear under My Bookings.'
+                : 'This booking has no ticket yet, so there is no e-ticket to show. Pay the ticket amount under My Bookings to issue the ticket.'}
+            </p>
+            <div className="pay-ticket-actions">
+              <button type="button" className="btn btn-primary" onClick={() => { closeBookingFlow(); navigate('/account'); }}>Go to My Bookings</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── TICKET POPUP (STEP 10) ──────────────────────────────────────── */}
-      {bookingStep === 'ticket' && issuedTicket && (
+      {bookingStep === 'ticket' && issuedTicket && issuedHasTicket && (
         <div className="modal-overlay animate-fade-only" style={{ zIndex: 9999, overflowY: 'auto', display: 'block', padding: '2rem 1rem' }}>
           {/* Main Modal Card */}
           <div className="modal-content glass-panel animate-fade ticket-print-wrapper" style={{ 

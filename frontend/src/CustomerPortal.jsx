@@ -5,6 +5,7 @@ import BookingLineList from './BookingLineList.jsx';
 import BookingDetailView from './BookingDetailView.jsx';
 import BookingStatusPage from './BookingStatusPage.jsx';
 import LoyaltyPage from './LoyaltyPage.jsx';
+import PayTicketDialog from './PayTicketDialog.jsx';
 import { COUNTRIES } from './countries.js';
 import { fmtDate } from './dateFormat.js';
 
@@ -90,8 +91,9 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     onCustomerLogout();
   };
 
-  const loadBookings = async () => {
-    setLoadingBookings(true);
+  // refresh: false = reload quietly after a live change, without checking again.
+  const loadBookings = async ({ refresh = true } = {}) => {
+    if (refresh) setLoadingBookings(true);
     setBookingsError('');
     try {
       const res = await fetchWithRetry(`${API_BASE}/customers/me/bookings`, {
@@ -100,7 +102,7 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       if (res.status === 401) return handleSessionExpired();
       const data = await handleApiResponse(res, 'Failed to load your bookings');
       setBookings(data.bookings || []);
-      refreshLiveStatuses();
+      if (refresh) refreshLiveStatuses();
     } catch (err) {
       setBookingsError(err.message);
     } finally {
@@ -108,10 +110,18 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
     }
   };
 
-  // Upcoming bookings' status checked live with Travelport (and saved back),
-  // so an airline cancellation shows in the list itself, not only in Live status.
+  // Every booking's status is checked live with Travelport when the account
+  // opens (and saved back), so a ticket cancelled, voided or refunded in
+  // another Travelport system shows here. A booking without a ticket opens
+  // the pay pop-up instead of its details (17/11/2026): no PNR, e-ticket or
+  // Manage My Booking until the ticket is paid for and issued.
+  const [payBooking, setPayBooking] = useState(null);
   const openBooking = openLocator ? bookings.find(b => b.locator_code === openLocator) : null;
-  const openBookingDetail = (b) => { setOpenLocator(b.locator_code); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const openBookingDetail = (b) => {
+    if (b.unpaid || !b.locator_code) { setPayBooking(b); return; }
+    setOpenLocator(b.locator_code);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const closeBooking = () => setOpenLocator(null);
   // Travelport and Amadeus bookings open the same Booking Status page (13/11/2026).
   const openBookingStatus = (b) => {
@@ -133,6 +143,9 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
       if (res.ok) {
         const data = await res.json();
         setLiveStatuses(data.statuses || {});
+        // Travelport showed a change (saved on the server): the list and the
+        // points balance are loaded again - without a second live check.
+        if (data.changed) { loadBookings({ refresh: false }); loadLoyalty(); }
       }
     } catch {
       // Best effort: the list still shows the saved statuses.
@@ -616,8 +629,13 @@ export default function CustomerPortal({ customerToken, customerProfile, onCusto
           {activeSection === 'loyalty' && (
             <LoyaltyPage loyalty={loyalty} bookings={bookings} loadingBookings={loadingBookings} liveStatuses={liveStatuses}
                          cancellationRequests={cancellationRequests} visa={visaSection}
-                         onOpen={(b) => { setActiveSection('bookings'); openBookingDetail(b); }}
+                         onOpen={(b) => { if (!(b.unpaid || !b.locator_code)) setActiveSection('bookings'); openBookingDetail(b); }}
                          onManage={openBookingStatus} onCancel={onRequestCancellation} />
+          )}
+
+          {payBooking && (
+            <PayTicketDialog booking={payBooking} apiBase={API_BASE} fetchWithRetry={fetchWithRetry} authToken={customerToken}
+                             onClose={() => setPayBooking(null)} onSessionExpired={handleSessionExpired} />
           )}
 
           {activeSection === 'cancellations' && (

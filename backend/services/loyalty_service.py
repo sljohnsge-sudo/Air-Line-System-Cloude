@@ -24,9 +24,13 @@ def compute_points(total_fare: float, currency: str, settings: dict | None = Non
 
 def award_points_for_booking(email: str, total_fare: float, currency: str, locator_code: str) -> int:
     """Award points for a newly-ticketed booking. Returns the new balance.
-    No-ops if the fare/points computes to 0 (e.g. a free/comp ticket)."""
+    No-ops if the fare/points computes to 0 (e.g. a free/comp ticket), and
+    (17/11/2026) when the booking already has its points or was cancelled:
+    points are earned once, only for an issued ticket that still stands."""
     points = compute_points(total_fare, currency)
-    if points <= 0:
+    booking = database.get_booking_by_locator(locator_code) if locator_code else None
+    if (points <= 0 or database.loyalty_points_for_booking(locator_code) > 0
+            or (booking or {}).get("status") in database.CANCELLED_STATUSES):
         return database.get_loyalty_account(email).get("points_balance", 0)
     return database.award_loyalty_points(email, points, locator_code, f"Booking {locator_code}")
 

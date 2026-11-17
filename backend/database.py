@@ -14,6 +14,7 @@ Tables:
 
 import os
 import json
+import logging
 from datetime import datetime
 import mysql.connector
 from mysql.connector import pooling
@@ -2889,13 +2890,136 @@ def record_cancellation(locator_code: str, status: str, cancel_method: str,
         conn.commit()
         cursor.execute("SELECT * FROM bookings WHERE locator_code=%s", (locator_code,))
         row = cursor.fetchone()
-        return _hydrate_bookings([row])[0] if row else None
     except Exception as e:
         conn.rollback()
         raise e
     finally:
         cursor.close()
         conn.close()
+    # A cancelled, voided or refunded ticket earns no points (17/11/2026):
+    # every way a cancellation is recorded comes through here.
+    try:
+        revoke_loyalty_for_booking(locator_code, f"Booking {locator_code} {status.lower()} - points removed")
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Loyalty points for cancelled booking {locator_code} not removed: {e}")
+    return _hydrate_bookings([row])[0] if row else None
+
+
+# ── Tickets and payments of a booking (17/11/2026) ──────────────────────────
+# A booking without a ticket is never shown or used as one in the Customer
+# Portal: no PNR, no e-ticket, no Manage My Booking, no points. The customer
+# pays the ticket amount through the payment gateway and the ticket is issued
+# from that payment only.
+
+def ticket_numbers_of(b: dict | None) -> list[str]:
+    """The booking's e-ticket numbers as saved (ticket_number and the
+    per-passenger ticket_numbers list)."""
+    if not b:
+        return []
+    nums = b.get("ticket_numbers") or []
+    if isinstance(nums, str):
+        try:
+            nums = json.loads(nums)
+        except Exception:
+            nums = []
+    out = [str(t.get("number") if isinstance(t, dict) else t) for t in nums if (t.get("number") if isinstance(t, dict) else t)]
+    if b.get("ticket_number") and str(b["ticket_number"]) not in out:
+        out.insert(0, str(b["ticket_number"]))
+    return out
+
+
+def has_ticket(b: dict | None) -> bool:
+    """A ticket was issued for this booking: a ticket number is saved, or its
+    status is one only an issued ticket reaches (a void can drop the number)."""
+    return bool(b) and (bool(ticket_numbers_of(b)) or b.get("status") in ("Ticketed", "Voided", "Refunded"))
+
+
+def payment_taken_for(locator_code: str, refs: tuple = ()) -> bool:
+    """Money for this booking's ticket has already been received - a card
+    payment accepted by the bank, or one already used to issue a ticket - so
+    the customer must never be asked to pay again."""
+    refs = tuple(r for r in (locator_code, *refs) if r)
+    marks = ",".join(["%s"] * len(refs))
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"SELECT 1 FROM consumed_payment_reqids WHERE locator_code=%s OR client_ref IN ({marks}) LIMIT 1",
+                       (locator_code, *refs))
+        if cursor.fetchone():
+            return True
+        try:
+            cursor.execute(f"SELECT 1 FROM cybersource_payments WHERE client_ref IN ({marks}) AND status='accept' LIMIT 1", refs)
+            return bool(cursor.fetchone())
+        except mysql.connector.Error:
+            return False  # PayCorp set-ups have no NDB payments table
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_booking_by_id(booking_id: int) -> dict | None:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM bookings WHERE id=%s", (booking_id,))
+        row = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+    return _hydrate_bookings([row])[0] if row else None
+
+
+def set_ticketed_from_travelport(locator_code: str, ticket_number: str) -> bool:
+    """A ticket Travelport holds for a booking we had as un-ticketed (issued
+    in another Travelport system): saved, so the portal shows it. Never
+    touches a cancelled booking or one that already has a ticket number."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE bookings SET ticket_number=%s, status='Ticketed' WHERE locator_code=%s "
+            "AND (ticket_number IS NULL OR ticket_number='') AND status NOT IN ('Cancelled','Voided','Refunded')",
+            (ticket_number, locator_code),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def loyalty_points_for_booking(locator_code: str) -> int:
+    """Net points this booking has earned so far (all accounts)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COALESCE(SUM(points_change), 0) FROM loyalty_transactions WHERE locator_code=%s",
+                       (locator_code,))
+        return int((cursor.fetchone() or [0])[0] or 0)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def revoke_loyalty_for_booking(locator_code: str, reason: str) -> int:
+    """Take back the points a booking earned (its ticket was cancelled,
+    voided or refunded). Safe to call more than once: only what is still
+    standing for the booking is taken back. Returns the points removed."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT email, SUM(points_change) FROM loyalty_transactions WHERE locator_code=%s GROUP BY email",
+                       (locator_code,))
+        standing = [(email, int(net or 0)) for email, net in cursor.fetchall()]
+    finally:
+        cursor.close()
+        conn.close()
+    removed = 0
+    for email, net in standing:
+        if net > 0:
+            award_loyalty_points(email, -net, locator_code, reason)
+            removed += net
+    return removed
 
 
 AIRLINE_STATUSES = ("Confirmed", "Awaiting Airline", "Airline Cancelled")

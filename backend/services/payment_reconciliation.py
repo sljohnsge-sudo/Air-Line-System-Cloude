@@ -281,6 +281,12 @@ def reconcile(rows: list[dict]) -> dict:
             for c in _q(cur, f"SELECT client_ref, locator_code FROM consumed_payment_reqids "
                              f"WHERE UPPER(client_ref) IN ({_in(refs)}) AND locator_code IS NOT NULL", refs):
                 linked[c["client_ref"].upper()] = c["locator_code"].upper()
+            # My Bookings payments (17/11/2026) carry TBK<booking id>, not the PNR.
+            tbk = {r: int(r[3:]) for r in refs if re.fullmatch(r"TBK\d{1,10}", r) and r not in linked}
+            if tbk:
+                for b in _q(cur, f"SELECT id, locator_code FROM bookings WHERE id IN ({_in(list(tbk.values()))})",
+                            list(tbk.values())):
+                    linked[f"TBK{b['id']}"] = b["locator_code"].upper()
             for a in _q(cur, f"SELECT addon_id, locator_code, amount, currency, status, erp_invoice_name, erp_sync_error "
                              f"FROM addon_payments WHERE addon_id IN ({_in(refs)})", refs):
                 addons[a["addon_id"].upper()] = a

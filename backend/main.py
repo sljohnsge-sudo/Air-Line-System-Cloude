@@ -69,6 +69,7 @@ from services import live_booking_service
 from services import manage_booking_service
 from services import addon_billing
 from services import customer_notify
+from services import customer_booking_sync
 from services import eticket_email
 from services import addon_deadlines
 from services import ticketing_exceptions
@@ -3068,6 +3069,7 @@ PAYMENT_REQUIRED_DETAIL = "A confirmed card payment is required before a ticket 
 def _verify_and_claim_payment(
     reqid: str, expected_client_ref: str, locator_code: Optional[str] = None,
     expected_amount: Optional[float] = None, expected_currency: Optional[str] = None,
+    known_result: Optional[dict] = None,
 ) -> dict:
     """Confirms a PayCorp reqid actually paid for THIS booking, not just that
     some payment somewhere succeeded. Closes two real gaps: (1) a successful
@@ -3079,7 +3081,7 @@ def _verify_and_claim_payment(
     HTTPException and claims nothing on any failure; only a reqid that passes
     every check gets marked consumed."""
     try:
-        payment_result = services.complete_payment(reqid)
+        payment_result = known_result or services.complete_payment(reqid)
     except services.PayCorpError as e:
         logger.error(f"PayCorp payment check failed (reqid={reqid}): {e}")
         raise HTTPException(status_code=502, detail=str(e))
@@ -3144,8 +3146,36 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
     this amount — Travelport is never contacted for ticket issuance otherwise.
     There is no unpaid path: a missing reqid is refused with 402.
     """
-    locator_code = locator_code.upper().strip()
+    return _issue_after_payment(locator_code.upper().strip(), request.reqid, locator_code.upper().strip())
 
+
+@app.post("/api/payments/{reqid}/issue-ticket")
+def issue_ticket_for_portal_payment(reqid: str):
+    """My Bookings > Pay (17/11/2026): back from the payment gateway. The
+    browser holds only the payment (reqid); the payment's own reference
+    (TBK<id>, sent to the gateway by /api/customers/me/bookings/{ref}/pay)
+    gives the booking, so the PNR never passes through the browser before
+    the ticket exists. Same checks as /api/bookings/{pnr}/issue-ticket: the
+    gateway must confirm the payment for this booking and amount, once."""
+    if not re.fullmatch(r"[A-Za-z0-9-]{8,64}", reqid or ""):
+        raise HTTPException(status_code=400, detail="Invalid payment reference.")
+    try:
+        payment_result = services.complete_payment(reqid)
+    except services.PayCorpError as e:
+        logger.error(f"Payment check failed (reqid={reqid}): {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+    ref = str(payment_result.get("client_ref") or "").upper()
+    m = re.fullmatch(r"TBK(\d{1,10})", ref)
+    booking = database.get_booking_by_id(int(m.group(1))) if m else None
+    if not booking or not booking.get("locator_code"):
+        raise HTTPException(status_code=404, detail="This payment is not for a booking on this website. Ticket not issued.")
+    return _issue_after_payment(booking["locator_code"].upper(), reqid, ref, payment_result)
+
+
+def _issue_after_payment(locator_code: str, reqid: Optional[str], client_ref: str,
+                         known_result: Optional[dict] = None) -> dict:
+    """Issue the ticket from a payment the gateway confirmed for this booking
+    (client_ref: the reference the payment was started with)."""
     # Idempotency: a double-click, a retried request, or a race between two
     # browser tabs could otherwise call this twice for the same PNR, which
     # without this check would re-run the full Travelport buildfromlocator ->
@@ -3160,7 +3190,7 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
         return {"success": True, "ticket": _public_booking_view(existing), "cached_id": existing.get("id"), "already_issued": True}
 
     _require_switch("ticketing_enabled", after_payment=True)
-    if not request.reqid:
+    if not reqid:
         logger.warning(f"Ticket issuance refused for {locator_code} — no PayCorp payment reference.")
         raise HTTPException(status_code=402, detail=PAYMENT_REQUIRED_DETAIL)
     if not existing or not existing.get("total_fare"):
@@ -3170,8 +3200,9 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
         raise HTTPException(status_code=409, detail="This booking could not be matched to a payment amount. Ticket not issued — contact support.")
 
     payment_result = _verify_and_claim_payment(
-        request.reqid, expected_client_ref=locator_code, locator_code=locator_code,
+        reqid, expected_client_ref=client_ref, locator_code=locator_code,
         expected_amount=existing["total_fare"], expected_currency=existing.get("currency"),
+        known_result=known_result,
     )
     # The airline may have dropped the flight after payment started; a ticket
     # can't be issued then, so alert staff to refund instead of trying.
@@ -3181,7 +3212,7 @@ def issue_ticket_after_payment(locator_code: str, request: IssueTicketRequest):
                       raw_error=json.dumps(problem.get("codes")))
         _notify_airline_problem(locator_code, problem["codes"], payment_result.get("txn_reference") or "paid")
         _auto_refund_for_booking(locator_code, "airline has not confirmed / cancelled the flight",
-                                 payment_result.get("txn_reference") or request.reqid)
+                                 payment_result.get("txn_reference") or reqid)
         raise HTTPException(status_code=409, detail=_paid_not_ticketed_message(locator_code))
     return _issue_and_save_ticket(locator_code, payment_result)
 
@@ -3367,11 +3398,11 @@ def _issue_and_save_ticket(locator_code: str, payment_result: Optional[dict] = N
     saved = database.save_booking(ticket)
 
     # Loyalty points are earned on actual ticketing (a completed, paid
-    # transaction), not at PNR creation — save_booking may be called again
-    # later (e.g. Sync PNR) but award_loyalty_points is only ever invoked
-    # from this one place, so no double-awarding risk.
+    # transaction), not at PNR creation — and (17/11/2026) only once
+    # Travelport has given the ticket number: a payment that ends without a
+    # ticket earns nothing. award_points_for_booking never awards a booking twice.
     try:
-        if ticket.get("email"):
+        if ticket.get("email") and ticket.get("ticket_number"):
             services.award_points_for_booking(
                 ticket["email"], float(ticket.get("total_fare", 0)), ticket.get("currency", "USD"), locator_code,
             )
@@ -4258,8 +4289,10 @@ def live_booking_status(locator_code: str, principal: Optional[dict] = Depends(a
     locator_code = locator_code.upper().strip()
     if not principal:
         raise HTTPException(status_code=401, detail="Sign in to see this booking's live status.")
-    if not _can_see_private(principal, database.get_booking_by_locator(locator_code)):
+    saved = database.get_booking_by_locator(locator_code)
+    if not _can_see_private(principal, saved):
         raise HTTPException(status_code=403, detail="This booking isn't on your account.")
+    _require_ticket_for_customer(principal, saved)
     with services.flow_trace_id() as trace_id:
         try:
             data = live_booking_service.get_live_booking(locator_code)
@@ -4314,8 +4347,12 @@ def retrieve_booking(locator_code: str, principal: Optional[dict] = Depends(auth
         # agency's PCC — and at most 60 look-ups per connection in 15 minutes
         # (each one is a paid Travelport call).
         rate_limit.hit("retrieve-ip", insights.ip_for_limits(), 60, 900, rate_limit.TOO_MANY_LOOKUPS)
-        if not database.get_booking_by_locator(locator_code):
+        saved = database.get_booking_by_locator(locator_code)
+        if not saved:
             raise HTTPException(status_code=404, detail="Reservation not found.")
+        # 17/11/2026: no e-ticket (View / Print Ticket, shared ticket link)
+        # for a booking without a ticket - it is paid for first.
+        _require_ticket_for_customer(principal, saved)
     try:
         # Fetch live from Travelport
         ticket = services.retrieve_reservation(locator_code)
@@ -4384,6 +4421,7 @@ async def ticket_status(query: str = Query(..., min_length=3, max_length=20),
     tp_cached = await asyncio.to_thread(
         lambda: database.get_booking_by_locator(q) or database.get_booking_by_ticket_number(q))
     if tp_cached:
+        _require_ticket_for_customer(principal, tp_cached)  # 17/11/2026: unpaid bookings are not shown as tickets
         locator = tp_cached["locator_code"]
         try:
             ticket = await asyncio.to_thread(services.retrieve_reservation, locator)
@@ -4661,6 +4699,7 @@ def _require_invoice_access(principal: dict, booking: Optional[dict]) -> None:
         raise HTTPException(status_code=404, detail="No booking on your account has this reference. "
                                                     "If you booked as a guest, open it once in Booking Status "
                                                     "(booking reference + last name) to add it to your account.")
+    _require_ticket_for_customer(principal, booking)  # 17/11/2026: the invoice comes with the ticket
 
 
 @app.get("/api/invoice/ticket/{ticket_number}")
@@ -4928,6 +4967,10 @@ def payments_init(request: PaymentInitRequestBody):
     """
     amount, currency = request.amount, request.currency
     ref = (request.client_ref or "").strip()
+    if ref.upper().startswith("TBK"):
+        # My Bookings references are paid only through
+        # /api/customers/me/bookings/{ref}/pay (amount and checks server-side).
+        raise HTTPException(status_code=400, detail="Please pay for this booking from My Bookings.")
     if ref.upper().startswith(ad_bookings.REF_PREFIX):
         # Amadeus booking (13/11/2026): the amount fixed on our side when it
         # was held; the flights and the fare are checked live with the
@@ -6417,6 +6460,108 @@ def customer_oauth_callback(provider: str, code: Optional[str] = None, state: Op
     return RedirectResponse(f"{AuthConfig.FRONTEND_BASE_URL}/account#{params}")
 
 
+# ── Bookings without a ticket (17/11/2026) ────────────────────────────────────
+# A booking is only a ticket once Travelport has issued one, and a ticket is
+# only issued from a payment the gateway confirmed. Until then the Customer
+# Portal never shows its PNR or airline reference, never shows an e-ticket,
+# invoice or live booking for it, never opens Manage My Booking (seats,
+# extras, special requests) and never gives it loyalty points. The customer
+# sees "Awaiting payment" and pays the ticket amount from My Bookings
+# (/api/customers/me/bookings/{pay_ref}/pay), which sends them to the gateway;
+# the ticket is issued from that payment (/api/payments/{reqid}/issue-ticket).
+
+TICKET_NOT_PAID = ("This booking has no ticket yet. Pay the ticket amount under My Bookings to issue the ticket - "
+                   "the e-ticket, invoice, seats, extras and other services are available once it is issued.")
+
+_UNPAID_STATUS = {"awaiting_payment": "Awaiting payment", "paid_pending": "Payment received",
+                  "offline_pending": "Awaiting bank / cash payment", "expired": "Not paid - expired",
+                  "contact_us": "Awaiting payment", "refund": "Not ticketed"}
+_UNPAID_MESSAGE = {
+    "paid_pending": ("We have received your payment for this booking and your ticket is being issued. Please don't pay "
+                     "again - your e-ticket will be emailed to you; contact us if it hasn't arrived within an hour."),
+    "offline_pending": ("This booking is waiting for your bank transfer / cash payment to be confirmed. The ticket is "
+                        "issued as soon as our team confirms it - please don't pay again by card."),
+    "expired": ("This booking was not paid in time, so the airline has released it. Nothing was charged - please "
+                "search and book the flight again."),
+    "contact_us": "Please contact us to pay for this booking and issue the ticket.",
+}
+# Fields an un-ticketed booking shows in the portal: the trip and the amount
+# to pay - no PNR, airline reference, tickets, passports or contacts.
+_UNPAID_FIELDS = ("airline", "airline_code", "flight_number", "cabin_class", "fare_family", "baggage_allowance",
+                  "departure_airport", "arrival_airport", "departure_time", "arrival_time", "departure_terminal",
+                  "arrival_terminal", "duration", "stops", "booking_date", "passenger_name", "total_fare", "currency",
+                  "source", "fare_source")
+_FLIGHT_FIELDS = ("flight_number", "airline", "airline_code", "departure_airport", "arrival_airport", "departure_time",
+                  "arrival_time", "departure_terminal", "arrival_terminal", "duration", "cabin_class")
+
+
+def _flights_only(items) -> list:
+    out = []
+    for x in items if isinstance(items, list) else []:
+        if isinstance(x, dict):
+            leg = {k: x.get(k) for k in _FLIGHT_FIELDS if k in x}
+            if isinstance(x.get("segments"), list):
+                leg["segments"] = _flights_only(x["segments"])
+            out.append(leg)
+    return out
+
+
+def _unpaid_state(b: dict) -> str:
+    """Where an un-ticketed Travelport booking stands for the customer."""
+    if b.get("status") in database.CANCELLED_STATUSES or b.get("status") == segment_status.AIRLINE_CANCELLED:
+        return "expired"
+    if database.payment_taken_for(b["locator_code"], (customer_booking_sync.pay_ref(b),)):
+        return "paid_pending"
+    try:
+        if offline_payments.open_for(b["locator_code"]):
+            return "offline_pending"
+    except Exception as e:
+        logger.warning(f"Offline payment check for {b['locator_code']} failed: {e}")
+    if str(b.get("departure_time") or "")[:16].replace("T", " ") < datetime.now().strftime("%Y-%m-%d %H:%M"):
+        return "expired"
+    return "awaiting_payment"
+
+
+def _unpaid_row(b: dict, state: str, pay_ref: Optional[str]) -> dict:
+    row = {k: b.get(k) for k in _UNPAID_FIELDS}
+    row.update({
+        "id": b.get("id"), "pay_ref": pay_ref, "unpaid": True, "payment_state": state,
+        "status": _UNPAID_STATUS.get(state, "Awaiting payment"), "payment_message": _UNPAID_MESSAGE.get(state),
+        "locator_code": None, "pnr": None, "airline_pnr": None, "ticket_number": None, "ticket_numbers": [],
+        "legs": _flights_only(b.get("legs")), "segments": _flights_only(b.get("segments")),
+    })
+    return row
+
+
+def _portal_booking(b: dict) -> dict:
+    """One booking as My Bookings shows it: as saved once it has a ticket,
+    otherwise the trip and the amount to pay only (see _unpaid_row)."""
+    if b.get("source") == "AD":
+        if b.get("ticket_number"):
+            return b
+        state = "refund" if b.get("not_ticketed") else "contact_us"
+        row = _unpaid_row(b, state, None)
+        row.update({"not_ticketed": b.get("not_ticketed"), "refund_request": b.get("refund_request"),
+                    "status": b.get("status") if b.get("not_ticketed") else row["status"]})
+        return row
+    if database.has_ticket(b):
+        return b
+    return _unpaid_row(b, _unpaid_state(b), customer_booking_sync.pay_ref(b))
+
+
+def _portal_key(b: dict) -> str:
+    return b["locator_code"] if database.has_ticket(b) else customer_booking_sync.pay_ref(b)
+
+
+def _require_ticket_for_customer(principal: Optional[dict], booking: Optional[dict]) -> None:
+    """Customers (and anyone not signed in as staff) get nothing that works
+    as a ticket for a booking without one - staff still see everything."""
+    if principal and principal.get("role") == "admin":
+        return
+    if booking and not database.has_ticket(booking):
+        raise HTTPException(status_code=402, detail=TICKET_NOT_PAID)
+
+
 @app.get("/api/customers/me/bookings")
 def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
     bookings = database.get_bookings_for_customer(current["customer_id"])
@@ -6431,7 +6576,71 @@ def customer_my_bookings(current: dict = Depends(auth.get_current_customer)):
         ad_rows = []
     if ad_rows:
         bookings = sorted(list(bookings) + ad_rows, key=lambda b: str(b.get("booking_date") or ""), reverse=True)
+    bookings = [_portal_booking(b) for b in bookings]
     return {"bookings": bookings, "count": len(bookings)}
+
+
+def _customer_unpaid_booking(pay_ref: str, current: dict) -> dict:
+    m = re.fullmatch(r"TBK(\d{1,10})", (pay_ref or "").strip().upper())
+    b = database.get_booking_by_id(int(m.group(1))) if m else None
+    if not b or b.get("customer_id") != current["customer_id"]:
+        raise HTTPException(status_code=404, detail="No booking on your account has this reference.")
+    if database.has_ticket(b):
+        raise HTTPException(status_code=409, detail="This booking already has its ticket - open it from My Bookings.")
+    return b
+
+
+_LAN_ORIGIN = re.compile(r"^https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|"
+                         r"172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$")
+
+
+def _site_origin(request: Request) -> str:
+    """The website the customer is on, to come back to after the payment
+    page: the browser's Origin, accepted only for this site's own address."""
+    origin = (request.headers.get("origin") or "").rstrip("/")
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    if re.fullmatch(r"https?://[A-Za-z0-9.\-]+(:\d+)?", origin) and (
+            origin in _cors_origins or origin.split("://", 1)[1] == host
+            or (not _cors_origins and _LAN_ORIGIN.match(origin))):
+        return origin
+    raise HTTPException(status_code=400, detail="Please pay for this booking from My Bookings on the Tick and Book website.")
+
+
+@app.post("/api/customers/me/bookings/{pay_ref}/pay")
+def customer_pay_for_booking(pay_ref: str, request: Request, current: dict = Depends(auth.get_current_customer)):
+    """My Bookings > a booking without a ticket > Pay: sends the customer to
+    the payment gateway for the ticket amount. Checked first, live: the
+    airline still holds the flights and the fare can still be ticketed - no
+    payment is ever taken for a booking that can't be ticketed. The amount is
+    always our saved total; the gateway sees the booking reference (never
+    the PNR). The ticket is issued only from this payment, once the gateway
+    confirms it (/api/payments/{reqid}/issue-ticket)."""
+    booking = _customer_unpaid_booking(pay_ref, current)
+    state = _unpaid_state(booking)
+    if state != "awaiting_payment":
+        raise HTTPException(status_code=409, detail=_UNPAID_MESSAGE.get(state, TICKET_NOT_PAID))
+    if not booking.get("total_fare"):
+        raise HTTPException(status_code=409, detail="This booking can't be paid online. Nothing has been charged - "
+                                                    "please search and book the flight again.")
+    origin = _site_origin(request)
+    _require_switch("ticketing_enabled")
+    _require_card_enabled()
+    locator = booking["locator_code"]
+    booking = _held_booking_ready_to_pay(locator, booking)
+    ref = customer_booking_sync.pay_ref(booking)
+    amount, currency = float(booking["total_fare"]), booking.get("currency") or "LKR"
+    back = f"{origin}/account"
+    try:
+        result = services.init_payment(amount=amount, currency=currency, return_url=f"{back}?pay={ref}",
+                                       cancel_url=f"{back}?pay={ref}&payment=cancelled", client_ref=ref,
+                                       comment=f"Tick and Book - booking {ref}")
+    except services.PayCorpError as e:
+        logger.error(f"{locator}: payment start from My Bookings failed: {e}")
+        raise HTTPException(status_code=502, detail="The payment page couldn't be opened just now. Nothing has been "
+                                                    "charged - please try again in a moment.")
+    logger.info(f"{locator}: customer {current['customer_id']} sent to the payment page for {ref} "
+                f"({currency} {amount:,.2f}, reqid {result.get('reqid')})")
+    return {"payment_page_url": result["payment_page_url"], "amount": amount, "currency": currency}
 
 
 @app.get("/api/customers/me/amadeus-bookings/{locator}/ticket")
@@ -6439,6 +6648,8 @@ def customer_amadeus_ticket(locator: str, current: dict = Depends(auth.get_curre
     """The customer's Amadeus e-ticket, read live from the Amadeus PNR
     (My Bookings > View / Print Ticket)."""
     row = _ad_owned(locator, current)
+    if not (row.get("ticket_list") or row.get("status") == "ticketed"):
+        raise HTTPException(status_code=402, detail=TICKET_NOT_PAID)  # 17/11/2026
     try:
         live = amadeus_staff.lookup_booking_sync(row["locator"])
     except amadeus_staff.AmadeusBookingError as e:
@@ -6506,15 +6717,6 @@ def customer_saved_travellers(current: dict = Depends(auth.get_current_customer)
     return {"travellers": travellers}
 
 
-# Travelport's view of a booking -> the status shown in My Bookings. A
-# confirmed/ticketed booking keeps its own status (Confirmed / Ticketed).
-_LIVE_LIST_STATUS = {
-    "airline_cancelled": segment_status.AIRLINE_CANCELLED,
-    "airline_problem": segment_status.AWAITING_AIRLINE,
-    "cancelled": "Cancelled",
-}
-
-
 def _last_departure(b: dict) -> str:
     legs = b.get("legs") if isinstance(b.get("legs"), list) else []
     return str((legs[-1].get("departure_time") if legs else None) or b.get("departure_time") or "")
@@ -6523,38 +6725,29 @@ def _last_departure(b: dict) -> str:
 @app.post("/api/customers/me/bookings/refresh-status")
 def customer_refresh_booking_status(current: dict = Depends(auth.get_current_customer)):
     """
-    My Bookings asks this right after loading the list: every upcoming,
-    not-cancelled booking is retrieved live from Travelport (flights and the
-    airline's segment status only — no ticket calls) and its list status
-    comes back from that, so an airline cancellation shows in the list
-    itself. Bookings still between Confirmed / Awaiting Airline / Airline
-    Cancelled are saved back; ticketed and staff-cancelled ones are never
-    rewritten here (database.set_airline_status).
+    My Bookings asks this right after loading the list - so on every sign-in
+    and every visit to the account. Each not-cancelled booking (an upcoming
+    one, or a ticketed trip of the last 90 days) is read live from
+    Travelport, its tickets' coupons included, and what Travelport says is
+    SAVED (services/customer_booking_sync.py): a ticket voided, refunded or
+    cancelled in another Travelport system becomes Voided / Refunded /
+    Cancelled here and its loyalty points are taken back; an unpaid booking
+    the airline released becomes Cancelled; a ticket issued elsewhere is
+    saved. "changed" tells the portal to load its list again.
     """
     today = datetime.now().strftime("%Y-%m-%d")
+    since = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
     due = [b for b in database.get_bookings_for_customer(current["customer_id"])
            if b.get("locator_code") and b.get("status") not in database.CANCELLED_STATUSES
-           and _last_departure(b)[:10] >= today]
+           and _last_departure(b)[:10] >= (since if database.has_ticket(b) else today)]
 
     def check(b: dict) -> tuple[str, dict]:
-        locator = b["locator_code"]
+        key = _portal_key(b)
         try:
-            live = live_booking_service.get_live_booking(locator, with_coupons=False)
+            return key, customer_booking_sync.check(b, upcoming=_last_departure(b)[:10] >= today)
         except Exception as e:
-            # 4247: Travelport no longer holds the PNR — worth flagging on an upcoming trip.
-            return locator, {"checked": False, "missing": "DOES NOT EXIST" in str(e).upper(), "error": str(e)[:200]}
-        state = live.get("booking_status")
-        status = _LIVE_LIST_STATUS.get(state) or (
-            "Confirmed" if b.get("status") in database.AIRLINE_STATUSES else b.get("status"))
-        if status in database.AIRLINE_STATUSES:
-            try:
-                database.set_airline_status(locator, status)
-            except Exception as db_err:
-                logger.error(f"Could not save live status for {locator}: {db_err}")
-        return locator, {
-            "checked": True, "status": status, "retrieved_at": live.get("retrieved_at"),
-            "flights": {f["flight"]: f.get("airline_status_code") for f in live.get("flights") or []},
-        }
+            logger.warning(f"Live check of {b['locator_code']} failed: {e}")
+            return key, {"checked": False, "missing": False, "error": str(e)[:200]}
 
     # Amadeus bookings (14/11/2026): checked live from the Amadeus PNR.
     try:
@@ -6567,19 +6760,21 @@ def customer_refresh_booking_status(current: dict = Depends(auth.get_current_cus
         ad_due = []
 
     def check_ad(r: dict) -> tuple[str, dict]:
+        # An Amadeus booking without a ticket is listed by its id, never its PNR.
+        key = r["locator"] if r.get("ticket_list") else f"AD-{r['id']}"
         try:
             view = amadeus_staff.servicing_view_sync(r["locator"])
         except Exception as e:
-            return r["locator"], {"checked": False, "missing": False, "error": str(getattr(e, "message", e))[:200]}
-        return r["locator"], {"checked": True, "status": _ad_live_status(view),
-                              "retrieved_at": datetime.now().isoformat(sep=" ", timespec="seconds"),
-                              "flights": {s.get("flight_number"): s.get("status") for s in view.get("segments") or []}}
+            return key, {"checked": False, "missing": False, "error": str(getattr(e, "message", e))[:200]}
+        return key, {"checked": True, "status": _ad_live_status(view),
+                     "retrieved_at": datetime.now().isoformat(sep=" ", timespec="seconds"),
+                     "flights": {s.get("flight_number"): s.get("status") for s in view.get("segments") or []}}
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         results = dict(pool.map(check, due))
         results.update(dict(pool.map(check_ad, ad_due)))
     return {"statuses": results, "checked": sum(1 for r in results.values() if r.get("checked")),
-            "upcoming": len(due) + len(ad_due)}
+            "upcoming": len(due) + len(ad_due), "changed": any(r.get("changed") for r in results.values())}
 
 # ── Booking Status / Manage My Booking (Customer Portal) ──────────────────────
 # Booking Status looks a booking up by PNR or ticket number AND the
@@ -6664,6 +6859,10 @@ def booking_status_lookup(request: BookingStatusLookupRequest, current: dict = D
         except (manage_booking_service.Unavailable, services.CancelError) as e:
             logger.warning(f"Booking lookup {request.query}: airline system unavailable — {e} (TraceId {trace_id})")
             raise HTTPException(status_code=503, detail=LOOKUP_UNAVAILABLE)
+    # 17/11/2026: Booking Status / Manage My Booking (seats, extras, special
+    # requests) only for a booking with an issued ticket.
+    if not live.get("ticketed"):
+        raise HTTPException(status_code=402, detail=TICKET_NOT_PAID)
     live["trace_id"] = trace_id
     live["manage_token"] = auth.create_manage_booking_token(live["locator_code"], current["customer_id"])
     # The customer has just shown they hold this booking (PNR + surname): a
@@ -6727,6 +6926,9 @@ def _manage_context(token: str, current: dict) -> tuple[str, dict]:
     if live.get("booking_status") not in ("confirmed", "ticketed"):
         raise HTTPException(status_code=409, detail="This booking can't be changed online — the airline hasn't confirmed every flight.")
     live["ticketed"] = bool(live.get("tickets"))
+    if not live["ticketed"]:
+        # 17/11/2026: seats, extras and other services only once the ticket is issued.
+        raise HTTPException(status_code=402, detail=TICKET_NOT_PAID)
     return locator, live
 
 
@@ -7322,6 +7524,12 @@ def submit_cancellation_request(request: CancellationRequestCreate, customer_id:
             status_code=422,
             detail="Cancellation requests must be submitted at least 48 hours before the flight. For urgent cancellations within 48 hours, please contact our support team directly by phone.",
         )
+    # 17/11/2026: a booking without a ticket and without any payment has
+    # nothing to cancel or refund - the airline releases it unpaid.
+    booking = database.get_booking_by_locator(request.booking_locator.upper().strip())
+    if booking and not database.has_ticket(booking) and _unpaid_state(booking) in ("awaiting_payment", "expired"):
+        raise HTTPException(status_code=409, detail="This booking has no ticket and nothing has been paid, so there is "
+                                                    "nothing to cancel - an unpaid booking is released automatically.")
     req = database.create_cancellation_request(
         customer_id,
         request.booking_locator.upper().strip(),
@@ -7336,7 +7544,13 @@ def submit_cancellation_request(request: CancellationRequestCreate, customer_id:
 
 @app.get("/api/customers/me/cancellation-requests")
 def customer_my_cancellation_requests(current: dict = Depends(auth.get_current_customer)):
-    return {"requests": database.get_cancellation_requests_for_customer(current["customer_id"])}
+    requests = database.get_cancellation_requests_for_customer(current["customer_id"])
+    # 17/11/2026: never the PNR of a booking without a ticket.
+    for r in requests:
+        booking = database.get_booking_by_locator(str(r.get("booking_locator") or "").upper())
+        if booking and not database.has_ticket(booking):
+            r["booking_locator"] = "No ticket"
+    return {"requests": requests}
 
 
 # ── Visa Status Check & History (Customer) ───────────────────────────────────
