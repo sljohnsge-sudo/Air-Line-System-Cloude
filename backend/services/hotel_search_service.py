@@ -104,6 +104,30 @@ def search_hotels(
     return response.json()
 
 
+def result_pages(raw_response: dict) -> dict:
+    """Paging info of a Search by Location result: Travelport returns up to 5
+    pages of 100 properties, each filtered down to the bookable ones (Dubai,
+    17 Dec: 27 bookable hotels spread 6/4/8/5/4 over pages 1-5), so pages
+    2..N must be fetched too. {"identifier", "pages"}."""
+    props = ((raw_response.get("PropertiesResponse") or {}).get("Properties")) or {}
+    return {"identifier": (props.get("Identifier") or {}).get("value"),
+            "pages": int(props.get("numberOfPages") or 1)}
+
+
+def search_hotels_page(identifier: str, page: int) -> dict:
+    """GET page 2..5 of an earlier Search by Location (its Identifier).
+    Each page takes about as long as the first, since Travelport prices it."""
+    headers = get_hotel_headers()
+    with httpx.Client(timeout=HotelConfig.REQUEST_TIMEOUT, event_hooks=tp_logger.HOOKS) as client:
+        response = client.get(HotelEndpoints.search_properties_page(identifier),
+                              params={"pageNumber": page}, headers=headers)
+    if response.status_code >= 400:
+        logger.error(f"Hotel search page {page} failed: {response.status_code} — {response.text[:500]}")
+        raise HotelApiError(f"Hotel search page {page} failed (HTTP {response.status_code})",
+                            status_code=response.status_code, body=response.text)
+    return response.json()
+
+
 def get_property_details(chain_code: str, property_code: str, image_size: Optional[str] = None) -> dict:
     """
     Optional enrichment — additional property-level info (description,

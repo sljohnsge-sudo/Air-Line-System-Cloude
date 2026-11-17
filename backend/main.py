@@ -750,6 +750,20 @@ def get_airports(
         )
 
 
+@app.get("/api/reference/hotel-destinations")
+def get_hotel_destinations(
+    q: str = Query("", description="City, region or country typed by the customer"),
+    country: str = Query("", description="ISO alpha-2 country code: list that country's cities"),
+):
+    """Hotel "Where are you going?" suggestions: countries and cities (one row
+    per city, no airport codes shown). See database.search_hotel_destinations."""
+    try:
+        return {"destinations": database.search_hotel_destinations(q, country)}
+    except Exception as e:
+        logger.error(f"Hotel destination lookup failed: {e}")
+        raise HTTPException(status_code=500, detail="Destination lookup error")
+
+
 @app.get("/api/reference/countries")
 def get_airport_countries():
     """
@@ -7460,9 +7474,33 @@ def hotel_search(request: HotelSearchRequest):
             currency=request.currency,
         )
         properties = hotel_search_service.parse_hotel_offers(raw, request.check_in_date, request.check_out_date)
-        return {"properties": properties, "count": len(properties)}
+        # Page 1 only, returned at once; the frontend then fetches pages
+        # 2..pages through /api/hotels/search/page (each takes ~20 s at
+        # Travelport, so waiting for all of them here would hold the
+        # customer for close to a minute).
+        return {"properties": properties, "count": len(properties),
+                **hotel_search_service.result_pages(raw)}
     except HotelApiError as e:
         logger.error(f"Hotel search failed: {e}")
+        raise HTTPException(status_code=e.status_code or 502, detail=str(e))
+
+
+@app.get("/api/hotels/search/page")
+def hotel_search_page(
+    identifier: str = Query(..., description="identifier from /api/hotels/search"),
+    page: int = Query(..., ge=2, le=5, description="Travelport result page 2..5"),
+    check_in_date: str = Query(""),
+    check_out_date: str = Query(""),
+):
+    """Further pages of a hotel search (Travelport returns at most 5)."""
+    if not re.fullmatch(r"[A-Za-z0-9-]{8,64}", identifier):
+        raise HTTPException(status_code=400, detail="Invalid search identifier")
+    try:
+        raw = hotel_search_service.search_hotels_page(identifier, page)
+        properties = hotel_search_service.parse_hotel_offers(raw, check_in_date, check_out_date)
+        return {"properties": properties, "count": len(properties), "page": page}
+    except HotelApiError as e:
+        logger.error(f"Hotel search page failed: {e}")
         raise HTTPException(status_code=e.status_code or 502, detail=str(e))
 
 

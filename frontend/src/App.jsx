@@ -43,6 +43,7 @@ import CustomerPortal from './CustomerPortal.jsx';
 import { encryptForUrl, decryptFromUrl } from './urlCrypto.js';
 import { COUNTRIES } from './countries.js';
 import AirportSearchSelect from './AirportSearchSelect.jsx';
+import HotelDestinationSearch from './HotelDestinationSearch.jsx';
 import * as Ico from './WizardIcons.jsx';
 import PaxSignIn from './PaxSignIn.jsx';
 import PhoneCodePicker from './PhoneCodePicker.jsx';
@@ -1941,34 +1942,10 @@ export default function App() {
   // provisioned for Hotel/Stays (confirmed live 403s), so search/book calls
   // will surface that as a normal error banner until Travelport enables the
   // product — no frontend changes needed when that happens.
+  // Where the customer is going: a city IATA code picked in the single
+  // "Where are you going?" box (HotelDestinationSearch.jsx — city, region or
+  // country; the code itself is never shown).
   const [hotelDestination, setHotelDestination] = useState('');
-  // Country -> City selector for hotel destination (Travelport's Hotel API has
-  // no country-level search of its own — see propertyFilter.location on
-  // POST /12/hotel/search/searchcomplete, which only accepts cityIATACode /
-  // airportIATACode / coordinates / address). This is a client-side UX
-  // filter over our own 7900+ airport reference dataset (which already
-  // carries an ISO alpha-2 country per entry) that resolves down to the same
-  // cityIATACode hotelDestination the search call has always used.
-  const [hotelCountries, setHotelCountries] = useState([]);
-  const [hotelCountry, setHotelCountry] = useState('');
-  const [hotelCities, setHotelCities] = useState([]);
-  const [hotelCitiesLoading, setHotelCitiesLoading] = useState(false);
-
-  useEffect(() => {
-    fetchWithRetry(`${API_BASE}/reference/countries`)
-      .then(res => res.json())
-      .then(data => setHotelCountries(data.countries || []))
-      .catch(() => setHotelCountries([]));
-  }, []);
-
-  useEffect(() => {
-    if (!hotelCountry) { setHotelCities([]); return; }
-    setHotelCitiesLoading(true);
-    fetchWithRetry(`${API_BASE}/reference/airports?country=${encodeURIComponent(hotelCountry)}`)
-      .then(res => res.json())
-      .then(data => { setHotelCities(data.airports || []); setHotelCitiesLoading(false); })
-      .catch(() => { setHotelCities([]); setHotelCitiesLoading(false); });
-  }, [hotelCountry]);
 
   const [hotelCheckIn, setHotelCheckIn] = useState(getTomorrow());
   const [hotelCheckOut, setHotelCheckOut] = useState(() => {
@@ -1982,6 +1959,10 @@ export default function App() {
   const [hotelSearchError, setHotelSearchError] = useState('');
   const [hotelProperties, setHotelProperties] = useState([]);
   const [hotelSearched, setHotelSearched] = useState(false);
+  // Result pages 2..5 still loading (see searchHotels), and a counter so a
+  // newer search ignores pages arriving from an older one.
+  const [hotelMorePending, setHotelMorePending] = useState(0);
+  const hotelSearchSeq = useRef(0);
   const [selectedHotelProperty, setSelectedHotelProperty] = useState(null);
   const [selectedHotelRoom, setSelectedHotelRoom] = useState(null);
   const [hotelRoomOffers, setHotelRoomOffers] = useState([]);
@@ -2000,7 +1981,9 @@ export default function App() {
     setHotelSearching(true);
     setHotelSearchError('');
     setHotelProperties([]);
+    setHotelMorePending(0);
     setSelectedHotelProperty(null);
+    const searchId = ++hotelSearchSeq.current;
     fetch(`${API_BASE}/hotels/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2014,8 +1997,35 @@ export default function App() {
       }),
     })
       .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || r.statusText); }); return r.json(); })
-      .then(d => { setHotelProperties(d.properties || []); setHotelSearching(false); setHotelSearched(true); })
-      .catch(err => { setHotelSearchError(err.message); setHotelSearching(false); setHotelSearched(true); });
+      .then(d => {
+        if (searchId !== hotelSearchSeq.current) return;
+        setHotelProperties(d.properties || []);
+        setHotelSearching(false);
+        setHotelSearched(true);
+        // Travelport splits the bookable hotels over up to 5 pages; page 1
+        // is shown at once and pages 2..N are added as each one arrives.
+        const pages = Math.min(d.pages || 1, 5);
+        if (!d.identifier || pages < 2) return;
+        setHotelMorePending(pages - 1);
+        for (let page = 2; page <= pages; page++) {
+          const qs = new URLSearchParams({ identifier: d.identifier, page, check_in_date: hotelCheckIn, check_out_date: hotelCheckOut });
+          fetch(`${API_BASE}/hotels/search/page?${qs}`)
+            .then(r => (r.ok ? r.json() : { properties: [] }))
+            .catch(() => ({ properties: [] }))
+            .then(more => {
+              if (searchId !== hotelSearchSeq.current) return;
+              setHotelProperties(prev => {
+                const have = new Set(prev.map(p => `${p.chain_code}-${p.property_code}`));
+                return prev.concat((more.properties || []).filter(p => !have.has(`${p.chain_code}-${p.property_code}`)));
+              });
+              setHotelMorePending(n => Math.max(n - 1, 0));
+            });
+        }
+      })
+      .catch(err => {
+        if (searchId !== hotelSearchSeq.current) return;
+        setHotelSearchError(err.message); setHotelSearching(false); setHotelSearched(true);
+      });
   };
 
   const openHotelProperty = (property) => {
@@ -8158,39 +8168,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                   Search live hotel availability and book your stay — powered by the same Travelport network as our flights.
                 </p>
                 <form onSubmit={searchHotels}>
-                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
-                      <label className="form-label">Country *</label>
-                      <select
-                        className="form-input"
-                        required
-                        value={hotelCountry}
-                        onChange={e => { setHotelCountry(e.target.value); setHotelDestination(''); }}
-                      >
-                        <option value="">Select country...</option>
-                        {hotelCountries.map(c => (
-                          <option key={c.code} value={c.code}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
-                      <label className="form-label">City *</label>
-                      <select
-                        className="form-input"
-                        required
-                        disabled={!hotelCountry || hotelCitiesLoading}
-                        value={hotelDestination}
-                        onChange={e => setHotelDestination(e.target.value)}
-                      >
-                        <option value="">
-                          {!hotelCountry ? 'Select a country first' : hotelCitiesLoading ? 'Loading cities...' : hotelCities.length === 0 ? 'No cities available' : 'Select city...'}
-                        </option>
-                        {hotelCities.map(a => (
-                          <option key={a.iata} value={a.iata}>{a.city} ({a.iata})</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  <HotelDestinationSearch value={hotelDestination} onChange={setHotelDestination} />
                   <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
                       <label className="form-label">Check-in *</label>
@@ -8222,11 +8200,18 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
               {hotelSearchError && <div className="error-banner">{hotelSearchError}</div>}
               {hotelSearching ? (
                 <div className="loading-state"><div className="spinner"></div><p>Searching hotels...</p></div>
+              ) : hotelProperties.length === 0 && hotelMorePending > 0 ? (
+                <div className="loading-state"><div className="spinner"></div><p>Searching more hotels...</p></div>
               ) : hotelSearched && hotelProperties.length === 0 && !hotelSearchError ? (
                 <div className="empty-state glass-panel animate-fade">
                   <p>No hotels found for this destination and dates.</p>
                 </div>
               ) : hotelProperties.length > 0 ? (
+                <>
+                <p className="hotel-results-count" aria-live="polite">
+                  {hotelProperties.length} hotel{hotelProperties.length === 1 ? '' : 's'} available
+                  {hotelMorePending > 0 && <span> · <span className="spinner-inline" aria-hidden="true"></span> loading more hotels…</span>}
+                </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.25rem' }}>
                   {hotelProperties.map((property, idx) => (
                     <div key={`${property.chain_code}-${property.property_code}-${idx}`} className="glass-panel" style={{ borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -8260,6 +8245,7 @@ Thank you for booking with Tick and Book. Have a safe flight!`;
                     </div>
                   ))}
                 </div>
+                </>
               ) : null}
             </>
           )}

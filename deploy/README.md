@@ -158,7 +158,7 @@ powershell -ExecutionPolicy Bypass -File deploy\run-smoke.ps1    # on the laptop
 ```
 
 Playwright tests in `e2e/tests/` (run in Microsoft's Playwright Docker image, nothing to install),
-756 in six files, all in one group so the Playwright interface shows every one at once:
+758 in six files, all in one group so the Playwright interface shows every one at once:
 
 * **01-website** (8) - pages open, no admin pages or staff API, security headers.
 * **02-website-sign-in** (12) - customer APIs need a token, forged / changed / expired tokens are
@@ -174,7 +174,7 @@ Playwright tests in `e2e/tests/` (run in Microsoft's Playwright Docker image, no
   of the 7 Nov test, searched on the website for 27 Nov 2026 (Travelport, one-way, 1 adult). One
   test per flight: is that airline offered with that content, and what the fare includes (bags,
   carry-on, seat choice, meals, change/cancel fees). Only with `-Routes` (52 searches).
-* **06-api** (219) - every backend API, one test each, from `e2e/data/api-catalog.json`
+* **06-api** (221) - every backend API, one test each, from `e2e/data/api-catalog.json`
   (`py e2e\tools\api_catalog.py` rebuilds it from the local backend's API list; a last test fails
   when an API in `backend/main.py` has no test). Each test attaches the request and the reply
   (passwords, tokens and card fields masked). Reads (GET) are called without sign-in (protected

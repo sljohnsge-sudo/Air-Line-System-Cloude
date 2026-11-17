@@ -14,7 +14,7 @@
 //   05-cmb-routes                 CMB route test: 52 destinations / 448 flights
 //                                 from the 7 Nov Excel, Travelport SEARCH ONLY
 //                                 (runs only with ROUTE_TESTS=1)
-//   06-api                        every backend API (218), one test each, with
+//   06-api                        every backend API (220), one test each, with
 //                                 the request and reply attached; booking,
 //                                 payment and ticketing steps are never called
 // Each file sets its own site (test.use baseURL, see tests/sites.mjs).

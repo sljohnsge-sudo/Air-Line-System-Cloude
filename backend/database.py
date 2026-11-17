@@ -3163,6 +3163,88 @@ def get_airport_countries() -> list[dict]:
     return countries
 
 
+# Cities with several airports: Travelport's hotel search takes the city's own
+# IATA code (SearchCity "LON" covers all of London; "LGW" would centre the
+# search on Gatwick).
+_METRO_CITY_CODES = {
+    ("LONDON", "GB"): "LON", ("NEW YORK", "US"): "NYC", ("PARIS", "FR"): "PAR",
+    ("TOKYO", "JP"): "TYO", ("OSAKA", "JP"): "OSA", ("MILAN", "IT"): "MIL",
+    ("ROME", "IT"): "ROM", ("MOSCOW", "RU"): "MOW", ("BEIJING", "CN"): "BJS",
+    ("SHANGHAI", "CN"): "SHA", ("SEOUL", "KR"): "SEL", ("STOCKHOLM", "SE"): "STO",
+    ("WASHINGTON", "US"): "WAS", ("CHICAGO", "US"): "CHI", ("BUENOS AIRES", "AR"): "BUE",
+    ("SAO PAULO", "BR"): "SAO", ("RIO DE JANEIRO", "BR"): "RIO", ("JAKARTA", "ID"): "JKT",
+    ("BANGKOK", "TH"): "BKK", ("TORONTO", "CA"): "YTO", ("MONTREAL", "CA"): "YMQ",
+    ("OSLO", "NO"): "OSL", ("BUCHAREST", "RO"): "BUH", ("ISTANBUL", "TR"): "IST",
+}
+
+
+def search_hotel_destinations(query: str = "", country: str = "") -> list[dict]:
+    """Hotel "Where are you going?" suggestions — cities, not airports.
+
+    With `country` (ISO alpha-2): every city in that country (the list shown
+    after picking a country). Otherwise, for a typed term: matching countries
+    first, then cities whose name or region (state) matches.
+
+    Each city is one row even when it has several airports; its `code` is the
+    IATA code of its main airport, which the hotel search sends as SearchCity
+    as before, and is never shown to the customer. Rows: {type: "country"|"city", code, name, region,
+    country, country_name}.
+    """
+    from utils.country_names import country_name
+
+    query = " ".join((query or "").split())
+    country = (country or "").strip().upper()
+    out: list[dict] = []
+    if not country:
+        if len(query) < 2:
+            return []
+        exact, partial = _countries_for_query(query)
+        out = [{"type": "country", "code": c, "name": country_name(c), "region": "",
+                "country": c, "country_name": country_name(c)} for c in (exact + partial)[:3]]
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        hubs = ",".join(["%s"] * len(_MAJOR_HUBS))
+        # Best airport of each city first: a major hub, then "International".
+        rank = f"""CASE WHEN iata IN ({hubs}) THEN 0
+                        WHEN name LIKE '%%International%%' THEN 1 ELSE 2 END"""
+        if country:
+            cursor.execute(f"""
+                SELECT iata, name, city, state, country FROM airports
+                WHERE country = %s AND city IS NOT NULL AND city != ''
+                ORDER BY {rank}, city ASC
+            """, (country,) + _MAJOR_HUBS)
+        else:
+            prefix, pattern = f"{query}%", f"%{query}%"
+            cursor.execute(f"""
+                SELECT iata, name, city, state, country FROM airports
+                WHERE city IS NOT NULL AND city != ''
+                  AND (city LIKE %s OR state LIKE %s)
+                ORDER BY CASE WHEN city LIKE %s THEN 0 WHEN city LIKE %s THEN 1 ELSE 2 END,
+                         {rank}, city ASC
+                LIMIT 200
+            """, (pattern, pattern, prefix, pattern) + _MAJOR_HUBS)
+        rows = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+    cities: dict[tuple, dict] = {}
+    for r in rows:
+        key = (r["city"].strip().upper(), r["country"])
+        # Rows arrive best airport first (major hub, then "International"),
+        # which is the code the hotel search has always sent for that city.
+        if key not in cities:
+            cities[key] = {"type": "city", "code": _METRO_CITY_CODES.get(key, r["iata"]), "name": r["city"].strip(),
+                           "region": (r.get("state") or "").strip(), "country": r["country"],
+                           "country_name": country_name(r["country"] or "")}
+    city_rows = list(cities.values())
+    if country:
+        city_rows.sort(key=lambda c: c["name"])
+    return out + city_rows[: (400 if country else 10)]
+
+
 def get_bookings_in_date_range(start_dt: str, end_dt: str) -> list[dict]:
     """Return bookings whose booking_date falls in [start_dt, end_dt]."""
     conn = get_db_connection()

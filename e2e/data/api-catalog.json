@@ -1,6 +1,6 @@
 {
  "source": "http://localhost:8005/openapi.json + backend/main.py",
- "count": 218,
+ "count": 220,
  "apis": [
   {
    "method": "GET",
@@ -2490,6 +2490,23 @@
    "area": "hotels"
   },
   {
+   "method": "GET",
+   "path": "/api/hotels/search/page",
+   "url": "/api/hotels/search/page",
+   "query": {
+    "identifier": "ZZTEST",
+    "page": 999999999
+   },
+   "name": "Hotel Search Page",
+   "function": "hotel_search_page",
+   "auth": "none",
+   "site": "website",
+   "body": false,
+   "action": "read",
+   "why": "read only",
+   "area": "hotels"
+  },
+  {
    "method": "POST",
    "path": "/api/hotels/{locator_code}/cancel",
    "url": "/api/hotels/ZZTEST/cancel",
@@ -2939,6 +2956,20 @@
    "query": {},
    "name": "Get Airport Countries",
    "function": "get_airport_countries",
+   "auth": "none",
+   "site": "both",
+   "body": false,
+   "action": "read",
+   "why": "read only",
+   "area": "reference"
+  },
+  {
+   "method": "GET",
+   "path": "/api/reference/hotel-destinations",
+   "url": "/api/reference/hotel-destinations",
+   "query": {},
+   "name": "Get Hotel Destinations",
+   "function": "get_hotel_destinations",
    "auth": "none",
    "site": "both",
    "body": false,
