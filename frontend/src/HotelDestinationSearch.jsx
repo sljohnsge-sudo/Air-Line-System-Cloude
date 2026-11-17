@@ -95,7 +95,8 @@ export default function HotelDestinationSearch({ value, onChange }) {
     else if (e.key === 'Escape') setOpen(false);
   };
 
-  const hint = picked ? sublabel(picked) : countryView ? `Choose a city in ${countryView.name}` : 'City, region or country';
+  // Shown under the box only once there is something to say (no repeat of the placeholder).
+  const hint = picked ? sublabel(picked) : countryView ? `Choose a city in ${countryView.name}` : '';
   const showList = open && (loading || items.length > 0 || text.trim().length >= 2);
 
   return (
@@ -110,7 +111,7 @@ export default function HotelDestinationSearch({ value, onChange }) {
               className="hotel-dest-input"
               type="text"
               value={text}
-              placeholder="Where are you going?"
+              placeholder="City, region or country"
               autoComplete="off"
               aria-label="Destination: city, region or country"
               role="combobox"
@@ -119,7 +120,7 @@ export default function HotelDestinationSearch({ value, onChange }) {
               onFocus={() => setOpen(true)}
               onKeyDown={onKeyDown}
             />
-            <span className="hotel-dest-hint">{hint}</span>
+            {hint && <span className="hotel-dest-hint">{hint}</span>}
           </div>
         </div>
       </div>

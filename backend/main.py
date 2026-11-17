@@ -86,6 +86,7 @@ from services import supplier_alerts
 from services import email_service, sms_service
 from services import cybersource_service
 from services import hotel_search_service, hotel_booking_service, hotel_availability_service, hotel_rules_service
+from services import hotel_checkout, hotel_checkout_api
 from services.hotel_common import HotelApiError
 from services import indigo_search_service, indigo_booking_service
 from services.indigo_uapi_client import IndigoApiError
@@ -236,6 +237,9 @@ STAFF_ROUTE_PATTERNS = [re.compile(p) for p in (
     r"^/api/amadeus-bookings/[A-Za-z0-9-]+/issue-ticket$",
     # Hotel booking history, live lookup and cancel: staff only (17/11/2026).
     r"^/api/hotels/(history|retrieve/[A-Za-z0-9]+|[A-Za-z0-9]+/cancel)$",
+    # Booking a hotel WITHOUT payment: staff only (17/11/2026). Customers pay
+    # first through /api/hotels/checkout (services/hotel_checkout_api.py).
+    r"^/api/hotels/(book|book-offer)$",
 )]
 ADMIN_SITE_EXTRA_ROUTES = [re.compile(p) for p in (
     r"^/$",
@@ -7730,6 +7734,10 @@ def hotel_property_details(chain_code: str, property_code: str, image_size: Opti
         raise HTTPException(status_code=e.status_code or 502, detail=str(e))
 
 
+# Hotel payment: pay by card first, then the room is reserved (17/11/2026).
+app.include_router(hotel_checkout_api.router)
+
+
 @app.post("/api/hotels/availability")
 def hotel_availability(request: HotelAvailabilityRequest):
     """Fetch bookable room types/rates for a property chosen from
@@ -7747,6 +7755,16 @@ def hotel_availability(request: HotelAvailabilityRequest):
             currency=request.currency,
         )
         offers = hotel_availability_service.parse_availability_offers(raw)
+        # Remembered server-side so /api/hotels/checkout prices the room from
+        # Travelport's answer, never from the browser (services/hotel_checkout).
+        try:
+            hotel_checkout.save_quotes(offers, {
+                "chain_code": request.chain_code, "property_code": request.property_code,
+                "check_in_date": request.check_in_date, "check_out_date": request.check_out_date,
+                "adults": request.adults, "children_ages": request.children_ages or [], "rooms": request.rooms,
+            })
+        except Exception as e:
+            logger.error(f"Hotel rates not stored for checkout: {e}")
         return {"offers": offers, "count": len(offers)}
     except HotelApiError as e:
         logger.error(f"Hotel availability failed: {e}")
@@ -7770,7 +7788,8 @@ def hotel_rules(offer_id: str):
 
 
 @app.post("/api/hotels/book", status_code=status.HTTP_201_CREATED)
-def hotel_book(request: HotelBookingRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+def hotel_book(request: HotelBookingRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id),
+               _admin: dict = Depends(auth.get_current_admin)):
     """Book a hotel room — Full Payload Create Reservation."""
     try:
         raw = hotel_booking_service.create_hotel_reservation(
@@ -7820,7 +7839,8 @@ def hotel_book(request: HotelBookingRequest, customer_id: Optional[int] = Depend
 
 
 @app.post("/api/hotels/book-offer", status_code=status.HTTP_201_CREATED)
-def hotel_book_offer(request: HotelOfferBookingRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id)):
+def hotel_book_offer(request: HotelOfferBookingRequest, customer_id: Optional[int] = Depends(auth.get_optional_customer_id),
+                     _admin: dict = Depends(auth.get_current_admin)):
     """Book a hotel room — Reference Payload Create Reservation, against an
     offer_id from /api/hotels/availability (the Search -> Availability ->
     book flow). https://developer.travelport.com/apis/stays/unified-check-out/buildhotelreservation"""

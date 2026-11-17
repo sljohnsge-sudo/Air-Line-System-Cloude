@@ -1,6 +1,6 @@
 {
  "source": "http://localhost:8005/openapi.json + backend/main.py",
- "count": 222,
+ "count": 226,
  "apis": [
   {
    "method": "GET",
@@ -420,6 +420,20 @@
    "body": true,
    "action": "guard",
    "why": "changes data or reaches the payment gateway: only checked that it is refused without sign-in, never called signed in",
+   "area": "admin"
+  },
+  {
+   "method": "GET",
+   "path": "/api/admin/hotel-orders",
+   "url": "/api/admin/hotel-orders",
+   "query": {},
+   "name": "Hotel Orders",
+   "function": "hotel_orders",
+   "auth": "staff",
+   "site": "admin",
+   "body": false,
+   "action": "read",
+   "why": "read only",
    "area": "admin"
   },
   {
@@ -2398,11 +2412,11 @@
    "query": {},
    "name": "Hotel Book",
    "function": "hotel_book",
-   "auth": "optional",
-   "site": "website",
+   "auth": "staff",
+   "site": "admin",
    "body": true,
-   "action": "never",
-   "why": "booking / payment / ticketing / cancelling step open to the public: never called by tests (Tick and Book rule), tested by a person by hand",
+   "action": "guard",
+   "why": "changes data or reaches the payment gateway: only checked that it is refused without sign-in, never called signed in",
    "area": "hotels"
   },
   {
@@ -2412,7 +2426,49 @@
    "query": {},
    "name": "Hotel Book Offer",
    "function": "hotel_book_offer",
+   "auth": "staff",
+   "site": "admin",
+   "body": true,
+   "action": "guard",
+   "why": "changes data or reaches the payment gateway: only checked that it is refused without sign-in, never called signed in",
+   "area": "hotels"
+  },
+  {
+   "method": "POST",
+   "path": "/api/hotels/checkout",
+   "url": "/api/hotels/checkout",
+   "query": {},
+   "name": "Hotel Checkout Start",
+   "function": "hotel_checkout_start",
    "auth": "optional",
+   "site": "website",
+   "body": true,
+   "action": "never",
+   "why": "booking / payment / ticketing / cancelling step open to the public: never called by tests (Tick and Book rule), tested by a person by hand",
+   "area": "hotels"
+  },
+  {
+   "method": "POST",
+   "path": "/api/hotels/checkout/{order_ref}/cancel",
+   "url": "/api/hotels/checkout/ZZTEST/cancel",
+   "query": {},
+   "name": "Hotel Checkout Cancel",
+   "function": "hotel_checkout_cancel",
+   "auth": "none",
+   "site": "website",
+   "body": false,
+   "action": "never",
+   "why": "booking / payment / ticketing / cancelling step open to the public: never called by tests (Tick and Book rule), tested by a person by hand",
+   "area": "hotels"
+  },
+  {
+   "method": "POST",
+   "path": "/api/hotels/checkout/{order_ref}/complete",
+   "url": "/api/hotels/checkout/ZZTEST/complete",
+   "query": {},
+   "name": "Hotel Checkout Complete",
+   "function": "hotel_checkout_complete",
+   "auth": "none",
    "site": "website",
    "body": true,
    "action": "never",

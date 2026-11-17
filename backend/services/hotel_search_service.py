@@ -178,21 +178,40 @@ def parse_property_details(raw_response: dict) -> dict:
     address = prop.get("Address", {}) or {}
     geoloc = prop.get("GeoLocation", {}) or {}
     checkin_policy = prop.get("CheckInOutPolicy", {}) or {}
+    if not isinstance(address, dict):
+        address = {}
 
+    # Hotels differ: a field may come as text or as {"value"/"description": ...}
+    # (UP-B8247 sends Description as plain strings, which used to crash this
+    # and left the hotel page without any photos).
+    def text(x, *keys):
+        if isinstance(x, dict):
+            for k in keys or ("value", "description"):
+                if x.get(k):
+                    return str(x[k])
+            return ""
+        return "" if x is None else str(x)
+
+    def as_list(x):
+        return x if isinstance(x, list) else ([x] if x else [])
+
+    email = prop.get("Email")
     return {
         "property_name": prop.get("name", ""),
         "chain_code": (prop.get("PropertyKey", {}) or {}).get("chainCode", ""),
         "property_code": (prop.get("PropertyKey", {}) or {}).get("propertyCode", ""),
-        "ratings": prop.get("Rating", []) or [],
+        "ratings": [r for r in as_list(prop.get("Rating")) if isinstance(r, dict)],
         "latitude": geoloc.get("latitude"),
         "longitude": geoloc.get("longitude"),
         "images": [
             {"url": img.get("value", ""), "caption": img.get("caption", ""), "category": img.get("pictureCategory")}
-            for img in (prop.get("Image", []) or [])
+            if isinstance(img, dict) else {"url": str(img), "caption": "", "category": None}
+            for img in as_list(prop.get("Image"))
         ],
-        "descriptions": [d.get("value", "") for d in (prop.get("Description", []) or [])],
-        "business_services": [s.get("description", s) if isinstance(s, dict) else s for s in (prop.get("BusinessService", []) or [])],
-        "accessibility_features": prop.get("AccessibilityFeature", []) or [],
+        "descriptions": [t for t in (text(d) for d in as_list(prop.get("Description"))) if t],
+        "business_services": [t for t in (text(s, "description", "value") for s in as_list(prop.get("BusinessService"))) if t],
+        "accessibility_features": [{"description": t} for t in
+                                   (text(a, "description", "value") for a in as_list(prop.get("AccessibilityFeature"))) if t],
         "address": {
             "street": address.get("street", address.get("Street", "")),
             "city": address.get("city", address.get("City", "")),
@@ -200,11 +219,11 @@ def parse_property_details(raw_response: dict) -> dict:
             "country_code": address.get("countryCode", address.get("Country", "")),
             "postal_code": address.get("postalCode", address.get("PostalCode", "")),
         },
-        "telephones": prop.get("Telephone", []) or [],
-        "email": prop.get("Email", {}) or {},
+        "telephones": [t for t in (text(p, "phoneNumber", "value") for p in as_list(prop.get("Telephone"))) if t],
+        "email": {"value": text(email)} if email else {},
         "amenities": [
             {"description": a.get("description", ""), "code": a.get("code"), "category": a.get("category", "")}
-            for a in (prop.get("PropertyAmenity", []) or [])
+            for a in as_list(prop.get("PropertyAmenity")) if isinstance(a, dict)
         ],
         "check_in_time": checkin_policy.get("checkInTime", ""),
         "check_out_time": checkin_policy.get("checkOutTime", ""),

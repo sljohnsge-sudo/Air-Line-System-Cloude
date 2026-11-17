@@ -28,6 +28,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 base = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8005"
 api = json.load(urllib.request.urlopen(f"{base}/openapi.json", timeout=20))
 src = (ROOT / "backend" / "main.py").read_text(encoding="utf-8").split("\n")
+# Routers mounted by main.py (app.include_router) - their routes too.
+for extra in ("backend/services/hotel_checkout_api.py",):
+    src += (ROOT / extra).read_text(encoding="utf-8").split("\n")
 
 # ---- sign-in rule of each API, from its FastAPI dependencies ------------------
 AUTH = {
@@ -37,7 +40,7 @@ AUTH = {
 }
 auth_of, func_of = {}, {}
 for i, line in enumerate(src):
-    m = re.match(r'^@app\.(get|post|put|delete|patch)\("([^"]+)"', line)
+    m = re.match(r'^@(?:app|router)\.(get|post|put|delete|patch)\("([^"]+)"', line)
     if not m:
         continue
     j = i + 1
@@ -51,13 +54,15 @@ for i, line in enumerate(src):
             break
         j += 1
     kinds = [AUTH[d.split(".")[-1]] for d in re.findall(r"Depends\(([\w\.]+)\)", sig) if d.split(".")[-1] in AUTH]
-    auth_of[(m.group(1).upper(), m.group(2))] = kinds[0] if kinds else "none"
+    # A route with a staff sign-in among its rules is a staff route.
+    auth_of[(m.group(1).upper(), m.group(2))] = "staff" if "staff" in kinds else (kinds[0] if kinds else "none")
 
 # ---- which site serves it (same rules as main.py's _enforce_site_split) --------
 STAFF = [r"^/api/admin(/|$)", r"^/api/analytics(/|$)", r"^/api/bookings/history$",
          r"^/api/bookings/[A-Za-z0-9{}_]+/cancel(/quote)?$", r"^/api/invoice/(report|price-raw/.+)$",
          r"^/api/payments/complete$", r"^/api/amadeus-bookings/[A-Za-z0-9{}_-]+/issue-ticket$",
-         r"^/api/hotels/(history|retrieve/[A-Za-z0-9{}_]+|[A-Za-z0-9{}_]+/cancel)$"]
+         r"^/api/hotels/(history|retrieve/[A-Za-z0-9{}_]+|[A-Za-z0-9{}_]+/cancel)$",
+         r"^/api/hotels/(book|book-offer)$"]  # booking without payment: staff only (17/11/2026)
 SHARED = [r"^/$", r"^/api/bookings/retrieve/", r"^/api/invoice/(pnr|ticket)/", r"^/api/reference/",
           r"^/api/feature-flags$", r"^/api/site-content$", r"^/api/terminal-connections$"]
 
@@ -73,7 +78,8 @@ def site_of(path):
 # ---- never called: public booking / payment / ticketing / cancel steps ---------
 NEVER = re.compile(r"/payments/|/manage-booking/|/(book|book-offer|book-request|bookings/create|"
                    r"bookings/confirm|bookings/initiate|confirm|hold|issue-ticket|pay-ticket|offline-start|"
-                   r"instant-pay|cancel|cancellation-requests|price|price-with-ancillaries|seatmap)(/|$)")
+                   r"instant-pay|cancel|cancellation-requests|price|price-with-ancillaries|seatmap|"
+                   r"checkout)(/|$)")  # checkout = hotel card payment (17/11/2026)
 NEVER_GET = re.compile(r"^/api/payments/")  # gateway redirect / payment completion
 
 SAMPLE = {"provider": "google", "code": "UL", "country": "LK", "ticket_number": "0000000000000",

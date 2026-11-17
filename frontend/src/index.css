@@ -5404,29 +5404,44 @@ button, input, select, textarea { font-family: inherit; }
 /* ── Hotel destination search (HotelDestinationSearch.jsx) ─────────────────── */
 .hotel-dest { position: relative; margin-bottom: 1rem; }
 .hotel-dest-box {
-  background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 16px;
-  padding: 0.85rem 1.1rem 0.9rem; cursor: text; box-shadow: var(--shadow-sm);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, #ffffff 0%, var(--tb-ice, #EAF4FC) 100%);
+  border: 1.5px solid rgba(114, 188, 235, 0.45); border-radius: 18px;
+  padding: 0.8rem 1.15rem 0.85rem 1.35rem; cursor: text;
+  box-shadow: 0 6px 18px rgba(18, 59, 112, 0.08);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
 }
-.hotel-dest-box:hover { border-color: #cbd5e1; }
-.hotel-dest-box.is-open, .hotel-dest-box:focus-within { border-color: var(--tb-sky, #72BCEB); box-shadow: 0 0 0 3px rgba(114, 188, 235, 0.25); }
+.hotel-dest-box::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  background: linear-gradient(180deg, var(--tb-sky, #72BCEB), var(--tb-navy, #123B70));
+}
+.hotel-dest-box:hover { border-color: var(--tb-sky, #72BCEB); box-shadow: 0 10px 24px rgba(18, 59, 112, 0.12); transform: translateY(-1px); }
+.hotel-dest-box.is-open, .hotel-dest-box:focus-within {
+  border-color: var(--tb-sky, #72BCEB); background: #ffffff; transform: none;
+  box-shadow: 0 0 0 4px rgba(114, 188, 235, 0.22), 0 10px 24px rgba(18, 59, 112, 0.12);
+}
 .hotel-dest-label {
-  display: block; font-family: var(--font-heading); font-size: 0.78rem; font-weight: 700;
-  letter-spacing: 0.08em; text-transform: uppercase; color: var(--tb-muted, #52657C); margin-bottom: 0.45rem;
+  display: block; font-family: var(--font-heading); font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase; color: #2F86C3; margin-bottom: 0.4rem;
 }
 .hotel-dest-row { display: flex; align-items: center; gap: 0.85rem; }
 .hotel-dest-icon {
-  flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
-  background: var(--tb-ice, #EAF4FC); color: var(--tb-navy, #123B70);
+  flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--tb-navy, #123B70), #1f5aa0); color: #ffffff;
+  box-shadow: 0 6px 14px rgba(18, 59, 112, 0.25);
 }
-.hotel-dest-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.hotel-dest-text { display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; min-height: 46px; }
 .hotel-dest-input {
   border: 0; outline: 0; background: transparent; padding: 0; width: 100%;
-  font-family: var(--font-heading); font-size: 1.3rem; font-weight: 700; color: var(--tb-navy, #123B70);
+  font-family: var(--font-heading); font-size: 1.25rem; font-weight: 700; color: var(--tb-navy, #123B70);
 }
-.hotel-dest-input::placeholder { color: var(--tb-navy, #123B70); opacity: 1; }
-.hotel-dest-input:focus::placeholder { color: #94a3b8; }
-.hotel-dest-hint { font-size: 0.85rem; color: var(--tb-muted, #52657C); margin-top: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hotel-dest-input::placeholder { color: var(--tb-muted, #52657C); font-size: 1.05rem; font-weight: 500; opacity: 0.85; }
+.hotel-dest-input:focus::placeholder { opacity: 0.45; }
+.hotel-dest-hint {
+  align-self: flex-start; margin-top: 0.3rem; padding: 0.1rem 0.6rem; border-radius: 999px;
+  font-size: 0.78rem; font-weight: 600; color: var(--tb-navy, #123B70); background: rgba(114, 188, 235, 0.22);
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .hotel-dest-list {
   position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 6px); margin: 0; padding: 0.35rem;
   list-style: none; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 14px;
@@ -5441,7 +5456,11 @@ button, input, select, textarea { font-family: inherit; }
 .hotel-dest-item-sub { display: block; font-size: 0.8rem; color: var(--tb-muted, #52657C); }
 @media (max-width: 480px) {
   .hotel-dest-input { font-size: 1.1rem; }
-  .hotel-dest-icon { width: 38px; height: 38px; }
+  .hotel-dest-box { padding: 0.7rem 0.85rem 0.75rem 1.1rem; }
+  .hotel-dest-row { gap: 0.6rem; }
+  .hotel-dest-input::placeholder { font-size: 0.92rem; }
+  .hotel-dest-icon { width: 36px; height: 36px; border-radius: 11px; }
+  .hotel-dest-text { min-height: 36px; }
 }
 
 /* Hotel results: count line while pages 2..5 load (App.jsx searchHotels) */

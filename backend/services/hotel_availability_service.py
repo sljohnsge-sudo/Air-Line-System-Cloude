@@ -127,6 +127,16 @@ def parse_availability_offers(raw_response: dict) -> list[dict]:
     offers = []
     response = raw_response.get("CatalogOfferingsHospitalityResponse", raw_response)
     catalog_offerings = response.get("CatalogOfferings", {}) or {}
+    # Travelport's own rate from each hotel's currency into the requested one
+    # (requestedCurrency) — e.g. AED -> LKR 91.610396645. Hotel payments are
+    # charged in that currency at exactly this rate (services/hotel_checkout).
+    rates = {}
+    for conv in response.get("CurrencyRateConversion", []) or []:
+        src = (conv.get("SourceCurrency") or {}).get("value")
+        tgt = (conv.get("TargetCurrency") or {}).get("value")
+        rate = (conv.get("ConversionRate") or {}).get("value")
+        if src and tgt and rate:
+            rates[src.upper()] = {"currency": tgt.upper(), "rate": float(rate)}
 
     for offering in catalog_offerings.get("CatalogOffering", []) or []:
         price = offering.get("Price", {}) or {}
@@ -200,6 +210,11 @@ def parse_availability_offers(raw_response: dict) -> list[dict]:
             "meals": meals,
             "guarantee": [g.get("guaranteeType") for g in (terms.get("Guarantee") or []) if g.get("guaranteeType")],
             "nightly": nightly,
+            # {"currency": "LKR", "rate": 91.61, "total": 29992.41} — the total in
+            # the requested currency at Travelport's rate (None when not sent).
+            "converted": ({**rates[currency_code.upper()],
+                           "total": round(float(price.get("TotalPrice", 0) or 0) * rates[currency_code.upper()]["rate"], 2)}
+                          if currency_code and currency_code.upper() in rates else None),
             "raw_terms": terms,
         })
 

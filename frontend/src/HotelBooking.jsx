@@ -10,6 +10,11 @@ import './HotelBooking.css';
 // here is sample data; a value Travelport does not return is simply not shown.
 
 const API_BASE = '/api';
+// Hotels are paid on their own, by card, in LKR: Travelport is asked for LKR
+// (requestedCurrency) and sends its own rate from the hotel's currency, which
+// is exactly what the customer is charged (backend services/hotel_checkout).
+const PAY_CURRENCY = 'LKR';
+const CHECKOUT_KEY = 'hb_checkout';
 
 const isoDate = (d) => d.toISOString().split('T')[0];
 const addDays = (iso, n) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return isoDate(d); };
@@ -82,7 +87,7 @@ const photosForRoom = (roomName, roomPhotos) => {
 const Stars = ({ n }) => (n > 0 ? <span className="hb-stars" aria-label={`${n} star hotel`}>{'★'.repeat(Math.round(n))}</span> : null);
 
 function Steps({ step }) {
-  const items = [['hotel', 'Choose room'], ['guest', 'Your details'], ['review', 'Review & confirm']];
+  const items = [['hotel', 'Choose room'], ['guest', 'Your details'], ['review', 'Review & pay']];
   const at = items.findIndex(([k]) => k === step);
   return (
     <ol className="hb-steps">
@@ -209,7 +214,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         location_type: 'cityIATACode', location_value: destination, check_in_date: checkIn, check_out_date: checkOut,
-        adults, rooms, children_ages: childAges.length ? childAges : null,
+        adults, rooms, children_ages: childAges.length ? childAges : null, currency: PAY_CURRENCY,
       }),
     })
       .then(jsonOrThrow)
@@ -284,7 +289,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chain_code: h.chain_code, property_code: h.property_code, check_in_date: query.checkIn, check_out_date: query.checkOut,
-        adults: query.adults, rooms: query.rooms, children_ages: query.childAges.length ? query.childAges : null,
+        adults: query.adults, rooms: query.rooms, children_ages: query.childAges.length ? query.childAges : null, currency: PAY_CURRENCY,
       }),
     })
       .then(jsonOrThrow)
@@ -315,6 +320,9 @@ export default function HotelBooking({ customerProfile, customerToken }) {
         setPriceNotice(`The hotel updated this room's price from ${money(offer.currency, offer.total_price)} to ${money(summary.currency || offer.currency, summary.total_price)}.`);
         chosen = { ...chosen, base_price: summary.base_price ?? chosen.base_price, total_taxes: summary.total_taxes ?? chosen.total_taxes,
           total_fees: 0, total_price: summary.total_price, currency: summary.currency || chosen.currency };
+        if (offer.converted?.rate) {
+          chosen.converted = { ...offer.converted, total: Math.round(Number(summary.total_price) * offer.converted.rate * 100) / 100 };
+        }
       }
       setRoom(chosen);
       setGuest(g => ({
@@ -327,37 +335,69 @@ export default function HotelBooking({ customerProfile, customerToken }) {
     });
   };
 
-  const submitBooking = () => {
+  // Pay first, then the room is reserved: the server re-prices the rate,
+  // sets the LKR amount and sends the customer to NDB's card page. What this
+  // screen needs after the bank sends them back is kept in sessionStorage.
+  const startPayment = () => {
     if (!hotel || !room || !agree) return;
     setBooking(true); setBookError('');
-    fetch(`${API_BASE}/hotels/book`, {
+    fetch(`${API_BASE}/hotels/checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}) },
       body: JSON.stringify({
-        chain_code: room.chain_code || hotel.chain_code,
-        property_code: room.property_code || hotel.property_code,
+        offer_id: room.offer_id,
+        guest,
         property_name: hotel.property_name,
         city: hotel.address?.city,
         country_code: hotel.address?.country_code,
-        booking_code: room.booking_code,
-        check_in_date: query.checkIn,
-        check_out_date: query.checkOut,
-        rooms: query.rooms,
-        currency: room.currency,
-        base_price: room.base_price,
-        total_taxes: (Number(room.total_taxes) || 0) + (Number(room.total_fees) || 0),
-        total_price: room.total_price,
-        room_description: room.room_description,
-        offer_id: room.offer_id,
-        authority: room.authority,
-        travelers: [guest],
+        return_url: `${window.location.origin}/hotels`,
       }),
     })
       .then(jsonOrThrow)
-      .then(d => { setConfirmation(d.booking); setStep('confirmed'); scrollTop(); })
-      .catch(err => setBookError(err.message))
-      .finally(() => setBooking(false));
+      .then(d => {
+        try {
+          sessionStorage.setItem(CHECKOUT_KEY, JSON.stringify({
+            order_ref: d.order_ref, query, guest, hotel: { ...hotel, image_urls: (hotel.image_urls || []).slice(0, 1) },
+            room, rules: rules[room.offer_id]?.summary || null, photo: photos[0]?.url || null,
+          }));
+        } catch { /* storage unavailable: the confirmation still comes from the server */ }
+        window.location.assign(d.payment_page_url);
+      })
+      .catch(err => { setBookError(err.message); setBooking(false); });
   };
+
+  // Back from the bank: /hotels?hotel_order=HTL...&reqid=... (or &payment=cancelled).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const orderRef = params.get('hotel_order');
+    if (!orderRef) return;
+    const reqid = params.get('reqid');
+    const cancelled = params.get('payment') === 'cancelled';
+    window.history.replaceState({}, '', window.location.pathname);
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(CHECKOUT_KEY) || 'null'); } catch { saved = null; }
+    if (saved && saved.order_ref !== orderRef) saved = null;
+    if (saved) {
+      setQuery(saved.query); setHotel(saved.hotel); setRoom(saved.room); setGuest(saved.guest);
+      if (saved.rules) setRules({ [saved.room.offer_id]: { summary: saved.rules } });
+    }
+    if (cancelled || !reqid) {
+      fetch(`${API_BASE}/hotels/checkout/${encodeURIComponent(orderRef)}/cancel`, { method: 'POST' }).catch(() => {});
+      if (saved) { setStep('review'); setAgree(false); }
+      setBookError('Payment was cancelled - nothing was charged and no room was reserved.');
+      return;
+    }
+    setStep('paying');
+    fetch(`${API_BASE}/hotels/checkout/${encodeURIComponent(orderRef)}/complete`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reqid }),
+    })
+      .then(jsonOrThrow)
+      .then(d => {
+        try { sessionStorage.removeItem(CHECKOUT_KEY); } catch { /* ignore */ }
+        setConfirmation({ ...d.order, photo: saved?.photo || null }); setStep('confirmed');
+      })
+      .catch(err => { setBookError(err.message); setStep('payfail'); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const roomRules = room ? rules[room.offer_id]?.summary : null;
   const photos = useMemo(() => {
@@ -409,7 +449,13 @@ export default function HotelBooking({ customerProfile, customerToken }) {
       {(Number(room.total_taxes) > 0 || Number(room.total_fees) > 0) && (
         <div><span>Taxes and fees</span><span>{money(room.currency, (Number(room.total_taxes) || 0) + (Number(room.total_fees) || 0))}</span></div>
       )}
-      <div className="hb-price-total"><span>Total</span><span>{money(room.currency, room.total_price)}</span></div>
+      <div className="hb-price-total"><span>Hotel total</span><span>{money(room.currency, room.total_price)}</span></div>
+      {room.converted?.currency === PAY_CURRENCY && room.currency !== PAY_CURRENCY && (
+        <div className="hb-price-pay"><span>You pay</span><span>{money(PAY_CURRENCY, room.converted.total)}</span></div>
+      )}
+      {room.converted?.rate && room.currency !== PAY_CURRENCY && (
+        <p className="hb-rate-note">1 {room.currency} = {Number(room.converted.rate).toFixed(4)} {PAY_CURRENCY} (Travelport rate)</p>
+      )}
     </div>
   );
 
@@ -449,22 +495,52 @@ export default function HotelBooking({ customerProfile, customerToken }) {
   );
 
   // ── Screens ──
+  if (step === 'paying') {
+    return (
+      <div className="hb" ref={topRef}>
+        <section className="hb-confirm glass-panel">
+          <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
+          <h2>Confirming your payment and reserving the room…</h2>
+          <p className="hb-muted">Please keep this page open. It takes a few seconds.</p>
+        </section>
+      </div>
+    );
+  }
+
+  if (step === 'payfail') {
+    return (
+      <div className="hb" ref={topRef}>
+        <section className="hb-confirm glass-panel hb-confirm-fail">
+          <div className="hb-confirm-icon" aria-hidden="true">!</div>
+          <h2>We couldn't complete this hotel booking</h2>
+          <p>{bookError}</p>
+          <div className="hb-confirm-actions">
+            <button type="button" className="btn btn-primary" onClick={() => { setBookError(''); setRoom(null); setHotel(null); setStep('results'); }}>Back to hotel search</button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   if (step === 'confirmed' && confirmation) {
+    const c = confirmation;
     return (
       <div className="hb" ref={topRef}>
         <section className="hb-confirm glass-panel">
           <div className="hb-confirm-icon" aria-hidden="true">✓</div>
-          <h2>Your booking is confirmed</h2>
-          <p className="hb-muted">A confirmation has been recorded for {confirmation.guest_name}{confirmation.guest_email ? ` (${confirmation.guest_email})` : ''}.</p>
+          <h2>Paid and confirmed</h2>
+          <p className="hb-muted">Thank you{c.guest_name ? `, ${c.guest_name}` : ''}. Your room at {c.property_name} is reserved.</p>
           <div className="hb-confirm-grid">
-            <div><span>Hotel confirmation no.</span><strong>{confirmation.confirmation_number || '—'}</strong></div>
-            <div><span>Booking reference (PNR)</span><strong>{confirmation.locator_code || '—'}</strong></div>
-            <div><span>Hotel</span><strong>{confirmation.property_name}</strong></div>
-            <div><span>Room</span><strong>{cleanRoomName(confirmation.room_description)}</strong></div>
-            {room?.authority && <div><span>Rate source</span><strong>{room.authority} · {SOURCES[room.authority] || room.authority}</strong></div>}
-            <div><span>Check-in</span><strong>{fmtDate(confirmation.check_in_date)}{roomRules?.check_in_time ? `, from ${roomRules.check_in_time}` : ''}</strong></div>
-            <div><span>Check-out</span><strong>{fmtDate(confirmation.check_out_date)}{roomRules?.check_out_time ? `, until ${roomRules.check_out_time}` : ''}</strong></div>
-            <div><span>Total</span><strong>{money(confirmation.currency, confirmation.total_price)}</strong></div>
+            <div><span>Hotel confirmation no.</span><strong>{c.confirmation_number || '—'}</strong></div>
+            <div><span>Booking reference (PNR)</span><strong>{c.locator_code || '—'}</strong></div>
+            <div><span>Hotel</span><strong>{c.property_name}</strong></div>
+            <div><span>Room</span><strong>{cleanRoomName(c.room_description)}</strong></div>
+            {c.rate_source && <div><span>Rate source</span><strong>{c.rate_source} · {SOURCES[c.rate_source] || c.rate_source}</strong></div>}
+            <div><span>Check-in</span><strong>{fmtDate(c.check_in_date)}{roomRules?.check_in_time ? `, from ${roomRules.check_in_time}` : ''}</strong></div>
+            <div><span>Check-out</span><strong>{fmtDate(c.check_out_date)}{roomRules?.check_out_time ? `, until ${roomRules.check_out_time}` : ''}</strong></div>
+            <div><span>Paid by card</span><strong>{money(c.charge_currency, c.charge_amount)}</strong></div>
+            {c.hotel_currency && c.hotel_currency !== c.charge_currency && <div><span>Hotel total</span><strong>{money(c.hotel_currency, c.hotel_total)}</strong></div>}
+            <div><span>Payment reference</span><strong>{c.order_ref}</strong></div>
             {roomRules && <div><span>Cancellation</span><strong>{cancelInfo(roomRules) || 'See hotel policy'}</strong></div>}
           </div>
           <div className="hb-confirm-actions">
@@ -477,6 +553,8 @@ export default function HotelBooking({ customerProfile, customerToken }) {
   }
 
   if ((step === 'guest' || step === 'review') && room && hotel) {
+    const payAmount = room.currency === PAY_CURRENCY ? Number(room.total_price)
+      : (room.converted?.currency === PAY_CURRENCY ? Number(room.converted.total) : 0);
     const guestOk = guest.first_name.trim() && guest.last_name.trim() && /\S+@\S+\.\S+/.test(guest.email) && guest.phone.replace(/\D/g, '').length >= 7;
     return (
       <div className="hb" ref={topRef}>
@@ -511,7 +589,8 @@ export default function HotelBooking({ customerProfile, customerToken }) {
                   <div><span>Guest</span><strong>{guest.first_name} {guest.last_name}</strong><em>{guest.email} · {guest.phone}</em></div>
                   <div><span>Stay</span><strong>{fmtDate(query.checkIn)} – {fmtDate(query.checkOut)}</strong><em>{plural(query.nights, 'night')}, {plural(query.rooms, 'room')}</em></div>
                   <div><span>Room</span><strong>{cleanRoomName(room.room_description)}</strong><em>{room.rate_name || (room.meals?.length ? `Includes ${room.meals.join(', ').toLowerCase()}` : 'Room only')}</em></div>
-                  <div><span>Total</span><strong>{money(room.currency, room.total_price)}</strong><em>incl. taxes and fees shown by the hotel</em></div>
+                  <div><span>You pay</span><strong>{payAmount ? money(PAY_CURRENCY, payAmount) : money(room.currency, room.total_price)}</strong>
+                    <em>{payAmount && room.currency !== PAY_CURRENCY ? `Hotel total ${money(room.currency, room.total_price)}, incl. taxes` : 'incl. taxes and fees shown by the hotel'}</em></div>
                 </div>
                 {roomRules?.cancel_penalties?.length > 0 && (
                   <div className="hb-policy">
@@ -531,9 +610,11 @@ export default function HotelBooking({ customerProfile, customerToken }) {
                   <span>I have checked the guest details, the room and the cancellation policy above.</span>
                 </label>
                 {bookError && <div className="error-banner">{bookError}</div>}
-                <button type="button" className="btn btn-primary hb-wide hb-confirm-btn" disabled={!agree || booking} onClick={submitBooking}>
-                  {booking ? 'Confirming with the hotel…' : `Confirm booking · ${money(room.currency, room.total_price)}`}
+                {!payAmount && <div className="hb-notice">This room can't be paid online in {PAY_CURRENCY}. Please choose another room.</div>}
+                <button type="button" className="btn btn-primary hb-wide hb-confirm-btn" disabled={!agree || booking || !payAmount} onClick={startPayment}>
+                  {booking ? 'Opening the secure payment page…' : `Pay ${money(PAY_CURRENCY, payAmount)} & book`}
                 </button>
+                <p className="hb-pay-note">You'll pay on NDB Bank's secure card page. The room is reserved with the hotel only after your payment succeeds. This hotel payment is separate from any flight booking.</p>
               </div>
             )}
           </div>
@@ -648,6 +729,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
                     <div className="hb-room-price">
                       <strong>{money(o.currency, o.total_price)}</strong>
                       <span>total for {plural(query.nights, 'night')}{query.rooms > 1 ? `, ${plural(query.rooms, 'room')}` : ''}</span>
+                      {o.converted?.currency === PAY_CURRENCY && o.currency !== PAY_CURRENCY && <span className="hb-lkr">≈ {money(PAY_CURRENCY, o.converted.total)}</span>}
                       {Number(o.total_taxes) > 0 && <span>incl. {money(o.currency, o.total_taxes)} taxes</span>}
                       {query.nights > 1 && <span>≈ {money(o.currency, Number(o.total_price) / query.nights)} per night</span>}
                       <button type="button" className="btn btn-primary" disabled={r?.loading} onClick={() => chooseRoom(o)}>
@@ -721,6 +803,7 @@ export default function HotelBooking({ customerProfile, customerToken }) {
       {searchBar}
 
       {searchError && <div className="error-banner">{searchError}</div>}
+      {bookError && !searchError && <div className="hb-notice">{bookError}</div>}
       {searching && <div className="loading-state"><div className="spinner"></div><p>Searching live hotel availability…</p></div>}
 
       {query && !searching && !searchError && (

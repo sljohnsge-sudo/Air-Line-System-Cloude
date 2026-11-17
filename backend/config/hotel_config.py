@@ -53,26 +53,26 @@ class HotelConfig:
     # card used solely to satisfy Travelport's booking requirement — it must
     # be entered directly into .env by the agency, never typed or generated
     # by this codebase.
-    GUARANTEE_CARD_HOLDER_NAME: str = os.getenv("HOTEL_GUARANTEE_CARD_HOLDER_NAME", "")
-    GUARANTEE_CARD_NUMBER: str = os.getenv("HOTEL_GUARANTEE_CARD_NUMBER", "")
-    GUARANTEE_CARD_TYPE: str = os.getenv("HOTEL_GUARANTEE_CARD_TYPE", "Credit")
-    GUARANTEE_CARD_CODE: str = os.getenv("HOTEL_GUARANTEE_CARD_CODE", "")  # e.g. VI, MC, AX
-    GUARANTEE_CARD_EXPIRE: str = os.getenv("HOTEL_GUARANTEE_CARD_EXPIRE", "")  # MMYY
-    GUARANTEE_CARD_CVV: str = os.getenv("HOTEL_GUARANTEE_CARD_CVV", "")
-    GUARANTEE_CARD_BILLING_COUNTRY: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_COUNTRY", "LK")
-    GUARANTEE_CARD_BILLING_POSTAL: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_POSTAL", "")
-    GUARANTEE_CARD_BILLING_CITY: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_CITY", "")
-    GUARANTEE_CARD_BILLING_ADDRESS: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_ADDRESS", "")
+    GUARANTEE_CARD_HOLDER_NAME: str = os.getenv("HOTEL_GUARANTEE_CARD_HOLDER_NAME", "").strip()
+    GUARANTEE_CARD_NUMBER: str = os.getenv("HOTEL_GUARANTEE_CARD_NUMBER", "").strip()
+    GUARANTEE_CARD_TYPE: str = os.getenv("HOTEL_GUARANTEE_CARD_TYPE", "Credit").strip()
+    GUARANTEE_CARD_CODE: str = os.getenv("HOTEL_GUARANTEE_CARD_CODE", "").strip()  # e.g. VI, MC, AX
+    GUARANTEE_CARD_EXPIRE: str = os.getenv("HOTEL_GUARANTEE_CARD_EXPIRE", "").strip()  # MMYY
+    GUARANTEE_CARD_CVV: str = os.getenv("HOTEL_GUARANTEE_CARD_CVV", "").strip()
+    GUARANTEE_CARD_BILLING_COUNTRY: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_COUNTRY", "LK").strip()
+    GUARANTEE_CARD_BILLING_POSTAL: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_POSTAL", "").strip()
+    GUARANTEE_CARD_BILLING_CITY: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_CITY", "").strip()
+    GUARANTEE_CARD_BILLING_ADDRESS: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_ADDRESS", "").strip()
     # Confirmed present in Travelport's own Create Reservation examples
     # (https://developer.travelport.com/apis/stays/unified-check-out/createhotelreservation)
     # but optional — only sent if configured, same as the fields above.
-    GUARANTEE_CARD_BILLING_STREET_NUMBER: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_STREET_NUMBER", "")
-    GUARANTEE_CARD_BILLING_STATE_PROV: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_STATE_PROV", "")
-    GUARANTEE_CARD_BILLING_COUNTY: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_COUNTY", "")
-    GUARANTEE_CARD_BILLING_PHONE_COUNTRY_CODE: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_COUNTRY_CODE", "")
-    GUARANTEE_CARD_BILLING_PHONE_AREA_CODE: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_AREA_CODE", "")
-    GUARANTEE_CARD_BILLING_PHONE_NUMBER: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_NUMBER", "")
-    GUARANTEE_CARD_BILLING_EMAIL: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_EMAIL", "")
+    GUARANTEE_CARD_BILLING_STREET_NUMBER: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_STREET_NUMBER", "").strip()
+    GUARANTEE_CARD_BILLING_STATE_PROV: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_STATE_PROV", "").strip()
+    GUARANTEE_CARD_BILLING_COUNTY: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_COUNTY", "").strip()
+    GUARANTEE_CARD_BILLING_PHONE_COUNTRY_CODE: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_COUNTRY_CODE", "").strip()
+    GUARANTEE_CARD_BILLING_PHONE_AREA_CODE: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_AREA_CODE", "").strip()
+    GUARANTEE_CARD_BILLING_PHONE_NUMBER: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_PHONE_NUMBER", "").strip()
+    GUARANTEE_CARD_BILLING_EMAIL: str = os.getenv("HOTEL_GUARANTEE_CARD_BILLING_EMAIL", "").strip()
 
     @classmethod
     def guarantee_card_configured(cls) -> bool:
