@@ -4,10 +4,17 @@
 // issues a ticket (Tick and Book rule: bookings are only ever made by a
 // person, by hand).
 //
-//   customer-site  smoke checks + sign-in tests for the website and its API
-//   admin-site     smoke checks + sign-in and staff-role tests for the admin site
-//   cmb-routes     CMB route test: 52 destinations / 448 flights from the
-//                  7 Nov Excel, Travelport SEARCH ONLY (ROUTE_TESTS=1)
+// One group with every test (the Playwright interface shows only the first
+// group by default, so the tests are not split into groups). The files, in
+// the order the interface lists them:
+//   01-website                    smoke checks for the customer website
+//   02-website-sign-in            sign-in tests for the website and its API
+//   03-admin-site                 smoke checks for the admin site
+//   04-admin-sign-in-and-roles    sign-in and staff-role tests for the admin site
+//   05-cmb-routes                 CMB route test: 52 destinations / 448 flights
+//                                 from the 7 Nov Excel, Travelport SEARCH ONLY
+//                                 (runs only with ROUTE_TESTS=1)
+// Each file sets its own site (test.use baseURL, see tests/sites.mjs).
 //
 // Sign-in tests with real accounts use temporary test accounts made by
 // e2e/tools/auth_accounts.py on the laptop (skipped when they don't exist).
@@ -21,11 +28,9 @@
 // CMB route test), deploy/playwright-ui.bat for the interface.
 import { defineConfig, devices } from '@playwright/test';
 
-const SITE_URL = (process.env.SITE_URL || 'http://localhost:5176').replace(/\/$/, '');
-const ADMIN_URL = (process.env.ADMIN_URL || 'http://localhost:5177').replace(/\/$/, '');
-
 export default defineConfig({
   testDir: './tests',
+  testMatch: /\.spec\.mjs$/,
   timeout: 45_000,
   expect: { timeout: 15_000 },
   retries: 1,
@@ -38,11 +43,4 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [
-    { name: 'customer-site', testMatch: /(customer|auth-customer)\.spec\.mjs/, use: { baseURL: SITE_URL } },
-    { name: 'admin-site', testMatch: /(admin|auth-admin)\.spec\.mjs/, use: { baseURL: ADMIN_URL } },
-    // A missing airline is a result, not a hiccup: no retries (a retry would
-    // only re-read the saved search).
-    { name: 'cmb-routes', testMatch: /cmb-routes\.spec\.mjs/, retries: 0, use: { baseURL: SITE_URL, trace: 'off', screenshot: 'off' } },
-  ],
 });

@@ -2,6 +2,9 @@
 // no booking, no payment, no sign-in (see playwright.config.mjs). One live
 // search only when SMOKE_SEARCH=1.
 import { test, expect } from '@playwright/test';
+import { SITE_URL } from './sites.mjs';
+
+test.use({ baseURL: SITE_URL });
 
 test.describe('customer site', () => {
   test('home page opens with the flight search form', async ({ page }) => {

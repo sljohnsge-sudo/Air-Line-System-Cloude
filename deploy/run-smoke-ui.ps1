@@ -69,7 +69,8 @@ if (-not $ready) {
 }
 Write-Host ""
 Write-Host "Ready: $url" -ForegroundColor Green
-Write-Host "  Left side: every test, in three groups (customer-site, admin-site, cmb-routes)."
+Write-Host "  Left side: every test (537), in five files: 01 website, 02 website sign-in, 03 admin site,"
+Write-Host "  04 admin sign-in and roles, 05 CMB routes (52 destinations). Click the > arrows to open them."
 Write-Host "  Press the play button at the top to run all, or the one next to a test or group."
 Write-Host "  Click a test to see its steps and details (for routes: fare, bags, seat, meals)."
 Write-Host "Close it:  powershell -ExecutionPolicy Bypass -File deploy\run-smoke-ui.ps1 -Stop"

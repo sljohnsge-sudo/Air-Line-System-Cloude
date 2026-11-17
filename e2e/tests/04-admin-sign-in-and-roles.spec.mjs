@@ -5,8 +5,9 @@
 // accounts from e2e/tools/auth_accounts.py and are skipped without them.
 import { test, expect, request as pwRequest } from '@playwright/test';
 import { testAccounts, forgedToken, tamperedToken, tokenPayload, bearer } from './auth-helpers.mjs';
+import { SITE_URL, ADMIN_URL } from './sites.mjs';
 
-const SITE_URL = (process.env.SITE_URL || 'http://localhost:5176').replace(/\/$/, '');
+test.use({ baseURL: ADMIN_URL });
 const STAFF_APIS = ['/api/admin/go-live-switches', '/api/admin/pricing-settings', '/api/admin/admins',
   '/api/bookings/history', '/api/admin/reports/summary'];
 const run = Date.now().toString(36);

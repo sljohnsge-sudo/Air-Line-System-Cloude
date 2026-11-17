@@ -5,6 +5,9 @@
 // e2e/tools/auth_accounts.py and are skipped when it isn't there (server).
 import { test, expect } from '@playwright/test';
 import { testAccounts, forgedToken, tamperedToken, tokenPayload, bearer } from './auth-helpers.mjs';
+import { SITE_URL } from './sites.mjs';
+
+test.use({ baseURL: SITE_URL });
 
 const CUSTOMER_APIS = ['/api/customers/me/profile', '/api/customers/me/bookings', '/api/customers/me/saved-travellers',
   '/api/customers/me/loyalty', '/api/customers/me/interests', '/api/customers/me/cancellation-requests'];

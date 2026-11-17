@@ -1,6 +1,9 @@
 // Admin site (admin.tickandbook.com) — read-only smoke checks. Never signs
 // in with a real account, never changes a setting (see playwright.config.mjs).
 import { test, expect } from '@playwright/test';
+import { ADMIN_URL } from './sites.mjs';
+
+test.use({ baseURL: ADMIN_URL });
 
 test.describe('admin site', () => {
   test('opens on the staff sign-in', async ({ page }) => {

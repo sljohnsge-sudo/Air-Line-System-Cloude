@@ -20,6 +20,12 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SITE_URL } from './sites.mjs';
+
+// The website; a missing airline is a result, not a hiccup: no retries (a
+// retry would only re-read the saved search), no traces or screenshots.
+test.use({ baseURL: SITE_URL, trace: 'off', screenshot: 'off' });
+test.describe.configure({ retries: 0 });
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const data = JSON.parse(fs.readFileSync(path.join(here, '..', 'data', 'cmb-routes-2026-11-07.json'), 'utf8'));
