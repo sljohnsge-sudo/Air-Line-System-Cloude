@@ -51,7 +51,7 @@ Write-Host "Playwright interface: customer site $SiteUrl, admin site $AdminUrl, 
 docker run -d --name $name --ipc=host -p "127.0.0.1:${Port}:${Port}" `
     -e "SITE_URL=$SiteUrl" -e "ADMIN_URL=$AdminUrl" -e "SMOKE_SEARCH=$searchFlag" `
     -e "ROUTE_TESTS=1" -e "ROUTE_RUN_ID=$RunId" `
-    -v "${repo}\e2e:/e2e" -w /e2e $image `
+    -v "${repo}\e2e:/e2e" -v "${repo}\backend\main.py:/backend/main.py:ro" -w /e2e $image `
     bash -lc "npm install --no-audit --no-fund --loglevel=error && npx playwright test --ui-host=0.0.0.0 --ui-port=$Port" | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host "Could not start it - is Docker Desktop running?" -ForegroundColor Red; exit 1 }
 

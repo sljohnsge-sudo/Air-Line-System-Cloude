@@ -23,5 +23,5 @@ echo "Playwright: customer site $SITE_URL, admin site $ADMIN_URL${SMOKE_SEARCH:+
 docker run --rm --network host --ipc=host \
   -e SITE_URL="$SITE_URL" -e ADMIN_URL="$ADMIN_URL" -e SMOKE_SEARCH="$SMOKE_SEARCH" \
   -e ROUTE_TESTS="$ROUTE_TESTS" -e ROUTE_RUN_ID="$ROUTE_RUN_ID" -e CI=1 \
-  -v "$PWD/e2e:/e2e" -w /e2e "$IMAGE" \
+  -v "$PWD/e2e:/e2e" -v "$PWD/backend/main.py:/backend/main.py:ro" -w /e2e "$IMAGE" \
   bash -lc "npm install --no-audit --no-fund --loglevel=error && npx playwright test"

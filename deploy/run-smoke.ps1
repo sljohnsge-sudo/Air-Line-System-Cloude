@@ -39,7 +39,7 @@ if ($Accounts) { & $py (Join-Path $repo 'e2e\tools\auth_accounts.py') create; if
 try {
     & docker run --rm --ipc=host -e "SITE_URL=$SiteUrl" -e "ADMIN_URL=$AdminUrl" -e "SMOKE_SEARCH=$searchFlag" `
         -e "ROUTE_TESTS=$routesFlag" -e "ROUTE_RUN_ID=$RunId" -e CI=1 `
-        -v "${repo}\e2e:/e2e" -w /e2e $image `
+        -v "${repo}\e2e:/e2e" -v "${repo}\backend\main.py:/backend/main.py:ro" -w /e2e $image `
         bash -lc "npm install --no-audit --no-fund --loglevel=error && npx playwright test $testsArg"
     $code = $LASTEXITCODE
 } finally {

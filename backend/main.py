@@ -233,6 +233,8 @@ STAFF_ROUTE_PATTERNS = [re.compile(p) for p in (
     r"^/api/invoice/(report|price-raw/.+)$",
     r"^/api/payments/complete$",
     r"^/api/amadeus-bookings/[A-Za-z0-9-]+/issue-ticket$",
+    # Hotel booking history, live lookup and cancel: staff only (17/11/2026).
+    r"^/api/hotels/(history|retrieve/[A-Za-z0-9]+|[A-Za-z0-9]+/cancel)$",
 )]
 ADMIN_SITE_EXTRA_ROUTES = [re.compile(p) for p in (
     r"^/$",
@@ -7604,8 +7606,11 @@ def hotel_book_offer(request: HotelOfferBookingRequest, customer_id: Optional[in
 
 
 @app.get("/api/hotels/retrieve/{locator_code}")
-def hotel_retrieve(locator_code: str):
-    """STEP 3 — Retrieve a hotel reservation live from Travelport, refreshing the local cache."""
+def hotel_retrieve(locator_code: str, _admin: dict = Depends(auth.get_current_admin)):
+    """STEP 3 — Retrieve a hotel reservation live from Travelport, refreshing the local cache.
+    17/11/2026 (security, found by the Playwright API tests): staff only, on
+    the admin site. It was open to anyone with a locator and returned the
+    guest's name, email and phone; nothing in the website uses it."""
     try:
         raw = hotel_booking_service.retrieve_hotel_reservation(locator_code)
         parsed = hotel_booking_service.parse_hotel_reservation(raw)
@@ -7625,8 +7630,12 @@ def hotel_retrieve(locator_code: str):
 
 
 @app.get("/api/hotels/history")
-def hotel_booking_history(email: Optional[str] = Query(None, description="Filter by guest email")):
-    """Local cache of hotel bookings — mirrors GET /api/bookings/history for flights."""
+def hotel_booking_history(email: Optional[str] = Query(None, description="Filter by guest email"),
+                          _admin: dict = Depends(auth.get_current_admin)):
+    """Local cache of hotel bookings — mirrors GET /api/bookings/history for flights.
+    17/11/2026 (security, found by the Playwright API tests): staff only, on
+    the admin site, like the flight history. It was open to anyone and listed
+    every hotel booking with the guest's name, email and phone."""
     try:
         bookings = hotel_database.get_all_hotel_bookings(email)
         return {"bookings": bookings, "count": len(bookings)}
@@ -7641,8 +7650,13 @@ def hotel_customer_my_bookings(current: dict = Depends(auth.get_current_customer
 
 
 @app.post("/api/hotels/{locator_code}/cancel")
-def hotel_cancel(locator_code: str, supplier_locator: str = Query(..., description="Supplier locator from the booking confirmation")):
-    """STEP 4 — Cancel a hotel reservation on Travelport and update the local cache."""
+def hotel_cancel(locator_code: str, supplier_locator: str = Query(..., description="Supplier locator from the booking confirmation"),
+                 admin: dict = Depends(auth.get_current_admin)):
+    """STEP 4 — Cancel a hotel reservation on Travelport and update the local cache.
+    17/11/2026 (security, found by the Playwright API tests): staff only, on
+    the admin site, like the flight cancel. Anyone with the two locators could
+    cancel a guest's hotel booking."""
+    logger.warning(f"Hotel booking {locator_code} cancel requested by {admin.get('sub')}")
     try:
         hotel_booking_service.cancel_hotel_reservation(locator_code, supplier_locator)
     except HotelApiError as e:
